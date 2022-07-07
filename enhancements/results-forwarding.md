@@ -1,7 +1,8 @@
 ---
 title: results-forwarding
 authors:
-  - TBD
+  - JAORMX
+  - rhmdnd
 reviewers: # Include a comment about what domain expertise a reviewer is expected to bring and what area of the enhancement you expect them to focus on. For example: - "@networkguru, for networking aspects, please look at IP bootstrapping aspect"
   - TBD
 approvers:
@@ -20,12 +21,12 @@ superseded-by:
   - "/enhancements/our-past-effort.md"
 ---
 
-# Compliance Results Forwarding / Storage
+# Compliance Results Forwarding
 
 ## Summary
 
 This will allow for a flexible and extendible mechanism to forward compliance
-results and evidence to centralized stores, respectively.
+results to a centralized service or storage endpoint.
 
 ## Motivation
 
@@ -33,32 +34,44 @@ While the current approach of generating results and remediations via CRDs
 has worked so far for Compliance Operator, this has several draw-backs that
 prove painful in multi-cluster environments:
 
-* `ComplianceCheckResults` and `ComplianceRemediations` exist in the cluster
-  that's the target for compliance checks, when expanding operations to multiple
-  clusters, this becomes cumbersome to check.
+* `ComplianceCheckResults` and `ComplianceRemediations` are specific to the
+  cluster being scanned. Comparing these CRDs across multiple clusters is
+  cumbersome without some sort of filtering mechanism.
 
-* `ComplianceCheckResults` and `ComplianceRemediations` take space in Etcd. This
+* `ComplianceCheckResults` and `ComplianceRemediations` take space in etcd. This
   space may be better used by other operation-critical components in
-  resource-constrained deployments.
+  resource-constrained deployments. These resources also scale with deployment
+  infrastructure size. This can be a significant aspect to consider when
+  running the compliance operator, or providing useful data for evidence and
+  auditing.
   
-* By using CRDs we depend on Etcd, which is not a generic database
-  and doesn't provide all the assurances that one would expect:
+* By using CRDs we depend on etcd, which is not a generic database and doesn't
+  provide all the assurances that one would expect when querying persistent
+  data stores. The following are a few short-comings of using etcd as a
+  persistent store for compliance data:
   
   - It's non-trivial to do disaster recovery: An object snapshot contains
-    CRD metadata which is hard to replicate (e.g. object UUID) and is irrelevant
-    for compliance checks. Full etcd restore is a tedious and complicated process [1].
+    CRD metadata which contains uniquely generated information (e.g., like
+    UUIDs), making it hard to reproduce and replicate. SOme of this data is
+    also irrelevant to compliance checks. Full etcd restore is a tedious and
+    complicated
+    [process](https://platform9.com/kb/kubernetes/restore-etcd-cluster-from-quorum-loss).
 
-  - Values are limited to a size of 1.5Mb which makes evidence storage
-    tricky and expensive. e.g. we currently use one PVC per `ComplianceScan`
-    for raw results which may be considered evidence.
+  - Values are limited to a size of 1.5Mb, imposing a limit on the data that
+    can be persisted in etcd. This is especially applicable to evidence
+    storage, which will be covered in a separate enhancement proposal.
 
-  - The current CRDs may be very verbose, which may result in big objects, which
-    may incur a penalty in performance and scalability for Kubernetes. [2]
+  - The current CRDs may be very verbose, resulting in large objects, which
+    may interfer with known scalability
+    [limitations](https://kubernetes.io/blog/2020/09/02/scaling-kubernetes-networking-with-endpointslices/#scalability-limitations-of-the-endpoints-api)
+    in Kubernetes, causing performance and scalability issues.
 
-While projects such as StackRox [3] have successfully integrated Compliance Operator
-via CRDs, having a more lightweight approach 
+While projects such as [StackRox](https://www.stackrox.io/) have successfully
+integrated Compliance Operator using CRDs as the primary interface, we can
+improve the experience of aggregating results into a single place by providing
+a forwarding mechanism.
 
-By sending results and evidences to a central store, we'll be able to:
+By sending results to a central store, we'll be able to:
 
 * View Compliance results and suggested fixes for multiple clusters in one place.
 
@@ -66,8 +79,12 @@ By sending results and evidences to a central store, we'll be able to:
   store. e.g. a relational database or a cloud-managed database.
 
 The Compliance Operator also stores raw results (currently ARF) in a PVC by default.
-While this is useful, it has proven problematic in multiple deployments given that
-not everybody has access to persistent storage in their clusters.
+While this is useful, not everyone has access to persistent storage. This issue
+is apparent in shared testing clusters where automation attempts to delete the
+Compliance Operator namespace, only to have the request fail because of a
+failed physical volume allocation.
+
+#### Gathering Evidence
 
 ARF files contain a lot of information about the state of the system where the
 compliance scan was effectuated. We could take the view that this is "evidence"
@@ -79,16 +96,24 @@ In the future, we could expand the "evidence" gathered, e.g. for Kubernetes
 compliance scans we could simply compress the gathered objects the
 `api-resource-collector` downloads and send that too.
 
+While evidence is important to consider, we're going to dedicated a separate
+enhancement to that problem. This particular enhancement is focused on
+forwarding results.
+
 ### Goals
 
-* Provide a generic way to implement compliance result forwarding for Compliance Operator.
-  This should be flexible enough to accommodate the current implementation (CRDs and PVCs),
-  while allowing for custom forwarder implementations.
+* Provide a generic way to implement compliance result forwarding for
+  Compliance Operator. This should be flexible enough to accommodate the
+  current implementation (CRDs and PVCs), while allowing for custom forwarding
+  implementations.
 
-* Implement and define a stable API for forwarder implementations.
+* Define and implement a stable API for forwarder implementations.
 
-* Implement result/remediation CRDs and ARF PVC as reference implementations of the forwarding
-  model.
+* Implement an interface for forwarding result CRDs
+
+* Implement an interface for forwarding remediation CRDs
+
+* Implement a switch to disable in-cluster storage if forwarding is enabled and valid
 
 ### Non-Goals
 
@@ -99,11 +124,20 @@ compliance scans we could simply compress the gathered objects the
 
 ## Proposal
 
-In short, the proposal is to have Compliance Operator *always* forward Compliance results (suggested
-remediations being part of this), as well as evidence (e.g. ARF results). This will require
-changing the **aggregator** to always forward via a GRPC to a configured implementation. The
-**resultserver** then becomes subject to the evidence forwarding provider and will be renamed
-**evidence-persistor**.
+The Compliance Operator will forward compliance results and remediation
+recommendations if the supplied forwarding endpoint is valid. The Compliance
+Operator will also continue to use CRDs and PVCs to store results,
+remediations, and evidence as it does today.
+
+A user may explicitly disable in-cluster storage if forwarding is enabled. The
+Compliance Operator will not support disabling PVC storage without a valid
+forwarding endpoint.
+
+This will require changing the **aggregator** to always forward via a gRPC API
+to a configured implementation. In this case, the **aggregator** will act as a
+gRPC client. The **resultserver** then becomes a gRPC server, subject to the
+evidence forwarding provider and will be renamed **evidence-persistor** and
+responsible for writing results.
 
 Forwarder implementations would be configured via the `ScanSetting` and they'd be called "providers".
 For backwards compatibility, we'd have defaults that would point to the current mode of operation
@@ -246,8 +280,8 @@ in our prow-based pre-existing CI.
 
 New cases with forwarders would be introduced in more light-weight testing
 environments. e.g. we could deploy a KinD cluster via a GitHub action and run
-MinIO [4] to test the s3 provider. We'd then need to provide a reference
-GRPC receiver for the test.
+[MinIO](https://min.io/) to test the s3 provider. We'd then need to provide a
+reference GRPC receiver for the test.
 
 ### Upgrade / Downgrade Strategy
 
@@ -370,10 +404,3 @@ subproject, repos requested, github details, and/or testing infrastructure.
 
 Listing these here allows the community to get the process for these resources
 started right away.
-
-## References
-
-[1] https://platform9.com/kb/kubernetes/restore-etcd-cluster-from-quorum-loss
-[2] https://kubernetes.io/blog/2020/09/02/scaling-kubernetes-networking-with-endpointslices/#scalability-limitations-of-the-endpoints-api
-[3] https://www.stackrox.io/
-[4] https://min.io/
