@@ -18,7 +18,7 @@ require (
 	github.com/google/go-cmp v0.5.5
 	github.com/itchyny/gojq v0.12.4
 	github.com/jaytaylor/html2text v0.0.0-20200412013138-3577fbdbcff7
-	github.com/onsi/ginkgo v1.16.3
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.11.0
 	github.com/openshift/api v0.0.0-20200829102639-8a3a835f1acf
 	github.com/openshift/library-go v0.0.0-20200831114015-2ab0c61c15de
