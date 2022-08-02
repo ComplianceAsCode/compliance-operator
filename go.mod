@@ -10,7 +10,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/clarketm/json v1.15.7
 	github.com/coreos/ignition/v2 v2.9.0
-	github.com/coreos/prometheus-operator v0.38.1-0.20200424145508-7e176fda06cc
+	github.com/coreos/prometheus-operator v0.58.0
 	github.com/dsnet/compress v0.0.1
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-logr/logr v0.4.0
