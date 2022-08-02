@@ -42,7 +42,7 @@ github.com/clarketm/json
 # github.com/coreos/fcct v0.5.0
 github.com/coreos/fcct/base/v0_1
 github.com/coreos/fcct/translate
-# github.com/coreos/go-json v0.0.0-20170920214419-6a2fe990e083
+# github.com/coreos/go-json v0.0.0-20211020211907-c63f628265de
 github.com/coreos/go-json
 # github.com/coreos/go-semver v0.3.0
 github.com/coreos/go-semver/semver
@@ -74,7 +74,7 @@ github.com/coreos/ignition/config/validate
 github.com/coreos/ignition/config/validate/astjson
 github.com/coreos/ignition/config/validate/astnode
 github.com/coreos/ignition/config/validate/report
-# github.com/coreos/ignition/v2 v2.9.0
+# github.com/coreos/ignition/v2 v2.14.0
 ## explicit
 github.com/coreos/ignition/v2/config/merge
 github.com/coreos/ignition/v2/config/shared/errors
@@ -96,7 +96,7 @@ github.com/coreos/prometheus-operator/pkg/apis/monitoring
 github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1
 github.com/coreos/prometheus-operator/pkg/client/versioned/scheme
 github.com/coreos/prometheus-operator/pkg/client/versioned/typed/monitoring/v1
-# github.com/coreos/vcontext v0.0.0-20201120045928-b0e13dab675c
+# github.com/coreos/vcontext v0.0.0-20211021162308-f1dbbca7bef4
 github.com/coreos/vcontext/json
 github.com/coreos/vcontext/path
 github.com/coreos/vcontext/report
@@ -420,7 +420,7 @@ github.com/spf13/afero/mem
 # github.com/spf13/cobra v1.1.3
 ## explicit
 github.com/spf13/cobra
-# github.com/spf13/pflag v1.0.5
+# github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace
 github.com/spf13/pflag
 # github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf
 ## explicit
@@ -429,8 +429,7 @@ github.com/ssor/bom
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/vincent-petithory/dataurl v0.0.0-20191104211930-d1553a71de50
-## explicit
+# github.com/vincent-petithory/dataurl v1.0.0
 github.com/vincent-petithory/dataurl
 # github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778
 github.com/xo/terminfo
