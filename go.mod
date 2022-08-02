@@ -70,6 +70,6 @@ replace (
 
 replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible
 
-replace github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
+replace github.com/docker/docker => github.com/moby/moby v1.13.1 // Required by Helm
 
 replace github.com/gorilla/websocket => github.com/gorilla/websocket v1.4.2
