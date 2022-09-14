@@ -52,7 +52,7 @@ require (
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/openshift/api v0.0.0-20220826140015-b21e86c742e7
 	github.com/openshift/library-go v0.0.0-20220826132527-2b7a682a2de4
-	github.com/openshift/machine-config-operator v0.0.1-0.20201123223240-d4188ac400eb
+	github.com/openshift/machine-config-operator/v3 v3.11.0+incompatible
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.56.2
