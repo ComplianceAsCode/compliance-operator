@@ -2795,3 +2795,75 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 		t.Fatal("The scan should have the timeout annotation")
 	}
 }
+
+func TestUpdateScanSettingBindingRemovesScans(t *testing.T) {
+	f := framework.Global
+	t.Parallel()
+	bindingName := framework.GetObjNameFromTest(t)
+	cisProfileName := "ocp4-cis"
+	moderateProfileName := "ocp4-moderate"
+
+	// create a ssb with two profiles "ocp4-cis" and "ocp4-moderate"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     cisProfileName,
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     moderateProfileName,
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     "default",
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	err := f.Client.Create(context.TODO(), &scanSettingBinding, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBinding.Name, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.AssertScanExists(cisProfileName, f.OperatorNamespace)
+	f.AssertScanExists(moderateProfileName, f.OperatorNamespace)
+
+	update := &compv1alpha1.ScanSettingBinding{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Namespace: f.OperatorNamespace, Name: scanSettingBinding.Name}, update)
+	if err != nil {
+		t.Fatal(err)
+	}
+	update.Profiles = []compv1alpha1.NamedObjectReference{
+		{
+			Name:     cisProfileName,
+			Kind:     "Profile",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	err = f.Client.Update(context.TODO(), update)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// We might need a different utility to rerun a suite instead of scan
+	err = f.ReRunScan(scanSettingBinding.Name, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.AssertScanExists(cisProfileName, f.OperatorNamespace)
+	f.AssertScanDoesNotExists(moderateProfileName, f.OperatorNamespace)
+}

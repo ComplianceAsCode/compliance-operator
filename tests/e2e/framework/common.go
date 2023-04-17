@@ -1000,6 +1000,26 @@ func (f *Framework) AssertScanHasValidPVCReferenceWithSize(scanName, size, names
 	return nil
 }
 
+func (f *Framework) AssertScanDoesNotExists(scanName, namespace string) error {
+	cs := &compv1alpha1.ComplianceScan{}
+	defer f.logContainerOutput(namespace, scanName)
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, cs)
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("found unexpected ComplianceScan %s", scanName)
+	}
+	return nil
+}
+
+func (f *Framework) AssertScanExists(scanName, namespace string) error {
+	cs := &compv1alpha1.ComplianceScan{}
+	defer f.logContainerOutput(namespace, scanName)
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, cs)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (f *Framework) ScanHasWarnings(scanName, namespace string) error {
 	cs := &compv1alpha1.ComplianceScan{}
 	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, cs)
@@ -1449,5 +1469,30 @@ func (f *Framework) AssertHasCheck(suiteName, scanName string, check compv1alpha
 		return fmt.Errorf("did not find expected status name label %s, found %s", suiteName, getCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel])
 	}
 
+	return nil
+}
+
+func (f *Framework) ReRunScan(scanName, namespace string) error {
+	scanKey := types.NamespacedName{Name: scanName, Namespace: namespace}
+	err := backoff.Retry(func() error {
+		foundScan := &compv1alpha1.ComplianceScan{}
+		geterr := f.Client.Get(context.TODO(), scanKey, foundScan)
+		if geterr != nil {
+			return geterr
+		}
+
+		scapCopy := foundScan.DeepCopy()
+		if scapCopy.Annotations == nil {
+			scapCopy.Annotations = make(map[string]string)
+		}
+		scapCopy.Annotations[compv1alpha1.ComplianceScanRescanAnnotation] = ""
+		return f.Client.Update(context.TODO(), scapCopy)
+	}, defaultBackoff)
+
+	if err != nil {
+		return fmt.Errorf("couldn't update scan to re-launch it: %w", err)
+	}
+
+	log.Printf("Scan re-launched")
 	return nil
 }
