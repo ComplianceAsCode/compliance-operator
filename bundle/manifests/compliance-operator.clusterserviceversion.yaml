@@ -1288,7 +1288,11 @@ spec:
                     memory: 20Mi
                 securityContext:
                   allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
                   readOnlyRootFilesystem: true
+                  runAsNonRoot: true
                 volumeMounts:
                 - mountPath: /var/run/secrets/serving-cert
                   name: serving-cert
