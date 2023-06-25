@@ -43,7 +43,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
-	github.com/openshift/api v0.0.0-20230426193520-54a14470e5dc
+	github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/library-go v0.0.0-20230502125217-e45be8351afe
 	github.com/openshift/machine-config-operator v0.0.1-0.20230124070108-2d92b8d47e80
 	github.com/pborman/uuid v1.2.1
@@ -139,6 +139,6 @@ require (
 )
 
 replace (
-	github.com/openshift/api => github.com/openshift/api v0.0.0-20220826140015-b21e86c742e7
+	github.com/openshift/api => github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20220504114320-6aec01bb0754
 )
