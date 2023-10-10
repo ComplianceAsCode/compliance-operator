@@ -2795,3 +2795,50 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 		t.Fatal("The scan should have the timeout annotation")
 	}
 }
+
+func TestTailoredProfileRuleValidation(t *testing.T) {
+	f := framework.Global
+	t.Parallel()
+
+	tpName := framework.GetObjNameFromTest(t)
+	profileName := "ocp4-cis"
+	nodeRuleName := "ocp4-kubelet-enable-protect-kernel-defaults"
+
+	// Create a tailored profile that extends a Platform profile, but
+	// excludes a Node rule
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       tpName,
+			Description: tpName,
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      nodeRuleName,
+					Rationale: "Rationale",
+				},
+			},
+			Extends: profileName,
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	tpGet := &compv1alpha1.TailoredProfile{}
+	err = f.WaitForObjectToExist(tpName, f.OperatorNamespace, tpGet)
+	if err != nil {
+		t.Fatalf("failed waiting for TailoredProfile %s to be created: %s", tpName, err)
+	}
+
+	// FIXME(rhmdnd): Assert that it's possible to create the profile that
+	// mixes rule types without error.
+	if tpGet.Status.State != compv1alpha1.TailoredProfileStateError {
+		t.Fatalf("TailoredProfile %s expected to be in error state, but it's actually in %s", tpName, tpGet.Status.State)
+	}
+}
