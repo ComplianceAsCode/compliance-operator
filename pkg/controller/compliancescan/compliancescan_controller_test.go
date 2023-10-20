@@ -42,16 +42,21 @@ func createFakeScanPods(reconciler ReconcileComplianceScan, scanName string, nod
 	}
 }
 
-func createFakeRsSecret(reconciler ReconcileComplianceScan, scanName string) {
+func createFakeRsSecret(reconciler ReconcileComplianceScan, scanName string) (corev1.Secret, error) {
 	// simulate result server secret as one of the resources that is cleaned up
 	// based on the value of the doDelete flag
 	secretName := fmt.Sprintf("%s%s", ServerCertPrefix, scanName)
-	reconciler.Client.Create(context.TODO(), &corev1.Secret{
+	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: common.GetComplianceOperatorNamespace(),
 		},
-	})
+	}
+	err := reconciler.Client.Create(context.TODO(), &secret)
+	if err != nil {
+		return corev1.Secret{}, err
+	}
+	return secret, nil
 }
 
 func createFakeKubletConfigCM(reconciler ReconcileComplianceScan, scanInstance *compv1alpha1.ComplianceScan, nodeinstance *corev1.Node) {
@@ -425,15 +430,23 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 
 	Context("On the DONE phase", func() {
 		Context("with delete flag off", func() {
+			var secret corev1.Secret
+			var err error
 			BeforeEach(func() {
 				// Create the pods and the secret for the test
 				createFakeScanPods(reconciler, compliancescaninstance.Name, nodeinstance1.Name, nodeinstance2.Name)
-				createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				secret, err = createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(secret).ToNot(BeNil())
 
 				// Set state to DONE
 				compliancescaninstance.Status.Phase = compv1alpha1.PhaseDone
-				err := reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
+				err = reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
 				Expect(err).To(BeNil())
+			})
+			AfterEach(func() {
+				err = reconciler.Client.Delete(context.TODO(), &secret)
+				Expect(err).ToNot(HaveOccurred())
 			})
 			It("Should return success & preserve resources", func() {
 				result, err := reconciler.phaseDoneHandler(handler, compliancescaninstance, logger, dontDelete)
@@ -454,16 +467,20 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			})
 		})
 		Context("with delete flag on", func() {
+			var secret corev1.Secret
+			var err error
 			BeforeEach(func() {
 				// Create the pods and the secret for the test
 				createFakeScanPods(reconciler, compliancescaninstance.Name, nodeinstance1.Name, nodeinstance2.Name)
-				createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				secret, err = createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(secret).ToNot(BeNil())
 				createFakeKubletConfigCM(reconciler, compliancescaninstance, nodeinstance1)
 				createFakeKubletConfigCM(reconciler, compliancescaninstance, nodeinstance2)
 
 				// Set state to DONE
 				compliancescaninstance.Status.Phase = compv1alpha1.PhaseDone
-				err := reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
+				err = reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
 				Expect(err).To(BeNil())
 			})
 			It("Should return success & clean up resources", func() {
@@ -494,16 +511,24 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			})
 		})
 		Context("with delete flag off but debug on as well", func() {
+			var secret corev1.Secret
+			var err error
 			BeforeEach(func() {
 				// Create the pods for the test
 				createFakeScanPods(reconciler, compliancescaninstance.Name, nodeinstance1.Name, nodeinstance2.Name)
-				createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				secret, err = createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(secret).ToNot(BeNil())
 
 				// Set state to DONE
 				compliancescaninstance.Status.Phase = compv1alpha1.PhaseDone
 				compliancescaninstance.Spec.Debug = true
-				err := reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
+				err = reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
 				Expect(err).To(BeNil())
+			})
+			AfterEach(func() {
+				err = reconciler.Client.Delete(context.TODO(), &secret)
+				Expect(err).ToNot(HaveOccurred())
 			})
 			It("Should return success & not delete the scan pods or secrets (doDelete=false)", func() {
 				result, err := reconciler.phaseDoneHandler(handler, compliancescaninstance, logger, dontDelete)
@@ -522,15 +547,19 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			})
 		})
 		Context("with delete flag on but debug on as well", func() {
+			var secret corev1.Secret
+			var err error
 			BeforeEach(func() {
 				// Create the pods for the test
 				createFakeScanPods(reconciler, compliancescaninstance.Name, nodeinstance1.Name, nodeinstance2.Name)
-				createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				secret, err = createFakeRsSecret(reconciler, compliancescaninstance.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(secret).ToNot(BeNil())
 
 				// Set state to DONE
 				compliancescaninstance.Status.Phase = compv1alpha1.PhaseDone
 				compliancescaninstance.Spec.Debug = true
-				err := reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
+				err = reconciler.Client.Status().Update(context.TODO(), compliancescaninstance)
 				Expect(err).To(BeNil())
 			})
 			It("Should return success & delete the scan pods (doDelete=true)", func() {
