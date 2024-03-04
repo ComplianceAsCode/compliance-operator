@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/antchfx/xmlquery"
@@ -884,46 +885,64 @@ Server 3.fedora.pool.ntp.org`
 	})
 
 	Describe("Testing for correct content parsing", func() {
-		Describe("Testing new content used", func() {
-			Context("Valid XCCDF", func() {
-				dsFilename = os.Getenv("DEFAULT_CONTENT_DS_FILE_PATH")
-				if dsFilename != "" {
-					ds, err := os.Open(dsFilename)
+		defer GinkgoRecover()
+		Describe("Searching and testing all XCCDF files", func() {
+			Context("Validating XCCDF content", func() {
+				dsFilePath := os.Getenv("DEFAULT_CONTENT_DS_FILE_PATH")
+				if dsFilePath != "" {
+					fileList, err := filepath.Glob(filepath.Join(dsFilePath, "*.xml"))
 					Expect(err).NotTo(HaveOccurred())
-					dsDom, err := ParseContent(ds)
-					Expect(err).NotTo(HaveOccurred())
-					It("Should parse the XCCDF without errors", func() {
-						Expect(err).NotTo(HaveOccurred())
-					})
-					// printout dsDom xml structure
-					fmt.Println("dsDom structure")
-					printUniquePaths(dsDom, "", make(map[string]bool))
-					It("Should parse rules without errors", func() {
-						ruleTable := newRuleHashTable(dsDom)
-						Expect(ruleTable).NotTo(BeEmpty())
-					})
-					It("Should parse questionsTable without errors", func() {
-						questionsTable := NewOcilQuestionTable(dsDom)
-						Expect(questionsTable).NotTo(BeEmpty())
-					})
-					It("Should parse defTable without errors", func() {
-						defTable := NewDefHashTable(dsDom)
-						Expect(defTable).NotTo(BeEmpty())
-					})
-					It("Should parse ovalTestVarTable without errors", func() {
-						statesTable := newStateHashTable(dsDom)
-						Expect(statesTable).NotTo(BeEmpty())
-						objsTable := newObjHashTable(dsDom)
-						Expect(objsTable).NotTo(BeEmpty())
-						ovalTestVarTable := newValueListTable(dsDom, statesTable, objsTable)
-						Expect(ovalTestVarTable).NotTo(BeEmpty())
-					})
+					Expect(fileList).NotTo(BeEmpty(), "No XCCDF files found in path, please check the path in DEFAULT_CONTENT_DS_FILE_PATH `env` variable")
+
+					for _, dsFilename := range fileList {
+						By(fmt.Sprintf("Testing file: %s", dsFilename), func() {
+							ds, err := os.Open(dsFilename)
+							Expect(err).NotTo(HaveOccurred())
+							defer ds.Close()
+
+							dsDom, err := ParseContent(ds)
+							Expect(err).NotTo(HaveOccurred())
+
+							It("Should parse the XCCDF without errors", func() {
+								Expect(err).NotTo(HaveOccurred())
+							})
+
+							// printout dsDom xml structure
+							fmt.Println("dsDom structure for", dsFilename)
+							printUniquePaths(dsDom, "", make(map[string]bool))
+
+							It("Should parse rules without errors", func() {
+								ruleTable := newRuleHashTable(dsDom)
+								Expect(ruleTable).NotTo(BeEmpty())
+							})
+
+							It("Should parse questionsTable without errors", func() {
+								questionsTable := NewOcilQuestionTable(dsDom)
+								Expect(questionsTable).NotTo(BeEmpty())
+							})
+
+							It("Should parse defTable without errors", func() {
+								defTable := NewDefHashTable(dsDom)
+								Expect(defTable).NotTo(BeEmpty())
+							})
+
+							It("Should parse ovalTestVarTable without errors", func() {
+								statesTable := newStateHashTable(dsDom)
+								Expect(statesTable).NotTo(BeEmpty())
+								objsTable := newObjHashTable(dsDom)
+								Expect(objsTable).NotTo(BeEmpty())
+								ovalTestVarTable := newValueListTable(dsDom, statesTable, objsTable)
+								Expect(ovalTestVarTable).NotTo(BeEmpty())
+							})
+						})
+					}
 				} else {
-					fmt.Println("Skipping test for new content parsing as dsFilename is not set")
+					Skip("Skipping test for new content parsing as DEFAULT_CONTENT_DS_FILE_PATH env variable is not set")
 				}
 			})
 		})
 	})
+
 })
 
 // printUniquePaths prints all unique paths within an XML document, starting from a given node.

@@ -586,6 +586,14 @@ test-benchmark: ## Run the benchmark tests -- Note that this can only be ran for
 	@$(GO) test -cpuprofile cpu.prof -memprofile mem.prof -bench . $(TEST_OPTIONS) $(BENCHMARK_PKG)
 	@echo "The pprof files generated are: cpu.prof and mem.prof"
 
+.PHONY: test-datastreams
+test-datastreams:
+ifndef DEFAULT_CONTENT_DS_FILE_PATH
+	$(error DEFAULT_CONTENT_DS_FILE_PATH is not set)
+endif
+	@echo "Testing all XCCDF files in $(DEFAULT_CONTENT_DS_FILE_PATH)"
+	@$(GO) test -v ./pkg/utils/ -ginkgo.v
+
 .PHONY: e2e
 e2e: e2e-set-image prep-e2e e2e-parallel e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
 
