@@ -143,7 +143,7 @@ func (prCtx *ParseResultContext) addParsedResults(source string, newResults []*P
 	}
 }
 
-// ParseResultContext.ReconcileInconsistentResults interates through all inconsistent results
+// ParseResultContext.ReconcileInconsistentResults iterates through all inconsistent results
 // and tries to reconcile them, creating a single consistent ParseResultContextItem for each
 func (prCtx *ParseResultContext) reconcileInconsistentResults() {
 	for id, inconsistentResultList := range prCtx.inconsistent {
