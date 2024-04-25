@@ -321,7 +321,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	skipMetrics, _ := flags.GetBool("skip-metrics")
 	// We only support these metrics in OpenShift (at the moment)
-	if platform == PlatformOpenShift && !skipMetrics {
+	if (platform == PlatformOpenShift || platform == PlatformOpenShiftOnPower || platform == PlatformOpenShiftOnZ) && !skipMetrics {
 		// Add the Metrics Service
 		addMetrics(ctx, cfg, kubeClient, monitoringClient)
 	}
