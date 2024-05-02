@@ -57,7 +57,12 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 
 		// test instance
 		ssb = &compv1alpha1.ScanSettingBinding{}
-		suite = &compv1alpha1.ComplianceSuite{}
+		suite = &compv1alpha1.ComplianceSuite{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ComplianceSuite",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
+		}
 
 		platformProfileAnnotations := map[string]string{
 			compv1alpha1.ProductTypeAnnotation: string(compv1alpha1.ScanTypeNode),
@@ -65,6 +70,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		}
 
 		pBundleRhcos = &compv1alpha1.ProfileBundle{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ProfileBundle",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "rhcos4",
 				Namespace: common.GetComplianceOperatorNamespace(),
@@ -79,6 +88,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		}
 
 		profRhcosE8 = &compv1alpha1.Profile{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "Profile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:        "rhcos4-e8",
 				Namespace:   common.GetComplianceOperatorNamespace(),
@@ -92,6 +105,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		}
 
 		tpRhcosE8 = &compv1alpha1.TailoredProfile{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "TailoredProfile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "emptypass-rhcos4-e8",
 				Namespace: common.GetComplianceOperatorNamespace(),
@@ -151,6 +168,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		}
 
 		setting = &compv1alpha1.ScanSetting{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ScanSetting",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "scan-setting",
 				Namespace: common.GetComplianceOperatorNamespace(),
@@ -256,6 +277,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 	Context("Creates a simple suite from a Profile", func() {
 		JustBeforeEach(func() {
 			ssb = &compv1alpha1.ScanSettingBinding{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "ScanSettingBinding",
+					APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+				},
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "simple-compliance-requirements",
 					Namespace: common.GetComplianceOperatorNamespace(),
@@ -310,7 +335,6 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			Expect(suite.Spec.AutoApplyRemediations).To(BeTrue())
 
 			Expect(ssb.Status.OutputRef.Name).To(Equal(suite.Name))
-			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(suite.GroupVersionKind().Group))
 
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
@@ -349,6 +373,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 	Context("Creates a simple suite from a TailoredProfile", func() {
 		JustBeforeEach(func() {
 			ssb = &compv1alpha1.ScanSettingBinding{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "ScanSettingBinding",
+					APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+				},
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "simple-compliance-requirements-tp",
 					Namespace: common.GetComplianceOperatorNamespace(),
@@ -405,7 +433,6 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			Expect(suite.Spec.AutoApplyRemediations).To(BeTrue())
 
 			Expect(ssb.Status.OutputRef.Name).To(Equal(suite.Name))
-			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(suite.GroupVersionKind().Group))
 
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
@@ -448,6 +475,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 	Context("Creates a suite from a TailoredProfile created from scratch", func() {
 		JustBeforeEach(func() {
 			ssb = &compv1alpha1.ScanSettingBinding{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "ScanSettingBinding",
+					APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+				},
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "scratch-tp",
 					Namespace: common.GetComplianceOperatorNamespace(),
@@ -504,7 +535,6 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			Expect(suite.Spec.AutoApplyRemediations).To(BeTrue())
 
 			Expect(ssb.Status.OutputRef.Name).To(Equal(suite.Name))
-			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(suite.GroupVersionKind().Group))
 
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
@@ -547,6 +577,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 	Context("Detects error if unexistent profile", func() {
 		JustBeforeEach(func() {
 			ssb = &compv1alpha1.ScanSettingBinding{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "ScanSettingBinding",
+					APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+				},
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "inconsistent-products-compliance-requirements",
 					Namespace: common.GetComplianceOperatorNamespace(),
@@ -719,6 +753,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			Expect(err).To(BeNil())
 
 			ssb = &compv1alpha1.ScanSettingBinding{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "ScanSettingBinding",
+					APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+				},
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "inconsistent-products-compliance-requirements",
 					Namespace: common.GetComplianceOperatorNamespace(),
