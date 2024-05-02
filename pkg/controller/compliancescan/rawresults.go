@@ -83,7 +83,7 @@ func getPVCForScan(instance *compv1alpha1.ComplianceScan) *corev1.PersistentVolu
 		Spec: corev1.PersistentVolumeClaimSpec{
 			StorageClassName: instance.Spec.RawResultStorage.StorageClassName,
 			AccessModes:      accessModes,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse(storageSize),
 				},
