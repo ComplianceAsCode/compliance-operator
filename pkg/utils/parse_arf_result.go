@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/template"
 	"text/template/parse"
+	"time"
 
 	"github.com/antchfx/xmlquery"
 	"github.com/pkg/errors"
@@ -588,6 +589,9 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 			renderError = err
 		}
 	}
+
+	// ISO 8601 time, e.g. 2024-05-02T12:18:54Z
+	annotations[compv1alpha1.LastScannedTimestampKey] = time.Now().UTC().Format(time.RFC3339)
 
 	return &compv1alpha1.ComplianceCheckResult{
 		ObjectMeta: v1.ObjectMeta{
