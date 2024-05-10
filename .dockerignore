@@ -1,6 +1,5 @@
 # Exclude test files
 tests/contrib
-tests/e2e
 .git/
 build/_output
 build/_test

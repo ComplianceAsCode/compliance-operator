@@ -1,0 +1,15 @@
+FROM registry.ci.openshift.org/openshift/release:golang-1.19 AS builder
+
+ENV PKG=/go/src/github.com/ComplianceAsCode/compliance-operator/
+WORKDIR $PKG
+
+# compile test binary
+COPY . .
+RUN make build-osde2e-test-binary
+
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+
+COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/rosa.test rosa.test
+
+ENTRYPOINT [ "/rosa.test" ]
+
