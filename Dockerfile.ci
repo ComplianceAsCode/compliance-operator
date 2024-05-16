@@ -1,5 +1,5 @@
 # Step one: build compliance-operator
-FROM registry.ci.openshift.org/openshift/release:rhel-8-release-golang-1.20-openshift-4.14 AS builder
+FROM registry.ci.openshift.org/openshift/release:rhel-9-release-golang-1.21-openshift-4.16 AS builder
 
 WORKDIR /go/src/github.com/openshift/compliance-operator
 
@@ -21,6 +21,7 @@ COPY --from=builder /go/src/github.com/openshift/compliance-operator/build/_outp
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
+RUN dnf update glibc -y
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 

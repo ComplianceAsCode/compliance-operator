@@ -1,18 +1,16 @@
 module github.com/ComplianceAsCode/compliance-operator
 
-go 1.20
+go 1.21
 
 require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.30.0
-	github.com/wI2L/jsondiff v0.4.0
 	k8s.io/apimachinery v0.28.4
 	k8s.io/client-go v0.28.4
 	sigs.k8s.io/controller-runtime v0.16.3
 )
 
 require (
-	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/ajeddeloh/go-json v0.0.0-20200220154158-5ae607161559 // indirect
 	github.com/antchfx/xmlquery v1.3.18
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -32,7 +30,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/google/uuid v1.6.0
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/itchyny/gojq v0.12.13
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
@@ -90,7 +88,6 @@ require (
 )
 
 require (
-	github.com/PaesslerAG/gval v1.0.0 // indirect
 	github.com/antchfx/xpath v1.2.4 // indirect
 	github.com/aws/aws-sdk-go v1.50.25 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.1 // indirect

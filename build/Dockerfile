@@ -20,6 +20,7 @@ COPY --from=builder /go/src/github.com/openshift/compliance-operator/build/_outp
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
+RUN dnf update glibc -y
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 
