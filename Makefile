@@ -56,6 +56,8 @@ GIT_OPTS?=
 # We rely on a bash script for this since it's simplier than interating over a
 # list with conditionals in GNU make.
 GIT_REMOTE?=$(shell ./utils/git-remote.sh)
+
+# PREVIOUS_VERSION gets redefined when the version in $(BUNDLE_CSV_FILE) is bumped
 PREVIOUS_VERSION?=$(shell ./utils/get-current-version.sh)
 
 # Image variables
@@ -440,6 +442,9 @@ bundle: check-operator-version operator-sdk manifests update-skip-range kustomiz
 		sed -i 's%../default-bundle%../openshift-bundle%' config/manifests/kustomization.yaml; \
 	fi
 	$(KUSTOMIZE) build config/manifests | $(SDK_BIN) generate bundle -q $(BUNDLE_SA_OPTS) --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	# As soon as the CSV version is updated the PREVIOUS_VERSION will be updated too
+	# So we update the replaces now, to ensure the correct value is set
+	sed -i "s/\(replaces: \).*/\1$(APP_NAME).v$(PREVIOUS_VERSION)/" $(BUNDLE_CSV_FILE)
 	git restore config/manifests/kustomization.yaml
 	@echo "Replacing RELATED_IMAGE_OPERATOR env reference in $(BUNDLE_CSV_FILE)"
 	@sed -i 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' $(BUNDLE_CSV_FILE)
@@ -674,7 +679,6 @@ package-version-to-tag: check-operator-version ## Explicitly override $TAG with 
 .PHONY: git-release
 git-release: fetch-git-tags package-version-to-tag changelog ## Update project files with new version information.
 	git checkout -b "release-v$(TAG)"
-	sed -i "s/\(replaces: \).*/\1$(PREVIOUS_VERSION)/" $(BUNDLE_CSV_FILE)
 	sed -i "s/\(.*Version = \"\).*/\1$(TAG)\"/" version/version.go
 	sed -i "s/\(.*VERSION?=\).*/\1$(TAG)/" version.Makefile
 	git add version* bundle CHANGELOG.md config/manifests/bases
