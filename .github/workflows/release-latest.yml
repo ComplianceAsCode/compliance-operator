@@ -45,6 +45,15 @@ jobs:
       dockerfile_path: images/openscap/Dockerfile
       vendor: 'Compliance Operator Authors'
 
+  osde2e-push-latest:
+    use: metal-toolbox/container-push/.github/workflows/container-push.yml@main
+    with:
+      name: compliance-operator-osde2e
+      registry_org: complianceascode
+      tag: latest
+      dockerfile_path: Dockerfile.rosa-ci
+      vendor: 'Compliance Operator Authors'
+
   catalog-container-push-latest:
     runs-on: ubuntu-latest
     needs: bundle-container-push-latest
