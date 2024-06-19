@@ -15,6 +15,9 @@ const RuleIDAnnotationKey = "compliance.openshift.io/rule"
 // ComplianceCheckResult
 const RuleHideTagAnnotationKey = "compliance.openshift.io/hide-tag"
 
+// LastScannedTimestampKey indicates when the last scanned happened.
+const LastScannedTimestampKey = "compliance.openshift.io/last-scanned-timestamp"
+
 // RuleVariableAnnotationKey store list of xccdf variables used to render the rule
 const RuleVariableAnnotationKey = "compliance.openshift.io/rule-variable"
 
