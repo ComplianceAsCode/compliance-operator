@@ -18,28 +18,32 @@ package v1
 
 import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // RemoteWriteSpecApplyConfiguration represents an declarative configuration of the RemoteWriteSpec type for use
 // with apply.
 type RemoteWriteSpecApplyConfiguration struct {
-	URL                  *string                           `json:"url,omitempty"`
-	Name                 *string                           `json:"name,omitempty"`
-	SendExemplars        *bool                             `json:"sendExemplars,omitempty"`
-	SendNativeHistograms *bool                             `json:"sendNativeHistograms,omitempty"`
-	RemoteTimeout        *v1.Duration                      `json:"remoteTimeout,omitempty"`
-	Headers              map[string]string                 `json:"headers,omitempty"`
-	WriteRelabelConfigs  []RelabelConfigApplyConfiguration `json:"writeRelabelConfigs,omitempty"`
-	OAuth2               *OAuth2ApplyConfiguration         `json:"oauth2,omitempty"`
-	BasicAuth            *BasicAuthApplyConfiguration      `json:"basicAuth,omitempty"`
-	BearerTokenFile      *string                           `json:"bearerTokenFile,omitempty"`
-	Authorization        *AuthorizationApplyConfiguration  `json:"authorization,omitempty"`
-	Sigv4                *Sigv4ApplyConfiguration          `json:"sigv4,omitempty"`
-	BearerToken          *string                           `json:"bearerToken,omitempty"`
-	TLSConfig            *TLSConfigApplyConfiguration      `json:"tlsConfig,omitempty"`
-	ProxyURL             *string                           `json:"proxyUrl,omitempty"`
-	QueueConfig          *QueueConfigApplyConfiguration    `json:"queueConfig,omitempty"`
-	MetadataConfig       *MetadataConfigApplyConfiguration `json:"metadataConfig,omitempty"`
+	URL                           *string                           `json:"url,omitempty"`
+	Name                          *string                           `json:"name,omitempty"`
+	SendExemplars                 *bool                             `json:"sendExemplars,omitempty"`
+	SendNativeHistograms          *bool                             `json:"sendNativeHistograms,omitempty"`
+	RemoteTimeout                 *v1.Duration                      `json:"remoteTimeout,omitempty"`
+	Headers                       map[string]string                 `json:"headers,omitempty"`
+	WriteRelabelConfigs           []RelabelConfigApplyConfiguration `json:"writeRelabelConfigs,omitempty"`
+	OAuth2                        *OAuth2ApplyConfiguration         `json:"oauth2,omitempty"`
+	BasicAuth                     *BasicAuthApplyConfiguration      `json:"basicAuth,omitempty"`
+	BearerTokenFile               *string                           `json:"bearerTokenFile,omitempty"`
+	Authorization                 *AuthorizationApplyConfiguration  `json:"authorization,omitempty"`
+	Sigv4                         *Sigv4ApplyConfiguration          `json:"sigv4,omitempty"`
+	AzureAD                       *AzureADApplyConfiguration        `json:"azureAd,omitempty"`
+	BearerToken                   *string                           `json:"bearerToken,omitempty"`
+	TLSConfig                     *TLSConfigApplyConfiguration      `json:"tlsConfig,omitempty"`
+	ProxyConfigApplyConfiguration `json:",inline"`
+	FollowRedirects               *bool                             `json:"followRedirects,omitempty"`
+	QueueConfig                   *QueueConfigApplyConfiguration    `json:"queueConfig,omitempty"`
+	MetadataConfig                *MetadataConfigApplyConfiguration `json:"metadataConfig,omitempty"`
+	EnableHttp2                   *bool                             `json:"enableHTTP2,omitempty"`
 }
 
 // RemoteWriteSpecApplyConfiguration constructs an declarative configuration of the RemoteWriteSpec type for use with
@@ -155,6 +159,14 @@ func (b *RemoteWriteSpecApplyConfiguration) WithSigv4(value *Sigv4ApplyConfigura
 	return b
 }
 
+// WithAzureAD sets the AzureAD field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AzureAD field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithAzureAD(value *AzureADApplyConfiguration) *RemoteWriteSpecApplyConfiguration {
+	b.AzureAD = value
+	return b
+}
+
 // WithBearerToken sets the BearerToken field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the BearerToken field is set to the value of the last call.
@@ -179,6 +191,44 @@ func (b *RemoteWriteSpecApplyConfiguration) WithProxyURL(value string) *RemoteWr
 	return b
 }
 
+// WithNoProxy sets the NoProxy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the NoProxy field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithNoProxy(value string) *RemoteWriteSpecApplyConfiguration {
+	b.NoProxy = &value
+	return b
+}
+
+// WithProxyFromEnvironment sets the ProxyFromEnvironment field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ProxyFromEnvironment field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithProxyFromEnvironment(value bool) *RemoteWriteSpecApplyConfiguration {
+	b.ProxyFromEnvironment = &value
+	return b
+}
+
+// WithProxyConnectHeader puts the entries into the ProxyConnectHeader field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the ProxyConnectHeader field,
+// overwriting an existing map entries in ProxyConnectHeader field with the same key.
+func (b *RemoteWriteSpecApplyConfiguration) WithProxyConnectHeader(entries map[string][]corev1.SecretKeySelector) *RemoteWriteSpecApplyConfiguration {
+	if b.ProxyConnectHeader == nil && len(entries) > 0 {
+		b.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
+	}
+	for k, v := range entries {
+		b.ProxyConnectHeader[k] = v
+	}
+	return b
+}
+
+// WithFollowRedirects sets the FollowRedirects field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FollowRedirects field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithFollowRedirects(value bool) *RemoteWriteSpecApplyConfiguration {
+	b.FollowRedirects = &value
+	return b
+}
+
 // WithQueueConfig sets the QueueConfig field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the QueueConfig field is set to the value of the last call.
@@ -192,5 +242,13 @@ func (b *RemoteWriteSpecApplyConfiguration) WithQueueConfig(value *QueueConfigAp
 // If called multiple times, the MetadataConfig field is set to the value of the last call.
 func (b *RemoteWriteSpecApplyConfiguration) WithMetadataConfig(value *MetadataConfigApplyConfiguration) *RemoteWriteSpecApplyConfiguration {
 	b.MetadataConfig = value
+	return b
+}
+
+// WithEnableHttp2 sets the EnableHttp2 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnableHttp2 field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithEnableHttp2(value bool) *RemoteWriteSpecApplyConfiguration {
+	b.EnableHttp2 = &value
 	return b
 }
