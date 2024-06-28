@@ -39,9 +39,35 @@ jobs:
         id: pr_number
         run: |
           echo "pr_number=$(cat pr_number)" >> "$GITHUB_OUTPUT"
+  
+  prebuild-check:
+    runs-on: ubuntu-latest
+    # use matrix to run for multiple architectures
+    strategy:
+      matrix:
+        arch: [linux/amd64, linux/ppc64le, linux/s390x]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build container images and push
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/Dockerfile.prebuild
+          tags: complianceascode/compliance-operator:${GITHUB_REF_NAME}-${{ matrix.arch }}
+          push: false
+          sbom: false
+          platforms: ${{ matrix.arch }}
 
   operator-container-push-pr:
-    needs: get-pr-number
+    needs:
+      - get-pr-number
+      - prebuild-check
     permissions:
       contents: read
       id-token: write
@@ -57,7 +83,9 @@ jobs:
       platforms: "linux/amd64,linux/ppc64le,linux/s390x"
 
   bundle-container-push-pr:
-    needs: get-pr-number
+    needs:
+      - get-pr-number
+      - prebuild-check
     permissions:
       contents: read
       id-token: write
