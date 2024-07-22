@@ -415,7 +415,7 @@ image: ## Build the operator image.
 images: image bundle-image  ## Build operator and bundle images.
 
 .PHONY: images-extra
-images-extra: openscap-image e2e-content-images  ## Build the openscap and test content images.
+images-extra: openscap-image build-e2e-content-images  ## Build the openscap and test content images.
 
 .PHONY: build
 build: generate fmt vet test-unit ## Build the operator binary.
@@ -569,7 +569,7 @@ catalog-push: ## Push a catalog image.
 ##@ Testing
 
 .PHONY: test-unit
-test-unit: fmt ## Run the unit tests
+test-unit: fmt ## Run the unit tests locally.
 ifndef JUNITFILE
 	@$(GO) test $(TEST_OPTIONS) $(PKGS)
 else
@@ -582,7 +582,7 @@ test-coverage: fmt ## Run the unit tests and generate a coverage report
 	@$(GO) tool cover -func coverage.out
 
 .PHONY: test-benchmark
-test-benchmark: ## Run the benchmark tests -- Note that this can only be ran for one package. You can set $BENCHMARK_PKG for this. cpu.prof and mem.prof will be generated
+test-benchmark: ## Run the benchmark tests against a single package using $BENCHMARK_PKG. CPU and memory output will be in cpu.prof and mem.prof files, respectively.
 	@$(GO) test -cpuprofile cpu.prof -memprofile mem.prof -bench . $(TEST_OPTIONS) $(BENCHMARK_PKG)
 	@echo "The pprof files generated are: cpu.prof and mem.prof"
 
@@ -616,7 +616,7 @@ e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment c
 	@$(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-test.log
 
 .PHONY: prep-e2e
-prep-e2e: kustomize
+prep-e2e: kustomize ## Build kustomize resources and deploy the operator.
 	rm -rf $(TEST_SETUP_DIR)
 	mkdir -p $(TEST_SETUP_DIR)
 	$(KUSTOMIZE) build config/no-ns | sed -e 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' -e 's%$(DEFAULT_CONTENT_IMAGE)%$(E2E_CONTENT_IMAGE_PATH)%' -e 's%$(DEFAULT_OPENSCAP_IMAGE)%$(OPENSCAP_IMAGE)%'  > $(TEST_DEPLOY)
@@ -632,10 +632,10 @@ e2e-set-image: kustomize
 endif
 
 .PHONY: e2e-cluster
-e2e-cluster: image-to-cluster e2e  ## Builds and pushes the operator and openscap images to the cluster registry, and starts an e2e test suite against the cluster images.
+e2e-cluster: image-to-cluster e2e ## Builds and pushes the operator and openscap images to the cluster registry, and starts an e2e test suite against the cluster images.
 
 .PHONY: image-to-cluster
-image-to-cluster: image openscap-image namespace openshift-user  ## Builds and pushes the operator and openscap images to the cluster registry.
+image-to-cluster: image openscap-image namespace openshift-user ## Builds and pushes the operator and openscap images to the cluster registry.
 	@echo "Temporarily exposing the default route to the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
 	@echo "Pushing image $(OPERATOR_IMAGE) to the image registry"
@@ -649,20 +649,24 @@ image-to-cluster: image openscap-image namespace openshift-user  ## Builds and p
 	$(eval IMG = image-registry.openshift-image-registry.svc:5000/openshift/$(APP_NAME):$(TAG))
 	$(eval OPENSCAP_IMAGE = image-registry.openshift-image-registry.svc:5000/openshift/$(OPENSCAP_NAME):$(OPENSCAP_TAG))
 
-.PHONY: e2e-content-images
-e2e-content-images:  ## Build the e2e-content-image
+.PHONY: build-e2e-content-images
+build-e2e-content-images: ## Build content image for end-to-end testing.
 	RUNTIME=$(RUNTIME) images/testcontent/broken-content.sh build ${E2E_BROKEN_CONTENT_IMAGE_PATH}
 
-.PHONY: push-e2e-content
-push-e2e-content: e2e-content-images  ## Build and push the e2e-content-images
+.PHONY: push-e2e-content-images
+push-e2e-content-images: build-e2e-content-images ##Push the content image for end-to-end testing to an image repository.
 	RUNTIME=$(RUNTIME) images/testcontent/broken-content.sh push ${E2E_BROKEN_CONTENT_IMAGE_PATH}
 
-.PHONY: must-gather-image
-must-gather-image:  ## Build the must-gather image
+.PHONY: build-must-gather-image
+build-must-gather-image: ## Build the must-gather image.
 	$(RUNTIME) build -t $(MUST_GATHER_IMAGE_PATH):$(MUST_GATHER_IMAGE_TAG) -f images/must-gather/Dockerfile .
 
+.PHONY: push-must-gather-image
+push-must-gather-image: ## Push the must-gather image to an image repository (default: quay.io/compliance-operator/must-gather).
+	$(RUNTIME) push ${MUST_GATHER_IMAGE_PATH}:${MUST_GATHER_IMAGE_TAG}
+
 .PHONY: must-gather
-must-gather: must-gather-image must-gather-push  ## Build and push the must-gather image
+must-gather: build-must-gather-image push-must-gather-image ## Build the must-gather image and push it to an image repository (default: quay.io/compliance-operator/must-gather).
 
 ##@ Release
 
