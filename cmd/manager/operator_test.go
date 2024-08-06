@@ -26,9 +26,10 @@ var _ = Describe("Operator Startup Function tests", func() {
 				metricService := operatorMetricService("foobar")
 				sm := generateOperatorServiceMonitor(metricService, "foobar", "secret")
 				controllerMetricServiceFound := false
+				expectedServerName := "metrics.foobar.svc"
 				for _, ep := range sm.Spec.Endpoints {
 					if ep.Port == metrics.ControllerMetricsServiceName && ep.TLSConfig != nil {
-						Expect(ep.TLSConfig.ServerName).To(BeEquivalentTo("metrics.foobar.svc"))
+						Expect(ep.TLSConfig.ServerName).To(BeEquivalentTo(&expectedServerName))
 						controllerMetricServiceFound = true
 					}
 				}
