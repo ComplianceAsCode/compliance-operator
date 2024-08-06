@@ -417,8 +417,13 @@ images: image bundle-image  ## Build operator and bundle images.
 .PHONY: images-extra
 images-extra: openscap-image e2e-content-images  ## Build the openscap and test content images.
 
+.PHONY: prebuild-check
+prebuild-check: generate fmt vet test-unit 
+# Make sure no changes are present in the working directory
+	@git diff --exit-code > /dev/null || (echo "Working directory is not clean. Check git status." && exit 1)
+
 .PHONY: build
-build: generate fmt vet test-unit ## Build the operator binary.
+build: ## Build the operator binary.
 	$(GO) build \
 		-trimpath \
 		-ldflags=-buildid= \
