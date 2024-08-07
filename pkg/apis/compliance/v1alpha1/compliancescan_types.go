@@ -76,7 +76,7 @@ func stateCompare(lowPhase ComplianceScanStatusPhase, scanPhase ComplianceScanSt
 	return lowPhase
 }
 
-// Represents the result of the compliance scan
+// ComplianceScanStatusResult represents the result of the compliance scan
 type ComplianceScanStatusResult string
 
 // CmScanResultAnnotation holds the processed scanner result
@@ -86,7 +86,7 @@ const CmScanResultAnnotation = "compliance.openshift.io/scan-result"
 const CmScanResultErrMsg = "compliance.openshift.io/scan-error-msg"
 
 const (
-	// ResultNot available represents the compliance scan not having finished yet
+	// ResultNotAvailable available represents the compliance scan not having finished yet
 	ResultNotAvailable ComplianceScanStatusResult = "NOT-AVAILABLE"
 	// ResultCompliant represents the compliance scan having succeeded
 	ResultCompliant ComplianceScanStatusResult = "COMPLIANT"
