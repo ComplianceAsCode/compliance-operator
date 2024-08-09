@@ -16,6 +16,7 @@ rules:
       - kubeapiservers
       - openshiftapiservers
       - networks
+      - kubedeschedulers
     verbs:
       - get
       - list
