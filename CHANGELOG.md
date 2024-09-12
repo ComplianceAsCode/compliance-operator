@@ -32,6 +32,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 -
 
 
+## [1.6.0] - 2024-09-12
+
+### Enhancements
+
+- The operator now supports timestamps on each `ComplianceCheckResult` with the
+  `compliance.openshift.io/last-scanned-timestamp` annotation. This annotation
+  is updated each time a scan runs.
+- Each `ComplianceScan` resource now includes a total `ComplianceCheckResult`
+  count using the `compliance.openshift.io/check-count` annotation.
+
 ## [1.5.0] - 2024-05-31
 
 ### Enhancements
