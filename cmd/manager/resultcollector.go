@@ -64,20 +64,21 @@ func init() {
 }
 
 type scapresultsConfig struct {
-	ArfFile            string
-	XccdfFile          string
-	ExitCodeFile       string
-	CmdOutputFile      string
-	WarningsOutputFile string
-	ScanName           string
-	ConfigMapName      string
-	NodeName           string
-	Namespace          string
-	ResultServerURI    string
-	Timeout            int64
-	Cert               string
-	Key                string
-	CA                 string
+	ArfFile                string
+	XccdfFile              string
+	ExitCodeFile           string
+	CmdOutputFile          string
+	WarningsOutputFile     string
+	ScanName               string
+	ConfigMapName          string
+	NodeName               string
+	Namespace              string
+	ResultServerURI        string
+	Timeout                int64
+	Cert                   string
+	Key                    string
+	CA                     string
+	DisableRawResultUpload bool
 }
 
 func defineResultcollectorFlags(cmd *cobra.Command) {
@@ -95,7 +96,7 @@ func defineResultcollectorFlags(cmd *cobra.Command) {
 	cmd.Flags().String("tls-client-cert", "", "The path to the client and CA PEM cert bundle.")
 	cmd.Flags().String("tls-client-key", "", "The path to the client PEM key.")
 	cmd.Flags().String("tls-ca", "", "The path to the CA certificate.")
-
+	cmd.Flags().Bool("disable-raw-upload", false, "Setting to true to disable upload raw arf result")
 	flags := cmd.Flags()
 
 	// Add flags registered by imported packages (e.g. glog and
@@ -117,6 +118,7 @@ func parseConfig(cmd *cobra.Command) *scapresultsConfig {
 	conf.CA = getValidStringArg(cmd, "tls-ca")
 	conf.Timeout, _ = cmd.Flags().GetInt64("timeout")
 	conf.ResultServerURI, _ = cmd.Flags().GetString("resultserveruri")
+	conf.DisableRawResultUpload, _ = cmd.Flags().GetBool("disable-raw-upload")
 	// Set default if needed
 	if conf.ResultServerURI == "" {
 		conf.ResultServerURI = "http://" + conf.ScanName + "-rs:8080/"
@@ -370,31 +372,36 @@ func uploadErrorConfigMap(errorMsg *resultFileContents, exitcode string,
 }
 
 func handleCompleteSCAPResults(exitcode string, scapresultsconf *scapresultsConfig, client *complianceCrClient) {
-	arfContents, err := readResultsFile(scapresultsconf.ArfFile, scapresultsconf.Timeout)
-	if err != nil {
-		cmdLog.Error(err, "Failed to read ARF file")
-		os.Exit(1)
-	}
-	defer arfContents.close()
-
 	xccdfContents, err := readResultsFile(scapresultsconf.XccdfFile, scapresultsconf.Timeout)
 	if err != nil {
 		cmdLog.Error(err, "Failed to read XCCDF file")
 		os.Exit(1)
 	}
 	defer xccdfContents.close()
-
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		serverUploadErr := uploadToResultServer(arfContents, scapresultsconf)
-		if serverUploadErr != nil {
-			cmdLog.Error(serverUploadErr, "Failed to upload results to server")
+	numWG := 1
+	if !scapresultsconf.DisableRawResultUpload {
+		numWG++
+	}
+	wg.Add(numWG)
+
+	if !scapresultsconf.DisableRawResultUpload {
+		arfContents, err := readResultsFile(scapresultsconf.ArfFile, scapresultsconf.Timeout)
+		if err != nil {
+			cmdLog.Error(err, "Failed to read ARF file")
 			os.Exit(1)
 		}
-		cmdLog.Info("Uploaded to resultserver")
-		wg.Done()
-	}()
+		defer arfContents.close()
+		go func() {
+			serverUploadErr := uploadToResultServer(arfContents, scapresultsconf)
+			if serverUploadErr != nil {
+				cmdLog.Error(serverUploadErr, "Failed to upload results to server")
+				os.Exit(1)
+			}
+			cmdLog.Info("Uploaded to resultserver")
+			wg.Done()
+		}()
+	}
 
 	go func() {
 		cmUploadErr := uploadResultConfigMap(xccdfContents, exitcode, scapresultsconf, client)
