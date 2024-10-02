@@ -760,6 +760,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - observability.openshift.io
+    resources:
+      - clusterlogforwarders
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - flowcontrol.apiserver.k8s.io
     resources:
       - flowschemas
