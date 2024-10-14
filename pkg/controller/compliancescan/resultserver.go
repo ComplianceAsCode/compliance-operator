@@ -282,3 +282,161 @@ func getResultServerName(instance *compv1alpha1.ComplianceScan) string {
 func getResultServerURI(instance *compv1alpha1.ComplianceScan) string {
 	return "https://" + getResultServerName(instance) + fmt.Sprintf(":%d/", ResultServerPort)
 }
+
+func getDisableRawResultUploadValue(instance *compv1alpha1.ComplianceScan) string {
+	if instance.Spec.RawResultStorage.Disabled {
+		return "true"
+	} else {
+		return "false"
+	}
+}
+
+func getLogCollectorVolumeMounts(instance *compv1alpha1.ComplianceScan) []corev1.VolumeMount {
+	if instance.Spec.RawResultStorage.Disabled {
+		return []corev1.VolumeMount{
+			{
+				Name:      "report-dir",
+				MountPath: "/reports",
+				ReadOnly:  true,
+			},
+		}
+	} else {
+		return []corev1.VolumeMount{
+			{
+				Name:      "report-dir",
+				MountPath: "/reports",
+			},
+			{
+				Name:      "tls",
+				MountPath: "/etc/pki/tls",
+				ReadOnly:  true,
+			},
+		}
+	}
+
+}
+
+func getPlatformScannerPodVolumes(instance *compv1alpha1.ComplianceScan) []corev1.Volume {
+	mode := int32(0755)
+	volumeList := []corev1.Volume{
+		{
+			Name: "report-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "content-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "tmp-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "fetch-results",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: scriptCmForScan(instance),
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: scriptCmForScan(instance),
+					},
+					DefaultMode: &mode,
+				},
+			},
+		},
+	}
+	if instance.Spec.RawResultStorage.Disabled {
+		return volumeList
+	} else {
+		volumeList = append(volumeList, corev1.Volume{
+			Name: "tls",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: ClientCertPrefix + instance.Name,
+				},
+			},
+		},
+		)
+		return volumeList
+	}
+}
+
+func getNodeScannerPodVolumes(instance *compv1alpha1.ComplianceScan, node *corev1.Node) []corev1.Volume {
+	mode := int32(0744)
+	kubeMode := int32(0600)
+	volumesList := []corev1.Volume{
+		{
+			Name: "host",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/",
+					Type: &hostPathDir,
+				},
+			},
+		},
+		{
+			Name: "report-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "content-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "tmp-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: scriptCmForScan(instance),
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: scriptCmForScan(instance),
+					},
+					DefaultMode: &mode,
+				},
+			},
+		},
+		{
+			Name: "kubeletconfig",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: getKubeletCMNameForScan(instance, node),
+					},
+					DefaultMode: &kubeMode,
+				},
+			},
+		},
+	}
+	if instance.Spec.RawResultStorage.Disabled {
+		return volumesList
+	} else {
+		volumesList = append(volumesList, corev1.Volume{
+			Name: "tls",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: ClientCertPrefix + instance.Name,
+				},
+			},
+		},
+		)
+		return volumesList
+	}
+}
