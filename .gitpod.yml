@@ -1,0 +1,34 @@
+image:
+    file: .gitpod.Dockerfile
+
+
+vscode:
+    extensions:
+        - golang.go
+        - premparihar.gotestexplorer
+        - eamodio.gitlens # cool git extension with a bunch of extra features
+        - ggbecker.content-navigator # useful extension for the ComplianceAsCode/content project
+        - ritwickdey.liveserver # HTML preview
+        - rogalmic.bash-debug # support bashdb debug configurations
+        - twxs.cmake # support to CMakeLists.txt syntax highlighting and more
+        - ms-python.python # running python configurations
+
+tasks:
+  - name: Setup Env
+    init: |
+      rm -rf $HOME/go $HOME/go-packages && \
+      echo "export GOPATH=/workspace/go" >> ~/.bashrc.d/300-go && \
+      echo "export GOBIN=\$GOPATH/bin" >> ~/.bashrc.d/300-go && \
+      echo "export GOROOT=${HOME}/go" >> ~/.bashrc.d/300-go && \
+      echo "export PATH=\$GOROOT/bin:\$GOBIN:\$PATH" >> ~/.bashrc && \
+      source ~/.bashrc && \
+      export CUSTOM_GO_VERSION=$(curl -sSL "https://raw.githubusercontent.com/ComplianceAsCode/compliance-operator/master/go.mod" | awk '/^go/{print $2}') && \
+      curl -fsSL "https://dl.google.com/go/go${CUSTOM_GO_VERSION}.linux-amd64.tar.gz" | \
+      tar -xz -C $HOME
+
+
+additionalRepositories:
+    - url: https://github.com/ComplianceAsCode/content
+      checkoutLocation: content
+
+workspaceLocation: compliance-operator/main.code-workspace
