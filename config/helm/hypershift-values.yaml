@@ -1,0 +1,6 @@
+# Values defined in this file are specific to running the compliance-operator
+# on HyperShift Hosted Cluster. All other values use the defaults defined in values.yaml.
+platform: hypershift
+nodeSelector:
+  node-role.kubernetes.io/worker: ""
+tolerations: null
