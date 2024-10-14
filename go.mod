@@ -6,6 +6,7 @@ toolchain go1.22.6
 
 require (
 	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.1
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
@@ -113,7 +114,7 @@ require (
 	golang.org/x/mod v0.20.0
 	golang.org/x/net v0.28.0
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
@@ -169,7 +170,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/onsi/ginkgo/v2 v2.20.0 // indirect
 	github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/prometheus v0.54.1
