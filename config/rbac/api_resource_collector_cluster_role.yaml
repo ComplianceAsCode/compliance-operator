@@ -867,3 +867,11 @@ rules:
     verbs:
       - get
       - list
+  # Necessary to check for sandboxed-containers config for BSI requirements
+  - apiGroups:
+      - kataconfiguration.openshift.io
+    verbs:
+      - list
+      - get
+    resources:
+      - kataconfigs
