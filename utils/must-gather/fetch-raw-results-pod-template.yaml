@@ -19,6 +19,10 @@ spec:
         allowPrivilegeEscalation: false
         capabilities:
           drop: [ALL]
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Exists"
+      effect: "NoSchedule"
   volumes:
     - name: results-vol
       persistentVolumeClaim:
