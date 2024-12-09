@@ -15,8 +15,7 @@ LABEL \
 
 # Install openshift-clients, jq, tar, and rsync, which are required for
 # must-gather.
-RUN subscription-manager register --org $(cat "/activation-key/org") --activationkey $(cat "/activation-key/activationkey") && \
-    microdnf -y install openshift-clients jq tar rsync
+RUN microdnf -y install openshift-clients jq tar rsync --enablerepo="rhocp-4.16-for-rhel-9-x86_64-rpms"
 
 WORKDIR /
 
