@@ -101,9 +101,9 @@ rules:
     resources:
       - servicemonitors
     verbs:
-      - "get"
-      - "create"
-      - "update"
+      - get
+      - create
+      - update
   - apiGroups:
       - apps
     resources:
@@ -111,7 +111,7 @@ rules:
     resourceNames:
       - compliance-operator
     verbs:
-      - "update"
+      - update
   - apiGroups:
       - batch
     resources:
