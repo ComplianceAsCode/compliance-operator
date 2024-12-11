@@ -1176,6 +1176,13 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - kataconfiguration.openshift.io
+          resources:
+          - kataconfigs
+          verbs:
+          - list
+          - get
         serviceAccountName: api-resource-collector
       - rules:
         - apiGroups:
