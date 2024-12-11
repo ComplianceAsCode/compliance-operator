@@ -58,9 +58,63 @@ spec:
           description:
             description: The description of the Rule
             type: string
+          evaluations:
+            description: |-
+              Evaluations is the list of CEL expressions that will be used
+              to evaluate the rule
+            items:
+              properties:
+                errorMessage:
+                  description: Error message to be displayed if the evaluation fails
+                  type: string
+                expression:
+                  description: The CEL expression to be evaluated
+                  type: string
+              required:
+              - expression
+              type: object
+            nullable: true
+            type: array
+            x-kubernetes-list-type: atomic
           id:
             description: The XCCDF ID
             type: string
+          inputs:
+            description: Inputs represent the input parameters for the CEL expression
+            items:
+              description: InputPayload defines the structure for the inputs used
+                in the CEL expression
+              properties:
+                kubeResource:
+                  description: The kubernetes resource that will be used as input
+                  nullable: true
+                  properties:
+                    apiGroup:
+                      description: The API group of the resource
+                      type: string
+                    apiVersion:
+                      description: The version of the resource
+                      type: string
+                    namespace:
+                      description: The namespace of the resource
+                      type: string
+                    resource:
+                      description: The resource type
+                      type: string
+                  required:
+                  - apiGroup
+                  - apiVersion
+                  - resource
+                  type: object
+                name:
+                  description: The name of the input parameter
+                  type: string
+              required:
+              - name
+              type: object
+            nullable: true
+            type: array
+            x-kubernetes-list-type: atomic
           instructions:
             description: Instructions for auditing this specific rule
             type: string
@@ -76,6 +130,12 @@ spec:
             type: object
           rationale:
             description: The rationale of the Rule
+            type: string
+          scanner:
+            default: OpenSCAP
+            description: |-
+              Scanner is the type of scanner that should be used to evaluate this rule
+              Defaults to OpenSCAP
             type: string
           severity:
             description: The severity level
