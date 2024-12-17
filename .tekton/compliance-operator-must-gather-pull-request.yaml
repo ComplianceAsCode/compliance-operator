@@ -33,7 +33,9 @@ spec:
   - name: dockerfile
     value: images/must-gather/Containerfile
   - name: hermetic
-    value: "false"
+    value: "true"
+  - name: prefetch-input
+    value: '{"type": "rpm", "path": "images/must-gather/"}'
   pipelineSpec:
     description: |
       This pipeline is ideal for building multi-arch container images from a Containerfile while maintaining trust after pipeline customization.
