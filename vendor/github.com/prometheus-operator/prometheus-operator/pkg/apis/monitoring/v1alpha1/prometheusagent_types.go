@@ -34,10 +34,6 @@ func (l *PrometheusAgent) SetCommonPrometheusFields(f monitoringv1.CommonPrometh
 	l.Spec.CommonPrometheusFields = f
 }
 
-func (l *PrometheusAgent) GetTypeMeta() metav1.TypeMeta {
-	return l.TypeMeta
-}
-
 func (l *PrometheusAgent) GetStatus() monitoringv1.PrometheusStatus {
 	return l.Status
 }
@@ -53,8 +49,13 @@ func (l *PrometheusAgent) GetStatus() monitoringv1.PrometheusStatus {
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="Paused",type="boolean",JSONPath=".status.paused",description="Whether the resource reconciliation is paused or not",priority=1
 // +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.shards,statuspath=.status.shards,selectorpath=.status.selector
+// +genclient:method=GetScale,verb=get,subresource=scale,result=k8s.io/api/autoscaling/v1.Scale
+// +genclient:method=UpdateScale,verb=update,subresource=scale,input=k8s.io/api/autoscaling/v1.Scale,result=k8s.io/api/autoscaling/v1.Scale
 
-// PrometheusAgent defines a Prometheus agent deployment.
+// The `PrometheusAgent` custom resource definition (CRD) defines a desired [Prometheus Agent](https://prometheus.io/blog/2021/11/16/agent/) setup to run in a Kubernetes cluster.
+//
+// The CRD is very similar to the `Prometheus` CRD except for features which aren't available in agent mode like rule evaluation, persistent storage and Thanos sidecar.
 type PrometheusAgent struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -92,5 +93,14 @@ func (l *PrometheusAgentList) DeepCopyObject() runtime.Object {
 // https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 // +k8s:openapi-gen=true
 type PrometheusAgentSpec struct {
+	// Mode defines how the Prometheus operator deploys the PrometheusAgent pod(s).
+	// For now this field has no effect.
+	//
+	// (Alpha) Using this field requires the `PrometheusAgentDaemonSet` feature gate to be enabled.
+	//
+	// +kubebuilder:validation:Enum=StatefulSet;DaemonSet
+	// +optional
+	Mode *string `json:"mode,omitempty"`
+
 	monitoringv1.CommonPrometheusFields `json:",inline"`
 }

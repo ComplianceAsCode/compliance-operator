@@ -32,6 +32,7 @@ func convertRouteTo(in *Route) (*v1alpha1.Route, error) {
 
 	out := &v1alpha1.Route{
 		Receiver:            in.Receiver,
+		Continue:            in.Continue,
 		GroupBy:             in.GroupBy,
 		GroupWait:           in.GroupWait,
 		GroupInterval:       in.GroupInterval,
@@ -140,7 +141,8 @@ func convertHTTPConfigTo(in *HTTPConfig) *v1alpha1.HTTPConfig {
 		OAuth2:            in.OAuth2,
 		BearerTokenSecret: convertSecretKeySelectorTo(in.BearerTokenSecret),
 		TLSConfig:         in.TLSConfig,
-		ProxyURL:          in.ProxyURL,
+		ProxyURLOriginal:  in.ProxyURLOriginal,
+		ProxyConfig:       in.ProxyConfig,
 		FollowRedirects:   in.FollowRedirects,
 	}
 }
@@ -250,6 +252,7 @@ func convertPagerDutyConfigTo(in PagerDutyConfig) v1alpha1.PagerDutyConfig {
 		PagerDutyImageConfigs: convertPagerDutyImageConfigsTo(in.PagerDutyImageConfigs),
 		PagerDutyLinkConfigs:  convertPagerDutyLinkConfigsTo(in.PagerDutyLinkConfigs),
 		HTTPConfig:            convertHTTPConfigTo(in.HTTPConfig),
+		Source:                in.Source,
 	}
 }
 
@@ -410,6 +413,7 @@ func convertPushoverConfigTo(in PushoverConfig) v1alpha1.PushoverConfig {
 		Message:      in.Message,
 		URL:          in.URL,
 		URLTitle:     in.URLTitle,
+		Device:       in.Device,
 		Sound:        in.Sound,
 		Priority:     in.Priority,
 		Retry:        in.Retry,
@@ -441,6 +445,7 @@ func convertTelegramConfigTo(in TelegramConfig) v1alpha1.TelegramConfig {
 		BotToken:             convertSecretKeySelectorTo(in.BotToken),
 		BotTokenFile:         in.BotTokenFile,
 		ChatID:               in.ChatID,
+		MessageThreadID:      in.MessageThreadID,
 		Message:              in.Message,
 		DisableNotifications: in.DisableNotifications,
 		ParseMode:            in.ParseMode,
@@ -454,6 +459,7 @@ func convertMSTeamsConfigTo(in MSTeamsConfig) v1alpha1.MSTeamsConfig {
 		WebhookURL:   in.WebhookURL,
 		Title:        in.Title,
 		Text:         in.Text,
+		Summary:      in.Summary,
 		HTTPConfig:   convertHTTPConfigTo(in.HTTPConfig),
 	}
 }

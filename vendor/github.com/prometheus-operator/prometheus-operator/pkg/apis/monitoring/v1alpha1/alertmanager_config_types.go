@@ -15,9 +15,12 @@
 package v1alpha1
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
+	"regexp"
 	"strings"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -61,9 +64,12 @@ type AlertmanagerConfigList struct {
 	Items []*AlertmanagerConfig `json:"items"`
 }
 
-// AlertmanagerConfigSpec is a specification of the desired behavior of the Alertmanager configuration.
-// By definition, the Alertmanager configuration only applies to alerts for which
-// the `namespace` label is equal to the namespace of the AlertmanagerConfig resource.
+// AlertmanagerConfigSpec is a specification of the desired behavior of the
+// Alertmanager configuration.
+// By default, the Alertmanager configuration only applies to alerts for which
+// the `namespace` label is equal to the namespace of the AlertmanagerConfig
+// resource (see the `.spec.alertmanagerConfigMatcherStrategy` field of the
+// Alertmanager CRD).
 type AlertmanagerConfigSpec struct {
 	// The Alertmanager route definition for alerts matching the resource's
 	// namespace. If present, it will be added to the generated Alertmanager
@@ -141,7 +147,9 @@ func (r *Route) ChildRoutes() ([]Route, error) {
 	out := make([]Route, len(r.Routes))
 
 	for i, v := range r.Routes {
-		if err := json.Unmarshal(v.Raw, &out[i]); err != nil {
+		dec := json.NewDecoder(bytes.NewBuffer(v.Raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&out[i]); err != nil {
 			return nil, fmt.Errorf("route[%d]: %w", i, err)
 		}
 	}
@@ -239,6 +247,9 @@ type PagerDutyConfig struct {
 	// HTTP client configuration.
 	// +optional
 	HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
+	// Unique location of the affected system.
+	// +optional
+	Source *string `yaml:"source,omitempty" json:"source,omitempty"`
 }
 
 // PagerDutyImageConfig attaches images to an incident
@@ -561,9 +572,12 @@ type OpsGenieConfigResponder struct {
 	Username string `json:"username,omitempty"`
 	// Type of responder.
 	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:Enum=team;teams;user;escalation;schedule
 	Type string `json:"type"`
 }
+
+const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
+
+var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
 // Validate ensures OpsGenieConfigResponder is valid.
 func (r *OpsGenieConfigResponder) Validate() error {
@@ -571,7 +585,18 @@ func (r *OpsGenieConfigResponder) Validate() error {
 		return errors.New("responder must have at least an ID, a Name or an Username defined")
 	}
 
-	return nil
+	if strings.Contains(r.Type, "{{") {
+		_, err := template.New("").Parse(r.Type)
+		if err != nil {
+			return fmt.Errorf("responder %v type is not a valid template: %w", r, err)
+		}
+		return nil
+	}
+
+	if opsgenieTypeMatcher.MatchString(strings.ToLower(r.Type)) {
+		return nil
+	}
+	return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
 }
 
 // HTTPConfig defines a client HTTP configuration.
@@ -597,9 +622,16 @@ type HTTPConfig struct {
 	// TLS configuration for the client.
 	// +optional
 	TLSConfig *monitoringv1.SafeTLSConfig `json:"tlsConfig,omitempty"`
+
 	// Optional proxy URL.
+	//
+	// If defined, this field takes precedence over `proxyUrl`.
+	//
 	// +optional
-	ProxyURL string `json:"proxyURL,omitempty"`
+	ProxyURLOriginal *string `json:"proxyURL,omitempty"`
+
+	monitoringv1.ProxyConfig `json:",inline"`
+
 	// FollowRedirects specifies whether the client should follow HTTP 3xx redirects.
 	// +optional
 	FollowRedirects *bool `json:"followRedirects,omitempty"`
@@ -792,6 +824,12 @@ type PushoverConfig struct {
 	// A title for supplementary URL, otherwise just the URL is shown
 	// +optional
 	URLTitle string `json:"urlTitle,omitempty"`
+	// The time to live definition for the alert notification
+	// +optional
+	TTL *monitoringv1.Duration `json:"ttl,omitempty"`
+	// The name of a device to send the notification to
+	// +optional
+	Device *string `json:"device,omitempty"`
 	// The name of one of the sounds supported by device clients to override the user's default sound choice
 	// +optional
 	Sound string `json:"sound,omitempty"`
@@ -883,6 +921,10 @@ type TelegramConfig struct {
 	// The Telegram chat ID.
 	// +required
 	ChatID int64 `json:"chatID,omitempty"`
+	// The Telegram Group Topic ID.
+	// It requires Alertmanager >= 0.26.0.
+	// +optional
+	MessageThreadID *int64 `json:"messageThreadID,omitempty"`
 	// Message template
 	// +optional
 	Message string `json:"message,omitempty"`
@@ -910,6 +952,10 @@ type MSTeamsConfig struct {
 	// Message title template.
 	// +optional
 	Title *string `json:"title,omitempty"`
+	// Message summary template.
+	// It requires Alertmanager >= 0.27.0.
+	// +optional
+	Summary *string `json:"summary,omitempty"`
 	// Message body template.
 	// +optional
 	Text *string `json:"text,omitempty"`
@@ -957,8 +1003,8 @@ type Matcher struct {
 	// +optional
 	MatchType MatchType `json:"matchType,omitempty"`
 	// Whether to match on equality (false) or regular-expression (true).
-	// Deprecated as of AlertManager >= v0.22.0 where a user should use MatchType instead.
 	// +optional
+	// Deprecated: for AlertManager >= v0.22.0, `matchType` should be used instead.
 	Regex bool `json:"regex,omitempty"`
 }
 
@@ -1093,7 +1139,7 @@ type DayOfMonthRange struct {
 
 // MonthRange is an inclusive range of months of the year beginning in January
 // Months can be specified by name (e.g 'January') by numerical month (e.g '1') or as an inclusive range (e.g 'January:March', '1:3', '1:March')
-// +kubebuilder:validation:Pattern=`^((?i)january|february|march|april|may|june|july|august|september|october|november|december|[1-12])(?:((:((?i)january|february|march|april|may|june|july|august|september|october|november|december|[1-12]))$)|$)`
+// +kubebuilder:validation:Pattern=`^((?i)january|february|march|april|may|june|july|august|september|october|november|december|1[0-2]|[1-9])(?:((:((?i)january|february|march|april|may|june|july|august|september|october|november|december|1[0-2]|[1-9]))$)|$)`
 type MonthRange string
 
 // YearRange is an inclusive range of years
