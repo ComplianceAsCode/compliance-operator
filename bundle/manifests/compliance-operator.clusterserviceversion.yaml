@@ -1098,6 +1098,13 @@ spec:
           verbs:
           - get
           - list
+        - apiGroups:
+          - kataconfiguration.openshift.io
+          resources:
+          - kataconfigs
+          verbs:
+          - list
+          - get
         serviceAccountName: api-resource-collector
       - rules:
         - apiGroups:
