@@ -1,0 +1,18 @@
+contentOrigin:
+  repofiles:
+     - ./redhat.repo
+
+packages:
+  - jq
+  - openshift-clients
+  - rsync
+  - tar
+
+arches:
+  - aarch64
+  - x86_64
+  - s390x
+  - ppc64le
+
+context:
+    containerfile: images/must-gather/Containerfile
