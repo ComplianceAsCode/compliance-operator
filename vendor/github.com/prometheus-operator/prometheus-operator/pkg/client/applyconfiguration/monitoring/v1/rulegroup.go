@@ -20,17 +20,19 @@ import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
-// RuleGroupApplyConfiguration represents an declarative configuration of the RuleGroup type for use
+// RuleGroupApplyConfiguration represents a declarative configuration of the RuleGroup type for use
 // with apply.
 type RuleGroupApplyConfiguration struct {
 	Name                    *string                  `json:"name,omitempty"`
+	Labels                  map[string]string        `json:"labels,omitempty"`
 	Interval                *v1.Duration             `json:"interval,omitempty"`
+	QueryOffset             *v1.Duration             `json:"query_offset,omitempty"`
 	Rules                   []RuleApplyConfiguration `json:"rules,omitempty"`
 	PartialResponseStrategy *string                  `json:"partial_response_strategy,omitempty"`
 	Limit                   *int                     `json:"limit,omitempty"`
 }
 
-// RuleGroupApplyConfiguration constructs an declarative configuration of the RuleGroup type for use with
+// RuleGroupApplyConfiguration constructs a declarative configuration of the RuleGroup type for use with
 // apply.
 func RuleGroup() *RuleGroupApplyConfiguration {
 	return &RuleGroupApplyConfiguration{}
@@ -44,11 +46,33 @@ func (b *RuleGroupApplyConfiguration) WithName(value string) *RuleGroupApplyConf
 	return b
 }
 
+// WithLabels puts the entries into the Labels field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the Labels field,
+// overwriting an existing map entries in Labels field with the same key.
+func (b *RuleGroupApplyConfiguration) WithLabels(entries map[string]string) *RuleGroupApplyConfiguration {
+	if b.Labels == nil && len(entries) > 0 {
+		b.Labels = make(map[string]string, len(entries))
+	}
+	for k, v := range entries {
+		b.Labels[k] = v
+	}
+	return b
+}
+
 // WithInterval sets the Interval field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Interval field is set to the value of the last call.
 func (b *RuleGroupApplyConfiguration) WithInterval(value v1.Duration) *RuleGroupApplyConfiguration {
 	b.Interval = &value
+	return b
+}
+
+// WithQueryOffset sets the QueryOffset field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the QueryOffset field is set to the value of the last call.
+func (b *RuleGroupApplyConfiguration) WithQueryOffset(value v1.Duration) *RuleGroupApplyConfiguration {
+	b.QueryOffset = &value
 	return b
 }
 
