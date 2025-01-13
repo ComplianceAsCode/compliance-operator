@@ -18,63 +18,69 @@ package v1
 
 import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// AlertmanagerSpecApplyConfiguration represents an declarative configuration of the AlertmanagerSpec type for use
+// AlertmanagerSpecApplyConfiguration represents a declarative configuration of the AlertmanagerSpec type for use
 // with apply.
 type AlertmanagerSpecApplyConfiguration struct {
-	PodMetadata                         *EmbeddedObjectMetadataApplyConfiguration            `json:"podMetadata,omitempty"`
-	Image                               *string                                              `json:"image,omitempty"`
-	ImagePullPolicy                     *corev1.PullPolicy                                   `json:"imagePullPolicy,omitempty"`
-	Version                             *string                                              `json:"version,omitempty"`
-	Tag                                 *string                                              `json:"tag,omitempty"`
-	SHA                                 *string                                              `json:"sha,omitempty"`
-	BaseImage                           *string                                              `json:"baseImage,omitempty"`
-	ImagePullSecrets                    []corev1.LocalObjectReference                        `json:"imagePullSecrets,omitempty"`
-	Secrets                             []string                                             `json:"secrets,omitempty"`
-	ConfigMaps                          []string                                             `json:"configMaps,omitempty"`
-	ConfigSecret                        *string                                              `json:"configSecret,omitempty"`
-	LogLevel                            *string                                              `json:"logLevel,omitempty"`
-	LogFormat                           *string                                              `json:"logFormat,omitempty"`
-	Replicas                            *int32                                               `json:"replicas,omitempty"`
-	Retention                           *monitoringv1.GoDuration                             `json:"retention,omitempty"`
-	Storage                             *StorageSpecApplyConfiguration                       `json:"storage,omitempty"`
-	Volumes                             []corev1.Volume                                      `json:"volumes,omitempty"`
-	VolumeMounts                        []corev1.VolumeMount                                 `json:"volumeMounts,omitempty"`
-	ExternalURL                         *string                                              `json:"externalUrl,omitempty"`
-	RoutePrefix                         *string                                              `json:"routePrefix,omitempty"`
-	Paused                              *bool                                                `json:"paused,omitempty"`
-	NodeSelector                        map[string]string                                    `json:"nodeSelector,omitempty"`
-	Resources                           *corev1.ResourceRequirements                         `json:"resources,omitempty"`
-	Affinity                            *corev1.Affinity                                     `json:"affinity,omitempty"`
-	Tolerations                         []corev1.Toleration                                  `json:"tolerations,omitempty"`
-	TopologySpreadConstraints           []corev1.TopologySpreadConstraint                    `json:"topologySpreadConstraints,omitempty"`
-	SecurityContext                     *corev1.PodSecurityContext                           `json:"securityContext,omitempty"`
-	ServiceAccountName                  *string                                              `json:"serviceAccountName,omitempty"`
-	ListenLocal                         *bool                                                `json:"listenLocal,omitempty"`
-	Containers                          []corev1.Container                                   `json:"containers,omitempty"`
-	InitContainers                      []corev1.Container                                   `json:"initContainers,omitempty"`
-	PriorityClassName                   *string                                              `json:"priorityClassName,omitempty"`
-	AdditionalPeers                     []string                                             `json:"additionalPeers,omitempty"`
-	ClusterAdvertiseAddress             *string                                              `json:"clusterAdvertiseAddress,omitempty"`
-	ClusterGossipInterval               *monitoringv1.GoDuration                             `json:"clusterGossipInterval,omitempty"`
-	ClusterPushpullInterval             *monitoringv1.GoDuration                             `json:"clusterPushpullInterval,omitempty"`
-	ClusterPeerTimeout                  *monitoringv1.GoDuration                             `json:"clusterPeerTimeout,omitempty"`
-	PortName                            *string                                              `json:"portName,omitempty"`
-	ForceEnableClusterMode              *bool                                                `json:"forceEnableClusterMode,omitempty"`
-	AlertmanagerConfigSelector          *metav1.LabelSelector                                `json:"alertmanagerConfigSelector,omitempty"`
-	AlertmanagerConfigMatcherStrategy   *AlertmanagerConfigMatcherStrategyApplyConfiguration `json:"alertmanagerConfigMatcherStrategy,omitempty"`
-	AlertmanagerConfigNamespaceSelector *metav1.LabelSelector                                `json:"alertmanagerConfigNamespaceSelector,omitempty"`
-	MinReadySeconds                     *uint32                                              `json:"minReadySeconds,omitempty"`
-	HostAliases                         []HostAliasApplyConfiguration                        `json:"hostAliases,omitempty"`
-	Web                                 *AlertmanagerWebSpecApplyConfiguration               `json:"web,omitempty"`
-	AlertmanagerConfiguration           *AlertmanagerConfigurationApplyConfiguration         `json:"alertmanagerConfiguration,omitempty"`
-	AutomountServiceAccountToken        *bool                                                `json:"automountServiceAccountToken,omitempty"`
+	PodMetadata                          *EmbeddedObjectMetadataApplyConfiguration               `json:"podMetadata,omitempty"`
+	Image                                *string                                                 `json:"image,omitempty"`
+	ImagePullPolicy                      *corev1.PullPolicy                                      `json:"imagePullPolicy,omitempty"`
+	Version                              *string                                                 `json:"version,omitempty"`
+	Tag                                  *string                                                 `json:"tag,omitempty"`
+	SHA                                  *string                                                 `json:"sha,omitempty"`
+	BaseImage                            *string                                                 `json:"baseImage,omitempty"`
+	ImagePullSecrets                     []corev1.LocalObjectReference                           `json:"imagePullSecrets,omitempty"`
+	Secrets                              []string                                                `json:"secrets,omitempty"`
+	ConfigMaps                           []string                                                `json:"configMaps,omitempty"`
+	ConfigSecret                         *string                                                 `json:"configSecret,omitempty"`
+	LogLevel                             *string                                                 `json:"logLevel,omitempty"`
+	LogFormat                            *string                                                 `json:"logFormat,omitempty"`
+	Replicas                             *int32                                                  `json:"replicas,omitempty"`
+	Retention                            *monitoringv1.GoDuration                                `json:"retention,omitempty"`
+	Storage                              *StorageSpecApplyConfiguration                          `json:"storage,omitempty"`
+	Volumes                              []corev1.Volume                                         `json:"volumes,omitempty"`
+	VolumeMounts                         []corev1.VolumeMount                                    `json:"volumeMounts,omitempty"`
+	PersistentVolumeClaimRetentionPolicy *appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy `json:"persistentVolumeClaimRetentionPolicy,omitempty"`
+	ExternalURL                          *string                                                 `json:"externalUrl,omitempty"`
+	RoutePrefix                          *string                                                 `json:"routePrefix,omitempty"`
+	Paused                               *bool                                                   `json:"paused,omitempty"`
+	NodeSelector                         map[string]string                                       `json:"nodeSelector,omitempty"`
+	Resources                            *corev1.ResourceRequirements                            `json:"resources,omitempty"`
+	Affinity                             *corev1.Affinity                                        `json:"affinity,omitempty"`
+	Tolerations                          []corev1.Toleration                                     `json:"tolerations,omitempty"`
+	TopologySpreadConstraints            []corev1.TopologySpreadConstraint                       `json:"topologySpreadConstraints,omitempty"`
+	SecurityContext                      *corev1.PodSecurityContext                              `json:"securityContext,omitempty"`
+	DNSPolicy                            *monitoringv1.DNSPolicy                                 `json:"dnsPolicy,omitempty"`
+	DNSConfig                            *PodDNSConfigApplyConfiguration                         `json:"dnsConfig,omitempty"`
+	ServiceAccountName                   *string                                                 `json:"serviceAccountName,omitempty"`
+	ListenLocal                          *bool                                                   `json:"listenLocal,omitempty"`
+	Containers                           []corev1.Container                                      `json:"containers,omitempty"`
+	InitContainers                       []corev1.Container                                      `json:"initContainers,omitempty"`
+	PriorityClassName                    *string                                                 `json:"priorityClassName,omitempty"`
+	AdditionalPeers                      []string                                                `json:"additionalPeers,omitempty"`
+	ClusterAdvertiseAddress              *string                                                 `json:"clusterAdvertiseAddress,omitempty"`
+	ClusterGossipInterval                *monitoringv1.GoDuration                                `json:"clusterGossipInterval,omitempty"`
+	ClusterLabel                         *string                                                 `json:"clusterLabel,omitempty"`
+	ClusterPushpullInterval              *monitoringv1.GoDuration                                `json:"clusterPushpullInterval,omitempty"`
+	ClusterPeerTimeout                   *monitoringv1.GoDuration                                `json:"clusterPeerTimeout,omitempty"`
+	PortName                             *string                                                 `json:"portName,omitempty"`
+	ForceEnableClusterMode               *bool                                                   `json:"forceEnableClusterMode,omitempty"`
+	AlertmanagerConfigSelector           *metav1.LabelSelectorApplyConfiguration                 `json:"alertmanagerConfigSelector,omitempty"`
+	AlertmanagerConfigNamespaceSelector  *metav1.LabelSelectorApplyConfiguration                 `json:"alertmanagerConfigNamespaceSelector,omitempty"`
+	AlertmanagerConfigMatcherStrategy    *AlertmanagerConfigMatcherStrategyApplyConfiguration    `json:"alertmanagerConfigMatcherStrategy,omitempty"`
+	MinReadySeconds                      *uint32                                                 `json:"minReadySeconds,omitempty"`
+	HostAliases                          []HostAliasApplyConfiguration                           `json:"hostAliases,omitempty"`
+	Web                                  *AlertmanagerWebSpecApplyConfiguration                  `json:"web,omitempty"`
+	AlertmanagerConfiguration            *AlertmanagerConfigurationApplyConfiguration            `json:"alertmanagerConfiguration,omitempty"`
+	AutomountServiceAccountToken         *bool                                                   `json:"automountServiceAccountToken,omitempty"`
+	EnableFeatures                       []string                                                `json:"enableFeatures,omitempty"`
 }
 
-// AlertmanagerSpecApplyConfiguration constructs an declarative configuration of the AlertmanagerSpec type for use with
+// AlertmanagerSpecApplyConfiguration constructs a declarative configuration of the AlertmanagerSpec type for use with
 // apply.
 func AlertmanagerSpec() *AlertmanagerSpecApplyConfiguration {
 	return &AlertmanagerSpecApplyConfiguration{}
@@ -234,6 +240,14 @@ func (b *AlertmanagerSpecApplyConfiguration) WithVolumeMounts(values ...corev1.V
 	return b
 }
 
+// WithPersistentVolumeClaimRetentionPolicy sets the PersistentVolumeClaimRetentionPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PersistentVolumeClaimRetentionPolicy field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithPersistentVolumeClaimRetentionPolicy(value appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy) *AlertmanagerSpecApplyConfiguration {
+	b.PersistentVolumeClaimRetentionPolicy = &value
+	return b
+}
+
 // WithExternalURL sets the ExternalURL field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ExternalURL field is set to the value of the last call.
@@ -316,6 +330,22 @@ func (b *AlertmanagerSpecApplyConfiguration) WithSecurityContext(value corev1.Po
 	return b
 }
 
+// WithDNSPolicy sets the DNSPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DNSPolicy field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithDNSPolicy(value monitoringv1.DNSPolicy) *AlertmanagerSpecApplyConfiguration {
+	b.DNSPolicy = &value
+	return b
+}
+
+// WithDNSConfig sets the DNSConfig field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DNSConfig field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithDNSConfig(value *PodDNSConfigApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
+	b.DNSConfig = value
+	return b
+}
+
 // WithServiceAccountName sets the ServiceAccountName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ServiceAccountName field is set to the value of the last call.
@@ -386,6 +416,14 @@ func (b *AlertmanagerSpecApplyConfiguration) WithClusterGossipInterval(value mon
 	return b
 }
 
+// WithClusterLabel sets the ClusterLabel field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ClusterLabel field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithClusterLabel(value string) *AlertmanagerSpecApplyConfiguration {
+	b.ClusterLabel = &value
+	return b
+}
+
 // WithClusterPushpullInterval sets the ClusterPushpullInterval field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ClusterPushpullInterval field is set to the value of the last call.
@@ -421,8 +459,16 @@ func (b *AlertmanagerSpecApplyConfiguration) WithForceEnableClusterMode(value bo
 // WithAlertmanagerConfigSelector sets the AlertmanagerConfigSelector field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the AlertmanagerConfigSelector field is set to the value of the last call.
-func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigSelector(value metav1.LabelSelector) *AlertmanagerSpecApplyConfiguration {
-	b.AlertmanagerConfigSelector = &value
+func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigSelector(value *metav1.LabelSelectorApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
+	b.AlertmanagerConfigSelector = value
+	return b
+}
+
+// WithAlertmanagerConfigNamespaceSelector sets the AlertmanagerConfigNamespaceSelector field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AlertmanagerConfigNamespaceSelector field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigNamespaceSelector(value *metav1.LabelSelectorApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
+	b.AlertmanagerConfigNamespaceSelector = value
 	return b
 }
 
@@ -431,14 +477,6 @@ func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigSelector(valu
 // If called multiple times, the AlertmanagerConfigMatcherStrategy field is set to the value of the last call.
 func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigMatcherStrategy(value *AlertmanagerConfigMatcherStrategyApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
 	b.AlertmanagerConfigMatcherStrategy = value
-	return b
-}
-
-// WithAlertmanagerConfigNamespaceSelector sets the AlertmanagerConfigNamespaceSelector field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AlertmanagerConfigNamespaceSelector field is set to the value of the last call.
-func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigNamespaceSelector(value metav1.LabelSelector) *AlertmanagerSpecApplyConfiguration {
-	b.AlertmanagerConfigNamespaceSelector = &value
 	return b
 }
 
@@ -484,5 +522,15 @@ func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfiguration(value
 // If called multiple times, the AutomountServiceAccountToken field is set to the value of the last call.
 func (b *AlertmanagerSpecApplyConfiguration) WithAutomountServiceAccountToken(value bool) *AlertmanagerSpecApplyConfiguration {
 	b.AutomountServiceAccountToken = &value
+	return b
+}
+
+// WithEnableFeatures adds the given value to the EnableFeatures field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the EnableFeatures field.
+func (b *AlertmanagerSpecApplyConfiguration) WithEnableFeatures(values ...string) *AlertmanagerSpecApplyConfiguration {
+	for i := range values {
+		b.EnableFeatures = append(b.EnableFeatures, values[i])
+	}
 	return b
 }
