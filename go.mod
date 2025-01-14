@@ -4,7 +4,6 @@ go 1.23.0
 
 require (
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	k8s.io/apimachinery v0.32.0
 	k8s.io/client-go v0.32.0
@@ -44,6 +43,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.22.2 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/prometheus/alertmanager v0.27.0 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
