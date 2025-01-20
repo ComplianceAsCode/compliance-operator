@@ -160,7 +160,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    must-gather-image: ghcr.io/complianceascode/must-gather-ocp:latest
+    must-gather-image: registry.redhat.io/compliance/openshift-compliance-must-gather-rhel8@sha256:08b74fb972f70d2c25c915d8c73a38e72de0f1e5f3698fc8ffc9934453572882
     olm.skipRange: '>=0.1.17 <1.6.0'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
@@ -1313,12 +1313,12 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
                 - name: RELATED_IMAGE_OPENSCAP
-                  value: ghcr.io/complianceascode/openscap-ocp:latest
+                  value: registry.redhat.io/compliance/openshift-compliance-openscap-rhel8@sha256:67c038a8356b76f4aaf80d6a214935a1eccaa1a7abe0c08e049a5bfb4496fc4d
                 - name: RELATED_IMAGE_OPERATOR
-                  value: ghcr.io/complianceascode/compliance-operator:latest
+                  value: registry.redhat.io/compliance/openshift-compliance-rhel8-operator@sha256:5ed6c68cad80443e9de184ae838fbe0f3b3aac07160583ac627505bf1888bde3
                 - name: RELATED_IMAGE_PROFILE
-                  value: ghcr.io/complianceascode/k8scontent:latest
-                image: ghcr.io/complianceascode/compliance-operator:latest
+                  value: registry.redhat.io/compliance/openshift-compliance-content-rhel8@@sha256:0bcad29a835b29dbf043515f9f8c985bb983ca2c5f22ff4beb36a4586225cfca
+                image: registry.redhat.io/compliance/openshift-compliance-rhel8-operator@sha256:5ed6c68cad80443e9de184ae838fbe0f3b3aac07160583ac627505bf1888bde3
                 imagePullPolicy: Always
                 name: compliance-operator
                 resources:
