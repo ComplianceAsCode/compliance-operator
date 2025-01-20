@@ -482,6 +482,8 @@ github.com/openshift/client-go v0.0.0-20250106104058-89709a455e2a h1:8lwO4lGTwHu
 github.com/openshift/client-go v0.0.0-20250106104058-89709a455e2a/go.mod h1:34qRf2MsrJKXKAL8qxIkxZ3O5G+YhOB7foCR04H26JE=
 github.com/openshift/library-go v0.0.0-20241022210936-abb8c75b88dc h1:fwtWTW+QcTyzGVAYxMPz9amtAURWvSs8p+a37nG/43c=
 github.com/openshift/library-go v0.0.0-20241022210936-abb8c75b88dc/go.mod h1:9B1MYPoLtP9tqjWxcbUNVpwxy68zOH/3EIP6c31dAM0=
+github.com/openshift/library-go v0.0.0-20250116180413-7359be999c02 h1:GXdi8iO9818O0+G5ioCrIqo2DI8W/wjS/Nn2a3YX+a4=
+github.com/openshift/library-go v0.0.0-20250116180413-7359be999c02/go.mod h1:Dsex3pPrZ+krgVFZIv21DGzeFvcC0muMvaQe9E/q0uI=
 github.com/openshift/machine-config-operator v0.0.1-0.20250106175656-2d1f23a7513e h1:lj/hPkn1S/ob80I27cwUm13qmOpQAVnDWJJaVdtclqc=
 github.com/openshift/machine-config-operator v0.0.1-0.20250106175656-2d1f23a7513e/go.mod h1:tNj7XsIWhYb/sS450h3uyxY9Jwb4CxeQKeRZNt4wFXQ=
 github.com/ovh/go-ovh v1.6.0 h1:ixLOwxQdzYDx296sXcgS35TOPEahJkpjMGtzPadCjQI=
