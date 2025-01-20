@@ -107,7 +107,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/openshift/api v0.0.0-20250120092857-366ffb8c60da
-	github.com/openshift/library-go v0.0.0-20241022210936-abb8c75b88dc
+	github.com/openshift/library-go v0.0.0-20250116180413-7359be999c02
 	github.com/openshift/machine-config-operator v0.0.1-0.20250106175656-2d1f23a7513e
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
