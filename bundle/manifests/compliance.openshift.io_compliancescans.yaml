@@ -266,6 +266,12 @@ spec:
                 default: Node
                 description: The type of Compliance scan.
                 type: string
+              scanner:
+                default: OpenSCAP
+                description: |-
+                  Scanner is the type of scanner that should be used to evaluate this rule
+                  Defaults to OpenSCAP
+                type: string
               showNotApplicable:
                 default: false
                 description: Determines whether to hide or show results that are not

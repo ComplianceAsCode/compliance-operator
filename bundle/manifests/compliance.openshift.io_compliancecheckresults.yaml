@@ -41,6 +41,9 @@ spec:
           description:
             description: A human-readable check description, what and why it does
             type: string
+          errorMessage:
+            description: The ErrorMessage of the rule evaluation
+            type: string
           id:
             description: A unique identifier of a check
             type: string
