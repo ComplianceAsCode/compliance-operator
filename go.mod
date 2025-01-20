@@ -3,6 +3,7 @@ module github.com/ComplianceAsCode/compliance-operator
 go 1.23.0
 
 require (
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.36.2
 	k8s.io/apimachinery v0.32.0
@@ -82,7 +83,7 @@ require (
 	github.com/antchfx/xmlquery v1.4.3
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v5 v5.0.1
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clarketm/json v1.17.1
 	github.com/coreos/ignition/v2 v2.19.0
