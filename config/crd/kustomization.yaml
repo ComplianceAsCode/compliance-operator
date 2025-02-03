@@ -13,6 +13,7 @@ resources:
 - bases/compliance.openshift.io_scansettings.yaml
 - bases/compliance.openshift.io_tailoredprofiles.yaml
 - bases/compliance.openshift.io_variables.yaml
+- bases/compliance.openshift.io_customrules.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 configurations:

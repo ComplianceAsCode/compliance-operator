@@ -1,0 +1,27 @@
+# permissions for end users to view customrules.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: customrule-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: compliance-operator
+    app.kubernetes.io/part-of: compliance-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: customrule-viewer-role
+rules:
+- apiGroups:
+  - compliance.openshift.io
+  resources:
+  - customrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - compliance.openshift.io
+  resources:
+  - customrules/status
+  verbs:
+  - get
