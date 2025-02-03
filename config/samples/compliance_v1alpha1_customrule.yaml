@@ -1,0 +1,27 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  labels:
+    app.kubernetes.io/name: customrule
+    app.kubernetes.io/instance: customrule-sample
+    app.kubernetes.io/part-of: compliance-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: compliance-operator
+  name: customrule-sample
+id: "my_cel_rule_example"
+title: "Ensure that application Namespaces have Network Policies defined"
+severity: "high"
+scannerType: "CEL"
+description: "Each application Namespace should have a NetworkPolicy defined to ensure that the application is secure."
+expression: |
+  size(nl.items) == 0 || nl.items.any(ns => ns.metadata.labels["app.kubernetes.io/name"] == "my-app")
+inputs:
+  - name: nl
+    apiGroup: ""
+    version: v1
+    resource: namespaces
+  - name: npl
+    apiGroup: networking.k8s.io
+    version: v1
+    resource: networkpolicies
+errorMessage: "Application Namespaces do not have a NetworkPolicy."
