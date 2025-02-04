@@ -26,89 +26,6 @@ spec:
               may reject unrecognized values.
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
-          availableFixes:
-            description: The Available fixes
-            items:
-              description: |-
-                FixDefinition Specifies a fix or remediation
-                that applies to a rule
-              properties:
-                disruption:
-                  description: |-
-                    An estimate of the potential disruption or operational
-                    degradation that this fix will impose in the target system
-                  type: string
-                fixObject:
-                  description: an object that should bring the rule into compliance
-                  type: object
-                  x-kubernetes-embedded-resource: true
-                  x-kubernetes-preserve-unknown-fields: true
-                platform:
-                  description: The platform that the fix applies to
-                  type: string
-              type: object
-            nullable: true
-            type: array
-            x-kubernetes-list-type: atomic
-          checkType:
-            description: |-
-              What type of check will this rule execute:
-              Platform, Node or none (represented by an empty string)
-            type: string
-          description:
-            description: The description of the Rule
-            type: string
-          errorMessage:
-            description: ErrorMessage is displayed when the rule evaluation fails
-            minLength: 1
-            type: string
-          expression:
-            description: Expression is the CEL expression to evaluate
-            minLength: 1
-            type: string
-          id:
-            description: The XCCDF ID
-            type: string
-          inputs:
-            description: Inputs defines the Kubernetes resources that need to be fetched
-              before evaluating the expression
-            items:
-              properties:
-                kubeResource:
-                  description: The kubernetes resource that will be used as input
-                  nullable: true
-                  properties:
-                    apiGroup:
-                      description: APIGroup is the Kubernetes API group of the resource
-                      type: string
-                    name:
-                      description: Name is the variable name used to reference this
-                        resource in the CEL expression
-                      minLength: 1
-                      type: string
-                    namespace:
-                      description: Namespace is the Kubernetes namespace of the resource
-                      type: string
-                    resource:
-                      description: Resource is the Kubernetes resource type
-                      minLength: 1
-                      type: string
-                    version:
-                      description: Version is the Kubernetes API version of the resource
-                      minLength: 1
-                      type: string
-                  required:
-                  - apiGroup
-                  - name
-                  - resource
-                  - version
-                  type: object
-              type: object
-            minItems: 1
-            type: array
-          instructions:
-            description: Instructions for auditing this specific rule
-            type: string
           kind:
             description: |-
               Kind is a string value representing the REST resource this object represents.
@@ -119,33 +36,123 @@ spec:
             type: string
           metadata:
             type: object
-          rationale:
-            description: The rationale of the Rule
-            type: string
-          scannerType:
-            description: ScannerType specifies what type of check this rule performs
-            enum:
-            - CEL
-            - OpenSCAP
-            type: string
-          severity:
-            description: The severity level
-            type: string
-          title:
-            description: The title of the Rule
-            type: string
-          warning:
-            description: A discretionary warning about the of the Rule
-            type: string
-        required:
-        - errorMessage
-        - expression
-        - id
-        - inputs
-        - scannerType
-        - title
+          spec:
+            properties:
+              availableFixes:
+                description: The Available fixes
+                items:
+                  description: |-
+                    FixDefinition Specifies a fix or remediation
+                    that applies to a rule
+                  properties:
+                    disruption:
+                      description: |-
+                        An estimate of the potential disruption or operational
+                        degradation that this fix will impose in the target system
+                      type: string
+                    fixObject:
+                      description: an object that should bring the rule into compliance
+                      type: object
+                      x-kubernetes-embedded-resource: true
+                      x-kubernetes-preserve-unknown-fields: true
+                    platform:
+                      description: The platform that the fix applies to
+                      type: string
+                  type: object
+                nullable: true
+                type: array
+                x-kubernetes-list-type: atomic
+              checkType:
+                description: |-
+                  What type of check will this rule execute:
+                  Platform, Node or none (represented by an empty string)
+                type: string
+              description:
+                description: The description of the Rule
+                type: string
+              errorMessage:
+                description: ErrorMessage is displayed when the rule evaluation fails
+                minLength: 1
+                type: string
+              expression:
+                description: Expression is the CEL expression to evaluate
+                minLength: 1
+                type: string
+              id:
+                description: The XCCDF ID
+                type: string
+              inputs:
+                description: Inputs defines the Kubernetes resources that need to
+                  be fetched before evaluating the expression
+                items:
+                  properties:
+                    kubeResource:
+                      description: The kubernetes resource that will be used as input
+                      nullable: true
+                      properties:
+                        apiGroup:
+                          description: APIGroup is the Kubernetes API group of the
+                            resource
+                          type: string
+                        name:
+                          description: Name is the variable name used to reference
+                            this resource in the CEL expression
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: Namespace is the Kubernetes namespace of the
+                            resource
+                          type: string
+                        resource:
+                          description: Resource is the Kubernetes resource type
+                          minLength: 1
+                          type: string
+                        version:
+                          description: Version is the Kubernetes API version of the
+                            resource
+                          minLength: 1
+                          type: string
+                      required:
+                      - apiGroup
+                      - name
+                      - resource
+                      - version
+                      type: object
+                  type: object
+                minItems: 1
+                type: array
+              instructions:
+                description: Instructions for auditing this specific rule
+                type: string
+              rationale:
+                description: The rationale of the Rule
+                type: string
+              scannerType:
+                description: ScannerType specifies what type of check this rule performs
+                enum:
+                - CEL
+                - OpenSCAP
+                type: string
+              severity:
+                description: The severity level
+                type: string
+              title:
+                description: The title of the Rule
+                type: string
+              warning:
+                description: A discretionary warning about the of the Rule
+                type: string
+            required:
+            - errorMessage
+            - expression
+            - id
+            - inputs
+            - scannerType
+            - title
+            type: object
+          status:
+            description: Status is intentionally left empty.
+            type: object
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
