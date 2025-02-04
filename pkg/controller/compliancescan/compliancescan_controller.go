@@ -696,64 +696,67 @@ func (r *ReconcileComplianceScan) setAnnotationOnTimeout(scan *compv1alpha1.Comp
 func (r *ReconcileComplianceScan) phaseAggregatingHandler(h scanTypeHandler, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Aggregating")
 	instance := h.getScan()
-	isReady, warnings, err := h.shouldLaunchAggregator()
+	// We will skip aggregation if the scan is a CEL scan
+	if instance.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || instance.Spec.ScannerType == "" {
+		isReady, warnings, err := h.shouldLaunchAggregator()
 
-	if warnings != "" {
-		instance.Status.Warnings = warnings
-	}
-
-	// We only wait if there are no errors.
-	if err == nil && !isReady {
-		logger.Info("ConfigMap missing (not ready). Requeuing.")
-		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
-	}
-
-	if err != nil {
-		instance.Status.Phase = compv1alpha1.PhaseDone
-		instance.Status.EndTimestamp = &metav1.Time{Time: time.Now()}
-		instance.Status.Result = compv1alpha1.ResultError
-		instance.Status.SetConditionInvalid()
-		instance.Status.ErrorMessage = err.Error()
-		err = r.updateStatusWithEvent(instance, logger)
-		if err != nil {
-			// metric status update error
-			return reconcile.Result{}, err
+		if warnings != "" {
+			instance.Status.Warnings = warnings
 		}
-		r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
-		return reconcile.Result{}, nil
-	}
 
-	logger.Info("Creating an aggregator pod for scan")
-	aggregator := r.newAggregatorPod(instance, logger)
-	if priorityClassExist, why := utils.ValidatePriorityClassExist(aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
-		logger.Info(why, "aggregator", aggregator.Name)
-		r.Recorder.Eventf(aggregator, corev1.EventTypeWarning, "PriorityClass", why+" aggregator:"+aggregator.Name)
-		aggregator.Spec.PriorityClassName = ""
-	}
-	err = r.launchAggregatorPod(instance, aggregator, logger)
-	if err != nil {
-		logger.Error(err, "Failed to launch aggregator pod", "aggregator", aggregator)
-		return reconcile.Result{}, err
-	}
-	running, err := isAggregatorRunning(r, instance, logger)
-	if errors.IsNotFound(err) {
-		// Suppress loud error message by requeueing
-		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault / 2}, nil
-	} else if err != nil {
-		logger.Error(err, "Failed to check if aggregator pod is running", "aggregator", aggregator)
-		return reconcile.Result{}, err
-	}
-
-	if running {
-		logger.Info("Remaining in the aggregating phase")
-		instance.Status.Phase = compv1alpha1.PhaseAggregating
-		err = r.Client.Status().Update(context.TODO(), instance)
-		if err != nil {
-			logger.Error(err, "Cannot update the status, requeueing")
+		// We only wait if there are no errors.
+		if err == nil && !isReady {
+			logger.Info("ConfigMap missing (not ready). Requeuing.")
 			return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
 		}
-		r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
-		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
+
+		if err != nil {
+			instance.Status.Phase = compv1alpha1.PhaseDone
+			instance.Status.EndTimestamp = &metav1.Time{Time: time.Now()}
+			instance.Status.Result = compv1alpha1.ResultError
+			instance.Status.SetConditionInvalid()
+			instance.Status.ErrorMessage = err.Error()
+			err = r.updateStatusWithEvent(instance, logger)
+			if err != nil {
+				// metric status update error
+				return reconcile.Result{}, err
+			}
+			r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
+			return reconcile.Result{}, nil
+		}
+
+		logger.Info("Creating an aggregator pod for scan")
+		aggregator := r.newAggregatorPod(instance, logger)
+		if priorityClassExist, why := utils.ValidatePriorityClassExist(aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
+			logger.Info(why, "aggregator", aggregator.Name)
+			r.Recorder.Eventf(aggregator, corev1.EventTypeWarning, "PriorityClass", why+" aggregator:"+aggregator.Name)
+			aggregator.Spec.PriorityClassName = ""
+		}
+		err = r.launchAggregatorPod(instance, aggregator, logger)
+		if err != nil {
+			logger.Error(err, "Failed to launch aggregator pod", "aggregator", aggregator)
+			return reconcile.Result{}, err
+		}
+		running, err := isAggregatorRunning(r, instance, logger)
+		if errors.IsNotFound(err) {
+			// Suppress loud error message by requeueing
+			return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault / 2}, nil
+		} else if err != nil {
+			logger.Error(err, "Failed to check if aggregator pod is running", "aggregator", aggregator)
+			return reconcile.Result{}, err
+		}
+
+		if running {
+			logger.Info("Remaining in the aggregating phase")
+			instance.Status.Phase = compv1alpha1.PhaseAggregating
+			err = r.Client.Status().Update(context.TODO(), instance)
+			if err != nil {
+				logger.Error(err, "Cannot update the status, requeueing")
+				return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
+			}
+			r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
+			return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
+		}
 	}
 
 	logger.Info("Moving on to the Done phase")
