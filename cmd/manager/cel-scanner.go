@@ -25,20 +25,26 @@ import (
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
+	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/spf13/cobra"
 	expr "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1api "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
 )
 
@@ -77,6 +83,8 @@ type celConfig struct {
 	ApiResourcePath string
 	ScanType        string
 	CCRGeneration   bool
+	ScanName        string
+	NameSpace       string
 }
 
 func defineCelScannerFlags(cmd *cobra.Command) {
@@ -85,6 +93,7 @@ func defineCelScannerFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("debug", false, "Print debug messages.")
 	cmd.Flags().String("api-resource-dir", "", "The directory containing the pre-fetched API resources, this would be optional, we will try to access the API server if not provided.")
 	cmd.Flags().String("scan-type", "", "The type of scan to perform, e.g. Platform.")
+	cmd.Flags().String("scan-name", "", "The name of the scan.")
 	cmd.Flags().String("check-resultdir", "", "The directory to write the scan results to, this is optional.")
 	cmd.Flags().String("enable-ccr-generation", "", "The flag to enable ComplianceCheckResult generation.")
 	cmd.Flags().String("platform", "", "The platform flag used by CPE detection.")
@@ -100,6 +109,8 @@ func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 	conf.ApiResourcePath = getValidStringArg(cmd, "api-resource-dir")
 	conf.CCRGeneration, _ = cmd.Flags().GetBool("enable-ccr-generation")
 	conf.ScanType = getValidStringArg(cmd, "scan-type")
+	conf.ScanName = getValidStringArg(cmd, "scan-name")
+	conf.NameSpace = getValidStringArg(cmd, "namespace")
 	isTailoring, _ := cmd.Flags().GetString("tailoring")
 	if isTailoring == "true" {
 		tailoredProfileName := conf.Profile
@@ -138,17 +149,13 @@ func (c *CelScanner) runPlatformScan() {
 	if profile == "" {
 		FATAL("Profile not provided")
 	}
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
 	exitCode := 0
 	// Check if a tailored profile is provided, and get selected rules
 	// TODO(@Vincent056): Right now only CEL CustomRules are supported
 	// We will add support for Rule Object when CEL is supported for Rule
 	var selectedRules []*cmpv1alpha1.CustomRule
 	if c.celConfig.Tailoring != "" {
-		tailoredProfile, err := c.getTailoredProfile(namespace)
+		tailoredProfile, err := c.getTailoredProfile(c.celConfig.NameSpace)
 		if err != nil {
 			FATAL("Failed to get tailored profile: %v", err)
 		}
@@ -210,6 +217,95 @@ func (c *CelScanner) runPlatformScan() {
 	// Check if we need to generate ComplianceCheckResult objects
 	if c.celConfig.CCRGeneration {
 		// TODO(@Vincent056): Generate ComplianceCheckResult objects
+		// We need to do clean up the duplicated code in aggregator
+		DBG("Generating ComplianceCheckResult objects")
+		var scan = &cmpv1alpha1.ComplianceScan{}
+		err := c.client.Get(context.TODO(), v1api.NamespacedName{
+			Namespace: c.celConfig.NameSpace,
+			Name:      c.celConfig.ScanName,
+		}, scan)
+		if err != nil {
+			cmdLog.Error(err, "Cannot retrieve the scan instance",
+				"ComplianceScan.Name", c.celConfig.ScanName,
+				"ComplianceScan.Namespace", c.celConfig.NameSpace,
+			)
+			os.Exit(1)
+		}
+
+		staleComplianceCheckResults := make(map[string]compv1alpha1.ComplianceCheckResult)
+		complianceCheckResults := compv1alpha1.ComplianceCheckResultList{}
+		withLabel := map[string]string{
+			compv1alpha1.ComplianceScanLabel: scan.Name,
+		}
+		lo := runtimeclient.ListOptions{
+			Namespace:     scan.Namespace,
+			LabelSelector: labels.SelectorFromSet(withLabel),
+		}
+		err = c.client.List(context.TODO(), &complianceCheckResults, &lo)
+		if err != nil {
+			cmdLog.Error(err, "Cannot list ComplianceCheckResults", "ComplianceScan.Name", scan.Name)
+		}
+		for _, r := range complianceCheckResults.Items {
+			// Use a map so that we can find specific
+			// ComplianceCheckResults without iterating over the list for
+			// every new result from the latest scan.
+			staleComplianceCheckResults[r.Name] = r
+		}
+
+		for _, pr := range evalResultList {
+			if pr == nil {
+				cmdLog.Info("nil result, this shouldn't happen")
+				continue
+			}
+
+			parsedResult := &utils.ParseResult{}
+			parsedResult.CheckResult = pr
+			checkResultLabels := getCheckResultLabels(parsedResult, pr.Labels, scan)
+			checkResultAnnotations := getCheckResultAnnotations(pr, pr.Annotations)
+
+			crkey := getObjKey(pr.Name, pr.Namespace)
+			foundCheckResult := &compv1alpha1.ComplianceCheckResult{}
+			// Copy type metadata so dynamic client copies data correctly
+			foundCheckResult.TypeMeta = pr.TypeMeta
+			cmdLog.Info("Getting ComplianceCheckResult", "ComplianceCheckResult.Name", crkey.Name,
+				"ComplianceCheckResult.Namespace", crkey.Namespace)
+			checkResultExists := getObjectIfFoundCEL(c.client, crkey, foundCheckResult)
+			if checkResultExists {
+				// Copy resource version and other metadata needed for update
+				foundCheckResult.ObjectMeta.DeepCopyInto(&pr.ObjectMeta)
+			} else if !scan.Spec.ShowNotApplicable && pr.Status == compv1alpha1.CheckResultNotApplicable {
+				// If the result is not applicable we skip creation
+				// Note that updating a not-applicable result should still
+				// work in order to get older deployments to keep working.
+				continue
+			}
+			// check is owned by the scan
+			if err := createOrUpdateResult(c.client, scan, checkResultLabels, checkResultAnnotations, checkResultExists, pr); err != nil {
+				// return fmt.Errorf("cannot create or update checkResult %s: %v", pr.CheckResult.Name, err)
+				cmdLog.Error(err, "Cannot create or update checkResult", "ComplianceCheckResult.Name", pr.Name)
+			}
+
+			// Remove the ComplianceCheckResult from the list of stale
+			// results so we don't delete it later.
+			_, ok := staleComplianceCheckResults[foundCheckResult.Name]
+			if ok {
+				delete(staleComplianceCheckResults, foundCheckResult.Name)
+			}
+
+		}
+
+		// If there are any ComplianceCheckResults left in
+		// staleComplianceCheckResults, they were from previous scans and we
+		// should delete them. Otherwise, we give users the impression changes
+		// they've made to their scans, profiles, or settings haven't taken
+		// effect.
+		for _, result := range staleComplianceCheckResults {
+			err := c.client.Delete(context.TODO(), &result)
+			if err != nil {
+				LOG("Unable to delete stale ComplianceCheckResult %s: %v", result.Name, err)
+			}
+		}
+
 	}
 	// Save the exit code to a file
 	// We are matching the exit code to the openscap exit codes
@@ -220,6 +316,70 @@ func (c *CelScanner) runPlatformScan() {
 	}
 	os.Exit(0)
 }
+
+// Returns whether or not an object exists, and updates the data in the obj.
+func getObjectIfFoundCEL(crClient runtimeclient.Client, key v1api.NamespacedName, obj runtimeclient.Object) bool {
+	var found bool
+	err := backoff.Retry(func() error {
+		err := crClient.Get(context.TODO(), key, obj)
+		if errors.IsNotFound(err) {
+			return nil
+		} else if err != nil {
+			cmdLog.Error(err, "Retrying with a backoff because of an error while getting object")
+			return err
+		}
+		found = true
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
+
+	if err != nil {
+		cmdLog.Error(err, "Couldn't get object", "Name", key.Name, "Namespace", key.Namespace)
+	}
+	return found
+}
+
+func createOrUpdateResult(crClient runtimeclient.Client, owner metav1.Object, labels map[string]string, annotations map[string]string, exists bool, res compResultIface) error {
+	kind := res.GetObjectKind()
+
+	if err := controllerutil.SetControllerReference(owner, res, crClient.Scheme()); err != nil {
+		cmdLog.Error(err, "Failed to set ownership", "kind", kind.GroupVersionKind().Kind)
+		return err
+	}
+
+	res.SetLabels(labels)
+
+	name := res.GetName()
+
+	err := backoff.Retry(func() error {
+		var err error
+		if !exists {
+			cmdLog.Info("Creating object", "kind", kind, "name", name)
+			annotations = setTimestampAnnotations(owner, annotations)
+			if annotations != nil {
+				res.SetAnnotations(annotations)
+			}
+			err = crClient.Create(context.TODO(), res)
+		} else {
+			cmdLog.Info("Updating object", "kind", kind, "name", name)
+			annotations = setTimestampAnnotations(owner, annotations)
+			if annotations != nil {
+				res.SetAnnotations(annotations)
+			}
+			err = crClient.Update(context.TODO(), res)
+		}
+		if err != nil && !errors.IsAlreadyExists(err) {
+			cmdLog.Error(err, "Retrying with a backoff because of an error while creating or updating object")
+			return err
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
+	if err != nil {
+		cmdLog.Error(err, "Failed to create an object", "kind", kind.GroupVersionKind().Kind)
+		return err
+	}
+	return nil
+}
+
 func (c *CelScanner) getTailoredProfile(namespace string) (*cmpv1alpha1.TailoredProfile, error) {
 	tailoredProfile := &cmpv1alpha1.TailoredProfile{}
 	tpKey := v1api.NamespacedName{Name: c.celConfig.Tailoring, Namespace: namespace}

@@ -313,6 +313,8 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 				// TODO(@Vincent056): make this configurable, we need to update this to
 				// fetch this value dynamically when we start supporting CEL in Rule CRs
 				"--tailoring=" + "true",
+				"--scan-name=" + scanInstance.Name,
+				"--namespace=" + scanInstance.Namespace,
 			},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
