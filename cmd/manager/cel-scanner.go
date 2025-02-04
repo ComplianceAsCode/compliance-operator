@@ -192,7 +192,7 @@ func (c *CelScanner) runPlatformScan() {
 		// Create a CEL environment
 		env := createCelEnvironment(declsList)
 		// Compile and evaluate the CEL expression
-		ast, err := compileCelExpression(env, rule.Expression)
+		ast, err := compileCelExpression(env, rule.Spec.Expression)
 		if err != nil {
 			FATAL("Failed to compile CEL expression: %v", err)
 		}
@@ -253,8 +253,8 @@ func (c *CelScanner) getSelectedCustomRules(tp *cmpv1alpha1.TailoredProfile) ([]
 }
 func (c *CelScanner) collectResourcesFromFiles(resourceDir string, rule *cmpv1alpha1.CustomRule) map[string]interface{} {
 	resultMap := make(map[string]interface{})
-	if rule.Inputs != nil {
-		for _, input := range rule.Inputs {
+	if rule.Spec.Inputs != nil {
+		for _, input := range rule.Spec.Inputs {
 			if input.KubeResource == (cmpv1alpha1.KubeResource{}) {
 				FATAL("Got empty KubeResource in rule input")
 			}
@@ -328,16 +328,16 @@ func compileCelExpression(env *cel.Env, expression string) (*cel.Ast, error) {
 func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]interface{}, rule *cmpv1alpha1.CustomRule) v1alpha1.ComplianceCheckResult {
 	evalVars := map[string]interface{}{}
 	ruleResult := v1alpha1.ComplianceCheckResult{
-		ID: rule.ID,
+		ID: rule.Spec.ID,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      rule.Name,
 			Namespace: rule.Namespace,
 		},
-		Description:  rule.Description,
-		Rationale:    rule.Rationale,
-		Severity:     v1alpha1.ComplianceCheckResultSeverity(rule.Severity),
+		Description:  rule.Spec.Description,
+		Rationale:    rule.Spec.Rationale,
+		Severity:     v1alpha1.ComplianceCheckResultSeverity(rule.Spec.Severity),
 		Warnings:     []string{},
-		Instructions: rule.Instructions,
+		Instructions: rule.Spec.Instructions,
 		// TODO: populate the values used in the rule
 	}
 	for k, v := range resourceMap {
@@ -352,8 +352,8 @@ func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]in
 	out, _, err := prg.Eval(evalVars)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "no such key:") {
-			fmt.Printf("Warning: %s in %s\n", err, rule.Inputs[0].KubeResource.Resource)
-			ruleResult.Warnings = append(ruleResult.Warnings, fmt.Sprintf("Warning: %s in %s\n", err, rule.Inputs[0].KubeResource.Resource))
+			fmt.Printf("Warning: %s in %s\n", err, rule.Spec.Inputs[0].KubeResource.Resource)
+			ruleResult.Warnings = append(ruleResult.Warnings, fmt.Sprintf("Warning: %s in %s\n", err, rule.Spec.Inputs[0].KubeResource.Resource))
 			ruleResult.Status = v1alpha1.CheckResultError
 			return ruleResult
 		}
@@ -363,10 +363,10 @@ func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]in
 	if out.Value() == false {
 		ruleResult.Warnings = append(ruleResult.Warnings, fmt.Sprintf("Failed to evaluate CEL expression: %s", err))
 		ruleResult.Status = v1alpha1.CheckResultFail
-		fmt.Println(rule.ErrorMessage)
+		fmt.Println(rule.Spec.ErrorMessage)
 	} else {
 		ruleResult.Status = v1alpha1.CheckResultPass
-		fmt.Printf("%s: %v\n", rule.Title, out)
+		fmt.Printf("%s: %v\n", rule.Spec.Title, out)
 	}
 	return ruleResult
 }
@@ -397,8 +397,8 @@ func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.Reso
 	found := []utils.ResourcePath{}
 
 	DBG("Processing rule: %s\n", rule.Name)
-	DBG("Rule inputs: %v\n", rule.Inputs)
-	for _, universalInput := range rule.Inputs {
+	DBG("Rule inputs: %v\n", rule.Spec.Inputs)
+	for _, universalInput := range rule.Spec.Inputs {
 		input := universalInput.KubeResource
 		gvr := schema.GroupVersionResource{
 			Group:    input.APIGroup,
