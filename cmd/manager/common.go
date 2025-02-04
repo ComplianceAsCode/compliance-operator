@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 
 	ocpcfgv1 "github.com/openshift/api/config/v1"
@@ -54,6 +55,26 @@ func (crclient *complianceCrClient) useEventRecorder(source string, config *rest
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	crclient.recorder = eventBroadcaster.NewRecorder(crclient.scheme, v1.EventSource{Component: source})
 	return nil
+}
+
+func DeriveResourcePath(gvr schema.GroupVersionResource, namespace string) string {
+	var objPath string
+	if gvr.Group == "" {
+		// Core resource like "namespaces"
+		if namespace == "" {
+			objPath = fmt.Sprintf("/api/%s/%s", gvr.Version, gvr.Resource)
+		} else {
+			objPath = fmt.Sprintf("/api/%s/namespaces/%s/%s", gvr.Version, namespace, gvr.Resource)
+		}
+	} else {
+		// Non-core resource
+		if namespace == "" {
+			objPath = fmt.Sprintf("/apis/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+		} else {
+			objPath = fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s", gvr.Group, gvr.Version, namespace, gvr.Resource)
+		}
+	}
+	return objPath
 }
 
 func (crclient *complianceCrClient) getClient() runtimeclient.Client {
