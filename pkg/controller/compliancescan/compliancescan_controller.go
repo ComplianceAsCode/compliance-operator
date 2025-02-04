@@ -52,6 +52,8 @@ const (
 const (
 	// OpenSCAPScanContainerName defines the name of the contianer that will run OpenSCAP
 	OpenSCAPScanContainerName = "scanner"
+	// ContainerName defines the name of the container that will run CEL
+	CELScannerContainerName = "cel-scanner"
 	// The default time we should wait before requeuing
 	requeueAfterDefault = 10 * time.Second
 )
