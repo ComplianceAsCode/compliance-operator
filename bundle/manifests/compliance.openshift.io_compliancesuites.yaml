@@ -292,6 +292,12 @@ spec:
                       default: Node
                       description: The type of Compliance scan.
                       type: string
+                    scannerImage:
+                      description: The image with the scanner binary (e.g., OpenSCAP).
+                      type: string
+                    scannerType:
+                      description: The Scanner we will use to perform the scan.
+                      type: string
                     showNotApplicable:
                       default: false
                       description: Determines whether to hide or show results that
@@ -323,6 +329,8 @@ spec:
                         Timeout is the maximum amount of time the scan can run. If the scan
                         hasn't finished by then, it will be aborted.
                       type: string
+                  required:
+                  - scannerType
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic

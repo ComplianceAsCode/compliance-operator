@@ -68,19 +68,24 @@ type CELPayload struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Namespaced
-//+k8s:deepcopy-gen=true
+type CustomRuleSpec struct {
+	RulePayload `json:",inline"`
+	CELPayload  `json:",inline"`
+}
 
+// CustomRuleStatus is intentionally empty.
+type CustomRuleStatus struct{}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:resource:path=customrules,scope=Namespaced
 // CustomRule is the Schema for the customrules API
 type CustomRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	RulePayload `json:",inline"`
-
-	CELPayload `json:",inline"`
+	Spec              CustomRuleSpec `json:"spec,omitempty"`
+	// Status is intentionally left empty.
+	Status CustomRuleStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
