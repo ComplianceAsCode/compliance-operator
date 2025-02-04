@@ -223,10 +223,16 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 		return false, nil
 	}
 
-	// Set default scan type if missing
-	if instance.Spec.ScanType == "" {
+	if instance.Spec.ScanType == "" || instance.Spec.ScannerType == "" {
 		instanceCopy := instance.DeepCopy()
-		instanceCopy.Spec.ScanType = compv1alpha1.ScanTypeNode
+		// Set default scan type if missing
+		if instance.Spec.ScanType == "" {
+			instanceCopy.Spec.ScanType = compv1alpha1.ScanTypeNode
+		}
+		// Set default scanner type if missing
+		if instance.Spec.ScannerType == "" {
+			instanceCopy.Spec.ScannerType = compv1alpha1.ScannerTypeOpenSCAP
+		}
 		err := r.Client.Update(context.TODO(), instanceCopy)
 		return false, err
 	}
@@ -425,42 +431,46 @@ func (r *ReconcileComplianceScan) phaseLaunchingHandler(h scanTypeHandler, logge
 	logger.Info("Phase: Launching")
 
 	scan := h.getScan()
-	err = createConfigMaps(r, scriptCmForScan(scan), envCmForScan(scan), envCmForPlatformScan(scan), scan)
-	if err != nil {
-		logger.Error(err, "Cannot create the configmaps")
-		return reconcile.Result{}, err
-	}
 
-	if err = r.handleRootCASecret(scan, logger); err != nil {
-		logger.Error(err, "Cannot create CA secret")
-		return reconcile.Result{}, err
-	}
-
-	if err = r.handleResultServerSecret(scan, logger); err != nil {
-		logger.Error(err, "Cannot create result server cert secret")
-		return reconcile.Result{}, err
-	}
-
-	if err = r.handleResultClientSecret(scan, logger); err != nil {
-		logger.Error(err, "Cannot create result Client cert secret")
-		return reconcile.Result{}, err
-	}
-
-	if resume, err := r.handleRawResultsForScan(scan, logger); err != nil || !resume {
+	// check the scanner type of the scan
+	if scan.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || scan.Spec.ScannerType == "" {
+		err = createConfigMaps(r, scriptCmForScan(scan), envCmForScan(scan), envCmForPlatformScan(scan), scan)
 		if err != nil {
-			logger.Error(err, "Cannot create the PersistentVolumeClaims")
+			logger.Error(err, "Cannot create the configmaps")
+			return reconcile.Result{}, err
 		}
-		return reconcile.Result{}, err
-	}
 
-	if err = r.createResultServer(scan, logger); err != nil {
-		logger.Error(err, "Cannot create result server")
-		return reconcile.Result{}, err
-	}
+		if err = r.handleRootCASecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create CA secret")
+			return reconcile.Result{}, err
+		}
 
-	if err = r.handleRuntimeKubeletConfig(scan, logger); err != nil {
-		logger.Error(err, "Cannot handle runtime kubelet config")
-		return reconcile.Result{}, err
+		if err = r.handleResultServerSecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result server cert secret")
+			return reconcile.Result{}, err
+		}
+
+		if err = r.handleResultClientSecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result Client cert secret")
+			return reconcile.Result{}, err
+		}
+
+		if resume, err := r.handleRawResultsForScan(scan, logger); err != nil || !resume {
+			if err != nil {
+				logger.Error(err, "Cannot create the PersistentVolumeClaims")
+			}
+			return reconcile.Result{}, err
+		}
+
+		if err = r.createResultServer(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result server")
+			return reconcile.Result{}, err
+		}
+
+		if err = r.handleRuntimeKubeletConfig(scan, logger); err != nil {
+			logger.Error(err, "Cannot handle runtime kubelet config")
+			return reconcile.Result{}, err
+		}
 	}
 
 	if err = h.createScanWorkload(); err != nil {
@@ -823,37 +833,41 @@ func (r *ReconcileComplianceScan) phaseDoneHandler(h scanTypeHandler, instance *
 	// We need to remove resources before doing a re-scan
 	if doDelete || instance.NeedsRescan() {
 		logger.Info("Cleaning up scan's resources")
-		if err := r.deleteResultServer(instance, logger); err != nil {
-			logger.Error(err, "Cannot delete result server")
-			return reconcile.Result{}, err
-		}
+		if instance.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || instance.Spec.ScannerType == "" {
 
-		if err = r.deleteResultServerSecret(instance, logger); err != nil {
-			logger.Error(err, "Cannot delete result server cert secret")
-			return reconcile.Result{}, err
-		}
+			if err := r.deleteResultServer(instance, logger); err != nil {
+				logger.Error(err, "Cannot delete result server")
+				return reconcile.Result{}, err
+			}
 
-		if err = r.deleteResultClientSecret(instance, logger); err != nil {
-			logger.Error(err, "Cannot delete result Client cert secret")
-			return reconcile.Result{}, err
-		}
+			if err = r.deleteResultServerSecret(instance, logger); err != nil {
+				logger.Error(err, "Cannot delete result server cert secret")
+				return reconcile.Result{}, err
+			}
 
-		if err = r.deleteRootCASecret(instance, logger); err != nil {
-			logger.Error(err, "Cannot delete CA secret")
-			return reconcile.Result{}, err
-		}
+			if err = r.deleteResultClientSecret(instance, logger); err != nil {
+				logger.Error(err, "Cannot delete result Client cert secret")
+				return reconcile.Result{}, err
+			}
 
-		if err = r.deleteScriptConfigMaps(instance, logger); err != nil {
-			logger.Error(err, "Cannot delete script ConfigMaps")
-			return reconcile.Result{}, err
-		}
+			if err = r.deleteRootCASecret(instance, logger); err != nil {
+				logger.Error(err, "Cannot delete CA secret")
+				return reconcile.Result{}, err
+			}
 
-		if err := r.deleteKubeletConfigConfigMaps(instance, logger); err != nil {
-			logger.Error(err, "Cannot delete KubeletConfig ConfigMaps")
-			return reconcile.Result{}, err
+			if err = r.deleteScriptConfigMaps(instance, logger); err != nil {
+				logger.Error(err, "Cannot delete script ConfigMaps")
+				return reconcile.Result{}, err
+			}
+
+			if err := r.deleteKubeletConfigConfigMaps(instance, logger); err != nil {
+				logger.Error(err, "Cannot delete KubeletConfig ConfigMaps")
+				return reconcile.Result{}, err
+			}
 		}
 
 		if instance.NeedsRescan() {
+
 			if err = r.deleteResultConfigMaps(instance, logger); err != nil {
 				logger.Error(err, "Cannot delete result ConfigMaps")
 				return reconcile.Result{}, err
@@ -880,11 +894,13 @@ func (r *ReconcileComplianceScan) phaseDoneHandler(h scanTypeHandler, instance *
 		}
 	} else {
 		// If we're done with the scan but we're not cleaning up just yet.
+		if instance.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || instance.Spec.ScannerType == "" {
 
-		// scale down resultserver so it's not still listening for requests.
-		if err := r.scaleDownResultServer(instance, logger); err != nil {
-			logger.Error(err, "Cannot scale down result server")
-			return reconcile.Result{}, err
+			// scale down resultserver so it's not still listening for requests.
+			if err := r.scaleDownResultServer(instance, logger); err != nil {
+				logger.Error(err, "Cannot scale down result server")
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
