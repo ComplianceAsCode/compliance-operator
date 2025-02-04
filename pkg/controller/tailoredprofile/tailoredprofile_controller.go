@@ -615,8 +615,8 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 		}
 
 		// Make sure all CustomRule has ScannerType as CEL as we only support CEL at this time
-		if rule.ScannerType != cmpv1alpha1.ScannerTypeCEL {
-			return nil, common.NewNonRetriableCtrlError("CustomRule '%s' has unsupported ScannerType: %s", rule.Name, rule.ScannerType)
+		if rule.Spec.ScannerType != cmpv1alpha1.ScannerTypeCEL {
+			return nil, common.NewNonRetriableCtrlError("CustomRule '%s' has unsupported ScannerType: %s", rule.Name, rule.Spec.ScannerType)
 		}
 
 		rules[selection.Name] = rule
