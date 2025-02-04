@@ -253,6 +253,8 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 			existingProductType, ok := anns[cmpv1alpha1.ProductTypeAnnotation]
 			if !ok || existingProductType != string(cmpv1alpha1.ScanTypePlatform) {
 				anns[cmpv1alpha1.ProductTypeAnnotation] = string(cmpv1alpha1.ScanTypePlatform)
+				anns[cmpv1alpha1.ScannerTypeAnnotation] = string(cmpv1alpha1.ScannerTypeCEL)
+				anns[cmpv1alpha1.CustomRuleProfileAnnotation] = "true"
 				instance.SetAnnotations(anns)
 			}
 		}
