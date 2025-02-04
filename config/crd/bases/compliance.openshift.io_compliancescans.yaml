@@ -273,9 +273,6 @@ spec:
                 default: Node
                 description: The type of Compliance scan.
                 type: string
-              scannerImage:
-                description: The image with the scanner binary (e.g., OpenSCAP).
-                type: string
               scannerType:
                 description: The Scanner we will use to perform the scan.
                 type: string

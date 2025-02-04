@@ -336,6 +336,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:           compv1alpha1.ScanTypeNode,
+					ScannerType:        compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage:       pBundleRhcos.Spec.ContentImage,
 					Profile:            profRhcosE8.ID,
 					Rule:               "",
@@ -351,6 +352,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:           compv1alpha1.ScanTypeNode,
+					ScannerType:        compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage:       pBundleRhcos.Spec.ContentImage,
 					Profile:            profRhcosE8.ID,
 					Rule:               "",
@@ -434,6 +436,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      tpRhcosE8.Status.ID,
 					Rule:         "",
@@ -451,6 +454,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      tpRhcosE8.Status.ID,
 					Rule:         "",
@@ -536,6 +540,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      scratchTP.Status.ID,
 					Rule:         "",
@@ -553,6 +558,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      scratchTP.Status.ID,
 					Rule:         "",

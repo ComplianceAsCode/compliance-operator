@@ -244,8 +244,6 @@ type ComplianceScanSpec struct {
 	ScanType ComplianceScanType `json:"scanType,omitempty"`
 	// The Scanner we will use to perform the scan.
 	ScannerType ScannerType `json:"scannerType"`
-	// The image with the scanner binary (e.g., OpenSCAP).
-	ScannerImage string `json:"scannerImage,omitempty"`
 	// Is the image with the content (Data Stream), that will be used to run
 	// OpenSCAP.
 	ContentImage string `json:"contentImage,omitempty"`
