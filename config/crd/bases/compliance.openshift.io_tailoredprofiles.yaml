@@ -57,6 +57,11 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Type of the rule reference, either "Rule" or "CustomRule"
+                        We will use "Rule" by default if not specified
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -75,6 +80,11 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Type of the rule reference, either "Rule" or "CustomRule"
+                        We will use "Rule" by default if not specified
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -97,6 +107,11 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Type of the rule reference, either "Rule" or "CustomRule"
+                        We will use "Rule" by default if not specified
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
