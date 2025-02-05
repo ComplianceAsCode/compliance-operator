@@ -478,11 +478,9 @@ func profileReferenceToScan(reference *profileReference) (*compliancev1alpha1.Co
 	}
 
 	if reference.tailoredProfile != nil {
-		if !hasCustomRuleTP {
-			err = fillTailoredProfileData(reference.tailoredProfile, &scan)
-			if err != nil {
-				return nil, "", err
-			}
+		err = fillTailoredProfileData(reference.tailoredProfile, &scan)
+		if err != nil {
+			return nil, "", err
 		}
 	} else if reference.profile != nil {
 		err = fillProfileData(reference.profile, &scan)
@@ -554,10 +552,14 @@ func fillTailoredProfileData(tp *unstructured.Unstructured, scan *compliancev1al
 		return common.WrapNonRetriableCtrlError(err)
 	}
 
-	scan.Profile = v1alphaTp.Status.ID
-	if v1alphaTp.Status.OutputRef.Name != "" {
-		// FIXME: OutputRef also has a namespace, but tailorringCofnigMapRef not?
-		scan.TailoringConfigMap = &compliancev1alpha1.TailoringConfigMapRef{Name: v1alphaTp.Status.OutputRef.Name}
+	if hasCustomRule(tp) {
+		scan.Profile = tp.GetName()
+	} else {
+		scan.Profile = v1alphaTp.Status.ID
+		if v1alphaTp.Status.OutputRef.Name != "" {
+			// FIXME: OutputRef also has a namespace, but tailorringCofnigMapRef not?
+			scan.TailoringConfigMap = &compliancev1alpha1.TailoringConfigMapRef{Name: v1alphaTp.Status.OutputRef.Name}
+		}
 	}
 
 	return nil
