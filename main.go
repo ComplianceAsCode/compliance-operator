@@ -36,6 +36,7 @@ func init() {
 	rootCmd.AddCommand(manager.OperatorCmd)
 	rootCmd.AddCommand(manager.AggregatorCmd)
 	rootCmd.AddCommand(manager.ApiResourceCollectorCmd)
+	rootCmd.AddCommand(manager.CelScannerCmd)
 	rootCmd.AddCommand(manager.ProfileparserCmd)
 	rootCmd.AddCommand(manager.ResultcollectorCmd)
 	rootCmd.AddCommand(manager.ResultServerCmd)
