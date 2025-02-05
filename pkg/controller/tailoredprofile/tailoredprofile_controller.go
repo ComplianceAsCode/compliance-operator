@@ -207,6 +207,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 
 		// we will not use ProfileBundle for CustomRules
 		if len(customRules) <= 0 {
+			fmt.Printf("No Custom Rules found for TailoredProfile %v", instance.GetName())
 			var pbgetErr error
 			pb, pbgetErr = r.getProfileBundleFromRulesOrVars(instance)
 			if pbgetErr != nil && !common.IsRetriable(pbgetErr) {
@@ -243,6 +244,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 		}
 
 		if len(customRules) > 0 {
+			fmt.Println("Custom rules detected, skipping ProfileBundle and setting product type to platform")
 			// we are detection custom rules, we will not use ProfileBundle, and at the moment we only support platform type
 			anns := instance.GetAnnotations()
 			if anns == nil {
@@ -325,6 +327,48 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 			return reconcile.Result{}, err
 		}
 		return r.ensureOutputObject(instance, tpcm, reqLogger)
+	} 
+	if len(customRules) > 0 {
+
+		// use dummy tpcm for custom rules
+		// TODO:@Vincent056 we should possibly remove this in the future
+		tpcm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      instance.Name,
+				Namespace: instance.Namespace,
+			},
+		}
+
+		err = r.updateTailoredProfileStatusReady(tp, tpcm)
+		if err != nil {
+			fmt.Printf("Couldn't update TailoredProfile status: %v\n", err)
+			return reconcile.Result{}, err
+		}
+
+		// create CM
+		logger.Info("Creating a new ConfigMap", "ConfigMap.Namespace", tpcm.Namespace, "ConfigMap.Name", tpcm.Name)
+		err = r.Client.Create(context.TODO(), tpcm)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// ConfigMap created successfully - don't requeue
+		return reconcile.Result{}, nil
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// ConfigMap already exists - update
+	update := found.DeepCopy()
+	update.Data = tpcm.Data
+	err = r.Client.Update(context.TODO(), update)
+	if err != nil {
+		fmt.Printf("Couldn't update TailoredProfile configMap: %v\n", err)
+		return reconcile.Result{}, err
+	}
+
+	logger.Info("Skip reconcile: ConfigMap already exists and is up-to-date", "ConfigMap.Namespace", found.Namespace, "ConfigMap.Name", found.Name)
+	return reconcile.Result{}, nil
 	}
 
 	// @Vincent056 TODO: We should possibly add customVariables for CustomRules, also make sure
@@ -593,9 +637,13 @@ func (r *ReconcileTailoredProfile) getRulesFromSelections(tp *cmpv1alpha1.Tailor
 func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.TailoredProfile) (map[string]*cmpv1alpha1.CustomRule, error) {
 	rules := make(map[string]*cmpv1alpha1.CustomRule, len(tp.Spec.EnableRules)+len(tp.Spec.DisableRules)+len(tp.Spec.ManualRules))
 	ruleKind := cmpv1alpha1.CustomRuleKind
-
+	// print log for debugging
+	fmt.Println("ruleKind: ", ruleKind)
+	// print out what we are doing
+	fmt.Println("Getting custom rules from selections for TailoredProfile:", tp.Name)
 	for _, selection := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
 		if selection.Kind != ruleKind {
+			fmt.Println("Skipping selection:", selection.Name, "because it is not of kind", ruleKind)
 			continue
 		}
 		_, ok := rules[selection.Name]
@@ -604,6 +652,7 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 		}
 		// make sure all rules have the same scanner type
 		if selection.Kind != "" && selection.Kind != ruleKind {
+			fmt.Println("Skipping selection:", selection.Name, "because it is not of kind", ruleKind)
 			return nil, common.NewNonRetriableCtrlError("Rule '%s' has unsupported Type: %s, we do not support multiple types of rules in a single TailoredProfile", selection.Name, selection.Kind)
 		}
 		rule := &cmpv1alpha1.CustomRule{}
@@ -623,6 +672,9 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 
 		rules[selection.Name] = rule
 	}
+	fmt.Println("Successfully retrieved custom rules for TailoredProfile:", tp.Name)
+	fmt.Println("Number of custom rules:", len(rules))
+	fmt.Println("Custom rules:", rules) // print out the retrieved custom rules for debugging
 	return rules, nil
 }
 func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile, pb *cmpv1alpha1.ProfileBundle) ([]*cmpv1alpha1.Variable, error) {
