@@ -45,6 +45,8 @@ import (
 	"k8s.io/client-go/rest"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/yaml"
 )
 
@@ -118,7 +120,7 @@ func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 	conf.Profile = getValidStringArg(cmd, "profile")
 	debugLog, _ = cmd.Flags().GetBool("debug")
 	apiResourceDir, _ := cmd.Flags().GetString("api-resource-dir")
-	conf.CCRGeneration, _ = cmd.Flags().GetBool("enable-ccr-generation")
+	ccrGeneration, _ := cmd.Flags().GetString("enable-ccr-generation")
 	conf.ScanType = getValidStringArg(cmd, "scan-type")
 	conf.ScanName = getValidStringArg(cmd, "scan-name")
 	conf.NameSpace = getValidStringArg(cmd, "namespace")
@@ -130,6 +132,9 @@ func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 	if apiResourceDir != "" {
 		conf.ApiResourcePath = apiResourceDir
 	}
+	if ccrGeneration == "true" {
+		conf.CCRGeneration = true
+	}
 	return &conf
 }
 
@@ -137,6 +142,7 @@ func runCelScanner(cmd *cobra.Command, args []string) {
 	celConf := parseCelScannerConfig(cmd)
 	scheme := getScheme()
 	restConfig := getConfig()
+	logf.SetLogger(zap.New())
 
 	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -180,6 +186,7 @@ func (c *CelScanner) runPlatformScan() {
 	} else {
 		FATAL("No tailored profile provided")
 	}
+
 	evalResultList := []*v1alpha1.ComplianceCheckResult{}
 	// Process each selected rule
 	for _, rule := range selectedRules {
@@ -192,16 +199,15 @@ func (c *CelScanner) runPlatformScan() {
 			LOG("Fetching resources from API server")
 			// Fetch the resources from the API server
 			collectedResources, warnings, err := c.FetchResources(rule)
+
 			if err != nil {
 				LOG("Error fetching resources: %v", err)
 			}
 			if len(warnings) > 0 {
 				LOG("Warnings while fetching resources: %v", warnings)
 			}
-			resourceMap = map[string]interface{}{}
-			for k, v := range collectedResources {
-				resourceMap[k] = v
-			}
+			resourceMap = collectedResources
+
 		} else {
 			LOG("Using pre-fetched resources")
 			// Collect the necessary resources from the mounted directory based on rule inputs
@@ -226,7 +232,7 @@ func (c *CelScanner) runPlatformScan() {
 		evalResultList = append(evalResultList, &result)
 	}
 	// Save the scan result
-	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "report.xml")
+	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "result.xml")
 	saveScanResult(outputFilePath, evalResultList)
 	// Check if we need to generate ComplianceCheckResult objects
 	if c.celConfig.CCRGeneration {
@@ -545,8 +551,8 @@ func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]in
 	return ruleResult
 }
 
-func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule) (map[string][]byte, []string, error) {
-	figuredResourcePaths, err := c.FigureResources(rule)
+func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule) (map[string]interface{}, []string, error) {
+	figuredResourcePaths, foundMap, err := c.FigureResources(rule)
 	if err != nil {
 		LOG("Error figuring resources: %v for rule: %s", err, rule.Name)
 		return nil, nil, err
@@ -561,14 +567,45 @@ func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule) (map[string][]
 		LOG("Found resource: %s\n", k)
 		LOG("Resource content: %s\n", v)
 	}
+	resultMap := make(map[string]interface{})
+	// loop through the found resources make a map that consist of input name and resource content
+	for k, v := range found {
+		if foundMap[k] != "" {
+			// check if v contains kube resource not found
+			if strings.Contains(string(v), "kube-api-error=NotFound") {
+				// make it a empty resource
+				resultMap[foundMap[k]] = &unstructured.Unstructured{}
+			} else {
+				//chcekc if k contains /, if so, it is a subresource
+				if strings.HasPrefix(k, "/") {
+					// Unmarshal JSON content into an unstructured object
+					result := &unstructured.Unstructured{}
+					err = json.Unmarshal(v, &result)
+					if err != nil {
+						panic(fmt.Sprintf("Failed to parse JSON for %s: %v", k, err))
+					}
+					resultMap[foundMap[k]] = result
+				} else {
+					// Unmarshal JSON content into an unstructured list
+					results := &unstructured.UnstructuredList{}
+					err = json.Unmarshal(v, &results)
+					if err != nil {
+						panic(fmt.Sprintf("Failed to parse JSON from file for %s: %v", k, err))
+					}
+					resultMap[foundMap[k]] = results
+				}
+			}
+		}
+	}
 
-	return found, warnings, nil
+	return resultMap, warnings, nil
 }
 
 // we will find resource and return the resource
-func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.ResourcePath, error) {
+func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.ResourcePath, map[string]string, error) {
 	// Initial set of resources to fetch
 	found := []utils.ResourcePath{}
+	foundMap := make(map[string]string)
 
 	DBG("Processing rule: %s\n", rule.Name)
 	DBG("Rule inputs: %v\n", rule.Spec.Inputs)
@@ -583,11 +620,12 @@ func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.Reso
 		objPath := DeriveResourcePath(gvr, input.Namespace)
 		found = append(found, utils.ResourcePath{
 			ObjPath:  objPath,
-			DumpPath: objPath + ".json",
+			DumpPath: objPath,
 		})
+		foundMap[objPath] = input.Name
 	}
 	DBG("resources: %v\n", found)
-	return found, nil
+	return found, foundMap, nil
 }
 
 func saveScanResult(filePath string, resultsList []*v1alpha1.ComplianceCheckResult) {

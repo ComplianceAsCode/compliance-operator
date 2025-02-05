@@ -341,6 +341,10 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 					Name:      "fetch-results",
 					MountPath: PlatformScanDataRoot,
 				},
+				{
+					Name:      "report-dir",
+					MountPath: "/reports",
+				},
 			},
 		})
 	default:
@@ -429,18 +433,26 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 			NodeSelector:      r.schedulingInfo.Selector,
 			Tolerations:       r.schedulingInfo.Tolerations,
 			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			Volumes: []corev1.Volume{{
-				Name: "tmp-dir",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
+			Volumes: []corev1.Volume{
+				{
+					Name: "tmp-dir",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
 				},
-			},
 				{
 					Name: "fetch-results",
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
-				}},
+				},
+				{
+					Name: "report-dir",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
 		},
 	}
 	// check if customRule are set, we will only add following when we don't have custom rules
@@ -574,12 +586,6 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 	}
 
 	podVolumes := []corev1.Volume{
-		{
-			Name: "report-dir",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
 		{
 			Name: "content-dir",
 			VolumeSource: corev1.VolumeSource{
