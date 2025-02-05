@@ -258,6 +258,9 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 				if ScannerType, ok := instance.GetAnnotations()[cmpv1alpha1.ScannerTypeAnnotation]; !ok || ScannerType != string(cmpv1alpha1.ScannerTypeCEL) {
 					needsAnnotation = true
 				}
+				if hasCutomRule, ok := instance.GetAnnotations()[cmpv1alpha1.CustomRuleProfileAnnotation]; !ok || hasCutomRule != "true" {
+					needsAnnotation = true
+				}
 			}
 
 			if needsAnnotation {
@@ -271,6 +274,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 				scanType := cmpv1alpha1.ScanTypePlatform
 				anns[cmpv1alpha1.ProductTypeAnnotation] = string(scanType)
 				anns[cmpv1alpha1.ScannerTypeAnnotation] = string(cmpv1alpha1.ScannerTypeCEL)
+				anns[cmpv1alpha1.CustomRuleProfileAnnotation] = "true"
 				tpCopy.SetAnnotations(anns)
 
 				// Set labels for the TailoredProfile
@@ -280,7 +284,6 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 				}
 				labels[cmpv1alpha1.ProfileGuidLabel] = xccdf.GetProfileUniqueIDFromTP(xccdf.GetXCCDFProfileID(instance))
 
-				labels[cmpv1alpha1.ExtendedProfileGuidLabel] = p.GetLabels()[cmpv1alpha1.ProfileGuidLabel]
 				tpCopy.SetLabels(labels)
 				// update the TailoredProfile
 				return reconcile.Result{}, r.Client.Update(context.TODO(), tpCopy)
