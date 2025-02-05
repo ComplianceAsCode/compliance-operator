@@ -1,1 +1,20 @@
-../../rbac/compliancesuite_viewer_role.yaml
+# permissions for end users to view compliancesuites.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: compliancesuite-viewer-role
+rules:
+- apiGroups:
+  - compliance.openshift.io
+  resources:
+  - compliancesuites
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - compliance.openshift.io
+  resources:
+  - compliancesuites/status
+  verbs:
+  - get

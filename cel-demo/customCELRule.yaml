@@ -1,0 +1,57 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: configure-network-policies-namespaces-cel
+  namespace: openshift-compliance
+spec:
+  checkType: Platform
+  instructions: |-
+    Verify that the every non-control plane namespace has an appropriate
+    NetworkPolicy.
+
+    To get all the non-control plane namespaces, you can do the
+    following command $ oc get  namespaces -o json | jq '[.items[] | select((.metadata.name | startswith("openshift") | not) and (.metadata.name | startswith("kube-") | not) and .metadata.name != "default" and (true)) | .metadata.name ]'
+
+    To get all the non-control plane namespaces with a NetworkPolicy, you can do the
+    following command $ oc get --all-namespaces networkpolicies -o json | jq '[.items[] | select((.metadata.namespace | startswith("openshift") | not) and (.metadata.namespace | startswith("kube-") | not) and .metadata.namespace != "default" and (true)) | .metadata.namespace] | unique'
+
+    Namespaces matching the variable ocp4-var-network-policies-namespaces-exempt-regex regex are excluded from this check.
+
+    Make sure that the namespaces displayed in the commands of the commands match.
+    Is it the case that Namespaced Network Policies needs review?
+  rationale: "Running different applications on the same Kubernetes cluster creates a risk of one compromised application attacking a neighboring application. Network segmentation is important to ensure that containers can communicate only with those they are supposed to. When a network policy is introduced to a given namespace, all traffic not allowed by the policy is denied. However, if there are no network policies in a namespace all traffic will be allowed into and out of the pods in that namespace."
+  title: Ensure that application Namespaces have Network Policies defined.
+  scannerType: CEL
+  id: configure_network_policies_namespaces_cel
+  description: Use network policies to isolate traffic in your cluster network.
+  severity: high
+  expression: >
+    size(nl.items) == 0 ||
+    size(
+      nl.items
+      .filter(ns, !ns.metadata.name.matches(e.value))
+      .filter(ns, npl.items.exists(np, np.metadata.namespace == ns.metadata.name))
+    ) == size(nl.items.filter(ns, !ns.metadata.name.matches(e.value)))
+  inputs:
+    - kubeResource:
+        name: nl
+        apiGroup: ""
+        version: v1
+        resource: namespaces
+    - kubeResource:
+        name: nl
+        apiGroup: ""
+        version: v1
+        resource: namespaces
+    - kubeResource:
+        name: npl
+        apiGroup: networking.k8s.io
+        version: v1
+        resource: networkpolicies
+    - kubeResource:
+        name: e
+        apiGroup: compliance.openshift.io
+        version: v1alpha1
+        resource: variables/ocp4-var-network-policies-namespaces-exempt-regex
+        namespace: openshift-compliance
+  errorMessage: "Application Namespaces do not have Network Policies defined."

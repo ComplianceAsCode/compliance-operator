@@ -1,1 +1,12 @@
-../../rbac/remediation_aggregator_role_binding.yaml
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: remediation-aggregator
+subjects:
+  - kind: ServiceAccount
+    name: remediation-aggregator
+roleRef:
+  kind: Role
+  name: remediation-aggregator
+  apiGroup: rbac.authorization.k8s.io

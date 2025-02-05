@@ -1,0 +1,12 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: TailoredProfile
+metadata:
+  name: cel-scanner-tp
+  namespace: openshift-compliance
+spec:
+  description: Test
+  enableRules:
+    - name: configure-network-policies-namespaces-cel
+      kind: CustomRule
+      rationale: test
+  title: My modified nist profile with a custom value
