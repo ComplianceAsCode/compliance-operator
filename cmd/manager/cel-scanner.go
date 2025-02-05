@@ -96,6 +96,7 @@ func defineCelScannerFlags(cmd *cobra.Command) {
 	cmd.Flags().String("scan-name", "", "The name of the scan.")
 	cmd.Flags().String("check-resultdir", "", "The directory to write the scan results to, this is optional.")
 	cmd.Flags().String("enable-ccr-generation", "", "The flag to enable ComplianceCheckResult generation.")
+	cmd.Flags().String("namespace", "", "The namespace of the scan.")
 	cmd.Flags().String("platform", "", "The platform flag used by CPE detection.")
 	flags := cmd.Flags()
 	// Add flags registered by imported packages (e.g. glog and controller-runtime)
