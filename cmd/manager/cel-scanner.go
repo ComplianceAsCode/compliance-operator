@@ -42,19 +42,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1api "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/client-go/rest"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
 )
 
 type CelScanner struct {
-	client client.Client
 	resourceFetcherClients
 	celConfig celConfig
 }
 
-func NewCelScanner(scheme *runtime.Scheme, client client.Client, clientSet *kubernetes.Clientset, config celConfig) CelScanner {
+func NewCelScanner(scheme *runtime.Scheme, client runtimeclient.Client, clientSet *kubernetes.Clientset, config celConfig) CelScanner {
 	return CelScanner{
 		resourceFetcherClients: resourceFetcherClients{
 			clientset: clientSet,
@@ -63,6 +62,17 @@ func NewCelScanner(scheme *runtime.Scheme, client client.Client, clientSet *kube
 		},
 		celConfig: config,
 	}
+}
+
+// getCelScannerClient builds a controller-runtime client from the standard rest.Config.
+func getCelScannerClient(config *rest.Config, scheme *runtime.Scheme) (runtimeclient.Client, error) {
+	client, err := runtimeclient.New(config, runtimeclient.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 var CelScannerCmd = &cobra.Command{
@@ -107,7 +117,7 @@ func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 	conf.CheckResultDir = getValidStringArg(cmd, "check-resultdir")
 	conf.Profile = getValidStringArg(cmd, "profile")
 	debugLog, _ = cmd.Flags().GetBool("debug")
-	conf.ApiResourcePath = getValidStringArg(cmd, "api-resource-dir")
+	apiResourceDir, _ := cmd.Flags().GetString("api-resource-dir")
 	conf.CCRGeneration, _ = cmd.Flags().GetBool("enable-ccr-generation")
 	conf.ScanType = getValidStringArg(cmd, "scan-type")
 	conf.ScanName = getValidStringArg(cmd, "scan-name")
@@ -117,23 +127,26 @@ func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 		tailoredProfileName := conf.Profile
 		conf.Tailoring = tailoredProfileName
 	}
+	if apiResourceDir != "" {
+		conf.ApiResourcePath = apiResourceDir
+	}
 	return &conf
 }
 
 func runCelScanner(cmd *cobra.Command, args []string) {
 	celConf := parseCelScannerConfig(cmd)
 	scheme := getScheme()
-	client, err := getCelScannerClient(scheme)
-	if err != nil {
-		FATAL("Error building client: %v", err)
-	}
-
 	restConfig := getConfig()
 
 	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		FATAL("Error building kubeClientSet: %v", err)
 	}
+	client, err := getCelScannerClient(restConfig, scheme)
+	if err != nil {
+		FATAL("Error building client: %v", err)
+	}
+
 	scanner := NewCelScanner(scheme, client, kubeClientSet, *celConf)
 	if celConf.ScanType == "Platform" {
 		scanner.runPlatformScan()
@@ -383,7 +396,7 @@ func createOrUpdateResult(crClient runtimeclient.Client, owner metav1.Object, la
 
 func (c *CelScanner) getTailoredProfile(namespace string) (*cmpv1alpha1.TailoredProfile, error) {
 	tailoredProfile := &cmpv1alpha1.TailoredProfile{}
-	tpKey := v1api.NamespacedName{Name: c.celConfig.Tailoring, Namespace: namespace}
+	tpKey := v1api.NamespacedName{Name: c.celConfig.Profile, Namespace: namespace}
 	err := c.client.Get(context.TODO(), tpKey, tailoredProfile)
 	if err != nil {
 		return nil, err
@@ -631,14 +644,4 @@ func toCelValue(u interface{}) interface{} {
 		}
 	}
 	return nil
-}
-func getCelScannerClient(scheme *runtime.Scheme) (client.Client, error) {
-	config := getConfig()
-	client, err := client.New(config, client.Options{
-		Scheme: scheme,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
 }
