@@ -246,18 +246,44 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 		if len(customRules) > 0 {
 			fmt.Println("Custom rules detected, skipping ProfileBundle and setting product type to platform")
 			// we are detection custom rules, we will not use ProfileBundle, and at the moment we only support platform type
-			anns := instance.GetAnnotations()
-			if anns == nil {
-				anns = make(map[string]string)
+
+			needsAnnotation := false
+
+			if instance.GetAnnotations() == nil {
+				needsAnnotation = true
+			} else {
+				if productType, ok := instance.GetAnnotations()[cmpv1alpha1.ProductTypeAnnotation]; !ok || productType != string(cmpv1alpha1.ScanTypePlatform) {
+					needsAnnotation = true
+				}
+				if ScannerType, ok := instance.GetAnnotations()[cmpv1alpha1.ScannerTypeAnnotation]; !ok || ScannerType != string(cmpv1alpha1.ScannerTypeCEL) {
+					needsAnnotation = true
+				}
 			}
-			// If the user already provided the product type, we
-			// don't need to set it and we will also ensure that the product type is platform type
-			existingProductType, ok := anns[cmpv1alpha1.ProductTypeAnnotation]
-			if !ok || existingProductType != string(cmpv1alpha1.ScanTypePlatform) {
-				anns[cmpv1alpha1.ProductTypeAnnotation] = string(cmpv1alpha1.ScanTypePlatform)
+
+			if needsAnnotation {
+				tpCopy := instance.DeepCopy()
+				anns := tpCopy.GetAnnotations()
+				if anns == nil {
+					anns = make(map[string]string)
+				}
+				// TODO: @Vincent056 we should possibly remove this in the future
+				// and use a dynamic approach to set the product type and scanner type
+				scanType := cmpv1alpha1.ScanTypePlatform
+				anns[cmpv1alpha1.ProductTypeAnnotation] = string(scanType)
 				anns[cmpv1alpha1.ScannerTypeAnnotation] = string(cmpv1alpha1.ScannerTypeCEL)
-				anns[cmpv1alpha1.CustomRuleProfileAnnotation] = "true"
-				instance.SetAnnotations(anns)
+				tpCopy.SetAnnotations(anns)
+
+				// Set labels for the TailoredProfile
+				labels := tpCopy.GetLabels()
+				if labels == nil {
+					labels = make(map[string]string)
+				}
+				labels[cmpv1alpha1.ProfileGuidLabel] = xccdf.GetProfileUniqueIDFromTP(xccdf.GetXCCDFProfileID(instance))
+
+				labels[cmpv1alpha1.ExtendedProfileGuidLabel] = p.GetLabels()[cmpv1alpha1.ProfileGuidLabel]
+				tpCopy.SetLabels(labels)
+				// update the TailoredProfile
+				return reconcile.Result{}, r.Client.Update(context.TODO(), tpCopy)
 			}
 		}
 	}
@@ -296,7 +322,6 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 
 	// we should do the following only if the tailored profile does not have CustomRules
 	if len(customRules) <= 0 {
-
 		rules, ruleErr := r.getRulesFromSelections(instance, pb)
 		if ruleErr != nil && !common.IsRetriable(ruleErr) {
 			// Surface the error.
@@ -327,9 +352,8 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 			return reconcile.Result{}, err
 		}
 		return r.ensureOutputObject(instance, tpcm, reqLogger)
-	} 
+	}
 	if len(customRules) > 0 {
-
 		// use dummy tpcm for custom rules
 		// TODO:@Vincent056 we should possibly remove this in the future
 		tpcm := &corev1.ConfigMap{
@@ -339,36 +363,11 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 			},
 		}
 
-		err = r.updateTailoredProfileStatusReady(tp, tpcm)
+		err = r.updateTailoredProfileStatusReady(instance, tpcm)
 		if err != nil {
 			fmt.Printf("Couldn't update TailoredProfile status: %v\n", err)
 			return reconcile.Result{}, err
 		}
-
-		// create CM
-		logger.Info("Creating a new ConfigMap", "ConfigMap.Namespace", tpcm.Namespace, "ConfigMap.Name", tpcm.Name)
-		err = r.Client.Create(context.TODO(), tpcm)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// ConfigMap created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// ConfigMap already exists - update
-	update := found.DeepCopy()
-	update.Data = tpcm.Data
-	err = r.Client.Update(context.TODO(), update)
-	if err != nil {
-		fmt.Printf("Couldn't update TailoredProfile configMap: %v\n", err)
-		return reconcile.Result{}, err
-	}
-
-	logger.Info("Skip reconcile: ConfigMap already exists and is up-to-date", "ConfigMap.Namespace", found.Namespace, "ConfigMap.Name", found.Name)
-	return reconcile.Result{}, nil
 	}
 
 	// @Vincent056 TODO: We should possibly add customVariables for CustomRules, also make sure
@@ -396,8 +395,7 @@ func generateWarningMessage(ruleNeedToBeMigratedList []string) string {
 
 // handleRulePruning check if there are any migrated rules in the TailoredProfile
 // and we will handle the migration of the tailored profile accordingly
-func (r *ReconcileTailoredProfile) handleRulePruning(
-	v1alphaTp *cmpv1alpha1.TailoredProfile, logger logr.Logger, pruneOudated bool) (doContinue bool, ruleNeedToBeMigratedList []string, err error) {
+func (r *ReconcileTailoredProfile) handleRulePruning(v1alphaTp *cmpv1alpha1.TailoredProfile, logger logr.Logger, pruneOudated bool) (doContinue bool, ruleNeedToBeMigratedList []string, err error) {
 	doContinue = true
 	// Get the list of KubeletConfig rules that are migrated with checkType change
 	migratedRules, err := r.getMigratedRules(v1alphaTp, logger)
