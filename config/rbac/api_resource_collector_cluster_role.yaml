@@ -811,6 +811,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - hco.kubevirt.io
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - compliance.openshift.io
     resources:
       - compliancecheckresults
