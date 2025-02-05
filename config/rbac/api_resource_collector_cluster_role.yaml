@@ -801,7 +801,15 @@ rules:
   - apiGroups:
       - compliance.openshift.io
     resources:
+      - compliancescans/finalizers
+      - compliancecheckresults/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - compliance.openshift.io
+    resources:
       - compliancesuites
+      - compliancescans
       - scansettings
       - scansettingbindings
       - tailoredprofiles
@@ -823,7 +831,13 @@ rules:
     resources:
       - compliancecheckresults
     verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
       - create
+      - delete
   - apiGroups:
       - machineconfiguration.openshift.io
     resources:
