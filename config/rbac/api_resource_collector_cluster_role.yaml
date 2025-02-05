@@ -804,10 +804,18 @@ rules:
       - compliancesuites
       - scansettings
       - scansettingbindings
+      - tailoredprofiles
+      - customrules
     verbs:
       - get
       - list
       - watch
+  - apiGroups:
+      - compliance.openshift.io
+    resources:
+      - compliancecheckresults
+    verbs:
+      - create
   - apiGroups:
       - machineconfiguration.openshift.io
     resources:
