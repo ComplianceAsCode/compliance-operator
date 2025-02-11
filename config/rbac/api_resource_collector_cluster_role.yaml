@@ -400,7 +400,7 @@ rules:
       - create
       - get
   - nonResourceURLs:
-      - '*'
+      - "*"
     verbs:
       - get
   - apiGroups:
@@ -814,6 +814,7 @@ rules:
       - scansettingbindings
       - tailoredprofiles
       - customrules
+      - variables
     verbs:
       - get
       - list
