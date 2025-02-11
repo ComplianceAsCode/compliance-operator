@@ -535,12 +535,15 @@ func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]in
 	}
 	out, _, err := prg.Eval(evalVars)
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "no such key:") {
+		if strings.HasPrefix(err.Error(), "no such key") {
 			fmt.Printf("Warning: %s in %s\n", err, rule.Spec.Inputs[0].KubeResource.Resource)
 			ruleResult.Warnings = append(ruleResult.Warnings, fmt.Sprintf("Warning: %s in %s\n", err, rule.Spec.Inputs[0].KubeResource.Resource))
-			ruleResult.Status = v1alpha1.CheckResultError
+			ruleResult.Status = v1alpha1.CheckResultFail
 			return ruleResult
 		}
+		// we will only set the rule result to error if the error is not no such key
+		// which means the we were not able to find the resource in the map
+		ruleResult.Status = v1alpha1.CheckResultError
 		panic(fmt.Sprintf("Failed to evaluate CEL expression: %s", err))
 	}
 	// TODO: handle CPE based on platform
