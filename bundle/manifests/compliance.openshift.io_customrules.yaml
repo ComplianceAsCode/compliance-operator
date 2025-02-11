@@ -85,39 +85,37 @@ spec:
                 description: Inputs defines the Kubernetes resources that need to
                   be fetched before evaluating the expression
                 items:
+                  nullable: true
                   properties:
-                    kubeResource:
-                      description: The kubernetes resource that will be used as input
-                      nullable: true
-                      properties:
-                        apiGroup:
-                          description: APIGroup is the Kubernetes API group of the
-                            resource
-                          type: string
-                        name:
-                          description: Name is the variable name used to reference
-                            this resource in the CEL expression
-                          minLength: 1
-                          type: string
-                        namespace:
-                          description: Namespace is the Kubernetes namespace of the
-                            resource
-                          type: string
-                        resource:
-                          description: Resource is the Kubernetes resource type
-                          minLength: 1
-                          type: string
-                        version:
-                          description: Version is the Kubernetes API version of the
-                            resource
-                          minLength: 1
-                          type: string
-                      required:
-                      - apiGroup
-                      - name
-                      - resource
-                      - version
-                      type: object
+                    apiGroup:
+                      description: APIGroup is the Kubernetes API group of the resource
+                      type: string
+                    name:
+                      description: Name is the variable name used to reference this
+                        resource in the CEL expression
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: Namespace is the Kubernetes namespace of the resource
+                      type: string
+                    resource:
+                      description: Resource is the Kubernetes resource type
+                      minLength: 1
+                      type: string
+                    type:
+                      enum:
+                      - KubeGroupVersionResource
+                      type: string
+                    version:
+                      description: Version is the Kubernetes API version of the resource
+                      minLength: 1
+                      type: string
+                  required:
+                  - apiGroup
+                  - name
+                  - resource
+                  - type
+                  - version
                   type: object
                 minItems: 1
                 type: array
