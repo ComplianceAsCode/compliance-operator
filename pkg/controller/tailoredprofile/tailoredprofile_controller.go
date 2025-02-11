@@ -56,12 +56,14 @@ func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconcil
 func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	varMapper := &variableMapper{mgr.GetClient()}
 	ruleMapper := &ruleMapper{mgr.GetClient()}
+	customRuleMapper := &customRuleMapper{mgr.GetClient()}
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("tailoredprofile-controller").
 		For(&cmpv1alpha1.TailoredProfile{}).
 		Owns(&corev1.ConfigMap{}).
 		Watches(&cmpv1alpha1.Variable{}, handler.EnqueueRequestsFromMapFunc(varMapper.Map)).
 		Watches(&cmpv1alpha1.Rule{}, handler.EnqueueRequestsFromMapFunc(ruleMapper.Map)).
+		Watches(&cmpv1alpha1.CustomRule{}, handler.EnqueueRequestsFromMapFunc(customRuleMapper.Map)).
 		Complete(r)
 }
 

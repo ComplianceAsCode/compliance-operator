@@ -9,11 +9,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-type ruleMapper struct {
+type customRuleMapper struct {
 	client.Client
 }
 
-func (t *ruleMapper) Map(ctx context.Context, obj client.Object) []reconcile.Request {
+func (t *customRuleMapper) Map(ctx context.Context, obj client.Object) []reconcile.Request {
 	var requests []reconcile.Request
 
 	tpList := v1alpha1.TailoredProfileList{}
@@ -29,7 +29,7 @@ func (t *ruleMapper) Map(ctx context.Context, obj client.Object) []reconcile.Req
 			if rule.Name != obj.GetName() {
 				continue
 			}
-			if rule.Kind == v1alpha1.CustomRuleKind && rule.Kind != "" {
+			if rule.Kind != v1alpha1.CustomRuleKind || rule.Kind == "" {
 				continue
 			}
 			add = true
