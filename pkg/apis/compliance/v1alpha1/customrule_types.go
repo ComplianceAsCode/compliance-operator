@@ -16,8 +16,15 @@ type InputPayload struct {
 	// The kubernetes resource that will be used as input
 	// +nullable
 	// +optional
-	KubeResource KubeResource `json:"kubeResource,omitempty"`
+	KubeResource `json:",inline,omitempty"`
 }
+
+type InputResourceType string
+
+const (
+	InputResourceTypeKubeResource InputResourceType = "KubeGroupVersionResource"
+	InputResourceTypeUnknown      InputResourceType = "Unknown"
+)
 
 // ResourceInput defines a Kubernetes resource that will be fetched for CEL evaluation
 type KubeResource struct {
@@ -25,6 +32,11 @@ type KubeResource struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
+	// Type is the type of the resource
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=KubeGroupVersionResource
+	Type InputResourceType `json:"type"`
 
 	// APIGroup is the Kubernetes API group of the resource
 	// +kubebuilder:validation:Required

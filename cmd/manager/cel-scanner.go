@@ -411,12 +411,11 @@ func (c *CelScanner) getTailoredProfile(namespace string) (*cmpv1alpha1.Tailored
 }
 func (c *CelScanner) getSelectedCustomRules(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.CustomRule, error) {
 	var selectedRules []*cmpv1alpha1.CustomRule
+	// for _, rule := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
+	// 	if rule.Name != obj.GetName() {
+	// 		continue
 	for _, selection := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
 		for _, rule := range selectedRules {
-			// make sure ruleKind is CustomRule
-			if rule.Kind != "CustomRule" {
-				return nil, fmt.Errorf("Rule '%s' is not a CustomRule", selection.Name)
-			}
 			if rule.Name == selection.Name {
 				return nil, fmt.Errorf("Rule '%s' appears twice in selections", selection.Name)
 			}
@@ -435,6 +434,11 @@ func (c *CelScanner) collectResourcesFromFiles(resourceDir string, rule *cmpv1al
 	resultMap := make(map[string]interface{})
 	if rule.Spec.Inputs != nil {
 		for _, input := range rule.Spec.Inputs {
+
+			// check make sure type is not unknow
+			if input.KubeResource.Type != compv1alpha1.InputResourceTypeKubeResource {
+				FATAL("Got unknown KubeResource type in rule input")
+			}
 			if input.KubeResource == (cmpv1alpha1.KubeResource{}) {
 				FATAL("Got empty KubeResource in rule input")
 			}
