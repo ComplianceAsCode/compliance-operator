@@ -1042,12 +1042,20 @@ spec:
         - apiGroups:
           - compliance.openshift.io
           resources:
+          - compliancescans/finalizers
+          - compliancecheckresults/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - compliance.openshift.io
+          resources:
           - compliancesuites
           - compliancescans
           - scansettings
           - scansettingbindings
           - tailoredprofiles
           - customrules
+          - variables
           verbs:
           - get
           - list
