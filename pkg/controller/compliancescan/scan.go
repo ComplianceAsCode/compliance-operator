@@ -475,8 +475,8 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 	// Example variable declarations; adjust as needed
 	trueP := true
 	falseP := false
-	var mode int32 = 0644
-	cmName := "replace_with_your_cm_name"
+	var mode int32 = 0755
+	cmName := getConfigMapForNodeName(scanInstance.Name, PlatformScanName)
 
 	resultCollectionPods := []corev1.Container{
 		{
@@ -529,60 +529,6 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 				},
 			},
 		},
-		{
-			Name:    OpenSCAPScanContainerName,
-			Image:   utils.GetComponentImage(utils.OPENSCAP),
-			Command: []string{OpenScapScriptPath},
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: &falseP,
-				ReadOnlyRootFilesystem:   &trueP,
-				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{"ALL"},
-				},
-			},
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
-					corev1.ResourceCPU:    resource.MustParse("10m"),
-				},
-				// NOTE: when changing the default limits, remember to also change the
-				// doc text in the CRD.
-				Limits: *scanLimits(scanInstance, "500Mi", "100m"),
-			},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      "report-dir",
-					MountPath: "/reports",
-				},
-				{
-					Name:      "content-dir",
-					MountPath: "/content",
-					ReadOnly:  true,
-				},
-				{
-					Name:      "tmp-dir",
-					MountPath: "/tmp",
-				},
-				{
-					Name:      "fetch-results",
-					MountPath: PlatformScanDataRoot,
-				},
-				{
-					Name:      scriptCmForScan(scanInstance),
-					MountPath: "/scripts",
-					ReadOnly:  true,
-				},
-			},
-			EnvFrom: []corev1.EnvFromSource{
-				{
-					ConfigMapRef: &corev1.ConfigMapEnvSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: envCmForPlatformScan(scanInstance),
-						},
-					},
-				},
-			},
-		},
 	}
 
 	podVolumes := []corev1.Volume{
@@ -613,7 +559,7 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 		},
 	}
 
-	pod.Spec.Volumes = podVolumes
+	pod.Spec.Volumes = append(pod.Spec.Volumes, podVolumes...)
 	pod.Spec.Containers = append(pod.Spec.Containers, resultCollectionPods...)
 
 	return pod
