@@ -290,6 +290,14 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 				// update the TailoredProfile
 				return reconcile.Result{}, r.Client.Update(context.TODO(), tpCopy)
 			}
+			_, err := r.getCustomVariablesFromSelections(instance)
+			if err != nil && !common.IsRetriable(err) {
+				// the variables didn't exist. Surface the error.
+				err = r.handleTailoredProfileStatusError(instance, err)
+				return reconcile.Result{}, err
+			} else if err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
@@ -640,10 +648,6 @@ func (r *ReconcileTailoredProfile) getRulesFromSelections(tp *cmpv1alpha1.Tailor
 func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.TailoredProfile) (map[string]*cmpv1alpha1.CustomRule, error) {
 	rules := make(map[string]*cmpv1alpha1.CustomRule, len(tp.Spec.EnableRules)+len(tp.Spec.DisableRules)+len(tp.Spec.ManualRules))
 	ruleKind := cmpv1alpha1.CustomRuleKind
-	// print log for debugging
-	fmt.Println("ruleKind: ", ruleKind)
-	// print out what we are doing
-	fmt.Println("Getting custom rules from selections for TailoredProfile:", tp.Name)
 	for _, selection := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
 		if selection.Kind != ruleKind {
 			fmt.Println("Skipping selection:", selection.Name, "because it is not of kind", ruleKind)
@@ -675,10 +679,32 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 
 		rules[selection.Name] = rule
 	}
-	fmt.Println("Successfully retrieved custom rules for TailoredProfile:", tp.Name)
-	fmt.Println("Number of custom rules:", len(rules))
-	fmt.Println("Custom rules:", rules) // print out the retrieved custom rules for debugging
 	return rules, nil
+}
+
+// getCustomVariablesFromSelections is for getting all avaiable variables for CustomRule
+func (r *ReconcileTailoredProfile) getCustomVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.Variable, error) {
+	variableList := []*cmpv1alpha1.Variable{}
+	for _, setValues := range tp.Spec.SetValues {
+		variable := &cmpv1alpha1.Variable{}
+		varKey := types.NamespacedName{Name: setValues.Name, Namespace: tp.Namespace}
+		err := r.Client.Get(context.TODO(), varKey, variable)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return nil, common.NewNonRetriableCtrlError("fetching variable: %w", err)
+			}
+			return nil, err
+		}
+
+		// try setting the variable, this also validates the value
+		err = variable.SetValue(setValues.Value)
+		if err != nil {
+			return nil, common.NewNonRetriableCtrlError("setting variable: %s", err)
+		}
+
+		variableList = append(variableList, variable)
+	}
+	return variableList, nil
 }
 func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile, pb *cmpv1alpha1.ProfileBundle) ([]*cmpv1alpha1.Variable, error) {
 	// First pass: Build de-duplicated map of variables, keeping last occurrence when duplicates exist.
