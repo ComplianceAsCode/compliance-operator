@@ -174,6 +174,7 @@ func (c *CelScanner) runPlatformScan() {
 	// TODO(@Vincent056): Right now only CEL CustomRules are supported
 	// We will add support for Rule Object when CEL is supported for Rule
 	var selectedRules []*cmpv1alpha1.CustomRule
+	var setVars []*cmpv1alpha1.Variable
 	if c.celConfig.Tailoring != "" {
 		tailoredProfile, err := c.getTailoredProfile(c.celConfig.NameSpace)
 		if err != nil {
@@ -182,6 +183,11 @@ func (c *CelScanner) runPlatformScan() {
 		selectedRules, err = c.getSelectedCustomRules(tailoredProfile)
 		if err != nil {
 			FATAL("Failed to get selected rules: %v", err)
+		}
+		// Collect all the variables being set in the tailoredProfile
+		setVars, err = c.getSetVariables(tailoredProfile)
+		if err != nil {
+			FATAL("Failed to get set variables: %v", err)
 		}
 	} else {
 		FATAL("No tailored profile provided")
@@ -198,7 +204,7 @@ func (c *CelScanner) runPlatformScan() {
 		if c.celConfig.ApiResourcePath == "" {
 			LOG("Fetching resources from API server")
 			// Fetch the resources from the API server
-			collectedResources, warnings, err := c.FetchResources(rule)
+			collectedResources, warnings, err := c.FetchResources(rule, setVars)
 
 			if err != nil {
 				LOG("Error fetching resources: %v", err)
@@ -430,6 +436,26 @@ func (c *CelScanner) getSelectedCustomRules(tp *cmpv1alpha1.TailoredProfile) ([]
 	}
 	return selectedRules, nil
 }
+
+func (c *CelScanner) getSetVariables(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.Variable, error) {
+	var setVars []*cmpv1alpha1.Variable
+	for _, sVar := range tp.Spec.SetValues {
+		for _, iVar := range setVars {
+			if iVar.Name == sVar.Name {
+				return nil, fmt.Errorf("Variables '%s' appears twice in selections", sVar.Name)
+			}
+		}
+		variable := &cmpv1alpha1.Variable{}
+		varKey := v1api.NamespacedName{Name: sVar.Name, Namespace: tp.Namespace}
+		err := c.client.Get(context.TODO(), varKey, variable)
+		if err != nil {
+			return nil, fmt.Errorf("Fetching variable: %w", err)
+		}
+		variable.Value = sVar.Value
+		setVars = append(setVars, variable)
+	}
+	return setVars, nil
+}
 func (c *CelScanner) collectResourcesFromFiles(resourceDir string, rule *cmpv1alpha1.CustomRule) map[string]interface{} {
 	resultMap := make(map[string]interface{})
 	if rule.Spec.Inputs != nil {
@@ -558,8 +584,8 @@ func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]in
 	return ruleResult
 }
 
-func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule) (map[string]interface{}, []string, error) {
-	figuredResourcePaths, foundMap, err := c.FigureResources(rule)
+func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule, variables []*cmpv1alpha1.Variable) (map[string]interface{}, []string, error) {
+	figuredResourcePaths, foundMap, variableResultMap, err := c.FigureResources(rule, variables)
 	if err != nil {
 		LOG("Error figuring resources: %v for rule: %s", err, rule.Name)
 		return nil, nil, err
@@ -574,6 +600,7 @@ func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule) (map[string]in
 		LOG("Found resource: %s\n", k)
 		LOG("Resource content: %s\n", v)
 	}
+
 	resultMap := make(map[string]interface{})
 	// loop through the found resources make a map that consist of input name and resource content
 	for k, v := range found {
@@ -604,16 +631,23 @@ func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule) (map[string]in
 			}
 		}
 	}
+	// loop through the variableResultMap and add it to the resultMap
+	for k, v := range variableResultMap {
+		resultMap[k] = v
+	}
+
+	DBG("Result map: %v\n", resultMap)
 
 	return resultMap, warnings, nil
 }
 
 // we will find resource and return the resource
-func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.ResourcePath, map[string]string, error) {
+func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule, variables []*cmpv1alpha1.Variable) ([]utils.ResourcePath, map[string]string, map[string]string, error) {
 	// Initial set of resources to fetch
 	found := []utils.ResourcePath{}
 	foundMap := make(map[string]string)
-
+	// map variable name to user defined name
+	variableResultMap := make(map[string]string)
 	DBG("Processing rule: %s\n", rule.Name)
 	DBG("Rule inputs: %v\n", rule.Spec.Inputs)
 	for _, universalInput := range rule.Spec.Inputs {
@@ -623,6 +657,18 @@ func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.Reso
 			Version:  input.Version,
 			Resource: input.Resource,
 		}
+		// Check if we have any variables set in the tailored profile
+		if variables != nil {
+			for _, variable := range variables {
+				// check if the gvr is the same as the input
+				if gvr.Group == variable.GroupVersionKind().Group && gvr.Version == variable.GroupVersionKind().Version {
+					// check if the resource is the same as the inputvariable.TypeMeta.GetObjectKind() + / + resource name
+					if gvr.Resource == variable.GroupVersionKind().Kind+"/"+variable.Name && input.Namespace == variable.Namespace {
+						variableResultMap[input.Name] = variable.Value
+					}
+				}
+			}
+		}
 		// Derive the resource path using the common function
 		objPath := DeriveResourcePath(gvr, input.Namespace)
 		found = append(found, utils.ResourcePath{
@@ -631,8 +677,9 @@ func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule) ([]utils.Reso
 		})
 		foundMap[objPath] = input.Name
 	}
+
 	DBG("resources: %v\n", found)
-	return found, foundMap, nil
+	return found, foundMap, variableResultMap, nil
 }
 
 func saveScanResult(filePath string, resultsList []*v1alpha1.ComplianceCheckResult) {
