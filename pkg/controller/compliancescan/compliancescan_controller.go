@@ -212,7 +212,7 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 			instanceCopy.Status.RemainingRetries = instance.Spec.MaxRetryOnTimeout
 		}
 		instanceCopy.Status.Phase = compv1alpha1.PhasePending
-		instanceCopy.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
+		instanceCopy.Status.StartTimestamp = nil
 		instanceCopy.Status.SetConditionPending()
 		updateErr := r.Client.Status().Update(context.TODO(), instanceCopy)
 		if updateErr != nil {
@@ -763,7 +763,7 @@ func (r *ReconcileComplianceScan) phaseDoneHandler(h scanTypeHandler, instance *
 			instanceCopy := instance.DeepCopy()
 			instanceCopy.Status.Phase = compv1alpha1.PhasePending
 			instanceCopy.Status.Result = compv1alpha1.ResultNotAvailable
-			instanceCopy.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
+			instanceCopy.Status.StartTimestamp = nil
 			if instance.Status.CurrentIndex == math.MaxInt64 {
 				instanceCopy.Status.CurrentIndex = 0
 			} else {
