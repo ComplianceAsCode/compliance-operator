@@ -27,6 +27,28 @@ const (
 	CheckTypeNone     = ""
 )
 
+// ScannerType is an enum type for the scanner type
+type ScannerType string
+
+// InputType is an enum type for the input type
+type InputType string
+
+const (
+	// ScannerTypeOpenSCAP is the default scanner type
+	ScannerTypeOpenSCAP ScannerType = "OpenSCAP"
+	// ScannerTypeCelScanner is the scanner type for the CEL scanner
+	ScannerTypeCelScanner ScannerType = "CEL"
+	// ScannerTypeUnknown is the scanner type for an unknown scanner
+	ScannerTypeUnknown ScannerType = "Unknown"
+)
+
+type Evaluation struct {
+	// The CEL expression to be evaluated
+	Expression string `json:"expression"`
+	// Error message to be displayed if the evaluation fails
+	ErrorMessage string `json:"errorMessage,omitempty"`
+}
+
 type RulePayload struct {
 	// The XCCDF ID
 	ID string `json:"id"`
@@ -50,6 +72,45 @@ type RulePayload struct {
 	// +optional
 	// +listType=atomic
 	AvailableFixes []FixDefinition `json:"availableFixes,omitempty"`
+	// Scanner is the type of scanner that should be used to evaluate this rule
+	// Defaults to OpenSCAP
+	// +kubebuilder:default=OpenSCAP
+	Scanner ScannerType `json:"scanner,omitempty"`
+	// Evaluations is the list of CEL expressions that will be used
+	// to evaluate the rule
+	// +nullable
+	// +optional
+	// +listType=atomic
+	Evaluatiosn []Evaluation `json:"evaluations,omitempty"`
+	// Inputs represent the input parameters for the CEL expression
+	// +nullable
+	// +optional
+	// +listType=atomic
+	Inputs []InputPayload `json:"inputs,omitempty"`
+}
+
+// KubernetesResource represents a kubernetes resource that can be used as an input
+// for the CEL expression
+type KubernetesResource struct {
+	// The API group of the resource
+	APIGroup string `json:"apiGroup"`
+	// The version of the resource
+	ApiVersion string `json:"apiVersion"`
+	// The resource type
+	Resource string `json:"resource"`
+	// The namespace of the resource
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// InputPayload defines the structure for the inputs used in the CEL expression
+type InputPayload struct {
+	// The name of the input parameter
+	Name string `json:"name"`
+	// The kubernetes resource that will be used as input
+	// +nullable
+	// +optional
+	KubeResource KubernetesResource `json:"kubeResource,omitempty"`
 }
 
 // +kubebuilder:object:root=true
