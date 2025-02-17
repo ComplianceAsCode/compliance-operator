@@ -814,6 +814,10 @@ func newStandardParser() *referenceParser {
 	if err != nil {
 		log.Error(err, "Could not register NIST-800-53 reference parser") // not much we can do here..
 	}
+	bsiperr := p.registerStandard("BSI", `^https://www\.bsi\.bund\.de/SharedDocs/Downloads/EN/BSI/Grundschutz/International/bsi_it_gs_comp_2022\.pdf$`)
+	if bsiperr != nil {
+		log.Error(bsiperr, "Could not register BSI reference parser") // not much we can do here..
+	}
 	cocperr := p.registerStandard("CIS-OCP", `^https://www\.cisecurity\.org/benchmark/kubernetes/$`)
 	if cocperr != nil {
 		log.Error(cocperr, "Could not register CIS OpenShift reference parser") // not much we can do here..
