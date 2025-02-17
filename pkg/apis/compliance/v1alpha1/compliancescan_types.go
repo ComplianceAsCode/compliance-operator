@@ -136,6 +136,11 @@ type ComplianceScanType string
 // When changing the defaults, remember to change also the DefaultRawStorageSize and
 // DefaultStorageRotation constants
 type RawResultStorageSettings struct {
+	// Specifies if the raw result storage is disabled. This is useful in case
+	// the raw results are not needed. Defaults to false.
+	// +kubebuilder:validation:Default=false
+	// +kubebuilder:default=false
+	Disabled bool `json:"disabled,omitempty"`
 	// Specifies the amount of storage to ask for storing the raw results. Note that
 	// if re-scans happen, the new results will also need to be stored. Defaults to 1Gi.
 	// +kubebuilder:validation:Default=1Gi
