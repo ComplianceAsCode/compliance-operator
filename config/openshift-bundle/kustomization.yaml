@@ -3,13 +3,22 @@
 namespace: openshift-compliance
 
 bases:
-- ../crd
-- ../rbac
-- ../manager
-- ../ns
+- ../manifests
 
 patches:
 - path: manager_patch.yaml
   target:
     kind: Deployment
     name: compliance-operator
+- path: annotations.yaml
+  target:
+    kind: ClusterServiceVersion
+    name: compliance-operator.vVERSION
+- path: icon.yaml
+  target:
+    kind: ClusterServiceVersion
+    name: compliance-operator.vVERSION
+- path: images.yaml
+  target:
+    kind: ClusterServiceVersion
+    name: compliance-operator.vVERSION
