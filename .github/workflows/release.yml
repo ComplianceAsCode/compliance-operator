@@ -18,7 +18,7 @@ jobs:
       tag: ${GITHUB_REF_NAME}
       dockerfile_path: build/Dockerfile
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   openscap-container:
     permissions:
@@ -32,7 +32,7 @@ jobs:
       tag: ${GITHUB_REF_NAME}
       dockerfile_path: images/openscap/Dockerfile
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   bundle-container:
     permissions:
@@ -46,7 +46,7 @@ jobs:
       tag: ${GITHUB_REF_NAME}
       dockerfile_path: bundle.Dockerfile
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   catalog-container-push-pr:
     # Temporary workaround for SBOM issue https://github.com/metal-toolbox/container-push/pull/77
@@ -68,4 +68,4 @@ jobs:
       vendor: "Compliance Operator Authors"
       prepare_command: |
         make catalog-docker BUNDLE_IMGS=ghcr.io/complianceascode/compliance-operator-bundle:${GITHUB_REF_NAME}
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"

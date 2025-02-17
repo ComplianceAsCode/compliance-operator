@@ -18,7 +18,7 @@ jobs:
       tag: latest
       dockerfile_path: build/Dockerfile
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   bundle-container-push-latest:
     permissions:
@@ -32,7 +32,7 @@ jobs:
       tag: latest
       dockerfile_path: bundle.Dockerfile
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   openscap-container-push-latest:
     permissions:
@@ -46,7 +46,7 @@ jobs:
       tag: latest
       dockerfile_path: images/openscap/Dockerfile
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   catalog-container-push-pr:
     needs:
@@ -65,7 +65,7 @@ jobs:
       vendor: "Compliance Operator Authors"
       prepare_command: |
         make catalog-docker BUNDLE_IMGS=ghcr.io/complianceascode/compliance-operator-bundle:latest
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x"
+      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
   must-gather-latest:
     permissions:
@@ -79,4 +79,4 @@ jobs:
       tag: latest
       dockerfile_path: images/must-gather/Dockerfile.ocp
       vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64"
+      platforms: "linux/amd64,linux/arm64"
