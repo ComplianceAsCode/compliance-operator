@@ -274,6 +274,7 @@ spec:
                 description: The type of Compliance scan.
                 type: string
               scannerType:
+                default: OpenSCAP
                 description: The Scanner we will use to perform the scan.
                 type: string
               showNotApplicable:
