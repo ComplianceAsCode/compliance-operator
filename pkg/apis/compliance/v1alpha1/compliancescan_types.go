@@ -242,7 +242,7 @@ type ComplianceScanSpec struct {
 	// The type of Compliance scan.
 	// +kubebuilder:default=Node
 	ScanType ComplianceScanType `json:"scanType,omitempty"`
-	// The Scanner we will use to perform the scan.
+	// The scanner used to perform the scan.
 	// +kubebuilder:default=OpenSCAP
 	ScannerType ScannerType `json:"scannerType,omitempty"`
 	// Is the image with the content (Data Stream), that will be used to run

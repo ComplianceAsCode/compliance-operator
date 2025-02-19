@@ -275,7 +275,7 @@ spec:
                 type: string
               scannerType:
                 default: OpenSCAP
-                description: The Scanner we will use to perform the scan.
+                description: The scanner used to perform the scan.
                 type: string
               showNotApplicable:
                 default: false
