@@ -57,6 +57,10 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: Type of rule, either "Rule" or "CustomRule". "Rule"
+                        is the default if not specified.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -64,6 +68,7 @@ spec:
                       description: Rationale of why this rule is being selected/deselected
                       type: string
                   required:
+                  - kind
                   - name
                   - rationale
                   type: object
@@ -75,6 +80,10 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: Type of rule, either "Rule" or "CustomRule". "Rule"
+                        is the default if not specified.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -82,6 +91,7 @@ spec:
                       description: Rationale of why this rule is being selected/deselected
                       type: string
                   required:
+                  - kind
                   - name
                   - rationale
                   type: object
@@ -97,6 +107,10 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: Type of rule, either "Rule" or "CustomRule". "Rule"
+                        is the default if not specified.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -104,6 +118,7 @@ spec:
                       description: Rationale of why this rule is being selected/deselected
                       type: string
                   required:
+                  - kind
                   - name
                   - rationale
                   type: object
