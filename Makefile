@@ -128,7 +128,7 @@ E2E_TEST_TYPE?=all
 # E2E_CLEANUP_ON_ERROR=true make e2e
 E2E_CLEANUP_ON_ERROR?=false
 E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
-TEST_OPTIONS?=
+TEST_OPTIONS?=-timeout=20m
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
 # Use default images in the e2e test run. Note that this takes precedence over E2E_SKIP_CONTAINER_PUSH
