@@ -606,7 +606,7 @@ func (r *ReconcileComplianceScan) phaseAggregatingHandler(h scanTypeHandler, log
 	logger.Info("Creating an aggregator pod for scan")
 	aggregator := r.newAggregatorPod(instance, logger)
 	if priorityClassExist, why := utils.ValidatePriorityClassExist(aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
-		log.Info(why, "aggregator", aggregator.Name)
+		logger.Info(why, "aggregator", aggregator.Name)
 		r.Recorder.Eventf(aggregator, corev1.EventTypeWarning, "PriorityClass", why+" aggregator:"+aggregator.Name)
 		aggregator.Spec.PriorityClassName = ""
 	}
@@ -658,19 +658,21 @@ func (r *ReconcileComplianceScan) phaseAggregatingHandler(h scanTypeHandler, log
 		return reconcile.Result{}, err
 	}
 
-	instanceCopy := instance.DeepCopy()
-
-	if instanceCopy.Annotations == nil {
-		instanceCopy.Annotations = make(map[string]string)
+	// check if instance has any annotation before checking for check count
+	// to avoid nil pointer exception in case of missing annotation
+	if instance.Annotations == nil {
+		instance.Annotations = make(map[string]string)
+	}
+	if _, ok := instance.Annotations[compv1alpha1.ComplianceCheckCountAnnotation]; !ok {
+		instanceCopy := instance.DeepCopy()
+		instanceCopy.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] = strconv.Itoa(checkCount)
+		if err := r.Client.Update(context.TODO(), instanceCopy); err != nil {
+			logger.Error(err, "Cannot update the scan with the check count")
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
 	}
 
-	// adding check count annotation
-	instanceCopy.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] = strconv.Itoa(checkCount)
-
-	if err := r.Client.Update(context.TODO(), instanceCopy); err != nil {
-		logger.Error(err, "Cannot update the scan with the check count")
-		return reconcile.Result{}, err
-	}
 	instance.Status.Phase = compv1alpha1.PhaseDone
 	instance.Status.EndTimestamp = &metav1.Time{Time: time.Now()}
 	instance.Status.SetConditionReady()
