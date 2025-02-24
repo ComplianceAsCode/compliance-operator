@@ -424,7 +424,7 @@ func (r *ReconcileComplianceSuite) addScanStatus(suite *compv1alpha1.ComplianceS
 func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, logger logr.Logger) error {
 	scanProfile := scanWrap.Profile
 	profileUniqueID := ""
-	if scanWrap.TailoringConfigMap != nil {
+	if scanWrap.TailoringConfigMap != nil || scanWrap.ComplianceScanSpec.ScannerType == compv1alpha1.ScannerTypeCEL {
 		profileUniqueID = xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile)
 	} else {
 		profiles := &compv1alpha1.ProfileList{}
