@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -286,14 +287,20 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.ComplianceScan, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Pending")
 
-	// Set deprecated warning
-	xccdfProfileID := instance.Spec.Profile
-	xccdfProfileName := xccdf.GetProfileNameFromID(xccdfProfileID)
-	// We rely that the ComplianceScan name is prefixed with the product name
-	product := strings.Split(instance.Name, "-")[0]
+	ownerRefs := instance.GetOwnerReferences()
+	for idx := range ownerRefs {
+		ownerRef := &ownerRefs[idx]
+		logger.Info(ownerRef.Kind)
+	}
+	xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
+
+	// We rely that the ComplianceScan name has format of (profile-bundle)-(profile-name)(-role)?
+	re := regexp.MustCompile(fmt.Sprintf("(.*)-%s(-;.*)?", xccdfProfileName))
+	submatches := re.FindSubmatch([]byte(instance.Name))
+	profileBundle := string(submatches[1])
 
 	profile := &compv1alpha1.Profile{}
-	profileName := product + "-" + xccdfProfileName
+	profileName := profileBundle + "-" + xccdfProfileName
 	key := types.NamespacedName{Namespace: common.GetComplianceOperatorNamespace(), Name: profileName}
 	err := r.Client.Get(context.TODO(), key, profile)
 	if err != nil {
