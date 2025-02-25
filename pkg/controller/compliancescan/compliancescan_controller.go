@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/common"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/metrics"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/xccdf"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -284,6 +286,36 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 
 func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.ComplianceScan, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Pending")
+
+	ownerRefs := instance.GetOwnerReferences()
+	for idx := range ownerRefs {
+		ownerRef := &ownerRefs[idx]
+		logger.Info(ownerRef.Kind)
+	}
+	xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
+
+	// We rely that the ComplianceScan name has format of (profile-bundle)-(profile-name)(-role)?
+	re := regexp.MustCompile(fmt.Sprintf("(.*)-%s(-;.*)?", xccdfProfileName))
+	submatches := re.FindSubmatch([]byte(instance.Name))
+	profileBundle := string(submatches[1])
+
+	profile := &compv1alpha1.Profile{}
+	profileName := profileBundle + "-" + xccdfProfileName
+	key := types.NamespacedName{Namespace: common.GetComplianceOperatorNamespace(), Name: profileName}
+	err := r.Client.Get(context.TODO(), key, profile)
+	if err != nil {
+		logger.Error(err, "Cannot get profile", profileName)
+		return reconcile.Result{}, err
+	}
+
+	profileStatus := profile.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation]
+	if profileStatus == "deprecated" {
+		logger.Info("ComplianceScan uses deprecated profile", instance.Name, profileName)
+		msg := fmt.Sprintf("Profile %s is deprecated and will be removed in a future version of Compliance Operator. "+
+			"Please consider using a newer version of this profile", profileName)
+		instance.Status.Warnings = msg
+	}
+
 	// Remove annotation if needed
 	if instance.NeedsRescan() {
 		instanceCopy := instance.DeepCopy()
@@ -307,7 +339,7 @@ func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.Com
 	instance.Status.Result = compv1alpha1.ResultNotAvailable
 	instance.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
 	instance.Status.EndTimestamp = nil
-	err := r.Client.Status().Update(context.TODO(), instance)
+	err = r.Client.Status().Update(context.TODO(), instance)
 	if err != nil {
 		logger.Error(err, "Cannot update the status")
 		return reconcile.Result{}, err

@@ -16,6 +16,9 @@ const ProfileBundleOwnerLabel = "compliance.openshift.io/profile-bundle"
 // ProfileImageDigestAnnotation is the parsed out digest of the content image
 const ProfileImageDigestAnnotation = "compliance.openshift.io/image-digest"
 
+// ProfileStatusAnnotation is the parsed out status from the data stream
+const ProfileStatusAnnotation = "compliance.openshift.io/profile-status"
+
 // DataStreamStatusType is the type for the data stream status
 type DataStreamStatusType string
 
