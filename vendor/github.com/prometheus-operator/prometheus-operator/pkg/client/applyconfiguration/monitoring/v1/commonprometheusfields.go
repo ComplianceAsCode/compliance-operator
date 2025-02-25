@@ -115,6 +115,8 @@ type CommonPrometheusFieldsApplyConfiguration struct {
 	ScrapeClasses                        []ScrapeClassApplyConfiguration                         `json:"scrapeClasses,omitempty"`
 	ServiceDiscoveryRole                 *monitoringv1.ServiceDiscoveryRole                      `json:"serviceDiscoveryRole,omitempty"`
 	TSDB                                 *TSDBSpecApplyConfiguration                             `json:"tsdb,omitempty"`
+	ScrapeFailureLogFile                 *string                                                 `json:"scrapeFailureLogFile,omitempty"`
+	ServiceName                          *string                                                 `json:"serviceName,omitempty"`
 	Runtime                              *RuntimeConfigApplyConfiguration                        `json:"runtime,omitempty"`
 }
 
@@ -899,6 +901,22 @@ func (b *CommonPrometheusFieldsApplyConfiguration) WithServiceDiscoveryRole(valu
 // If called multiple times, the TSDB field is set to the value of the last call.
 func (b *CommonPrometheusFieldsApplyConfiguration) WithTSDB(value *TSDBSpecApplyConfiguration) *CommonPrometheusFieldsApplyConfiguration {
 	b.TSDB = value
+	return b
+}
+
+// WithScrapeFailureLogFile sets the ScrapeFailureLogFile field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ScrapeFailureLogFile field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithScrapeFailureLogFile(value string) *CommonPrometheusFieldsApplyConfiguration {
+	b.ScrapeFailureLogFile = &value
+	return b
+}
+
+// WithServiceName sets the ServiceName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ServiceName field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithServiceName(value string) *CommonPrometheusFieldsApplyConfiguration {
+	b.ServiceName = &value
 	return b
 }
 
