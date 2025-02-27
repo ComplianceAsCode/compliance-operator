@@ -282,8 +282,46 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 	return true, nil
 }
 
+func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1alpha1.ComplianceScan, logger logr.Logger) error {
+	var profile *compv1alpha1.Profile
+	profiles := &compv1alpha1.ProfileList{}
+
+	// list all profiles in namespace
+	if err := r.Client.List(context.TODO(), profiles, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
+		return err
+	}
+	for _, p := range profiles.Items {
+		if p.ID == instance.Spec.Profile {
+			logger.Info("", instance.Name)
+			if instance.Name == utils.GetScanNameFromProfile(p.Name, instance.Spec.NodeSelector) {
+				profile = &p
+				break
+			}
+		}
+	}
+	if profile == nil {
+		return goerrors.New("Could not find profile")
+	}
+	profileStatus := profile.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation]
+	if profileStatus == "deprecated" {
+		logger.Info("ComplianceScan uses deprecated profile", instance.Name, profile.Name)
+		r.Recorder.Eventf(
+			instance, corev1.EventTypeWarning, "DeprecatedProfile",
+			"Profile %s is deprecated and will be removed in a future version of Compliance Operator. "+
+				"Please consider using a newer version of this profile", profile.Name)
+	}
+	return nil
+}
+
 func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.ComplianceScan, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Pending")
+
+	err := r.notifyUseOfDeprecatedProfile(instance, logger)
+	if err != nil {
+		logger.Error(err, "Could not check if profile is deprecated")
+		return reconcile.Result{}, err
+	}
+
 	// Remove annotation if needed
 	if instance.NeedsRescan() {
 		instanceCopy := instance.DeepCopy()
@@ -307,7 +345,7 @@ func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.Com
 	instance.Status.Result = compv1alpha1.ResultNotAvailable
 	instance.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
 	instance.Status.EndTimestamp = nil
-	err := r.Client.Status().Update(context.TODO(), instance)
+	err = r.Client.Status().Update(context.TODO(), instance)
 	if err != nil {
 		logger.Error(err, "Cannot update the status")
 		return reconcile.Result{}, err
