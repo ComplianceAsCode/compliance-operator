@@ -75,7 +75,7 @@ func TestScanStorageOutOfQuotaRangeFails(t *testing.T) {
 	scanName := framework.GetObjNameFromTest(t)
 	testScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanName,
+			Name:      "rhcos4-moderate",
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
