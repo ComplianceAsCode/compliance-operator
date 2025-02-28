@@ -536,14 +536,37 @@ func (r *ReconcileTailoredProfile) getRulesFromSelections(tp *cmpv1alpha1.Tailor
 	}
 	return rules, nil
 }
-
 func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile, pb *cmpv1alpha1.ProfileBundle) ([]*cmpv1alpha1.Variable, error) {
-	variableList := []*cmpv1alpha1.Variable{}
-	for _, setValues := range tp.Spec.SetValues {
+	// 1) First pass over tp.Spec.SetValues to detect duplicates, warn, and decide which value to keep
+	//    We choose to keep the last occurrence. The map "duplicates" maps variableName -> finalValue.
+	//    The slice "uniqueVarOrder" tracks the first time we saw the variable (for stable iteration).
+	duplicates := make(map[string]string)
+	uniqueVarOrder := []string{}
+
+	for i, setValue := range tp.Spec.SetValues {
+		if oldVal, seen := duplicates[setValue.Name]; seen {
+			// We found a duplicate. Warn that we will ignore the previous usage.
+			r.Eventf(tp, corev1.EventTypeWarning,
+				"DuplicatedSetValue",
+				"Variable '%s' appears multiple times in setValues. The operator will keep the last usage with value '%s' (position %d), ignoring the previous value '%s'. This will fail in a future release. Please remove duplicates from setValues.",
+				setValue.Name, setValue.Value, i, oldVal)
+		} else {
+			// Only record order the first time we see the variable
+			uniqueVarOrder = append(uniqueVarOrder, setValue.Name)
+		}
+		// Overwrite with the newest/last usage
+		duplicates[setValue.Name] = setValue.Value
+	}
+
+	// 2) Second pass to actually retrieve the Variables and set their final values
+	variableList := make([]*cmpv1alpha1.Variable, 0, len(uniqueVarOrder))
+	for _, varName := range uniqueVarOrder {
+		finalValue := duplicates[varName]
+
+		// Grab the Variable from the cluster
 		variable := &cmpv1alpha1.Variable{}
-		varKey := types.NamespacedName{Name: setValues.Name, Namespace: tp.Namespace}
-		err := r.Client.Get(context.TODO(), varKey, variable)
-		if err != nil {
+		varKey := types.NamespacedName{Name: varName, Namespace: tp.Namespace}
+		if err := r.Client.Get(context.TODO(), varKey, variable); err != nil {
 			if kerrors.IsNotFound(err) {
 				return nil, common.NewNonRetriableCtrlError("fetching variable: %w", err)
 			}
@@ -557,8 +580,7 @@ func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.Ta
 		}
 
 		// try setting the variable, this also validates the value
-		err = variable.SetValue(setValues.Value)
-		if err != nil {
+		if err := variable.SetValue(finalValue); err != nil {
 			return nil, common.NewNonRetriableCtrlError("setting variable: %s", err)
 		}
 

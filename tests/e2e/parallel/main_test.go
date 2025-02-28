@@ -783,6 +783,48 @@ func TestScanTailoredProfileIsDeprecated(t *testing.T) {
 	}
 }
 
+func TestScanTailoredProfileHasDuplicateVariables(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	pbName := framework.GetObjNameFromTest(t)
+	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
+	varName := prefixName(pbName, "var-openshift-audit-profile")
+	tpName := "test-tailored-profile-has-duplicate-variables"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Extends:     "ocp4-cis",
+			Title:       "TestScanTailoredProfileIsDuplicateVariables",
+			Description: "TestScanTailoredProfileIsDuplicateVariables",
+			SetValues: []compv1alpha1.VariableValueSpec{
+				{
+					Name:      varName,
+					Rationale: "Value to be set",
+					Value:     "WriteRequestBodies",
+				},
+				{
+					Name:      varName,
+					Rationale: "Value to be set",
+					Value:     "SomethingElse",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+	// let's check if the profile is created and if event warning is being generated
+	if err = f.WaitForDuplicatedVariableWarning(t, tpName, varName); err != nil {
+		t.Fatal(err)
+	}
+
+}
+
 func TestScanProducesRemediations(t *testing.T) {
 	t.Parallel()
 	f := framework.Global

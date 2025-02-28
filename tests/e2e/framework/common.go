@@ -520,6 +520,42 @@ func (f *Framework) WaitForProfileDeprecatedWarning(t *testing.T, scanName strin
 	return nil
 }
 
+func (f *Framework) WaitForDuplicatedVariableWarning(t *testing.T, tpName string, variableName string) error {
+	polledTailoredProfile := &compv1alpha1.TailoredProfile{}
+
+	// Wait for profile deprecation warning event
+	err := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		getErr := f.Client.Get(context.TODO(), types.NamespacedName{Name: tpName, Namespace: f.OperatorNamespace}, polledTailoredProfile)
+		if getErr != nil {
+			t.Log(getErr)
+			return false, nil
+		}
+
+		duplicateValuesEventList, getEventErr := f.KubeClient.CoreV1().Events(f.OperatorNamespace).List(context.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=DuplicatedSetValue",
+		})
+		if getEventErr != nil {
+			t.Log(getEventErr)
+			return false, nil
+		}
+
+		re := regexp.MustCompile(fmt.Sprintf(".*%s.*", variableName))
+
+		for _, item := range duplicateValuesEventList.Items {
+			if item.InvolvedObject.Name == polledTailoredProfile.Name && re.MatchString(item.Message) {
+				t.Logf("Found TailoredProfile duplicated variable event: %s", item.Message)
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Fatalf("No TailoredProfile event for variable \"%s\" found", variableName)
+		return err
+	}
+	return nil
+}
+
 // waitForProfileBundleStatus will poll until the compliancescan that we're
 // lookingfor reaches a certain status, or until a timeout is reached.
 func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.DataStreamStatusType) error {
