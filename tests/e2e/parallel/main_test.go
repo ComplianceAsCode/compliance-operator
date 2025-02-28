@@ -615,7 +615,7 @@ func TestSingleScanSucceeds(t *testing.T) {
 	scanName := framework.GetObjNameFromTest(t)
 	testScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanName,
+			Name:      "rhcos4-moderate",
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
@@ -681,11 +681,11 @@ func TestSingleScanTimestamps(t *testing.T) {
 	scanName := framework.GetObjNameFromTest(t)
 	testScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanName,
+			Name:      "rhcos4-high",
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
+			Profile: "xccdf_org.ssgproject.content_profile_high",
 			Content: framework.RhcosContentFile,
 			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
@@ -1079,7 +1079,7 @@ func TestScanWithNodeSelectorFiltersCorrectly(t *testing.T) {
 	}
 	testComplianceScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-filtered-scan",
+			Name:      "rhcos4-moderate-worker",
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
@@ -1129,11 +1129,11 @@ func TestScanWithNodeSelectorNoMatches(t *testing.T) {
 	}
 	testComplianceScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanName,
+			Name:      "rhcos4-e8",
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Profile:      "xccdf_org.ssgproject.content_profile_e8",
 			Content:      framework.RhcosContentFile,
 			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			NodeSelector: selectNone,

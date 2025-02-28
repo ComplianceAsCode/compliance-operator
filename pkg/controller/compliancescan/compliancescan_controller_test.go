@@ -127,10 +127,11 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 		// test instance
 		compliancescaninstance = &compv1alpha1.ComplianceScan{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
+				Name: "product-profile-name",
 			},
 			Spec: compv1alpha1.ComplianceScanSpec{
 				ScanType: compv1alpha1.ScanTypeNode,
+				Profile:  "xccdf_org.ssgproject.content_profile_profile_name",
 				ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 					RawResultStorage: compv1alpha1.RawResultStorageSettings{
 						PVAccessModes: defaultAccessMode,
@@ -145,6 +146,7 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			},
 			Spec: compv1alpha1.ComplianceScanSpec{
 				ScanType: compv1alpha1.ScanTypePlatform,
+				Profile:  "xccdf_org.ssgproject.content_profile_scan",
 				ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 					RawResultStorage: compv1alpha1.RawResultStorageSettings{
 						PVAccessModes: defaultAccessMode,
@@ -204,9 +206,37 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			},
 		}
 
-		objs = append(objs, nodeinstance1, nodeinstance2, caSecret, serverSecret, clientSecret, ns)
+		profile := &compv1alpha1.Profile{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Profile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "product-profile-name",
+				Namespace: common.GetComplianceOperatorNamespace(),
+			},
+			ProfilePayload: compv1alpha1.ProfilePayload{
+				ID: "xccdf_org.ssgproject.content_profile_profile_name",
+			},
+		}
+		platformProfile := &compv1alpha1.Profile{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Profile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "platform-scan",
+				Namespace: common.GetComplianceOperatorNamespace(),
+			},
+			ProfilePayload: compv1alpha1.ProfilePayload{
+				ID: "xccdf_org.ssgproject.content_profile_scan",
+			},
+		}
+		profileList := &compv1alpha1.ProfileList{}
+
+		objs = append(objs, nodeinstance1, nodeinstance2, caSecret, serverSecret, clientSecret, ns, profile, platformProfile)
 		scheme := scheme.Scheme
-		scheme.AddKnownTypes(compv1alpha1.SchemeGroupVersion, compliancescaninstance, results)
+		scheme.AddKnownTypes(compv1alpha1.SchemeGroupVersion, compliancescaninstance, results, profile, profileList)
 
 		statusObjs := []runtimeclient.Object{}
 		statusObjs = append(statusObjs, compliancescaninstance)
