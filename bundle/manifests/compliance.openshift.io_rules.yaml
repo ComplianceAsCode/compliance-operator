@@ -27,7 +27,9 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           availableFixes:
-            description: The Available fixes
+            description: |-
+              The Available fixes
+              This is not supported with CustomRule
             items:
               description: |-
                 FixDefinition Specifies a fix or remediation
@@ -59,7 +61,10 @@ spec:
             description: The description of the Rule
             type: string
           id:
-            description: The XCCDF ID
+            description: |-
+              The ID of the Rule
+              This can be the XCCDF ID for OpenSCAP rules
+              or the ID of the rule in the source content
             type: string
           instructions:
             description: Instructions for auditing this specific rule
