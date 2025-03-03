@@ -282,8 +282,21 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 	return true, nil
 }
 
+func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1alpha1.ComplianceScan, logger logr.Logger) {
+	if deprecatedProfile, ok := instance.Annotations[compv1alpha1.ComplianceScanDeprecatedProfile]; ok {
+		logger.Info("ComplianceScan is running with a deprecated profile", instance.Name, deprecatedProfile)
+		r.Recorder.Eventf(
+			instance, corev1.EventTypeWarning, "DeprecatedProfile",
+			"Profile %s is deprecated and will be removed in a future version of Compliance Operator. "+
+				"Please consider using a newer version of this profile", deprecatedProfile)
+	}
+}
+
 func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.ComplianceScan, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Pending")
+
+	r.notifyUseOfDeprecatedProfile(instance, logger)
+
 	// Remove annotation if needed
 	if instance.NeedsRescan() {
 		instanceCopy := instance.DeepCopy()
