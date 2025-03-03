@@ -460,6 +460,7 @@ func (r *ReconcileComplianceSuite) addScanStatus(suite *compv1alpha1.ComplianceS
 func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, logger logr.Logger) error {
 	scanProfile := scanWrap.Profile
 	profileUniqueID := ""
+	var profile compv1alpha1.Profile
 	if scanWrap.TailoringConfigMap != nil {
 		profileUniqueID = xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile)
 	} else {
@@ -468,7 +469,7 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 		if err := r.Client.List(context.TODO(), profiles, client.InNamespace(suite.Namespace)); err != nil {
 			return err
 		}
-		for _, profile := range profiles.Items {
+		for _, profile = range profiles.Items {
 			if profile.ID == scanProfile {
 				if scanWrap.Name == utils.GetScanNameFromProfile(profile.Name, scanWrap.NodeSelector) {
 					profileUniqueID = profile.GetLabels()[compv1alpha1.ProfileGuidLabel]
@@ -481,6 +482,16 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 	scan := newScanForSuite(suite, scanWrap, profileUniqueID)
 	if scan == nil {
 		return fmt.Errorf("cannot create ComplianceScan for %s:%s", suite.Name, scanWrap.Name)
+	}
+
+	// Create the scan with deprecated annotation so that it emits warning alredy on first scan
+	if profile.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+		annotations := scan.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[compv1alpha1.ComplianceScanDeprecatedProfile] = profile.Name
+		scan.SetAnnotations(annotations)
 	}
 
 	if err := controllerutil.SetControllerReference(suite, scan, r.Scheme); err != nil {
