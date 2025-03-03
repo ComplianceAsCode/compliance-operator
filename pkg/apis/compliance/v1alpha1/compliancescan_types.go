@@ -22,6 +22,10 @@ const ComplianceScanRescanAnnotation = "compliance.openshift.io/rescan"
 // "api-checks" in the annotation.
 const ComplianceScanTimeoutAnnotation = "compliance.openshift.io/timeout"
 
+// ComplianceScanDeprecatedProfile indicates the use of a deprecated Profile
+// The deprecated Profile is put into the annotation
+const ComplianceScanDeprecatedProfile = "compliance.openshift.io/deprecated-profile"
+
 // ComplianceCheckCountAnnotation indicates the number of checks
 // that a ComplianceScan has generated during the scan
 const ComplianceCheckCountAnnotation = "compliance.openshift.io/check-count"

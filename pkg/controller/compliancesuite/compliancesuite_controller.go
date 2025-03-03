@@ -2,6 +2,7 @@ package compliancesuite
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
 	"time"
 
@@ -249,6 +250,13 @@ func (r *ReconcileComplianceSuite) reconcileScans(suite *compv1alpha1.Compliance
 			return false, err
 		}
 
+		// Annotate scans using deprecated profiles
+		// We annotate during reconcile so that existing scans may also be annotated
+		if err := r.annotateScansUsingDeprecatedProfile(suite, scan, scanWrap, logger); err != nil {
+			logger.Error(err, "Could not check whether ComplianceSuite's scan uses deprecated profile", suite.Name, scan.Name, scanWrap.Profile)
+			return false, err
+		}
+
 		// The scan already exists and is up to date, let's just make sure its status is reflected
 		if err := r.reconcileScanStatus(suite, scan, logger); err != nil {
 			return false, err
@@ -286,6 +294,34 @@ func (r *ReconcileComplianceSuite) reconcileScans(suite *compv1alpha1.Compliance
 	}
 
 	return false, nil
+}
+
+func (r *ReconcileComplianceSuite) annotateScansUsingDeprecatedProfile(suite *compv1alpha1.ComplianceSuite, scan *compv1alpha1.ComplianceScan, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, logger logr.Logger) error {
+
+	// Walk through all profiles and find the one being scanned
+	profiles := &compv1alpha1.ProfileList{}
+	if err := r.Client.List(context.TODO(), profiles, client.InNamespace(suite.Namespace)); err != nil {
+		return err
+	}
+	for _, profile := range profiles.Items {
+		if profile.ID == scanWrap.Profile {
+			if scanWrap.Name == utils.GetScanNameFromProfile(profile.Name, scanWrap.NodeSelector) {
+				if profile.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+					logger.Info("ComplianceScan uses deprecated profile", scanWrap.Name, profile.Name)
+					annotations := scan.GetAnnotations()
+					if _, ok := annotations[compv1alpha1.ComplianceScanDeprecatedProfile]; !ok {
+						annotations[compv1alpha1.ComplianceScanDeprecatedProfile] = profile.Name
+						scan.SetAnnotations(annotations)
+						if err := r.Client.Update(context.TODO(), scan); err != nil {
+							return err
+						}
+					}
+				}
+				return nil
+			}
+		}
+	}
+	return goerrors.New("Could not find profile")
 }
 
 func (r *ReconcileComplianceSuite) reconcileScanStatus(suite *compv1alpha1.ComplianceSuite, scan *compv1alpha1.ComplianceScan, logger logr.Logger) error {
