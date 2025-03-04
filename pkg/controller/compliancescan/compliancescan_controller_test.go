@@ -137,6 +137,9 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 						Size:          compv1alpha1.DefaultRawStorageSize,
 					},
 				},
+				ContentImage: "MyContentImage",
+				Content:      "MyContentFile",
+				Profile:      "xccdf_org.ssgproject.content_profile_unmoderate",
 			},
 		}
 		platformscaninstance = &compv1alpha1.ComplianceScan{
@@ -204,12 +207,44 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			},
 		}
 
-		objs = append(objs, nodeinstance1, nodeinstance2, caSecret, serverSecret, clientSecret, ns)
+		profileList := &compv1alpha1.ProfileList{}
+		profile := &compv1alpha1.Profile{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Profile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "some-product-unmoderate",
+				Namespace: common.GetComplianceOperatorNamespace(),
+			},
+			ProfilePayload: compv1alpha1.ProfilePayload{
+				Title:       "Unmoderate setteings",
+				Description: "Describes obnoxious recommendations",
+				ID:          "xccdf_org.ssgproject.content_profile_unmoderate",
+			},
+		}
+		profileBundleList := &compv1alpha1.ProfileBundleList{}
+		profileBundle := &compv1alpha1.ProfileBundle{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ProfileBundle",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "some-product",
+				Namespace: common.GetComplianceOperatorNamespace(),
+			},
+			Spec: compv1alpha1.ProfileBundleSpec{
+				ContentImage: "MyContentImage",
+				ContentFile:  "MyContentFile",
+			},
+		}
+
+		objs = append(objs, nodeinstance1, nodeinstance2, caSecret, serverSecret, clientSecret, ns, profile, profileBundle)
 		scheme := scheme.Scheme
-		scheme.AddKnownTypes(compv1alpha1.SchemeGroupVersion, compliancescaninstance, results)
+		scheme.AddKnownTypes(compv1alpha1.SchemeGroupVersion, compliancescaninstance, results, profile, profileList, profileBundle, profileBundleList)
 
 		statusObjs := []runtimeclient.Object{}
-		statusObjs = append(statusObjs, compliancescaninstance)
+		statusObjs = append(statusObjs, compliancescaninstance, profile)
 
 		client := fake.NewClientBuilder().
 			WithScheme(scheme).
