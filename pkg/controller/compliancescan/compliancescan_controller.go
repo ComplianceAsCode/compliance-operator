@@ -14,6 +14,7 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/common"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/metrics"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/xccdf"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -282,8 +283,59 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 	return true, nil
 }
 
+func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1alpha1.ComplianceScan, logger logr.Logger) error {
+	profile := &compv1alpha1.Profile{}
+	pbs := &compv1alpha1.ProfileBundleList{}
+	var pbName string
+
+	// We first find the ProfileBundle matching the scan's spec, then we get the profile that matches the scan's Profile ID.
+	// We do this because a profile ID is not unique across all PBs, but is unique withing a PB.
+	// We can, but should not, infer the Profile name based on the ComplianceScan name.
+	// Advanced users still could create Suites and Scans with arbitrary names, and that is exactly what we do in our tests.
+	xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
+	if err := r.Client.List(context.TODO(), pbs, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
+		logger.Error(err, "Could not list ProfileBundles")
+		return err
+	}
+	for _, pb := range pbs.Items {
+		if pb.Spec.ContentFile == instance.Spec.Content && pb.Spec.ContentImage == instance.Spec.ContentImage {
+			pbName = pb.Name
+			break
+		}
+	}
+	if pbName == "" {
+		err := goerrors.New("Could not find ProfileBundle used by scan")
+		logger.Error(err, "ComplianceScan uses non-existing ProfileBundle", "ComplianceScan", instance.Name, "Profile", instance.Spec.Profile)
+		return err
+	}
+
+	// This is the full profile name,
+	// this takes into account the possiblity of an 'upstream-' prefix in the PB.
+	profileName := pbName + "-" + xccdfProfileName
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: profileName, Namespace: common.GetComplianceOperatorNamespace()}, profile); err != nil {
+		logger.Error(err, "Could not get Profile", "profile", profileName, "ns", common.GetComplianceOperatorNamespace())
+		return err
+	}
+
+	if profile.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+		logger.Info("ComplianceScan is running with a deprecated profile", instance.Name, profile.Name)
+		r.Recorder.Eventf(
+			instance, corev1.EventTypeWarning, "DeprecatedProfile",
+			"Profile %s is deprecated and will be removed in a future version of Compliance Operator. "+
+				"Please consider using a newer version of this profile", profile.Name)
+	}
+	return nil
+}
+
 func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.ComplianceScan, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Pending")
+
+	err := r.notifyUseOfDeprecatedProfile(instance, logger)
+	if err != nil {
+		logger.Error(err, "Could not check whether the Profile used by ComplianceScan is deprecated", "ComplianceScan", instance.Name)
+		return reconcile.Result{}, err
+	}
+
 	// Remove annotation if needed
 	if instance.NeedsRescan() {
 		instanceCopy := instance.DeepCopy()
@@ -307,7 +359,7 @@ func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.Com
 	instance.Status.Result = compv1alpha1.ResultNotAvailable
 	instance.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
 	instance.Status.EndTimestamp = nil
-	err := r.Client.Status().Update(context.TODO(), instance)
+	err = r.Client.Status().Update(context.TODO(), instance)
 	if err != nil {
 		logger.Error(err, "Cannot update the status")
 		return reconcile.Result{}, err
