@@ -88,6 +88,12 @@ func GetXCCDFProfileID(tp *cmpv1alpha1.TailoredProfile) string {
 	return fmt.Sprintf("xccdf_%s_profile_%s", XCCDFNamespace, tp.Name)
 }
 
+// GetNameFromXCCDFTailoredProfileID gets the name of a tailored profile
+// from the TailoredProfile ID
+func GetNameFromXCCDFTailoredProfileID(id string) string {
+	return strings.TrimPrefix(id, fmt.Sprintf("xccdf_%s_profile_", XCCDFNamespace))
+}
+
 // GetProfileNameFromID gets a profile name from the xccdf ID
 func GetProfileNameFromID(id string) string {
 	trimedName := strings.TrimPrefix(id, profileIDPrefix)

@@ -285,33 +285,50 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 
 func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1alpha1.ComplianceScan, logger logr.Logger) error {
 	profile := &compv1alpha1.Profile{}
-	pbs := &compv1alpha1.ProfileBundleList{}
-	var pbName string
+	tp := &compv1alpha1.TailoredProfile{}
+	var profileName string
 
-	// We first find the ProfileBundle matching the scan's spec, then we get the profile that matches the scan's Profile ID.
-	// We do this because a profile ID is not unique across all PBs, but is unique withing a PB.
-	// We can, but should not, infer the Profile name based on the ComplianceScan name.
-	// Advanced users still could create Suites and Scans with arbitrary names, and that is exactly what we do in our tests.
-	xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
-	if err := r.Client.List(context.TODO(), pbs, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
-		logger.Error(err, "Could not list ProfileBundles")
-		return err
-	}
-	for _, pb := range pbs.Items {
-		if pb.Spec.ContentFile == instance.Spec.Content && pb.Spec.ContentImage == instance.Spec.ContentImage {
-			pbName = pb.Name
-			break
+	if instance.Spec.TailoringConfigMap != nil {
+		tpName := xccdf.GetNameFromXCCDFTailoredProfileID(instance.Spec.Profile)
+
+		if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: tpName, Namespace: common.GetComplianceOperatorNamespace()}, tp); err != nil {
+			logger.Error(err, "Could not get TailoredProfile", "TailoredProfile", tpName, "ComplianceScan", instance.Name)
+			return err
 		}
-	}
-	if pbName == "" {
-		err := goerrors.New("Could not find ProfileBundle used by scan")
-		logger.Error(err, "ComplianceScan uses non-existing ProfileBundle", "ComplianceScan", instance.Name, "Profile", instance.Spec.Profile)
-		return err
+
+		// The extends field references a profile by its full name
+		profileName = tp.Spec.Extends
+	} else {
+		var pbName string
+		pbs := &compv1alpha1.ProfileBundleList{}
+
+		// We first find the ProfileBundle matching the scan's spec, then we get the profile that matches the scan's Profile ID.
+		// We do this because a profile ID is not unique across all PBs, but is unique withing a PB.
+		// We can, but should not, infer the Profile name based on the ComplianceScan name.
+		// Advanced users still could create Suites and Scans with arbitrary names, and that is exactly what we do in our tests.
+		if err := r.Client.List(context.TODO(), pbs, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
+			logger.Error(err, "Could not list ProfileBundles")
+			return err
+		}
+		for _, pb := range pbs.Items {
+			if pb.Spec.ContentFile == instance.Spec.Content && pb.Spec.ContentImage == instance.Spec.ContentImage {
+				pbName = pb.Name
+				break
+			}
+		}
+		if pbName == "" {
+			err := goerrors.New("Could not find ProfileBundle used by scan")
+			logger.Error(err, "ComplianceScan uses non-existent ProfileBundle", "ComplianceScan", instance.Name, "Profile", instance.Spec.Profile)
+			return err
+		}
+
+		xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
+
+		// This is the full profile name,
+		// taking into account the possiblity of an 'upstream-' prefix in the PB.
+		profileName = pbName + "-" + xccdfProfileName
 	}
 
-	// This is the full profile name,
-	// this takes into account the possiblity of an 'upstream-' prefix in the PB.
-	profileName := pbName + "-" + xccdfProfileName
 	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: profileName, Namespace: common.GetComplianceOperatorNamespace()}, profile); err != nil {
 		logger.Error(err, "Could not get Profile", "profile", profileName, "ns", common.GetComplianceOperatorNamespace())
 		return err
@@ -319,10 +336,17 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 
 	if profile.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
 		logger.Info("ComplianceScan is running with a deprecated profile", instance.Name, profile.Name)
-		r.Recorder.Eventf(
-			instance, corev1.EventTypeWarning, "DeprecatedProfile",
-			"Profile %s is deprecated and will be removed in a future version of Compliance Operator. "+
-				"Please consider using a newer version of this profile", profile.Name)
+		if instance.Spec.TailoringConfigMap != nil {
+			r.Recorder.Eventf(
+				instance, corev1.EventTypeWarning, "DeprecatedProfile",
+				"TailoredProfile %s is extending a deprecated Profile (%s) that will be removed in a future version of Compliance Operator. "+
+					"Please consider using a newer version of this profile", tp.Name, profile.Name)
+		} else {
+			r.Recorder.Eventf(
+				instance, corev1.EventTypeWarning, "DeprecatedProfile",
+				"Profile %s is deprecated and will be removed in a future version of Compliance Operator. "+
+					"Please consider using a newer version of this profile", profile.Name)
+		}
 	}
 	return nil
 }
