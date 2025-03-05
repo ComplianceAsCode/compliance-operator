@@ -32,6 +32,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 -
 
 
+## [1.6.2] - 2025-03-05
+
+### Enhancements
+
+-
+
+### Fixes
+
+-
+
+### Internal Changes
+
+-
+
+### Deprecations
+
+-
+
+### Removals
+
+-
+
+### Security
+
+-
+
+
 ## [1.6.0] - 2024-09-12
 
 ### Enhancements
