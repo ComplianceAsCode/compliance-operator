@@ -619,9 +619,10 @@ func TestSingleScanSucceeds(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -685,9 +686,10 @@ func TestSingleScanTimestamps(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -816,9 +818,10 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				RawResultStorage: compv1alpha1.RawResultStorageSettings{
 					Size: "2Gi",
@@ -919,9 +922,10 @@ func TestScanStorageOutOfLimitRangeFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				RawResultStorage: compv1alpha1.RawResultStorageSettings{
 					Size: "6Gi",
@@ -979,9 +983,10 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_compliance.openshift.io_profile_test-tailoredprofile",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_compliance.openshift.io_profile_test-tailoredprofile",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			TailoringConfigMap: &compv1alpha1.TailoringConfigMapRef{
 				Name: tailoringCM.Name,
 			},
@@ -1085,6 +1090,7 @@ func TestScanWithNodeSelectorFiltersCorrectly(t *testing.T) {
 		Spec: compv1alpha1.ComplianceScanSpec{
 			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
 			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			NodeSelector: selectWorkers,
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
@@ -1135,6 +1141,7 @@ func TestScanWithNodeSelectorNoMatches(t *testing.T) {
 		Spec: compv1alpha1.ComplianceScanSpec{
 			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
 			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			NodeSelector: selectNone,
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
@@ -1169,9 +1176,10 @@ func TestScanWithInvalidScanTypeFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile:  "xccdf_org.ssgproject.content_profile_moderate",
-			Content:  "ssg-ocp4-non-existent.xml",
-			ScanType: "BadScanType",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      "ssg-ocp4-non-existent.xml",
+			ContentImage: contentImagePath,
+			ScanType:     "BadScanType",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -1203,8 +1211,9 @@ func TestScanWithInvalidContentFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: "ssg-ocp4-non-existent.xml",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      "ssg-ocp4-non-existent.xml",
+			ContentImage: contentImagePath,
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -1236,8 +1245,9 @@ func TestScanWithInvalidProfileFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_coreos-unexistent",
-			Content: framework.RhcosContentFile,
+			Profile:      "xccdf_org.ssgproject.content_profile_coreos-unexistent",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -1297,9 +1307,10 @@ func TestMalformedTailoredScanFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_compliance.openshift.io_profile_test-tailoredprofile",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_compliance.openshift.io_profile_test-tailoredprofile",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -1334,9 +1345,10 @@ func TestScanWithEmptyTailoringCMNameFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			TailoringConfigMap: &compv1alpha1.TailoringConfigMapRef{
 				Name: "",
 			},
@@ -1369,9 +1381,10 @@ func TestScanWithMissingTailoringCMFailsAndRecovers(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_compliance.openshift.io_profile_test-tailoredprofile",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_compliance.openshift.io_profile_test-tailoredprofile",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},
@@ -1449,9 +1462,10 @@ func TestMissingPodInRunningState(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				Debug: true,
 			},

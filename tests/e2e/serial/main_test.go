@@ -79,9 +79,10 @@ func TestScanStorageOutOfQuotaRangeFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			ContentImage: contentImagePath,
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				RawResultStorage: compv1alpha1.RawResultStorageSettings{
 					Size: "6Gi",
@@ -1227,6 +1228,25 @@ func TestUpdateRemediation(t *testing.T) {
 		origImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_base")
 		modImage  = fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_change")
 	)
+
+	pbName := framework.GetObjNameFromTest(t)
+	rhcosPb := &compv1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ProfileBundleSpec{
+			ContentImage: origImage,
+			ContentFile:  framework.RhcosContentFile,
+		},
+	}
+	if err := f.Client.Create(context.TODO(), rhcosPb, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rhcosPb)
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
 
 	origSuite := &compv1alpha1.ComplianceSuite{
 		ObjectMeta: metav1.ObjectMeta{
