@@ -877,10 +877,16 @@ func (f *Framework) WaitForScanStatus(namespace, name string, targetStatus compv
 			return false, nil
 		}
 
-		if exampleComplianceScan.Status.Phase != compv1alpha1.PhaseDone && exampleComplianceScan.Status.Phase != compv1alpha1.PhasePending {
-			// check we should not have checkCount annotation
+		switch exampleComplianceScan.Status.Phase {
+		case compv1alpha1.PhaseLaunching:
+			// assert exampleComplianceScan.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] is empty
 			if exampleComplianceScan.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] != "" {
-				return true, fmt.Errorf("compliancescan %s has unset checkCount annotation", name)
+				return true, fmt.Errorf("compliancescan %s should not have checkCount annotation", name)
+			}
+		case compv1alpha1.PhaseRunning:
+			// assert exampleComplianceScan.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] is empty
+			if exampleComplianceScan.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] != "" {
+				return true, fmt.Errorf("compliancescan %s should not have checkCount annotation", name)
 			}
 		}
 
