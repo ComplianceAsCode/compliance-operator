@@ -289,13 +289,25 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 	var profileName string
 
 	if instance.Spec.TailoringConfigMap != nil {
+		// The ComplianceScan references a TailoredProfile
 		tpName := xccdf.GetNameFromXCCDFTailoredProfileID(instance.Spec.Profile)
 
 		if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: tpName, Namespace: common.GetComplianceOperatorNamespace()}, tp); err != nil {
 			logger.Error(err, "Could not get TailoredProfile", "TailoredProfile", tpName, "ComplianceScan", instance.Name)
 			return err
 		}
+		if tp.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+			logger.Info("ComplianceScan is running with a deprecated tailored profile", instance.Name, tp.Name)
+			r.Recorder.Eventf(
+				instance, corev1.EventTypeWarning, "DeprecatedTailoredProfile",
+				"TailoredProfile %s is deprecated and should be avoided. "+
+					"Please consider using another profile", tp.Name)
+			return nil
+		}
 
+		if tp.Spec.Extends == "" {
+			return nil
+		}
 		// The extends field references a profile by its full name
 		profileName = tp.Spec.Extends
 	} else {
