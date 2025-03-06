@@ -1230,20 +1230,12 @@ func TestUpdateRemediation(t *testing.T) {
 	)
 
 	pbName := framework.GetObjNameFromTest(t)
-	rhcosPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: origImage,
-			ContentFile:  framework.RhcosContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), rhcosPb, nil); err != nil {
+	rhcosPb, err := f.SetUpProfileBundle(pbName, origImage, framework.RhcosContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), rhcosPb)
+
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}
@@ -1275,7 +1267,7 @@ func TestUpdateRemediation(t *testing.T) {
 		},
 	}
 
-	err := f.Client.Create(context.TODO(), origSuite, nil)
+	err = f.Client.Create(context.TODO(), origSuite, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1436,17 +1428,8 @@ func TestVariableTemplate(t *testing.T) {
 	pbName := framework.GetObjNameFromTest(t)
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
-	ocpPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), ocpPb, nil); err != nil {
+	ocpPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), ocpPb)
@@ -1581,17 +1564,8 @@ func TestKubeletConfigRemediation(t *testing.T) {
 	pbName := framework.GetObjNameFromTest(t)
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
-	ocpPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), ocpPb, nil); err != nil {
+	ocpPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), ocpPb)
@@ -1657,7 +1631,7 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		},
 	}
 
-	err := f.Client.Create(context.TODO(), ssb, nil)
+	err = f.Client.Create(context.TODO(), ssb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

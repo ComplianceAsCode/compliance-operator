@@ -85,21 +85,8 @@ func TestProfileModification(t *testing.T) {
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
 	pbName := framework.GetObjNameFromTest(t)
-	origPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.RhcosContentFile,
-		},
-	}
-	// Pass nil in as the cleanupOptions since so we don't invoke all the
-	// cleanup function code in Create. Use defer to cleanup the
-	// ProfileBundle at the end of the test, instead of at the end of the
-	// suite.
-	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+	origPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
+	if err != nil {
 		t.Fatalf("failed to create ProfileBundle: %s", err)
 	}
 	// This should get cleaned up at the end of the test
@@ -196,19 +183,10 @@ func TestProfileISTagUpdate(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), s)
 
-	pb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: fmt.Sprintf("%s:%s", iSName, "latest"),
-			ContentFile:  framework.RhcosContentFile,
-		},
-	}
-
-	if err := f.Client.Create(context.TODO(), pb, nil); err != nil {
-		t.Fatalf("failed to create ProfileBundle %s", pbName)
+	baselineImage = fmt.Sprintf("%s:%s", iSName, "latest")
+	pb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
 	}
 	defer f.Client.Delete(context.TODO(), pb)
 
@@ -305,18 +283,9 @@ func TestProfileISTagOtherNs(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), stream)
 
-	pb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: fmt.Sprintf("%s/%s:%s", otherNs, iSName, "latest"),
-			ContentFile:  framework.RhcosContentFile,
-		},
-	}
-
-	if err := f.Client.Create(context.TODO(), pb, nil); err != nil {
+	baselineImage = fmt.Sprintf("%s/%s:%s", otherNs, iSName, "latest")
+	pb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
+	if err != nil {
 		t.Fatalf("failed to create ProfileBundle %s: %s", pbName, err)
 	}
 	defer f.Client.Delete(context.TODO(), pb)
@@ -397,19 +366,8 @@ func TestInvalidBundleWithUnexistentRef(t *testing.T) {
 	)
 
 	pbName := framework.GetObjNameFromTest(t)
-
-	pb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: unexistentImage,
-			ContentFile:  framework.RhcosContentFile,
-		},
-	}
-
-	if err := f.Client.Create(context.TODO(), pb, nil); err != nil {
+	pb, err := f.SetUpProfileBundle(pbName, unexistentImage, framework.RhcosContentFile)
+	if err != nil {
 		t.Fatalf("failed to create ProfileBundle %s: %s", pbName, err)
 	}
 	defer f.Client.Delete(context.TODO(), pb)
@@ -428,18 +386,8 @@ func TestInvalidBundleWithNoTag(t *testing.T) {
 
 	pbName := framework.GetObjNameFromTest(t)
 
-	pb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: noTagImage,
-			ContentFile:  framework.RhcosContentFile,
-		},
-	}
-
-	if err := f.Client.Create(context.TODO(), pb, nil); err != nil {
+	pb, err := f.SetUpProfileBundle(pbName, noTagImage, framework.RhcosContentFile)
+	if err != nil {
 		t.Fatalf("failed to create ProfileBundle %s: %s", pbName, err)
 	}
 	defer f.Client.Delete(context.TODO(), pb)
@@ -482,18 +430,8 @@ func TestParsingErrorRestartsParserInitContainer(t *testing.T) {
 
 	pbName := framework.GetObjNameFromTest(t)
 
-	pb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: badImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-
-	if err := f.Client.Create(context.TODO(), pb, nil); err != nil {
+	pb, err := f.SetUpProfileBundle(pbName, badImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatalf("failed to create ProfileBundle %s: %s", pbName, err)
 	}
 	defer f.Client.Delete(context.TODO(), pb)
@@ -855,6 +793,15 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	var unexistentImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "unexistent_resource")
+
+	pbName := framework.GetObjNameFromTest(t)
+	unexistentPb, err := f.SetUpProfileBundle(pbName, unexistentImage, framework.UnexistentResourceContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	// This should get cleaned up at the end of the test
+	defer f.Client.Delete(context.TODO(), unexistentPb)
+
 	scanName := framework.GetObjNameFromTest(t)
 	testScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
@@ -870,7 +817,7 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 		},
 	}
 	// use Context's create helper to create the object and add a cleanup function for the new object
-	err := f.Client.Create(context.TODO(), testScan, nil)
+	err = f.Client.Create(context.TODO(), testScan, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2089,6 +2036,16 @@ func TestScheduledSuiteUpdate(t *testing.T) {
 func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
+
+	pbName := framework.GetObjNameFromTest(t)
+	baselineImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "broken_os_detection")
+	origPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	// This should get cleaned up at the end of the test
+	defer f.Client.Delete(context.TODO(), origPb)
+
 	suiteName := "test-suite-with-non-matching-content"
 	testSuite := &compv1alpha1.ComplianceSuite{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2103,7 +2060,7 @@ func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
 				{
 					Name: fmt.Sprintf("%s-workers-scan", suiteName),
 					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
-						ContentImage: fmt.Sprintf("%s:%s", brokenContentImagePath, "broken_os_detection"),
+						ContentImage: baselineImage,
 						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 						Content:      "ssg-rhcos4-ds.xml",
 						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
@@ -2119,7 +2076,7 @@ func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
 		},
 	}
 	// use Context's create helper to create the object and add a cleanup function for the new object
-	err := f.Client.Create(context.TODO(), testSuite, nil)
+	err = f.Client.Create(context.TODO(), testSuite, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2266,21 +2223,8 @@ func TestScanSettingBindingTailoringManyEnablingRulePass(t *testing.T) {
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
 	pbName := framework.GetObjNameFromTest(t)
-	origPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	// Pass nil in as the cleanupOptions since so we don't invoke all the
-	// cleanup function code in Create. Use defer to cleanup the
-	// ProfileBundle at the end of the test, instead of at the end of the
-	// suite.
-	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+	origPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatalf("failed to create ProfileBundle: %s", err)
 	}
 	// This should get cleaned up at the end of the test
@@ -2772,17 +2716,8 @@ func TestManualRulesTailoredProfile(t *testing.T) {
 	pbName := framework.GetObjNameFromTest(t)
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
-	ocpPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), ocpPb, nil); err != nil {
+	ocpPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), ocpPb)
@@ -2896,17 +2831,8 @@ func TestHideRule(t *testing.T) {
 	pbName := framework.GetObjNameFromTest(t)
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
-	ocpPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), ocpPb, nil); err != nil {
+	ocpPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), ocpPb)
