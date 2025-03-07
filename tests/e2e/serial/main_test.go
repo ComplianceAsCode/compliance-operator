@@ -1240,6 +1240,16 @@ func TestUpdateRemediation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	pbNameMod := fmt.Sprintf("%s_%s", pbName, "mod")
+	rhcosPbMod, err := f.SetUpProfileBundle(pbNameMod, modImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rhcosPbMod)
+	if err := f.WaitForProfileBundleStatus(pbNameMod, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
 	origSuite := &compv1alpha1.ComplianceSuite{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      origSuiteName,
