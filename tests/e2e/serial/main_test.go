@@ -79,9 +79,10 @@ func TestScanStorageOutOfQuotaRangeFails(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile: "xccdf_org.ssgproject.content_profile_moderate",
-			Content: framework.RhcosContentFile,
-			Rule:    "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			ContentImage: contentImagePath,
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
 			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 				RawResultStorage: compv1alpha1.RawResultStorageSettings{
 					Size: "6Gi",
@@ -1228,6 +1229,27 @@ func TestUpdateRemediation(t *testing.T) {
 		modImage  = fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_change")
 	)
 
+	pbName := framework.GetObjNameFromTest(t)
+	rhcosPb, err := f.SetUpProfileBundle(pbName, origImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rhcosPb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	pbNameMod := fmt.Sprintf("%s_%s", pbName, "mod")
+	rhcosPbMod, err := f.SetUpProfileBundle(pbNameMod, modImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rhcosPbMod)
+	if err := f.WaitForProfileBundleStatus(pbNameMod, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
 	origSuite := &compv1alpha1.ComplianceSuite{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      origSuiteName,
@@ -1255,7 +1277,7 @@ func TestUpdateRemediation(t *testing.T) {
 		},
 	}
 
-	err := f.Client.Create(context.TODO(), origSuite, nil)
+	err = f.Client.Create(context.TODO(), origSuite, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1416,17 +1438,8 @@ func TestVariableTemplate(t *testing.T) {
 	pbName := framework.GetObjNameFromTest(t)
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
-	ocpPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), ocpPb, nil); err != nil {
+	ocpPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), ocpPb)
@@ -1561,17 +1574,8 @@ func TestKubeletConfigRemediation(t *testing.T) {
 	pbName := framework.GetObjNameFromTest(t)
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
 
-	ocpPb := &compv1alpha1.ProfileBundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pbName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ProfileBundleSpec{
-			ContentImage: baselineImage,
-			ContentFile:  framework.OcpContentFile,
-		},
-	}
-	if err := f.Client.Create(context.TODO(), ocpPb, nil); err != nil {
+	ocpPb, err := f.SetUpProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), ocpPb)
@@ -1637,7 +1641,7 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		},
 	}
 
-	err := f.Client.Create(context.TODO(), ssb, nil)
+	err = f.Client.Create(context.TODO(), ssb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

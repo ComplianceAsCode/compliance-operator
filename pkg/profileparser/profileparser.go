@@ -310,6 +310,8 @@ func parseProfileFromNode(profileRoot *xmlquery.Node, pb *cmpv1alpha1.ProfileBun
 		if id == "" {
 			return LogAndReturnError("no id in profile")
 		}
+		// Profile status is an optional field and can be nil
+		status := profileObj.SelectElement("xccdf-1.2:status")
 		title := profileObj.SelectElement("xccdf-1.2:title")
 		if title == nil {
 			return LogAndReturnError("no title in profile")
@@ -387,6 +389,7 @@ func parseProfileFromNode(profileRoot *xmlquery.Node, pb *cmpv1alpha1.ProfileBun
 		}
 
 		annotateWithNonce(&p, nonce)
+		annotateWithStatus(&p, status)
 
 		err := action(&p)
 		if err != nil {
@@ -792,6 +795,17 @@ func annotateWithNonce(o metav1.Object, nonce string) {
 	}
 	annotations[cmpv1alpha1.ProfileImageDigestAnnotation] = nonce
 	o.SetAnnotations(annotations)
+}
+
+func annotateWithStatus(o metav1.Object, status *xmlquery.Node) {
+	if status != nil {
+		annotations := o.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[cmpv1alpha1.ProfileStatusAnnotation] = status.InnerText()
+		o.SetAnnotations(annotations)
+	}
 }
 
 type complianceStandard struct {

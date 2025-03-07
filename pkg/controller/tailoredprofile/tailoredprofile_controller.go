@@ -169,6 +169,15 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 			return r.setOwnership(tpCopy, p)
 		}
 
+		// Warn that TailoredProfile extends deprecated Profile
+		if p.GetAnnotations()[cmpv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+			reqLogger.Info("TailoredProfile extends a deprecated profile", instance.Name, p.Name)
+			r.Recorder.Eventf(
+				instance, corev1.EventTypeWarning, "DeprecatedTailoredProfile",
+				"TailoredProfile %s is extending a deprecated Profile (%s) that will be removed in a future version of Compliance Operator. "+
+					"Please consider using a newer version of this profile", instance.Name, p.Name)
+		}
+
 	} else {
 		if !isValidationRequired(instance) {
 			// check if the TailoredProfile is empty without any extends

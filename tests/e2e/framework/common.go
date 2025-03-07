@@ -176,6 +176,28 @@ func (f *Framework) PrintROSADebugInfo(t *testing.T) {
 	}
 }
 
+func (f *Framework) SetUpProfileBundle(pbName string, baselineImage string, contentFile string) (*compv1alpha1.ProfileBundle, error) {
+	origPb := &compv1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ProfileBundleSpec{
+			ContentImage: baselineImage,
+			ContentFile:  contentFile,
+		},
+	}
+	// Pass nil in as the cleanupOptions since so we don't invoke all the
+	// cleanup function code in Create. Use defer to cleanup the
+	// ProfileBundle at the end of the test, instead of at the end of the
+	// suite.
+	log.Printf("Creating ProfileBundle %s", pbName)
+	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+		return nil, err
+	}
+	return origPb, nil
+}
+
 func (f *Framework) cleanUpProfileBundle(p string) error {
 	pb := &compv1alpha1.ProfileBundle{
 		ObjectMeta: metav1.ObjectMeta{

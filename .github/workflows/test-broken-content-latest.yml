@@ -24,6 +24,7 @@ jobs:
             "kubeletconfig",
             "variabletemplate",
             "kubelet_default",
+            "deprecated_profile",
           ]
 
     permissions:
