@@ -19,6 +19,7 @@ declare -a tags=(
     'kubeletconfig'
     'variabletemplate'
     'kubelet_default'
+    'deprecated_profile'
 )
 
 CMD=$1
