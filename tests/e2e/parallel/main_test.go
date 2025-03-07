@@ -899,6 +899,30 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	scanName := framework.GetObjNameFromTest(t)
+
+	tpName := "test-tailoredprofile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestSingleTailoredScanSucceeds",
+			Description: "TestSingleTailoredScanSucceeds",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "no-netrc-files",
+					Rationale: "Test for platform profile tailoring",
+				},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
 	tailoringCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-single-tailored-scan-succeeds-cm",
@@ -962,6 +986,30 @@ func TestSingleTailoredPlatformScanSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	scanName := framework.GetObjNameFromTest(t)
+
+	tpName := "test-tailoredplatformprofile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestSingleTailoredPlatformScanSucceeds",
+			Description: "TestSingleTailoredPlatformScanSucceeds",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "cluster-version-operator-exists",
+					Rationale: "Test for platform profile tailoring",
+				},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
 	tailoringCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-tailored-platform-scan-succeeds-cm",
@@ -1322,6 +1370,30 @@ func TestScanWithMissingTailoringCMFailsAndRecovers(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	scanName := "test-scan-w-missing-tailoring-cm"
+
+	tpName := "test-tailoredprofile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestScanWithMissingTailoringCMFailsAndRecovers",
+			Description: "TestScanWithMissingTailoringCMFailsAndRecovers",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "no-netrc-files",
+					Rationale: "Test for platform profile tailoring missing CM fails and recovers",
+				},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
 	exampleComplianceScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scanName,
