@@ -369,7 +369,17 @@ func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.Com
 	err := r.notifyUseOfDeprecatedProfile(instance, logger)
 	if err != nil {
 		logger.Error(err, "Could not check whether the Profile used by ComplianceScan is deprecated", "ComplianceScan", instance.Name)
-		return reconcile.Result{}, err
+		instance.Status.Phase = compv1alpha1.PhaseDone
+		instance.Status.Result = compv1alpha1.ResultError
+		instance.Status.ErrorMessage = "Could not check whether the Profile used by ComplianceScan is deprecated"
+		instance.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
+		instance.Status.EndTimestamp = &metav1.Time{Time: time.Now()}
+		err = r.Client.Status().Update(context.TODO(), instance)
+		if err != nil {
+			logger.Error(err, "Cannot update the status")
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{}, nil
 	}
 
 	// Remove annotation if needed
