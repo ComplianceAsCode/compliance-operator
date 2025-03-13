@@ -285,19 +285,11 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 func (r *ReconcileComplianceScan) phasePendingHandler(instance *compv1alpha1.ComplianceScan, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Pending")
 	// Remove annotation if needed
-	if instance.NeedsRescan() {
+	if instance.NeedsRescan() || instance.NeedsTimeoutRescan() {
 		instanceCopy := instance.DeepCopy()
 		delete(instanceCopy.Annotations, compv1alpha1.ComplianceCheckCountAnnotation)
 		delete(instanceCopy.Annotations, compv1alpha1.ComplianceScanRescanAnnotation)
 		delete(instanceCopy.Annotations, compv1alpha1.ComplianceScanTimeoutAnnotation)
-		err := r.Client.Update(context.TODO(), instanceCopy)
-		return reconcile.Result{}, err
-	}
-
-	if instance.NeedsTimeoutRescan() {
-		instanceCopy := instance.DeepCopy()
-		delete(instanceCopy.Annotations, compv1alpha1.ComplianceScanTimeoutAnnotation)
-		delete(instanceCopy.Annotations, compv1alpha1.ComplianceCheckCountAnnotation)
 		err := r.Client.Update(context.TODO(), instanceCopy)
 		return reconcile.Result{}, err
 	}
