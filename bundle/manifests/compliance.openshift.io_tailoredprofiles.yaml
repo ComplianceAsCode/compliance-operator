@@ -69,6 +69,24 @@ spec:
                   type: object
                 nullable: true
                 type: array
+              enableCustomRules:
+                description: Enables the referenced custom rules
+                items:
+                  description: CustomRuleReferenceSpec specifies a customRule to be
+                    selected, as well as the reason why
+                  properties:
+                    name:
+                      description: Name of the customRule that's being referenced
+                      type: string
+                    rationale:
+                      description: Rationale of why this customRule is being selected
+                      type: string
+                  required:
+                  - name
+                  - rationale
+                  type: object
+                nullable: true
+                type: array
               enableRules:
                 description: Enables the referenced rules
                 items:
