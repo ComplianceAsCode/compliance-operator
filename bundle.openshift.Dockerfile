@@ -1,19 +1,9 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest as builder-runner
-RUN microdnf install -y python3 python3-pip
-RUN pip3 install --upgrade pip && pip3 install ruamel.yaml==0.17.9
+FROM registry.redhat.io/ubi9/ubi:latest AS builder
 
-# Use a new stage to enable caching of the package installations for local development
-FROM builder-runner as builder
-
-ARG CO_VERSION="1.6.1"
-
-COPY ./bundle-hack .
-COPY ./bundle/icons ./icons
-COPY ./bundle/manifests ./manifests
-COPY ./bundle/metadata ./metadata
-
-RUN ./update_csv.py ./manifests ${CO_VERSION}
-RUN ./update_bundle_annotations.sh
+COPY . .
+RUN ./bundle-hack/hermetic.sh
+COPY manifests /manifests
+COPY metadata /metadata
 
 FROM scratch
 
