@@ -1352,6 +1352,14 @@ func (f *Framework) AssertScanSettingBindingConditionIsReady(name string, namesp
 
 }
 
+func (f *Framework) AssertVariableExists(name, namespace string) error {
+	v := &compv1alpha1.Variable{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, v)
+	if err != nil {
+		return fmt.Errorf("Failed to get Variable %s: %w", name, err)
+	}
+	return nil
+}
 func (f *Framework) AssertScanSettingBindingConditionIsSuspended(name string, namespace string) error {
 	ssb := &compv1alpha1.ScanSettingBinding{}
 	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, ssb)

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -2036,6 +2037,169 @@ func TestSuspendScanSettingDoesNotCreateScan(t *testing.T) {
 	if err := f.AssertScanSettingBindingConditionIsReady(bindingName, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestConfigureNetworkPolicy(t *testing.T) {
+	f := framework.Global
+	suiteName := "test-configure-network-policy"
+	suiteNameNoPass := "test-configure-network-policy-no-pass"
+	variableName := "ocp4-var-network-policies-namespaces-exempt-regex"
+	// Create a dummy namespace to test the network policy
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-configure-network-policy",
+		},
+	}
+	err := f.Client.Create(context.TODO(), ns, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ns)
+
+	err = f.AssertVariableExists(variableName, f.OperatorNamespace)
+	if err != nil {
+		t.Skip("Content doesn't have variable '%s' required for testing", variableName)
+		return
+	}
+
+	nsList := corev1.NamespaceList{}
+	err = f.Client.List(context.TODO(), &nsList)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	regextValue := ""
+
+	for _, ns := range nsList.Items {
+		if strings.HasPrefix(ns.Name, "openshift-") || strings.HasPrefix(ns.Name, "kube-") {
+			continue
+		}
+		regextValue = regextValue + ns.Name + "|"
+	}
+
+	regextValue = regextValue + ns.ObjectMeta.Name
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "test-configure-network-policy",
+			Description: "A test tailored profile to test configure network policy",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-configure-network-policies-namespaces",
+					Rationale: "To be tested",
+				},
+				{
+					Name:      "ocp4-version-detect-in-ocp",
+					Rationale: "To be tested",
+				},
+			},
+			SetValues: []compv1alpha1.VariableValueSpec{
+				{
+					Name:      variableName,
+					Rationale: "Value to be set",
+					Value:     regextValue,
+				},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	tpNoPass := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteNameNoPass,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "test-configure-network-policy-no-pass",
+			Description: "A test tailored profile to test configure network policy",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-configure-network-policies-namespaces",
+					Rationale: "To be tested",
+				},
+				{
+					Name:      "ocp4-version-detect-in-ocp",
+					Rationale: "To be tested",
+				},
+			},
+		},
+	}
+
+	createTPErr = f.Client.Create(context.TODO(), tpNoPass, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tpNoPass)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     suiteName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	ssbNoPass := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteNameNoPass,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     suiteNameNoPass,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssbNoPass, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssbNoPass)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteNameNoPass, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 }
 
 //testExecution{
