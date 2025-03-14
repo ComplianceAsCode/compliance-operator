@@ -837,6 +837,94 @@ var _ = Describe("TailoredprofileController", func() {
 			})
 		})
 
+		Context("with duplicated setValues for the same variable", func() {
+			var tpName = "tailoring-duplicate-vars"
+
+			BeforeEach(func() {
+				// Create a TailoredProfile with duplicate entries for "var-1"
+				// Note "var-1" is owned by pb1 in your test setup if i < 5
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						// No extends here, so it picks up the PB from the first rule/variable it finds
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{
+								Name:      "rule-1",
+								Rationale: "Ensure ownership detection picks pb1",
+							},
+						},
+						SetValues: []compv1alpha1.VariableValueSpec{
+							{
+								Name:  "var-1",
+								Value: "1111",
+							},
+							{
+								Name:  "var-1",
+								Value: "2222", // Duplicate #2
+							},
+							{
+								Name:  "var-2",
+								Value: "3333",
+							},
+							{
+								Name:  "var-1",
+								Value: "4444", // Duplicate #3 (final mention)
+							},
+						},
+					},
+				}
+
+				createErr := r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+
+			It("keeps the last mention of the duplicated variable and raises a warning", func() {
+				tpKey := types.NamespacedName{
+					Name:      tpName,
+					Namespace: namespace,
+				}
+				tpReq := reconcile.Request{}
+				tpReq.Name = tpName
+				tpReq.Namespace = namespace
+
+				By("Reconciling the TailoredProfile the first time (to set ownership)")
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				By("Reconciling the TailoredProfile the second time (to process setValues)")
+				_, err = r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				By("Ensuring the TailoredProfile ends in the Ready state")
+				tp := &compv1alpha1.TailoredProfile{}
+				geterr := r.Client.Get(ctx, tpKey, tp)
+				Expect(geterr).To(BeNil())
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateReady))
+				Expect(tp.Status.ErrorMessage).To(BeEmpty())
+
+				By("Ensuring the final configMap uses the last mention of var-1 (4444)")
+				cm := &corev1.ConfigMap{}
+				cmKey := types.NamespacedName{
+					Name:      tp.Status.OutputRef.Name,
+					Namespace: tp.Status.OutputRef.Namespace,
+				}
+				geterr = r.Client.Get(ctx, cmKey, cm)
+				Expect(geterr).To(BeNil())
+				data := cm.Data["tailoring.xml"]
+				// The final mention for var-1 must be "4444" in the rendered tailoring
+				Expect(data).To(ContainSubstring(`idref="var_1"`))
+				Expect(data).To(ContainSubstring(`4444`))
+				// Ensure that 2222 or 1111 never appear, verifying the earlier duplicates are discarded
+				Expect(data).NotTo(ContainSubstring("1111"))
+				Expect(data).NotTo(ContainSubstring("2222"))
+				Expect(data).To(ContainSubstring(`idref="var_2"`))
+				Expect(data).To(ContainSubstring(`3333`))
+			})
+		})
+
 		Context("with no rules nor variables", func() {
 			BeforeEach(func() {
 				tp := &compv1alpha1.TailoredProfile{
