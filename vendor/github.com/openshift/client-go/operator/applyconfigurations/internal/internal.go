@@ -3,8 +3,8 @@
 package internal
 
 import (
-	"fmt"
-	"sync"
+	fmt "fmt"
+	sync "sync"
 
 	typed "sigs.k8s.io/structured-merge-diff/v4/typed"
 )
@@ -2496,6 +2496,10 @@ var schemaYAML = typed.YAMLObject(`types:
           elementRelationship: associative
           keys:
           - type
+    - name: managedBootImagesStatus
+      type:
+        namedType: com.github.openshift.api.operator.v1.ManagedBootImages
+      default: {}
     - name: nodeDisruptionPolicyStatus
       type:
         namedType: com.github.openshift.api.operator.v1.NodeDisruptionPolicyStatus
@@ -2880,7 +2884,6 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: currentRevision
       type:
         scalar: numeric
-      default: 0
     - name: lastFailedCount
       type:
         scalar: numeric
