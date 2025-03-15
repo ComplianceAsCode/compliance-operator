@@ -102,8 +102,11 @@ var (
 			"rhcos4",
 			"ocp4",
 		},
-		PlatformOpenShiftOnPower: {"ocp4"},
-		PlatformOpenShiftOnZ:     {"ocp4"},
+		PlatformOpenShiftOnPower: {
+			"rhcos4",
+			"ocp4",
+		},
+		PlatformOpenShiftOnZ: {"ocp4"},
 		PlatformEKS: {
 			"eks",
 		},
