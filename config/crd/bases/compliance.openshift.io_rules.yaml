@@ -59,7 +59,10 @@ spec:
             description: The description of the Rule
             type: string
           id:
-            description: The XCCDF ID
+            description: |-
+              The ID of the Rule
+              This can be the XCCDF ID for OpenSCAP rules
+              or the ID of the rule in the source content
             type: string
           instructions:
             description: Instructions for auditing this specific rule
