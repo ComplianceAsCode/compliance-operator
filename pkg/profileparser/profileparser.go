@@ -602,7 +602,16 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 
 			description := ruleObj.SelectElement("xccdf-1.2:description")
 			rationale := ruleObj.SelectElement("xccdf-1.2:rationale")
-			warnings := utils.GetWarningsForRule(ruleObj)
+			annotations, err := stdParser.parseXmlNode(ruleObj)
+			if err != nil {
+				log.Error(err, "couldn't annotate a rule")
+				// We continue even if there's an error.
+			}
+
+			warnings, renderedValues := utils.GetWarningsForRule(ruleObj, valuesList)
+			if len(renderedValues) > 0 {
+				annotations[cmpv1alpha1.RuleVariableAnnotationKey] = strings.ReplaceAll(strings.Join(utils.RemoveDuplicate(renderedValues), ","), "_", "-")
+			}
 			severity := ruleObj.SelectAttr("severity")
 			profiles := utils.GetRuleProfile(ruleObj, profileTable)
 
@@ -641,13 +650,6 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 			}
 
 			defs := utils.GetRuleOvalTest(ruleObj, defTable)
-
-			// note: stdParser is a global variable initialized in init()
-			annotations, err := stdParser.parseXmlNode(ruleObj)
-			if err != nil {
-				log.Error(err, "couldn't annotate a rule")
-				// We continue even if there's an error.
-			}
 
 			instructions, valuesRendered := utils.GetInstructionsForRule(ruleObj, questionsTable, valuesList)
 

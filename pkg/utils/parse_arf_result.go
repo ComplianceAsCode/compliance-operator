@@ -374,17 +374,47 @@ func GetRuleOvalTest(rule *xmlquery.Node, defTable NodeByIdHashTable) NodeByIdHa
 }
 
 func RemoveDuplicate(input []string) []string {
-	keys := make(map[string]bool)
-	trimmedList := []string{}
+	if len(input) <= 1 {
+		return input // No duplicates possible with 0 or 1 element
+	}
 
-	for _, e := range input {
-		if _, value := keys[e]; !value {
-			keys[e] = true
-			trimmedList = append(trimmedList, e)
+	// More efficient to use struct{} as map value since it doesn't use additional memory
+	seen := make(map[string]struct{}, len(input))
+	result := make([]string, 0, len(input))
+
+	for _, item := range input {
+		if _, exists := seen[item]; !exists {
+			seen[item] = struct{}{}
+			result = append(result, item)
 		}
 	}
-	return trimmedList
+
+	return result
 }
+
+// RemoveDuplicateWords removes duplicate words from a string
+func RemoveDuplicateWords(input string) string {
+	// Split the input string into words
+	words := strings.Fields(input)
+
+	if len(words) <= 1 {
+		return input // Fast path: no processing needed for empty string or single word
+	}
+
+	// Use map for efficient deduplication while preserving original word order
+	seen := make(map[string]bool, len(words))
+	deduped := make([]string, 0, len(words))
+
+	for _, word := range words {
+		if !seen[word] {
+			seen[word] = true
+			deduped = append(deduped, word)
+		}
+	}
+
+	return strings.Join(deduped, " ")
+}
+
 func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string) []string {
 	var valueList []string
 	ruleTests := GetRuleOvalTest(rule, defTable)
@@ -591,7 +621,7 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 			renderError = err
 		}
 	}
-
+	warning, _ := GetWarningsForRule(rule, valuesList)
 	return &compv1alpha1.ComplianceCheckResult{
 		ObjectMeta: v1.ObjectMeta{
 			Name:        name,
@@ -604,7 +634,7 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 		Instructions: instructions,
 		Description:  description,
 		Rationale:    rationale,
-		Warnings:     GetWarningsForRule(rule),
+		Warnings:     warning,
 		ValuesUsed:   ruleValues,
 	}, renderError
 }
@@ -643,15 +673,15 @@ func getElementText(nptr *xmlquery.Node, elem string, valuesList map[string]stri
 	return "", nil
 }
 
-func GetWarningsForRule(rule *xmlquery.Node) []string {
+func GetWarningsForRule(rule *xmlquery.Node, valuesList map[string]string) ([]string, []string) {
 	warningObjs := rule.SelectElements("//xccdf-1.2:warning")
-
 	warnings := []string{}
-
+	warningText := ""
 	for _, warn := range warningObjs {
 		if warn == nil {
 			continue
 		}
+		warningText += warn.InnerText()
 		// We skip this warning if it's relevant
 		// to parsing the API paths.
 		if warningHasApiObjects(warn) {
@@ -659,11 +689,11 @@ func GetWarningsForRule(rule *xmlquery.Node) []string {
 		}
 		warnings = append(warnings, XmlNodeAsMarkdown(warn))
 	}
-
+	_, valuesRendered, _ := RenderValues(warningText, valuesList)
 	if len(warnings) == 0 {
-		return nil
+		return nil, valuesRendered
 	}
-	return warnings
+	return warnings, valuesRendered
 }
 
 func RuleHasApiObjectWarning(rule *xmlquery.Node) bool {
@@ -921,7 +951,6 @@ func parseValues(remContent string, resultValues map[string]string) (string, []s
 		if preProcessedContent == trimmedContent {
 			continue
 		}
-
 		fixedContent, usedVals, missingVals, err := processContent(preProcessedContent, resultValues)
 		if err != nil {
 			return remContent, valuesUsedList, valuesMissingList, errors.Wrap(err, "error while processing remediation context: ")
@@ -938,8 +967,8 @@ func parseValues(remContent string, resultValues map[string]string) (string, []s
 	if err != nil {
 		return remContent, valuesUsedList, valuesMissingList, errors.Wrap(err, "error while processing remediation context: ")
 	}
-	valuesUsedList = append(valuesUsedList, usedVals...)
-	valuesMissingList = append(valuesMissingList, missingVals...)
+	valuesUsedList = RemoveDuplicate(append(valuesUsedList, usedVals...))
+	valuesMissingList = RemoveDuplicate(append(valuesMissingList, missingVals...))
 
 	return fixedText, valuesUsedList, valuesMissingList, nil
 }
@@ -983,19 +1012,30 @@ func getParsedValueName(t *template.Template) []string {
 
 // trim {{value | urlquery}} list to value list
 func trimToValue(listToBeTrimmed []string) []string {
-	trimmedValuesList := listToBeTrimmed[:0]
+	var trimmedValuesList []string
 	for _, oriVal := range listToBeTrimmed {
-		re := regexp.MustCompile("([a-zA-Z-0-9]+(_[a-zA-Z-0-9]+)+)")
-		trimedValueMatch := re.FindStringSubmatch(oriVal)
-		if len(trimedValueMatch) > 1 {
-			trimmedValuesList = append(trimmedValuesList, trimedValueMatch[0])
+		// Match variable names in templates like .var_name or .the_value_1
+		// Only match those that start with a dot and are specific to our templates
+		re := regexp.MustCompile(`\.(var_[a-zA-Z0-9_-]+|the_value_[0-9]+|the_value_not_defined)`)
+		matches := re.FindAllStringSubmatch(oriVal, -1)
+		for _, match := range matches {
+			if len(match) > 0 {
+				// Extract just the variable name without the dot prefix
+                                // Skip the leading dot
+				varName := strings.TrimPrefix(match, ".")
+				trimmedValuesList = append(trimmedValuesList, varName)
+			}
 		}
 	}
 	return trimmedValuesList
 }
 
 func listNodeFields(node parse.Node, res []string) []string {
-	if node.Type() == parse.NodeAction {
+	if node == nil {
+		return res
+	}
+
+	if node.Type() != parse.NodeNil {
 		res = append(res, node.String())
 	}
 
