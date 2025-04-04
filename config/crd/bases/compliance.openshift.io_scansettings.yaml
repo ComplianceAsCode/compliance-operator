@@ -76,6 +76,11 @@ spec:
           rawResultStorage:
             description: Specifies settings that pertain to raw result storage.
             properties:
+              disabled:
+                default: false
+                description: Specifies if the raw result storage is disabled. This
+                  is useful in case the raw results are not needed. Defaults to false.
+                type: boolean
               nodeSelector:
                 additionalProperties:
                   type: string
