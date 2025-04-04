@@ -28,7 +28,9 @@ const (
 )
 
 type RulePayload struct {
-	// The XCCDF ID
+	// The ID of the Rule
+	// This can be the XCCDF ID for OpenSCAP rules
+	// or the ID of the rule in the source content
 	ID string `json:"id"`
 	// The title of the Rule
 	Title string `json:"title"`
