@@ -5,7 +5,7 @@ RUN pip3 install --upgrade pip && pip3 install ruamel.yaml==0.17.9
 # Use a new stage to enable caching of the package installations for local development
 FROM builder-runner as builder
 
-ARG CO_VERSION="1.6.1"
+ARG CO_VERSION="1.7.0"
 
 COPY ./bundle-hack .
 COPY ./bundle/icons ./icons

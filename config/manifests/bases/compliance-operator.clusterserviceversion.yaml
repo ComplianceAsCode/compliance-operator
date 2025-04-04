@@ -161,7 +161,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
     must-gather-image: ghcr.io/complianceascode/must-gather-ocp:latest
-    olm.skipRange: '>=0.1.17 <1.6.2-dev'
+    olm.skipRange: '>=0.1.17 <1.7.0'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
     operators.openshift.io/infrastructure-features: '["disconnected", "fips", "proxy-aware"]'
@@ -174,7 +174,7 @@ metadata:
     operatorframework.io/arch.arm64: supported
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
-  name: compliance-operator.v1.6.2-dev
+  name: compliance-operator.v1.7.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1574,5 +1574,5 @@ spec:
   provider:
     name: Red Hat Inc.
     url: www.redhat.com
-  replaces: compliance-operator.v1.6.1
-  version: 1.6.2-dev
+  replaces: compliance-operator.v1.6.2
+  version: 1.7.0
