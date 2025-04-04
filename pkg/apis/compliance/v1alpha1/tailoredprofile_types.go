@@ -26,6 +26,14 @@ type RuleReferenceSpec struct {
 	Rationale string `json:"rationale"`
 }
 
+// CustomRuleReferenceSpec specifies a customRule to be selected, as well as the reason why
+type CustomRuleReferenceSpec struct {
+	// Name of the customRule that's being referenced
+	Name string `json:"name"`
+	// Rationale of why this customRule is being selected
+	Rationale string `json:"rationale"`
+}
+
 // ValueReferenceSpec specifies a value to be set for a variable with a reason why
 type VariableValueSpec struct {
 	// Name of the variable that's being referenced
@@ -59,6 +67,10 @@ type TailoredProfileSpec struct {
 	// +optional
 	// +nullable
 	ManualRules []RuleReferenceSpec `json:"manualRules,omitempty"`
+	// Enables the referenced custom rules
+	// +optional
+	// +nullable
+	EnableCustomRules []CustomRuleReferenceSpec `json:"enableCustomRules,omitempty"`
 	// Sets the referenced variables to selected values
 	// +optional
 	// +nullable
