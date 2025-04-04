@@ -20,22 +20,22 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
-// TSDBSpecApplyConfiguration represents a declarative configuration of the TSDBSpec type for use
+// ShardRetentionPolicyApplyConfiguration represents a declarative configuration of the ShardRetentionPolicy type for use
 // with apply.
-type TSDBSpecApplyConfiguration struct {
-	OutOfOrderTimeWindow *monitoringv1.Duration `json:"outOfOrderTimeWindow,omitempty"`
+type ShardRetentionPolicyApplyConfiguration struct {
+	WhenScaled *monitoringv1.WhenScaledRetentionType `json:"whenScaled,omitempty"`
 }
 
-// TSDBSpecApplyConfiguration constructs a declarative configuration of the TSDBSpec type for use with
+// ShardRetentionPolicyApplyConfiguration constructs a declarative configuration of the ShardRetentionPolicy type for use with
 // apply.
-func TSDBSpec() *TSDBSpecApplyConfiguration {
-	return &TSDBSpecApplyConfiguration{}
+func ShardRetentionPolicy() *ShardRetentionPolicyApplyConfiguration {
+	return &ShardRetentionPolicyApplyConfiguration{}
 }
 
-// WithOutOfOrderTimeWindow sets the OutOfOrderTimeWindow field in the declarative configuration to the given value
+// WithWhenScaled sets the WhenScaled field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the OutOfOrderTimeWindow field is set to the value of the last call.
-func (b *TSDBSpecApplyConfiguration) WithOutOfOrderTimeWindow(value monitoringv1.Duration) *TSDBSpecApplyConfiguration {
-	b.OutOfOrderTimeWindow = &value
+// If called multiple times, the WhenScaled field is set to the value of the last call.
+func (b *ShardRetentionPolicyApplyConfiguration) WithWhenScaled(value monitoringv1.WhenScaledRetentionType) *ShardRetentionPolicyApplyConfiguration {
+	b.WhenScaled = &value
 	return b
 }
