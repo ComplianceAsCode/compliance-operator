@@ -1,0 +1,25 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: compliance-operator.v1.6.2-dev
+  namespace: openshift-compliance
+  annotations:
+    must-gather-image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather@sha256:96ba94138c32fbdded5260e8db357cb8849542b8d31627c7a808e77fb0ce1426#fooo
+spec:
+  install:
+    spec:
+      deployments:
+      - name: compliance-operator
+        spec:
+          template:
+            spec:
+              containers:
+              - name: compliance-operator
+                env:
+                - name: RELATED_IMAGE_OPENSCAP
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap@sha256:58aa39c9faf4d9333ca074625bdeb17ab872fadf835786e598f784fccd96f2d8#fooo
+                - name: RELATED_IMAGE_OPERATOR
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator@sha256:b15837641316cd5e912f57eca3d78f3ea5a97c941c2ac35b856b11cce6513fb0#foooo
+                - name: RELATED_IMAGE_PROFILE
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content@sha256:c52cda9a896941f097b028a975af2362ceebe7582b5ca063db5c676808fcaca0#foooo
+                image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator@sha256:b15837641316cd5e912f57eca3d78f3ea5a97c941c2ac35b856b11cce6513fb0#foooo

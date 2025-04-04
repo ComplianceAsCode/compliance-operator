@@ -160,7 +160,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    must-gather-image: ghcr.io/complianceascode/must-gather-ocp:latest
+    must-gather-image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather@sha256:96ba94138c32fbdded5260e8db357cb8849542b8d31627c7a808e77fb0ce1426
     olm.skipRange: '>=0.1.17 <1.6.2-dev'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
@@ -1321,12 +1321,12 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
                 - name: RELATED_IMAGE_OPENSCAP
-                  value: ghcr.io/complianceascode/openscap-ocp:latest
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap@sha256:58aa39c9faf4d9333ca074625bdeb17ab872fadf835786e598f784fccd96f2d8
                 - name: RELATED_IMAGE_OPERATOR
-                  value: ghcr.io/complianceascode/compliance-operator:latest
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator@sha256:b15837641316cd5e912f57eca3d78f3ea5a97c941c2ac35b856b11cce6513fb0
                 - name: RELATED_IMAGE_PROFILE
-                  value: ghcr.io/complianceascode/k8scontent:latest
-                image: ghcr.io/complianceascode/compliance-operator:latest
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content@sha256:c52cda9a896941f097b028a975af2362ceebe7582b5ca063db5c676808fcaca0
+                image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator@sha256:b15837641316cd5e912f57eca3d78f3ea5a97c941c2ac35b856b11cce6513fb0
                 imagePullPolicy: Always
                 name: compliance-operator
                 resources:
