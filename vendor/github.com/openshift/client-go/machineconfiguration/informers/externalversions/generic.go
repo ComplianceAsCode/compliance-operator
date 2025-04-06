@@ -3,7 +3,7 @@
 package externalversions
 
 import (
-	"fmt"
+	fmt "fmt"
 
 	v1 "github.com/openshift/api/machineconfiguration/v1"
 	v1alpha1 "github.com/openshift/api/machineconfiguration/v1alpha1"
@@ -52,6 +52,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Machineconfiguration().V1().MachineOSBuilds().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("machineosconfigs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Machineconfiguration().V1().MachineOSConfigs().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("pinnedimagesets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Machineconfiguration().V1().PinnedImageSets().Informer()}, nil
 
 		// Group=machineconfiguration.openshift.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("machineconfignodes"):
