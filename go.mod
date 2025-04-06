@@ -114,7 +114,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/client v0.79.2
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.62.0 // indirect
+	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/securego/gosec/v2 v2.22.0
