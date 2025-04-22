@@ -189,6 +189,19 @@ func getValuesFromVariables(variables []*cmpv1alpha1.Variable) []SetValueElement
 	values := []SetValueElement{}
 
 	for _, varObj := range variables {
+		// Ensure the variable value is properly set
+		if varObj.Value == "" {
+			// If no value is set, use the default value from selections if available
+			if len(varObj.Selections) > 0 {
+				for _, selection := range varObj.Selections {
+					if selection.Description == "default" {
+						varObj.Value = selection.Value
+						break
+					}
+				}
+			}
+		}
+
 		values = append(values, SetValueElement{
 			IDRef: varObj.ID,
 			Value: varObj.Value,
