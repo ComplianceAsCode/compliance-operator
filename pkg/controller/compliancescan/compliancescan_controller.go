@@ -436,26 +436,29 @@ func (r *ReconcileComplianceScan) phaseLaunchingHandler(h scanTypeHandler, logge
 		return reconcile.Result{}, err
 	}
 
-	if err = r.handleResultServerSecret(scan, logger); err != nil {
-		logger.Error(err, "Cannot create result server cert secret")
-		return reconcile.Result{}, err
-	}
-
-	if err = r.handleResultClientSecret(scan, logger); err != nil {
-		logger.Error(err, "Cannot create result Client cert secret")
-		return reconcile.Result{}, err
-	}
-
-	if resume, err := r.handleRawResultsForScan(scan, logger); err != nil || !resume {
-		if err != nil {
-			logger.Error(err, "Cannot create the PersistentVolumeClaims")
+	if !scan.Spec.RawResultStorage.Disabled {
+		if err = r.handleResultServerSecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result server cert secret")
+			return reconcile.Result{}, err
 		}
-		return reconcile.Result{}, err
-	}
 
-	if err = r.createResultServer(scan, logger); err != nil {
-		logger.Error(err, "Cannot create result server")
-		return reconcile.Result{}, err
+		if err = r.handleResultClientSecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result Client cert secret")
+			return reconcile.Result{}, err
+		}
+
+		if resume, err := r.handleRawResultsForScan(scan, logger); err != nil || !resume {
+			if err != nil {
+				logger.Error(err, "Cannot create the PersistentVolumeClaims")
+			}
+			return reconcile.Result{}, err
+		}
+
+		if err = r.createResultServer(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result server")
+			return reconcile.Result{}, err
+		}
+
 	}
 
 	if err = r.handleRuntimeKubeletConfig(scan, logger); err != nil {
@@ -880,11 +883,12 @@ func (r *ReconcileComplianceScan) phaseDoneHandler(h scanTypeHandler, instance *
 		}
 	} else {
 		// If we're done with the scan but we're not cleaning up just yet.
-
-		// scale down resultserver so it's not still listening for requests.
-		if err := r.scaleDownResultServer(instance, logger); err != nil {
-			logger.Error(err, "Cannot scale down result server")
-			return reconcile.Result{}, err
+		if !instance.Spec.RawResultStorage.Disabled {
+			// scale down resultserver so it's not still listening for requests.
+			if err := r.scaleDownResultServer(instance, logger); err != nil {
+				logger.Error(err, "Cannot scale down result server")
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
