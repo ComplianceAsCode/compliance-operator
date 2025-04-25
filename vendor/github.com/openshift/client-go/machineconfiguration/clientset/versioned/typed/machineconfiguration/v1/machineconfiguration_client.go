@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"net/http"
+	http "net/http"
 
-	v1 "github.com/openshift/api/machineconfiguration/v1"
-	"github.com/openshift/client-go/machineconfiguration/clientset/versioned/scheme"
+	machineconfigurationv1 "github.com/openshift/api/machineconfiguration/v1"
+	scheme "github.com/openshift/client-go/machineconfiguration/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -16,9 +16,11 @@ type MachineconfigurationV1Interface interface {
 	ControllerConfigsGetter
 	KubeletConfigsGetter
 	MachineConfigsGetter
+	MachineConfigNodesGetter
 	MachineConfigPoolsGetter
 	MachineOSBuildsGetter
 	MachineOSConfigsGetter
+	PinnedImageSetsGetter
 }
 
 // MachineconfigurationV1Client is used to interact with features provided by the machineconfiguration.openshift.io group.
@@ -42,6 +44,10 @@ func (c *MachineconfigurationV1Client) MachineConfigs() MachineConfigInterface {
 	return newMachineConfigs(c)
 }
 
+func (c *MachineconfigurationV1Client) MachineConfigNodes() MachineConfigNodeInterface {
+	return newMachineConfigNodes(c)
+}
+
 func (c *MachineconfigurationV1Client) MachineConfigPools() MachineConfigPoolInterface {
 	return newMachineConfigPools(c)
 }
@@ -52,6 +58,10 @@ func (c *MachineconfigurationV1Client) MachineOSBuilds() MachineOSBuildInterface
 
 func (c *MachineconfigurationV1Client) MachineOSConfigs() MachineOSConfigInterface {
 	return newMachineOSConfigs(c)
+}
+
+func (c *MachineconfigurationV1Client) PinnedImageSets() PinnedImageSetInterface {
+	return newPinnedImageSets(c)
 }
 
 // NewForConfig creates a new MachineconfigurationV1Client for the given config.
@@ -99,10 +109,10 @@ func New(c rest.Interface) *MachineconfigurationV1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := v1.SchemeGroupVersion
+	gv := machineconfigurationv1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
