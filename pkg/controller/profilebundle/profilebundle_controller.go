@@ -530,7 +530,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("15Mi"),
+									corev1.ResourceMemory: resource.MustParse("30Mi"),
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 								},
 							},
