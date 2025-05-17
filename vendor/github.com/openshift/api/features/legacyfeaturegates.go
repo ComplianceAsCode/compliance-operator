@@ -17,8 +17,6 @@ var legacyFeatureGates = sets.New(
 	// never add to this list, if you think you have an exception ask @deads2k
 	"AzureWorkloadIdentity",
 	// never add to this list, if you think you have an exception ask @deads2k
-	"BareMetalLoadBalancer",
-	// never add to this list, if you think you have an exception ask @deads2k
 	"BootcNodeManagement",
 	// never add to this list, if you think you have an exception ask @deads2k
 	"BuildCSIVolumes",
@@ -36,6 +34,8 @@ var legacyFeatureGates = sets.New(
 	"EtcdBackendQuota",
 	// never add to this list, if you think you have an exception ask @deads2k
 	"Example",
+	// never add to this list, if you think you have an exception ask @deads2k
+	"Example2",
 	// never add to this list, if you think you have an exception ask @deads2k
 	"GCPClusterHostedDNS",
 	// never add to this list, if you think you have an exception ask @deads2k
