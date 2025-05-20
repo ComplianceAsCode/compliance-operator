@@ -75,7 +75,7 @@ the result of the content parsing.
 
 Several `Profile` objects are parsed out of each bundle, for the `rhcos4` bundle we'd have:
 ```
-$ oc get profile.compliance -lcompliance.openshift.io/profile-bundle=rhcos4  -nopenshift-compliance
+$ oc get profile.compliance -lcompliance.openshift.io/profile-bundle=rhcos4  -n openshift-compliance
 NAME                             AGE
 rhcos4-anssi-bp28-enhanced       19m
 rhcos4-anssi-bp28-high           19m
