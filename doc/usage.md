@@ -3,7 +3,7 @@
 Before starting to use the operator, it's worth checking the descriptions of
 the different custom resources it introduces. These definitions are in the
 [following
-document](https://github.com/openshift/compliance-operator/blob/master/doc/crds.md).
+document](https://github.com/ComplianceAsCode/compliance-operator/blob/master/doc/crds.md).
 The primary interface for the compliance-operator is the `ComplianceSuite`
 object, representing a set of scans. The `ComplianceSuite` can be defined
 either manually or with the help of `ScanSetting` and `ScanSettingBinding`
@@ -13,7 +13,7 @@ directly as well, it is not recommended.
 As part of this guide, it's assumed that you have installed the compliance operator
 in the `openshift-compliance` namespace. You can find more information about
 installation methods and directions in the [Installation
-Guide](https://github.com/openshift/compliance-operator/blob/master/doc/install.md).
+Guide](https://github.com/ComplianceAsCode/compliance-operator/blob/master/doc/install.md).
 
 After you've installed the operator, set the `NAMESPACE` environment to the
 namespace you installed the operator. By default, the operator is installed in
