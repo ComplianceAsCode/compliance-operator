@@ -2,7 +2,7 @@ Lab - Compliance Operator
 =========================
 
 This workshop provides an introduction to deploying a the
-[compliance-operator](https://github.com/openshift/compliance-operator)
+[compliance-operator](https://github.com/ComplianceAsCode/compliance-operator)
 and using it to evaluate the state of compliance with a benchmark.
 
 Agenda
