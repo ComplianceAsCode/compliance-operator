@@ -717,7 +717,7 @@ allow for smoother upgrades.
   `deploy/eks.yaml` file conflicted with various development and build tools
   that assumed a single Deployment resource in the `deploy/` directory. Please
   use the Helm chart for
-  [deploying](https://github.com/openshift/compliance-operator/blob/master/doc/install.md#deploying-with-helm)
+  [deploying](https://github.com/ComplianceAsCode/compliance-operator/blob/master/doc/install.md#deploying-with-helm)
   the operator on AWS EKS.
 
 
@@ -743,10 +743,10 @@ allow for smoother upgrades.
   compliance content, better enabling operator usage in Hypershift deployments.
 - You can now install the operator using a Helm chart. This includes support
   for deploying on OpenShift and AWS EKS. Please see the
-  [documentation](https://github.com/openshift/compliance-operator/#deploying-with-helm)
+  [documentation](https://github.com/ComplianceAsCode/compliance-operator/#deploying-with-helm)
   on how to deploy the operator using Helm.
 - Introduced a process and guidelines for writing release notes
-  ([documentation](https://github.com/openshift/compliance-operator/#writing-release-notes))
+  ([documentation](https://github.com/ComplianceAsCode/compliance-operator/#writing-release-notes))
 
 ### Fixes
 
