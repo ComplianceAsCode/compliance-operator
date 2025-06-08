@@ -72,7 +72,7 @@ require (
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	google.golang.org/api v0.224.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20241216192217-9240e9c98484 // indirect
+	google.golang.org/genproto/googleapis/api 513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250227231956-55c901821b1e // indirect
 	google.golang.org/grpc v1.70.0 // indirect
 )
