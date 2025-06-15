@@ -17,6 +17,7 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 
@@ -38,11 +39,21 @@ const (
 // +kubebuilder:validation:Pattern:="(^0|([0-9]*[.])?[0-9]+((K|M|G|T|E|P)i?)?B)$"
 type ByteSize string
 
+func (bs *ByteSize) IsEmpty() bool {
+	return bs == nil || *bs == ""
+}
+
 // Duration is a valid time duration that can be parsed by Prometheus model.ParseDuration() function.
 // Supported units: y, w, d, h, m, s, ms
 // Examples: `30s`, `1m`, `1h20m15s`, `15d`
 // +kubebuilder:validation:Pattern:="^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$"
 type Duration string
+
+// DurationPointer is a helper function to parse a Duration string into a *Duration.
+func DurationPointer(s string) *Duration {
+	d := Duration(s)
+	return &d
+}
 
 // NonEmptyDuration is a valid time duration that can be parsed by Prometheus model.ParseDuration() function.
 // Compared to Duration,  NonEmptyDuration enforces a minimum length of 1.
@@ -82,25 +93,25 @@ type PrometheusRuleExcludeConfig struct {
 type ProxyConfig struct {
 	// `proxyURL` defines the HTTP proxy server to use.
 	//
-	// +kubebuilder:validation:Pattern:="^http(s)?://.+$"
+	// +kubebuilder:validation:Pattern:="^(http|https|socks5)://.+$"
 	// +optional
 	ProxyURL *string `json:"proxyUrl,omitempty"`
 	// `noProxy` is a comma-separated string that can contain IPs, CIDR notation, domain names
 	// that should be excluded from proxying. IP and domain names can
 	// contain port numbers.
 	//
-	// It requires Prometheus >= v2.43.0 or Alertmanager >= 0.25.0.
+	// It requires Prometheus >= v2.43.0, Alertmanager >= v0.25.0 or Thanos >= v0.32.0.
 	// +optional
 	NoProxy *string `json:"noProxy,omitempty"`
 	// Whether to use the proxy configuration defined by environment variables (HTTP_PROXY, HTTPS_PROXY, and NO_PROXY).
 	//
-	// It requires Prometheus >= v2.43.0 or Alertmanager >= 0.25.0.
+	// It requires Prometheus >= v2.43.0, Alertmanager >= v0.25.0 or Thanos >= v0.32.0.
 	// +optional
 	ProxyFromEnvironment *bool `json:"proxyFromEnvironment,omitempty"`
 	// ProxyConnectHeader optionally specifies headers to send to
 	// proxies during CONNECT requests.
 	//
-	// It requires Prometheus >= v2.43.0 or Alertmanager >= 0.25.0.
+	// It requires Prometheus >= v2.43.0, Alertmanager >= v0.25.0 or Thanos >= v0.32.0.
 	// +optional
 	// +mapType:=atomic
 	ProxyConnectHeader map[string][]v1.SecretKeySelector `json:"proxyConnectHeader,omitempty"`
@@ -147,6 +158,11 @@ func (pc *ProxyConfig) Validate() error {
 		}
 	}
 
+	if pc.ProxyURL != nil {
+		if _, err := url.Parse(*pc.ProxyURL); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -361,42 +377,97 @@ type WebHTTPHeaders struct {
 // WebTLSConfig defines the TLS parameters for HTTPS.
 // +k8s:openapi-gen=true
 type WebTLSConfig struct {
-	// Contains the TLS certificate for the server.
+	// Secret or ConfigMap containing the TLS certificate for the web server.
+	//
+	// Either `keySecret` or `keyFile` must be defined.
+	//
+	// It is mutually exclusive with `certFile`.
+	//
+	// +optional
 	Cert SecretOrConfigMap `json:"cert,omitempty"`
-	// Contains the CA certificate for client certificate authentication to the server.
-	ClientCA SecretOrConfigMap `json:"client_ca,omitempty"`
-	// Secret containing the TLS key for the server.
+	// Path to the TLS certificate file in the container for the web server.
+	//
+	// Either `keySecret` or `keyFile` must be defined.
+	//
+	// It is mutually exclusive with `cert`.
+	//
+	// +optional
+	CertFile *string `json:"certFile,omitempty"`
+
+	// Secret containing the TLS private key for the web server.
+	//
+	// Either `cert` or `certFile` must be defined.
+	//
+	// It is mutually exclusive with `keyFile`.
+	//
+	// +optional
 	KeySecret v1.SecretKeySelector `json:"keySecret,omitempty"`
-	// Server policy for client authentication. Maps to ClientAuth Policies.
+	// Path to the TLS private key file in the container for the web server.
+	//
+	// If defined, either `cert` or `certFile` must be defined.
+	//
+	// It is mutually exclusive with `keySecret`.
+	//
+	// +optional
+	KeyFile *string `json:"keyFile,omitempty"`
+
+	// Secret or ConfigMap containing the CA certificate for client certificate
+	// authentication to the server.
+	//
+	// It is mutually exclusive with `clientCAFile`.
+	//
+	// +optional
+	ClientCA SecretOrConfigMap `json:"client_ca,omitempty"`
+	// Path to the CA certificate file for client certificate authentication to
+	// the server.
+	//
+	// It is mutually exclusive with `client_ca`.
+	//
+	// +optional
+	ClientCAFile *string `json:"clientCAFile,omitempty"`
+	// The server policy for client TLS authentication.
+	//
 	// For more detail on clientAuth options:
 	// https://golang.org/pkg/crypto/tls/#ClientAuthType
-	ClientAuthType string `json:"clientAuthType,omitempty"`
-	// Minimum TLS version that is acceptable. Defaults to TLS12.
-	MinVersion string `json:"minVersion,omitempty"`
-	// Maximum TLS version that is acceptable. Defaults to TLS13.
-	MaxVersion string `json:"maxVersion,omitempty"`
-	// List of supported cipher suites for TLS versions up to TLS 1.2. If empty,
-	// Go default cipher suites are used. Available cipher suites are documented
-	// in the go documentation: https://golang.org/pkg/crypto/tls/#pkg-constants
+	//
+	// +optional
+	ClientAuthType *string `json:"clientAuthType,omitempty"`
+
+	// Minimum TLS version that is acceptable.
+	//
+	// +optional
+	MinVersion *string `json:"minVersion,omitempty"`
+	// Maximum TLS version that is acceptable.
+	//
+	// +optional
+	MaxVersion *string `json:"maxVersion,omitempty"`
+
+	// List of supported cipher suites for TLS versions up to TLS 1.2.
+	//
+	// If not defined, the Go default cipher suites are used.
+	// Available cipher suites are documented in the Go documentation:
+	// https://golang.org/pkg/crypto/tls/#pkg-constants
+	//
+	// +optional
 	CipherSuites []string `json:"cipherSuites,omitempty"`
-	// Controls whether the server selects the
-	// client's most preferred cipher suite, or the server's most preferred
-	// cipher suite. If true then the server's preference, as expressed in
+
+	// Controls whether the server selects the client's most preferred cipher
+	// suite, or the server's most preferred cipher suite.
+	//
+	// If true then the server's preference, as expressed in
 	// the order of elements in cipherSuites, is used.
+	//
+	// +optional
 	PreferServerCipherSuites *bool `json:"preferServerCipherSuites,omitempty"`
+
 	// Elliptic curves that will be used in an ECDHE handshake, in preference
-	// order. Available curves are documented in the go documentation:
+	// order.
+	//
+	// Available curves are documented in the Go documentation:
 	// https://golang.org/pkg/crypto/tls/#CurveID
+	//
+	// +optional
 	CurvePreferences []string `json:"curvePreferences,omitempty"`
-	// Path to the TLS key file in the Prometheus container for the server.
-	// Mutually exclusive with `keySecret`.
-	KeyFile string `json:"keyFile,omitempty"`
-	// Path to the TLS certificate file in the Prometheus container for the server.
-	// Mutually exclusive with `cert`.
-	CertFile string `json:"certFile,omitempty"`
-	// Path to the CA certificate file for client certificate authentication to the server.
-	// Mutually exclusive with `client_ca`.
-	ClientCAFile string `json:"clientCAFile,omitempty"`
 }
 
 // Validate returns an error if one of the WebTLSConfig fields is invalid.
@@ -408,36 +479,33 @@ func (c *WebTLSConfig) Validate() error {
 	}
 
 	if c.ClientCA != (SecretOrConfigMap{}) {
-		if c.ClientCAFile != "" {
+		if c.ClientCAFile != nil && *c.ClientCAFile != "" {
 			return errors.New("cannot specify both clientCAFile and clientCA")
 		}
 
 		if err := c.ClientCA.Validate(); err != nil {
-			return fmt.Errorf("invalid web tls config: %s", err.Error())
+			return fmt.Errorf("invalid client CA: %w", err)
 		}
 	}
 
 	if c.Cert != (SecretOrConfigMap{}) {
-		if c.CertFile != "" {
+		if c.CertFile != nil && *c.CertFile != "" {
 			return errors.New("cannot specify both cert and certFile")
 		}
 		if err := c.Cert.Validate(); err != nil {
-			return fmt.Errorf("invalid web tls config: %s", err.Error())
+			return fmt.Errorf("invalid TLS certificate: %w", err)
 		}
 	}
 
-	if c.KeyFile != "" && c.KeySecret != (v1.SecretKeySelector{}) {
+	if c.KeyFile != nil && *c.KeyFile != "" && c.KeySecret != (v1.SecretKeySelector{}) {
 		return errors.New("cannot specify both keyFile and keySecret")
 	}
 
-	hasCert := c.CertFile != "" || c.Cert != (SecretOrConfigMap{})
-	hasKey := c.KeyFile != "" || c.KeySecret != (v1.SecretKeySelector{})
-
-	if !hasKey {
-		return errors.New("TLS key must be defined")
+	if (c.KeyFile == nil || *c.KeyFile == "") && c.KeySecret == (v1.SecretKeySelector{}) {
+		return errors.New("TLS private key must be defined")
 	}
 
-	if !hasCert {
+	if (c.CertFile == nil || *c.CertFile == "") && c.Cert == (SecretOrConfigMap{}) {
 		return errors.New("TLS certificate must be defined")
 	}
 
@@ -493,6 +561,7 @@ type Endpoint struct {
 	//
 	// If empty, Prometheus uses the global scrape timeout unless it is less
 	// than the target's scrape interval value in which the latter is used.
+	// The value cannot be greater than the scrape interval otherwise the operator will reject the resource.
 	ScrapeTimeout Duration `json:"scrapeTimeout,omitempty"`
 
 	// TLS configuration to use when scraping the target.
@@ -769,13 +838,13 @@ type SafeTLSConfig struct {
 
 	// Minimum acceptable TLS version.
 	//
-	// It requires Prometheus >= v2.35.0.
+	// It requires Prometheus >= v2.35.0 or Thanos >= v0.28.0.
 	// +optional
 	MinVersion *TLSVersion `json:"minVersion,omitempty"`
 
 	// Maximum acceptable TLS version.
 	//
-	// It requires Prometheus >= v2.41.0.
+	// It requires Prometheus >= v2.41.0 or Thanos >= v0.31.0.
 	// +optional
 	MaxVersion *TLSVersion `json:"maxVersion,omitempty"`
 }
@@ -931,6 +1000,12 @@ type NativeHistogramConfig struct {
 	//
 	// +optional
 	NativeHistogramMinBucketFactor *resource.Quantity `json:"nativeHistogramMinBucketFactor,omitempty"`
+
+	// Whether to convert all scraped classic histograms into a native histogram with custom buckets.
+	// It requires Prometheus >= v3.0.0.
+	//
+	// +optional
+	ConvertClassicHistogramsToNHCB *bool `json:"convertClassicHistogramsToNHCB,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=RelabelConfig;RoleSelector
