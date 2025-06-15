@@ -378,7 +378,7 @@ github.com/golang/snappy
 # github.com/google/btree v1.1.3
 ## explicit; go 1.18
 github.com/google/btree
-# github.com/google/generative-ai-go v0.19.0
+# github.com/google/generative-ai-go v0.20.1
 ## explicit; go 1.21
 github.com/google/generative-ai-go/genai
 github.com/google/generative-ai-go/genai/internal
