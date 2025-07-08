@@ -1,0 +1,37 @@
+{
+    "apiVersion": "v1",
+    "kind": "PodList",
+    "metadata": {
+        "resourceVersion": "12348"
+    },
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": "default-pod",
+                "namespace": "default",
+                "labels": {
+                    "app": "default-app"
+                }
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "app-container",
+                        "image": "app:latest",
+                        "resources": {
+                            "limits": {
+                                "cpu": "500m",
+                                "memory": "512Mi"
+                            }
+                        }
+                    }
+                ]
+            },
+            "status": {
+                "phase": "Running"
+            }
+        }
+    ]
+}

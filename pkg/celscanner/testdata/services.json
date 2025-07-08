@@ -1,0 +1,68 @@
+{
+    "apiVersion": "v1",
+    "kind": "ServiceList",
+    "metadata": {
+        "resourceVersion": "12347"
+    },
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "default",
+                "labels": {
+                    "app": "test-app"
+                }
+            },
+            "spec": {
+                "selector": {
+                    "app": "test-app"
+                },
+                "ports": [
+                    {
+                        "name": "http",
+                        "port": 80,
+                        "targetPort": 8080,
+                        "protocol": "TCP"
+                    }
+                ],
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "external-service",
+                "namespace": "default"
+            },
+            "spec": {
+                "selector": {
+                    "app": "external-app"
+                },
+                "ports": [
+                    {
+                        "name": "https",
+                        "port": 443,
+                        "targetPort": 8443,
+                        "protocol": "TCP"
+                    }
+                ],
+                "type": "LoadBalancer"
+            },
+            "status": {
+                "loadBalancer": {
+                    "ingress": [
+                        {
+                            "ip": "10.0.0.100"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -651,7 +651,9 @@ image-to-cluster: image openscap-image namespace openshift-user  ## Builds and p
 		$(RUNTIME) push $(LOGIN_PUSH_OPTS) $(OPERATOR_IMAGE) $${IMAGE_REGISTRY_HOST}/openshift/$(APP_NAME):$(TAG); \
 		$(RUNTIME) push $(LOGIN_PUSH_OPTS) $(OPENSCAP_IMAGE) $${IMAGE_REGISTRY_HOST}/openshift/$(OPENSCAP_NAME):$(OPENSCAP_TAG)
 	@echo "Removing the route from the image registry"
-	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
+	@if [ "$${SKIP_IMAGEREGISTRY_CLEANUP:-false}" != "true" ]; then \
+		oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge; \
+	fi
 	$(eval OPERATOR_IMAGE = image-registry.openshift-image-registry.svc:5000/openshift/$(APP_NAME):$(TAG))
 	$(eval IMG = image-registry.openshift-image-registry.svc:5000/openshift/$(APP_NAME):$(TAG))
 	$(eval OPENSCAP_IMAGE = image-registry.openshift-image-registry.svc:5000/openshift/$(OPENSCAP_NAME):$(OPENSCAP_TAG))
