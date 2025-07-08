@@ -1,0 +1,50 @@
+{
+    "apiVersion": "v1",
+    "kind": "ConfigMapList",
+    "metadata": {
+        "resourceVersion": "12346"
+    },
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "app-config",
+                "namespace": "default",
+                "labels": {
+                    "app": "test-app"
+                }
+            },
+            "data": {
+                "config.yaml": "server:\n  port: 8080\n  host: 0.0.0.0\nlogging:\n  level: info\n",
+                "database.properties": "db.host=localhost\ndb.port=5432\ndb.name=testdb\n",
+                "feature.json": "{\"features\": {\"auth\": true, \"metrics\": false, \"debug\": true}}"
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "nginx-config",
+                "namespace": "default"
+            },
+            "data": {
+                "nginx.conf": "events {\n    worker_connections  1024;\n}\nhttp {\n    server {\n        listen 80;\n        location / {\n            return 200 'Hello World';\n        }\n    }\n}"
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "system-config",
+                "namespace": "kube-system",
+                "labels": {
+                    "component": "system"
+                }
+            },
+            "data": {
+                "cluster.properties": "cluster.name=test-cluster\ncluster.region=us-west-2\n"
+            }
+        }
+    ]
+}
