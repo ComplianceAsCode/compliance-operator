@@ -50,6 +50,8 @@ const DefaultStorageRotation = 3
 
 var ErrUnkownScanType = errors.New("Unknown scan type")
 
+var ErrUnkownScannerType = errors.New("Unknown scanner type")
+
 // Represents the status of the compliance scan run.
 type ComplianceScanStatusPhase string
 
@@ -234,6 +236,9 @@ type ComplianceScanSpec struct {
 	// The type of Compliance scan.
 	// +kubebuilder:default=Node
 	ScanType ComplianceScanType `json:"scanType,omitempty"`
+	// The scanner used to perform the scan.
+	// +kubebuilder:default=OpenSCAP
+	ScannerType ScannerType `json:"scannerType,omitempty"`
 	// Is the image with the content (Data Stream), that will be used to run
 	// OpenSCAP.
 	ContentImage string `json:"contentImage,omitempty"`
@@ -365,6 +370,31 @@ func (cs *ComplianceScan) GetScanTypeIfValid() (ComplianceScanType, error) {
 		return ScanTypeNode, nil
 	}
 	return "", ErrUnkownScanType
+}
+
+// GetScannerTypeIfValid returns the scanner type if the scan has a valid one,
+// else it returns an error.
+func (cs *ComplianceScan) GetScannerTypeIfValid() (ScannerType, error) {
+	scannerType := strings.ToLower(string(cs.Spec.ScannerType))
+	switch scannerType {
+	case strings.ToLower(string(ScannerTypeOpenSCAP)):
+		return ScannerTypeOpenSCAP, nil
+	case strings.ToLower(string(ScannerTypeCEL)):
+		return ScannerTypeCEL, nil
+	default:
+		return "", ErrUnkownScannerType
+	}
+}
+
+// GetScannerTypeOrDie calls GetScannerTypeIfValid and panics if there's an error.
+// This is useful in scenarios (like certain tests or initialization code) where
+// you want the program to fail fast on an invalid scanner type.
+func (cs *ComplianceScan) GetScannerTypeOrDie() ScannerType {
+	scannerType, err := cs.GetScannerTypeIfValid()
+	if err != nil {
+		panic(err)
+	}
+	return scannerType
 }
 
 // GetScanType get's the scan type for a scan
