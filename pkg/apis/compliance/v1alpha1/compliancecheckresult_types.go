@@ -98,6 +98,8 @@ type ComplianceCheckResult struct {
 	Warnings []string `json:"warnings,omitempty"`
 	// It stores a list of values used by the check
 	ValuesUsed []string `json:"valuesUsed,omitempty"`
+	// The ErrorMessage of the rule evaluation
+	ErrorMessage string `json:"errorMessage,omitempty"`
 }
 
 // +kubebuilder:object:root=true
