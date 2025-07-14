@@ -11,10 +11,10 @@ metadata:
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master"
   creationTimestamp:
   labels:
-    appstudio.openshift.io/application: compliance-operator-dev
-    appstudio.openshift.io/component: compliance-operator-dev
+    appstudio.openshift.io/application: compliance-operator-release-1-7
+    appstudio.openshift.io/component: compliance-operator-release-1-7
     pipelines.appstudio.openshift.io/type: build
-  name: compliance-operator-openscap-dev-on-push
+  name: compliance-operator-release-1-7-on-push
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release:{{revision}}
   - name: build-platforms
     value:
     - linux/x86_64
@@ -31,13 +31,13 @@ spec:
     - linux/ppc64le
     - linux/s390x
   - name: dockerfile
-    value: images/openscap/Containerfile
+    value: images/operator/Dockerfile
   - name: hermetic
     value: "true"
   - name: build-source-image
     value: "true"
   - name: prefetch-input
-    value: '{"type": "rpm", "path": "images/openscap/"}'
+    value: '{"type": "rpm", "path": "images/operator/"}'
   pipelineSpec:
     description: |
       This pipeline is ideal for building multi-arch container images from a Containerfile while maintaining trust after pipeline customization.
@@ -620,7 +620,7 @@ spec:
     - name: netrc
       optional: true
   taskRunTemplate:
-    serviceAccountName: build-pipeline-compliance-operator-dev
+    serviceAccountName: build-pipeline-compliance-operator-release-1-7
   workspaces:
   - name: git-auth
     secret:
