@@ -232,24 +232,32 @@ func updateRelatedImages(csv map[string]interface{}) {
 		log.Fatal("Error: 'spec' does not exist in the CSV content")
 	}
 
-	// Create or update the relatedImages section
+	// Extract SHAs from Konflux pull specs and build Red Hat registry URLs
+	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
+	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
+	imageShaContent := getPullSpecSha(konfluxContentPullSpec)
+
+	delimiter := "@"
+	registryPrefix := "registry.redhat.io/compliance/"
+
+	// Create or update the relatedImages section with Red Hat registry images
 	relatedImages := []map[string]string{
 		{
 			"name":  "openscap",
-			"image": konfluxOpenscapPullSpec,
+			"image": registryPrefix + "openshift-compliance-openscap-rhel8" + delimiter + imageShaOpenscap,
 		},
 		{
 			"name":  "operator",
-			"image": konfluxOperatorPullSpec,
+			"image": registryPrefix + "openshift-compliance-rhel8-operator" + delimiter + imageShaOperator,
 		},
 		{
 			"name":  "profile",
-			"image": konfluxContentPullSpec,
+			"image": registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
 		},
 	}
 
 	spec["relatedImages"] = relatedImages
-	fmt.Println("Updated relatedImages with Konflux pull specs")
+	fmt.Println("Updated relatedImages with Red Hat registry images")
 }
 
 func main() {
