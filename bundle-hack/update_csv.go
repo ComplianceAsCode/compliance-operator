@@ -161,7 +161,7 @@ func replaceImages(csv map[string]interface{}) {
 	konfluxOperatorPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:211e02635da4395aabc24d172df531709e71404d6c01cc6faa5e2771c7de357c"
 	konfluxContentPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:8b07d699804a263a567715422f86c8086c39a45baccbcae3734b062b57c67b1e"
 	konfluxOpenscapPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:487dd257360b5d7d86b175f39e2f3bddbc6d5556ecead2e70b75e98433e81db6"
-	konfluxMustGatherPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:b9a914216870c2a3b78ff641add7d0548e1805d70a411880109b645efa724262"
+	konfluxMustGatherPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:93f39b9abe8fc12fc56fe7971f9b9506eb05a306591b50b2c128e9e615ecba56"
 
 	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
 	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
