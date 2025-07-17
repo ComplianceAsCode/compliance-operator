@@ -583,7 +583,7 @@ spec:
 
 and apply it:
 ```shell
-$ oc patch sub compliance-operator -nopenshift-compliance --patch-file co-memlimit-patch.yaml --type=merge
+$ oc patch sub compliance-operator -n openshift-compliance --patch-file co-memlimit-patch.yaml --type=merge
 ```
 
 Please note that this only sets the limit for the compliance-operator

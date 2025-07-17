@@ -250,6 +250,6 @@ metadata:
  
 The above situation can be caused by the situation where an administrator did not set a value for `sshd_idle_timeout_value` in the TailorProfile before the scan, to find which value is available to set for that variable in order to fix that remediation, an admin can use:
  
-`$ oc describe variable rhcos4-sshd-idle-timeout-value -nopenshift-compliance`
+`$ oc describe variable rhcos4-sshd-idle-timeout-value -n openshift-compliance`
  
 An admin can find a section of value for variable `sshd-idle-timeout-value` to choose from, and they can set that value in a tailored profile to satisfy the `compliance.openshift.io/value-required`. Noted, an admin can also set the variable to any other value besides the section values.

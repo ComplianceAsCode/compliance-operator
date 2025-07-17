@@ -10,7 +10,7 @@ to a (CRD document)[crds.md] to learn more API objects.
 
    * The Compliance Operator emits Kubernetes events when something
      important happens. You can either view all events in the cluster (`oc get events
-     -nopenshift-compliance`) or events for an object, e.g. for a scan
+     -n openshift-compliance`) or events for an object, e.g. for a scan
      (`oc describe compliancescan/$scan`)
 
    * The Compliance Operator consists of several controllers, roughly
