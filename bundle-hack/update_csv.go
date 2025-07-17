@@ -236,6 +236,7 @@ func updateRelatedImages(csv map[string]interface{}) {
 	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
 	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
 	imageShaContent := getPullSpecSha(konfluxContentPullSpec)
+	imageShaMustGather := getPullSpecSha(konfluxMustGatherPullSpec)
 
 	delimiter := "@"
 	registryPrefix := "registry.redhat.io/compliance/"
@@ -253,6 +254,10 @@ func updateRelatedImages(csv map[string]interface{}) {
 		{
 			"name":  "profile",
 			"image": registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
+		},
+		{
+			"name":  "must-gather",
+			"image": registryPrefix + "openshift-compliance-must-gather-rhel8" + delimiter + imageShaMustGather,
 		},
 	}
 
