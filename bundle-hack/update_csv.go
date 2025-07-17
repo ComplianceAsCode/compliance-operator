@@ -158,7 +158,7 @@ func replaceImages(csv map[string]interface{}) {
 	// recent builds. We want to peel off the SHA and append it to the Red
 	// Hat registry so that the bundle image will work when it's available
 	// there.
-	konfluxOperatorPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:211e02635da4395aabc24d172df531709e71404d6c01cc6faa5e2771c7de357c"
+	konfluxOperatorPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:a3b48ef931fb2814cc72f12d4cdc646b17cbbd44597310dc36d4a3dbdd6c0005"
 	konfluxContentPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:c400999fa6570bc4efd487f80976d5cce26e487c5e841320edb6c91415150893"
 	konfluxOpenscapPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:487dd257360b5d7d86b175f39e2f3bddbc6d5556ecead2e70b75e98433e81db6"
 	konfluxMustGatherPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:93f39b9abe8fc12fc56fe7971f9b9506eb05a306591b50b2c128e9e615ecba56"
