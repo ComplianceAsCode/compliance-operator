@@ -18,6 +18,8 @@ LABEL \
         io.k8s.description="An operator that performs compliance scanning and remediation on a cluster." \
         io.openshift.tags="openshift,compliance,security" \
         com.redhat.delivery.appregistry="false" \
+        summary="OpenShift Compliance Operator" \
+        description="An operator that performs compliance scanning and remediation on a cluster" \
         maintainer="Red Hat ISC <isc-team@redhat.com>" \
         License="GPLv2+" \
         name="openshift-compliance-operator" \
