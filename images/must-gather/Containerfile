@@ -5,6 +5,8 @@ LABEL \
         io.k8s.description="An must-gather cli for the compliance-operator." \
         io.openshift.tags="openshift,compliance,security" \
         com.redhat.delivery.appregistry="false" \
+        summary="A must-gather cli for compliance-operator" \
+        description="An image to collect debug information from compliance-operator" \
         maintainer="Red Hat ISC <isc-team@redhat.com>" \
         License="GPLv2+" \
         name="openshift-compliance-must-gather" \
