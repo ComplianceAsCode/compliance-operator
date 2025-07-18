@@ -12,6 +12,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Konflux pull specs used across multiple functions
+var (
+	konfluxOperatorPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:211e02635da4395aabc24d172df531709e71404d6c01cc6faa5e2771c7de357c"
+	konfluxContentPullSpec    = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:c400999fa6570bc4efd487f80976d5cce26e487c5e841320edb6c91415150893"
+	konfluxOpenscapPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:487dd257360b5d7d86b175f39e2f3bddbc6d5556ecead2e70b75e98433e81db6"
+	konfluxMustGatherPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:93f39b9abe8fc12fc56fe7971f9b9506eb05a306591b50b2c128e9e615ecba56"
+)
+
 func readCSV(csvFilename string, csv *map[string]interface{}) {
 	yamlFile, err := os.ReadFile(csvFilename)
 	if err != nil {
@@ -152,22 +160,16 @@ func getPullSpecSha(pullSpec string) string {
 }
 
 func replaceImages(csv map[string]interface{}) {
-//	defer recoverFromReplaceImages()
+	//	defer recoverFromReplaceImages()
 
 	// Konflux will automatically update the image sha based on the most
 	// recent builds. We want to peel off the SHA and append it to the Red
 	// Hat registry so that the bundle image will work when it's available
 	// there.
-	konfluxOperatorPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:211e02635da4395aabc24d172df531709e71404d6c01cc6faa5e2771c7de357c"
-	konfluxContentPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:c400999fa6570bc4efd487f80976d5cce26e487c5e841320edb6c91415150893"
-	konfluxOpenscapPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:487dd257360b5d7d86b175f39e2f3bddbc6d5556ecead2e70b75e98433e81db6"
-	konfluxMustGatherPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:93f39b9abe8fc12fc56fe7971f9b9506eb05a306591b50b2c128e9e615ecba56"
-
 	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
 	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
 	imageShaContent := getPullSpecSha(konfluxContentPullSpec)
 	imageShaMustGather := getPullSpecSha(konfluxMustGatherPullSpec)
-
 
 	env, ok := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})["env"].([]interface{})
 	if !ok {
@@ -176,10 +178,10 @@ func replaceImages(csv map[string]interface{}) {
 
 	delimiter := "@"
 	registryPrefix := "registry.redhat.io/compliance/"
-	newPullSpecs := map[string]string {
-		"RELATED_IMAGE_OPERATOR": registryPrefix + "openshift-compliance-rhel8-operator" + delimiter + imageShaOperator,
-		"RELATED_IMAGE_OPENSCAP": registryPrefix + "openshift-compliance-openscap-rhel8" + delimiter + imageShaOpenscap,
-		"RELATED_IMAGE_PROFILE": registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
+	newPullSpecs := map[string]string{
+		"RELATED_IMAGE_OPERATOR":    registryPrefix + "openshift-compliance-rhel8-operator" + delimiter + imageShaOperator,
+		"RELATED_IMAGE_OPENSCAP":    registryPrefix + "openshift-compliance-openscap-rhel8" + delimiter + imageShaOpenscap,
+		"RELATED_IMAGE_PROFILE":     registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
 		"RELATED_IMAGE_MUST_GATHER": registryPrefix + "openshift-compliance-must-gather-rhel8" + delimiter + imageShaMustGather,
 	}
 
@@ -224,14 +226,43 @@ func replaceImages(csv map[string]interface{}) {
 	fmt.Println("Updated the deployment manifest to use downstream builds")
 }
 
-func removeRelated(csv map[string]interface{}) {
+func updateRelatedImages(csv map[string]interface{}) {
 	spec, ok := csv["spec"].(map[string]interface{})
 	if !ok {
 		log.Fatal("Error: 'spec' does not exist in the CSV content")
 	}
 
-	delete(spec, "relatedImages")
-	fmt.Println("Removed the operator from operator manifest")
+	// Extract SHAs from Konflux pull specs and build Red Hat registry URLs
+	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
+	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
+	imageShaContent := getPullSpecSha(konfluxContentPullSpec)
+	imageShaMustGather := getPullSpecSha(konfluxMustGatherPullSpec)
+
+	delimiter := "@"
+	registryPrefix := "registry.redhat.io/compliance/"
+
+	// Create or update the relatedImages section with Red Hat registry images
+	relatedImages := []map[string]string{
+		{
+			"name":  "openscap",
+			"image": registryPrefix + "openshift-compliance-openscap-rhel8" + delimiter + imageShaOpenscap,
+		},
+		{
+			"name":  "operator",
+			"image": registryPrefix + "openshift-compliance-rhel8-operator" + delimiter + imageShaOperator,
+		},
+		{
+			"name":  "profile",
+			"image": registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
+		},
+		{
+			"name":  "must-gather",
+			"image": registryPrefix + "openshift-compliance-must-gather-rhel8" + delimiter + imageShaMustGather,
+		},
+	}
+
+	spec["relatedImages"] = relatedImages
+	fmt.Println("Updated relatedImages with Red Hat registry images")
 }
 
 func main() {
@@ -250,7 +281,7 @@ func main() {
 	replaceVersion(oldVersion, newVersion, csv)
 	replaceIcon(csv)
 	replaceImages(csv)
-	removeRelated(csv)
+	updateRelatedImages(csv)
 
 	outputCSVFilename := getOutputCSVFilePath(manifestsDir, newVersion)
 	replaceCSV(csvFilename, outputCSVFilename, csv)
