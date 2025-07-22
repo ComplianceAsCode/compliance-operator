@@ -8,7 +8,9 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "release-1.7" && ( "images/openscap/***".pathChanged() || ".tekton/compliance-operator-openscap-release-1-7-pull-request.yaml".pathChanged() || "images/openscap/Containerfile".pathChanged() )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "release-1.7" &&
+      ( "images/openscap/***".pathChanged() || ".tekton/*-openscap-release-*.yaml".pathChanged() ||
+      "images/openscap/Containerfile".pathChanged() || "LICENSE".pathChanged() )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: compliance-operator-release-1-7
