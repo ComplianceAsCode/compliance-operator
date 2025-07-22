@@ -8,7 +8,9 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "release-1.7" && ( "images/must-gather/***".pathChanged() || ".tekton/compliance-operator-must-gather-release-1-7-pull-request.yaml".pathChanged() || "images/must-gather/Containerfile".pathChanged() )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "release-1.7" &&
+      ( "images/must-gather/***".pathChanged() || ".tekton/*-must-gather-release-*.yaml".pathChanged() ||
+      "images/must-gather/Containerfile".pathChanged() || "utils/***".pathChanged() || "LICENSE".pathChanged() )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: compliance-operator-release-1-7

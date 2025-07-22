@@ -9,6 +9,8 @@ metadata:
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "release-1.7"
+      ( "images/openscap/***".pathChanged() || ".tekton/*-openscap-release-*.yaml".pathChanged() ||
+      "images/openscap/Containerfile".pathChanged() || "LICENSE".pathChanged() )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: compliance-operator-release-1-7
