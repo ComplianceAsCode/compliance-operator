@@ -1,15 +1,21 @@
+ARG CO_OLD_VERSION="1.7.0"
+ARG CO_NEW_VERSION="1.7.1"
+
 FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.23 as builder
 
 COPY . .
 WORKDIR bundle-hack
 
-ARG CO_OLD_VERSION="1.7.0"
-ARG CO_NEW_VERSION="1.7.1"
+# Bring the version variables into scope
+ARG CO_OLD_VERSION
+ARG CO_NEW_VERSION
 
 RUN go run ./update_csv.go ../bundle/manifests ${CO_OLD_VERSION} ${CO_NEW_VERSION}
 RUN ./update_bundle_annotations.sh
 
 FROM scratch
+
+ARG CO_NEW_VERSION
 
 LABEL name=openshift-compliance-operator-bundle
 LABEL version=${CO_NEW_VERSION}
