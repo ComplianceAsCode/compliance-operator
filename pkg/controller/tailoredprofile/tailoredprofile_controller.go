@@ -556,8 +556,31 @@ func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.Ta
 				variable.GetName(), pb.GetName())
 		}
 
+		// Determine the value to set based on selection or direct value
+		var valueToSet string
+		if setValues.Selection != "" && setValues.Value != "" {
+			return nil, common.NewNonRetriableCtrlError("variable %s: cannot specify both 'value' and 'selection' fields", setValues.Name)
+		} else if setValues.Selection != "" {
+			// Find the value from the variable's selections based on description
+			found := false
+			for _, selection := range variable.Selections {
+				if selection.Description == setValues.Selection {
+					valueToSet = selection.Value
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, common.NewNonRetriableCtrlError("variable %s: selection '%s' not found in available selections", setValues.Name, setValues.Selection)
+			}
+		} else if setValues.Value != "" {
+			valueToSet = setValues.Value
+		} else {
+			return nil, common.NewNonRetriableCtrlError("variable %s: must specify either 'value' or 'selection' field", setValues.Name)
+		}
+
 		// try setting the variable, this also validates the value
-		err = variable.SetValue(setValues.Value)
+		err = variable.SetValue(valueToSet)
 		if err != nil {
 			return nil, common.NewNonRetriableCtrlError("setting variable: %s", err)
 		}
