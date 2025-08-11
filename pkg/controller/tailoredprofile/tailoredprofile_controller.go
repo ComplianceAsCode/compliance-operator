@@ -758,9 +758,44 @@ func (r *ReconcileTailoredProfile) getCustomVariablesFromSelections(tp *cmpv1alp
 	}
 	return variableList, nil
 }
+
+// getDisplayValue returns the display string for a VariableValueSpec (either Value or Selection)
+func getDisplayValue(spec cmpv1alpha1.VariableValueSpec) string {
+	if spec.Value != "" {
+		return spec.Value
+	}
+	return spec.Selection
+}
+
+// resolveVariableValue determines the actual value to set based on the VariableValueSpec
+func resolveVariableValue(setValues cmpv1alpha1.VariableValueSpec, variable *cmpv1alpha1.Variable) (string, error) {
+	// Validate that both fields are not set simultaneously
+	if setValues.Selection != "" && setValues.Value != "" {
+		return "", common.NewNonRetriableCtrlError("variable %s: cannot specify both 'value' and 'selection' fields", setValues.Name)
+	}
+
+	// Handle selection-based value
+	if setValues.Selection != "" {
+		for _, selection := range variable.Selections {
+			if selection.Description == setValues.Selection {
+				return selection.Value, nil
+			}
+		}
+		return "", common.NewNonRetriableCtrlError("variable %s: selection '%s' not found in available selections", setValues.Name, setValues.Selection)
+	}
+
+	// Handle direct value
+	if setValues.Value != "" {
+		return setValues.Value, nil
+	}
+
+	// Neither field is set
+	return "", common.NewNonRetriableCtrlError("variable %s: must specify either 'value' or 'selection' field", setValues.Name)
+}
+
 func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile, pb *cmpv1alpha1.ProfileBundle) ([]*cmpv1alpha1.Variable, error) {
 	// First pass: Build de-duplicated map of variables, keeping last occurrence when duplicates exist.
-	variables := make(map[string]string)
+	variables := make(map[string]cmpv1alpha1.VariableValueSpec)
 
 	for i, setValue := range tp.Spec.SetValues {
 		if oldVal, seen := variables[setValue.Name]; seen {
@@ -768,16 +803,16 @@ func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.Ta
 			r.Eventf(tp, corev1.EventTypeWarning,
 				"DuplicatedSetValue",
 				"Variable '%s' appears multiple times in setValues. The operator will keep the last usage with value '%s' (position %d), ignoring the previous value '%s'. Specifying a variable multiple times using setValues will fail in a future release. Please remove duplicates from setValues as it introduces ambiguity.",
-				setValue.Name, setValue.Value, i, oldVal)
+				setValue.Name, getDisplayValue(setValue), i, getDisplayValue(oldVal))
 		}
-		// Always use the last occurrence's value
-		variables[setValue.Name] = setValue.Value
+		// Always use the last occurrence
+		variables[setValue.Name] = setValue
 	}
 
 	// Second pass: Retrieve Variables from cluster and set their values
 	// Variables are processed in random order (map iteration)
 	variableList := make([]*cmpv1alpha1.Variable, 0, len(variables))
-	for varName, value := range variables {
+	for varName, setValues := range variables {
 		// Grab the Variable from the cluster
 		variable := &cmpv1alpha1.Variable{}
 		varKey := types.NamespacedName{Name: varName, Namespace: tp.Namespace}
@@ -794,8 +829,14 @@ func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.Ta
 				variable.GetName(), pb.GetName())
 		}
 
-		// try setting the variable, this also validates the value
-		if err := variable.SetValue(value); err != nil {
+		// Resolve the value to set based on selection or direct value
+		valueToSet, err := resolveVariableValue(setValues, variable)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the variable value (this also validates it)
+		if err := variable.SetValue(valueToSet); err != nil {
 			return nil, common.NewNonRetriableCtrlError("setting variable: %s", err)
 		}
 
