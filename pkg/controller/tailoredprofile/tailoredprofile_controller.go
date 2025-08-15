@@ -537,32 +537,25 @@ func (r *ReconcileTailoredProfile) getRulesFromSelections(tp *cmpv1alpha1.Tailor
 	return rules, nil
 }
 func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile, pb *cmpv1alpha1.ProfileBundle) ([]*cmpv1alpha1.Variable, error) {
-	// 1) First pass over tp.Spec.SetValues to detect duplicates, warn, and decide which value to keep
-	//    We choose to keep the last occurrence. The map "duplicates" maps variableName -> finalValue.
-	//    The slice "uniqueVarOrder" tracks the first time we saw the variable (for stable iteration).
-	duplicates := make(map[string]string)
-	uniqueVarOrder := []string{}
+	// First pass: Build de-duplicated map of variables, keeping last occurrence when duplicates exist.
+	variables := make(map[string]string)
 
 	for i, setValue := range tp.Spec.SetValues {
-		if oldVal, seen := duplicates[setValue.Name]; seen {
+		if oldVal, seen := variables[setValue.Name]; seen {
 			// We found a duplicate. Warn that we will ignore the previous usage.
 			r.Eventf(tp, corev1.EventTypeWarning,
 				"DuplicatedSetValue",
-				"Variable '%s' appears multiple times in setValues. The operator will keep the last usage with value '%s' (position %d), ignoring the previous value '%s'. This will fail in a future release. Please remove duplicates from setValues.",
+				"Variable '%s' appears multiple times in setValues. The operator will keep the last usage with value '%s' (position %d), ignoring the previous value '%s'. Specifying a variable multiple times using setValues will fail in a future release. Please remove duplicates from setValues as it introduces ambiguity.",
 				setValue.Name, setValue.Value, i, oldVal)
-		} else {
-			// Only record order the first time we see the variable
-			uniqueVarOrder = append(uniqueVarOrder, setValue.Name)
 		}
-		// Overwrite with the newest/last usage
-		duplicates[setValue.Name] = setValue.Value
+		// Always use the last occurrence's value
+		variables[setValue.Name] = setValue.Value
 	}
 
-	// 2) Second pass to actually retrieve the Variables and set their final values
-	variableList := make([]*cmpv1alpha1.Variable, 0, len(uniqueVarOrder))
-	for _, varName := range uniqueVarOrder {
-		finalValue := duplicates[varName]
-
+	// Second pass: Retrieve Variables from cluster and set their values
+	// Variables are processed in random order (map iteration)
+	variableList := make([]*cmpv1alpha1.Variable, 0, len(variables))
+	for varName, value := range variables {
 		// Grab the Variable from the cluster
 		variable := &cmpv1alpha1.Variable{}
 		varKey := types.NamespacedName{Name: varName, Namespace: tp.Namespace}
@@ -580,7 +573,7 @@ func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.Ta
 		}
 
 		// try setting the variable, this also validates the value
-		if err := variable.SetValue(finalValue); err != nil {
+		if err := variable.SetValue(value); err != nil {
 			return nil, common.NewNonRetriableCtrlError("setting variable: %s", err)
 		}
 
