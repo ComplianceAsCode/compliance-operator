@@ -219,8 +219,12 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					Image:   utils.GetComponentImage(utils.OPENSCAP),
 					Command: []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
-						Privileged:             &trueVal,
+						Privileged:             &falseP,
 						ReadOnlyRootFilesystem: &trueP,
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+							Add:  []corev1.Capability{"CAP_SYS_CHROOT"},
+						},
 						// TODO(jaosorior): Figure out if the default
 						// seccomp profile is sufficient here.
 					},
