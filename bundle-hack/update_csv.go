@@ -162,27 +162,16 @@ func getPullSpecSha(pullSpec string) string {
 func replaceImages(csv map[string]interface{}) {
 	//	defer recoverFromReplaceImages()
 
-	// Konflux will automatically update the image sha based on the most
-	// recent builds. We want to peel off the SHA and append it to the Red
-	// Hat registry so that the bundle image will work when it's available
-	// there.
-	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
-	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
-	imageShaContent := getPullSpecSha(konfluxContentPullSpec)
-	imageShaMustGather := getPullSpecSha(konfluxMustGatherPullSpec)
-
 	env, ok := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})["env"].([]interface{})
 	if !ok {
 		log.Fatal("Error: 'env' with RELATED_IMAGE_OPERATOR does not exist in the CSV content")
 	}
 
-	delimiter := "@"
-	registryPrefix := "registry.redhat.io/compliance/"
 	newPullSpecs := map[string]string{
-		"RELATED_IMAGE_OPERATOR":    registryPrefix + "openshift-compliance-rhel8-operator" + delimiter + imageShaOperator,
-		"RELATED_IMAGE_OPENSCAP":    registryPrefix + "openshift-compliance-openscap-rhel8" + delimiter + imageShaOpenscap,
-		"RELATED_IMAGE_PROFILE":     registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
-		"RELATED_IMAGE_MUST_GATHER": registryPrefix + "openshift-compliance-must-gather-rhel8" + delimiter + imageShaMustGather,
+		"RELATED_IMAGE_OPERATOR":    konfluxOperatorPullSpec,
+		"RELATED_IMAGE_OPENSCAP":    konfluxOpenscapPullSpec,
+		"RELATED_IMAGE_PROFILE":     konfluxContentPullSpec,
+		"RELATED_IMAGE_MUST_GATHER": konfluxMustGatherPullSpec,
 	}
 
 	for _, item := range env {
@@ -232,32 +221,23 @@ func updateRelatedImages(csv map[string]interface{}) {
 		log.Fatal("Error: 'spec' does not exist in the CSV content")
 	}
 
-	// Extract SHAs from Konflux pull specs and build Red Hat registry URLs
-	imageShaOperator := getPullSpecSha(konfluxOperatorPullSpec)
-	imageShaOpenscap := getPullSpecSha(konfluxOpenscapPullSpec)
-	imageShaContent := getPullSpecSha(konfluxContentPullSpec)
-	imageShaMustGather := getPullSpecSha(konfluxMustGatherPullSpec)
-
-	delimiter := "@"
-	registryPrefix := "registry.redhat.io/compliance/"
-
 	// Create or update the relatedImages section with Red Hat registry images
 	relatedImages := []map[string]string{
 		{
 			"name":  "openscap",
-			"image": registryPrefix + "openshift-compliance-openscap-rhel8" + delimiter + imageShaOpenscap,
+			"image": konfluxOpenscapPullSpec,
 		},
 		{
 			"name":  "operator",
-			"image": registryPrefix + "openshift-compliance-rhel8-operator" + delimiter + imageShaOperator,
+			"image": konfluxOpenscapPullSpec,
 		},
 		{
 			"name":  "profile",
-			"image": registryPrefix + "openshift-compliance-content-rhel8" + delimiter + imageShaContent,
+			"image": konfluxContentPullSpec,
 		},
 		{
 			"name":  "must-gather",
-			"image": registryPrefix + "openshift-compliance-must-gather-rhel8" + delimiter + imageShaMustGather,
+			"image": konfluxMustGatherPullSpec,
 		},
 	}
 
