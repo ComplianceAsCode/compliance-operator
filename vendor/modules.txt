@@ -772,8 +772,8 @@ github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1beta1
 github.com/prometheus-operator/prometheus-operator/pkg/client/applyconfiguration/monitoring/v1
 github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/scheme
 github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1
-# github.com/prometheus/alertmanager v0.27.0
-## explicit; go 1.21
+# github.com/prometheus/alertmanager v0.28.1
+## explicit; go 1.22.0
 github.com/prometheus/alertmanager/api/v2/models
 # github.com/prometheus/client_golang v1.20.5
 ## explicit; go 1.20
