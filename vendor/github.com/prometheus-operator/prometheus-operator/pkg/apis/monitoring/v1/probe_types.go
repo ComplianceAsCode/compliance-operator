@@ -68,6 +68,7 @@ type ProbeSpec struct {
 	Interval Duration `json:"interval,omitempty"`
 	// Timeout for scraping metrics from the Prometheus exporter.
 	// If not specified, the Prometheus global scrape timeout is used.
+	// The value cannot be greater than the scrape interval otherwise the operator will reject the resource.
 	ScrapeTimeout Duration `json:"scrapeTimeout,omitempty"`
 	// TLS configuration to use when scraping the endpoint.
 	TLSConfig *SafeTLSConfig `json:"tlsConfig,omitempty"`
@@ -131,6 +132,28 @@ type ProbeSpec struct {
 	// +optional
 	// +kubebuilder:validation:MinLength=1
 	ScrapeClassName *string `json:"scrapeClass,omitempty"`
+
+	// The list of HTTP query parameters for the scrape.
+	// Please note that the `.spec.module` field takes precedence over the `module` parameter from this list when both are defined.
+	// The module name must be added using Module under ProbeSpec.
+	// +optional
+	// +kubebuilder:validation:MinItems=1
+	// +listType=map
+	// +listMapKey=name
+	Params []ProbeParam `json:"params,omitempty"`
+}
+
+// ProbeParam defines specification of extra parameters for a Probe.
+// +k8s:openapi-gen=true
+type ProbeParam struct {
+	// The parameter name
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	Name string `json:"name,omitempty"`
+	// The parameter values
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:items:MinLength=1
+	Values []string `json:"values,omitempty"`
 }
 
 // ProbeTargets defines how to discover the probed targets.
@@ -214,8 +237,9 @@ type ProberSpec struct {
 	// Defaults to `/probe`.
 	// +kubebuilder:default:="/probe"
 	Path string `json:"path,omitempty"`
-	// Optional ProxyURL.
-	ProxyURL string `json:"proxyUrl,omitempty"`
+
+	// +optional
+	ProxyConfig `json:",inline"`
 }
 
 // ProbeList is a list of Probes.
@@ -226,7 +250,7 @@ type ProbeList struct {
 	// More info: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// List of Probes
-	Items []*Probe `json:"items"`
+	Items []Probe `json:"items"`
 }
 
 // DeepCopyObject implements the runtime.Object interface.
