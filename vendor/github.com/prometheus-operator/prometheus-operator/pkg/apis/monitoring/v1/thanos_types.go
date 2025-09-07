@@ -63,7 +63,7 @@ type ThanosRulerList struct {
 	// More info: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// List of Prometheuses
-	Items []*ThanosRuler `json:"items"`
+	Items []ThanosRuler `json:"items"`
 }
 
 // ThanosRulerSpec is a specification of the desired behavior of the ThanosRuler. More info:
@@ -87,10 +87,12 @@ type ThanosRulerSpec struct {
 
 	// Thanos container image URL.
 	Image string `json:"image,omitempty"`
+
 	// Image pull policy for the 'thanos', 'init-config-reloader' and 'config-reloader' containers.
 	// See https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy for more details.
 	// +kubebuilder:validation:Enum="";Always;Never;IfNotPresent
 	ImagePullPolicy v1.PullPolicy `json:"imagePullPolicy,omitempty"`
+
 	// An optional list of references to secrets in the same namespace
 	// to use for pulling thanos images from registries
 	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
@@ -116,9 +118,11 @@ type ThanosRulerSpec struct {
 	// If specified, the pod's scheduling constraints.
 	// +optional
 	Affinity *v1.Affinity `json:"affinity,omitempty"`
+
 	// If specified, the pod's tolerations.
 	// +optional
 	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+
 	// If specified, the pod's topology spread constraints.
 	// +optional
 	TopologySpreadConstraints []v1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
@@ -137,8 +141,21 @@ type ThanosRulerSpec struct {
 	// +optional
 	DNSConfig *PodDNSConfig `json:"dnsConfig,omitempty"`
 
+	// Indicates whether information about services should be injected into pod's environment variables
+	// +optional
+	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty"`
+
 	// Priority class assigned to the Pods
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+
+	// The name of the service name used by the underlying StatefulSet(s) as the governing service.
+	// If defined, the Service  must be created before the ThanosRuler resource in the same namespace and it must define a selector that matches the pod labels.
+	// If empty, the operator will create and manage a headless service named `thanos-ruler-operated` for ThanosRuler resources.
+	// When deploying multiple ThanosRuler resources in the same namespace, it is recommended to specify a different value for each.
+	// See https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#stable-network-id for more details.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	ServiceName *string `json:"serviceName,omitempty"`
 
 	// ServiceAccountName is the name of the ServiceAccount to use to run the
 	// Thanos Ruler Pods.
@@ -147,6 +164,7 @@ type ThanosRulerSpec struct {
 	// Storage spec to specify how storage shall be used.
 	// +optional
 	Storage *StorageSpec `json:"storage,omitempty"`
+
 	// Volumes allows configuration of additional volumes on the output StatefulSet definition. Volumes specified will
 	// be appended to other volumes that are generated as a result of StorageSpec objects.
 	// +optional
@@ -269,8 +287,41 @@ type ThanosRulerSpec struct {
 	// +kubebuilder:default:="15s"
 	EvaluationInterval Duration `json:"evaluationInterval,omitempty"`
 
-	// Time duration ThanosRuler shall retain data for. Default is '24h',
-	// and must match the regular expression `[0-9]+(ms|s|m|h|d|w|y)` (milliseconds seconds minutes hours days weeks years).
+	// Minimum amount of time to wait before resending an alert to Alertmanager.
+	// +optional
+	ResendDelay *Duration `json:"resendDelay,omitempty"`
+
+	// Max time to tolerate prometheus outage for restoring "for" state of alert.
+	// It requires Thanos >= v0.30.0.
+	// +optional
+	RuleOutageTolerance *Duration `json:"ruleOutageTolerance,omitempty"`
+
+	// The default rule group's query offset duration to use.
+	// It requires Thanos >= v0.38.0.
+	// +optional
+	RuleQueryOffset *Duration `json:"ruleQueryOffset,omitempty"`
+
+	// How many rules can be evaluated concurrently.
+	// It requires Thanos >= v0.37.0.
+	// +kubebuilder:validation:Minimum=1
+	//
+	// +optional
+	RuleConcurrentEval *int32 `json:"ruleConcurrentEval,omitempty"`
+
+	// Minimum duration between alert and restored "for" state.
+	// This is maintained only for alerts with configured "for" time greater than grace period.
+	// It requires Thanos >= v0.30.0.
+	//
+	// +optional
+	RuleGracePeriod *Duration `json:"ruleGracePeriod,omitempty"`
+
+	// Time duration ThanosRuler shall retain data for. Default is '24h', and
+	// must match the regular expression `[0-9]+(ms|s|m|h|d|w|y)` (milliseconds
+	// seconds minutes hours days weeks years).
+	//
+	// The field has no effect when remote-write is configured since the Ruler
+	// operates in stateless mode.
+	//
 	// +kubebuilder:default:="24h"
 	Retention Duration `json:"retention,omitempty"`
 
@@ -357,10 +408,12 @@ type ThanosRulerSpec struct {
 
 	// Minimum number of seconds for which a newly created pod should be ready
 	// without any of its container crashing for it to be considered available.
-	// Defaults to 0 (pod will be considered available as soon as it is ready)
-	// This is an alpha field from kubernetes 1.22 until 1.24 which requires enabling the StatefulSetMinReadySeconds feature gate.
+	//
+	// If unset, pods will be considered available as soon as they are ready.
+	//
+	// +kubebuilder:validation:Minimum:=0
 	// +optional
-	MinReadySeconds *uint32 `json:"minReadySeconds,omitempty"`
+	MinReadySeconds *int32 `json:"minReadySeconds,omitempty"`
 
 	// Configures alert relabeling in Thanos Ruler.
 	//
@@ -406,6 +459,49 @@ type ThanosRulerSpec struct {
 	// Defines the configuration of the ThanosRuler web server.
 	// +optional
 	Web *ThanosRulerWebSpec `json:"web,omitempty"`
+
+	// Defines the list of remote write configurations.
+	//
+	// When the list isn't empty, the ruler is configured with stateless mode.
+	//
+	// It requires Thanos >= 0.24.0.
+	//
+	// +optional
+	RemoteWrite []RemoteWriteSpec `json:"remoteWrite,omitempty"`
+
+	// Optional duration in seconds the pod needs to terminate gracefully.
+	// Value must be non-negative integer. The value zero indicates stop immediately via
+	// the kill signal (no opportunity to shut down) which may lead to data corruption.
+	//
+	// Defaults to 120 seconds.
+	//
+	// +kubebuilder:validation:Minimum:=0
+	// +optional
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
+	// Enable access to Thanos Ruler feature flags. By default, no features are enabled.
+	//
+	// Enabling features which are disabled by default is entirely outside the
+	// scope of what the maintainers will support and by doing so, you accept
+	// that this behaviour may break at any time without notice.
+	//
+	// For more information see https://thanos.io/tip/components/rule.md/
+	//
+	// It requires Thanos >= 0.39.0.
+	// +listType:=set
+	// +optional
+	EnableFeatures []EnableFeature `json:"enableFeatures,omitempty"`
+
+	// HostUsers supports the user space in Kubernetes.
+	//
+	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/user-namespaces/
+	//
+	//
+	// The feature requires at least Kubernetes 1.28 with the `UserNamespacesSupport` feature gate enabled.
+	// Starting Kubernetes 1.33, the feature is enabled by default.
+	//
+	// +optional
+	HostUsers *bool `json:"hostUsers,omitempty"`
 }
 
 // ThanosRulerWebSpec defines the configuration of the ThanosRuler web server.
