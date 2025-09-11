@@ -89,6 +89,9 @@ const CmScanResultAnnotation = "compliance.openshift.io/scan-result"
 // CmScanResultErrMsg holds the processed scanner error message
 const CmScanResultErrMsg = "compliance.openshift.io/scan-error-msg"
 
+// CELFeatureEnableAnnotation is used to enable the CEL feature
+const CELFeatureEnableAnnotation = "compliance.openshift.io/cel-feature-enable"
+
 const (
 	// ResultNot available represents the compliance scan not having finished yet
 	ResultNotAvailable ComplianceScanStatusResult = "NOT-AVAILABLE"
@@ -244,6 +247,10 @@ type ComplianceScanSpec struct {
 	// rule. Note that when leaving this empty, the scan will check for all the
 	// rules for a specific profile.
 	Rule string `json:"rule,omitempty"`
+	// Scanner is the type of scanner that should be used to evaluate this rule
+	// Defaults to OpenSCAP
+	// +kubebuilder:default=OpenSCAP
+	Scanner ScannerType `json:"scanner,omitempty"`
 	// Is the path to the file that contains the content (the data stream).
 	// Note that the path needs to be relative to the `/` (root) directory, as
 	// it is in the ContentImage

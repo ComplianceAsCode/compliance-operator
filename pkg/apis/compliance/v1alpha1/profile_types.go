@@ -15,6 +15,13 @@ const ProductAnnotation = "compliance.openshift.io/product"
 // ProfileGuidLabel specifies the unique identifier of the Profile
 const ProfileGuidLabel = "compliance.openshift.io/profile-guid"
 
+// ScannerAnnotation specifies the type of scanner to use for this Profile
+const ScannerAnnotation = "compliance.openshift.io/scanner"
+
+// UserProfileAnnotation define if tailored profile contains User Created rules
+// that are not part of the original profile
+const UserProfileAnnotation = "compliance.openshift.io/user-profile"
+
 // ProfileRule defines the name of a specific rule in the profile
 type ProfileRule string
 
