@@ -138,8 +138,11 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					},
 					ImagePullPolicy: corev1.PullAlways,
 					SecurityContext: &corev1.SecurityContext{
-						Privileged:             &trueVal,
+						Privileged:             &falseP,
 						ReadOnlyRootFilesystem: &trueP,
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"CAP_DAC_OVERRIDE"},
+						},
 					},
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
@@ -219,8 +222,11 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					Image:   utils.GetComponentImage(utils.OPENSCAP),
 					Command: []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
-						Privileged:             &trueVal,
+						Privileged:             &falseP,
 						ReadOnlyRootFilesystem: &trueP,
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"CAP_DAC_OVERRIDE"},
+						},
 						// TODO(jaosorior): Figure out if the default
 						// seccomp profile is sufficient here.
 					},
