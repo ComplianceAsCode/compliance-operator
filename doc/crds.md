@@ -65,7 +65,7 @@ automatically when the ComplianceOperator starts in order to provide useful defa
 You can inspect the existing `ProfileBundle` objects by calling:
 
 ```
-oc get profilebundle -nopenshift-compliance
+oc get profilebundle -n openshift-compliance
 ```
 
 Note that in case you need to roll back to a known-good content image

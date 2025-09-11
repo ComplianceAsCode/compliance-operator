@@ -2601,7 +2601,7 @@ configured to false.
         <ocil:boolean_question id="ocil:ssg-controller_service_account_ca_question:question:1">
           <ocil:question_text>To verify that root-ca-file is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["root-ca-file"]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["root-ca-file"]'
 The output should return a configured certificate authority file.
       Is it the case that &lt;tt&gt;root-ca-file&lt;/tt&gt; is not configured&lt;/tt&gt;?
       </ocil:question_text>
@@ -2609,7 +2609,7 @@ The output should return a configured certificate authority file.
         <ocil:boolean_question id="ocil:ssg-controller_use_service_account_question:question:1">
           <ocil:question_text>To verify that service-account-credentials is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["use-service-account-credentials"]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["use-service-account-credentials"]'
 The value of use-service-account-credentials should be true.
       Is it the case that &lt;tt&gt;use-service-account-credentials&lt;/tt&gt; is set to &lt;tt&gt;false&lt;/tt&gt;?
       </ocil:question_text>
@@ -2617,7 +2617,7 @@ The value of use-service-account-credentials should be true.
         <ocil:boolean_question id="ocil:ssg-controller_secure_port_question:question:1">
           <ocil:question_text>To verify that secure-port is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson |   jq -r '.data["config.yaml"]' | jq '.extendedArguments["secure-port"][]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json |   jq -r '.data["config.yaml"]' | jq '.extendedArguments["secure-port"][]'
 Verify that it's using an appropriate port (the value is not 0).
       Is it the case that &lt;tt&gt;secure-port&lt;/tt&gt; is not configured to use a secure port?
       </ocil:question_text>
@@ -2625,7 +2625,7 @@ Verify that it's using an appropriate port (the value is not 0).
         <ocil:boolean_question id="ocil:ssg-controller_service_account_private_key_question:question:1">
           <ocil:question_text>To verify that service-account-private-key-file is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["service-account-private-key-file"]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["service-account-private-key-file"]'
 The output should return a configured private key file.
       Is it the case that &lt;tt&gt;service-account-private-key-file&lt;/tt&gt; does not exist or is configured properly?
       </ocil:question_text>
@@ -2633,7 +2633,7 @@ The output should return a configured private key file.
         <ocil:boolean_question id="ocil:ssg-controller_insecure_port_disabled_question:question:1">
           <ocil:question_text>To verify that port is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson |   jq -r '.data["config.yaml"]' | jq '.extendedArguments["port"][]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json |   jq -r '.data["config.yaml"]' | jq '.extendedArguments["port"][]'
 Verify that it's disabled (the value is 0).
       Is it the case that &lt;tt&gt;port&lt;/tt&gt; is not disabled?
       </ocil:question_text>
@@ -2641,7 +2641,7 @@ Verify that it's disabled (the value is 0).
         <ocil:boolean_question id="ocil:ssg-controller_terminated_pod_gc_threshhold_question:question:1">
           <ocil:question_text>To verify that terminated-pod-gc-threshold is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["terminated-pod-gc-threshold"]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["terminated-pod-gc-threshold"]'
 The returned value of terminated-pod-gc-threshold should be greater than zero.
       Is it the case that &lt;tt&gt;terminated-pod-gc-threshold&lt;/tt&gt; is not enabled?
       </ocil:question_text>
@@ -2649,7 +2649,7 @@ The returned value of terminated-pod-gc-threshold should be greater than zero.
         <ocil:boolean_question id="ocil:ssg-controller_rotate_kubelet_server_certs_question:question:1">
           <ocil:question_text>To verify that RotateKubeletServerCertificate is configured correctly,
 run the following command:
-$ oc get configmaps config -n openshift-kube-controller-manager -ojson | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["feature-gates"]'
+$ oc get configmaps config -n openshift-kube-controller-manager -o json | jq -r '.data["config.yaml"]' | jq -r '.extendedArguments["feature-gates"]'
 The output should return RotateKubeletServerCertificate=true.
       Is it the case that &lt;tt&gt;RotateKubeletServerCertificate&lt;/tt&gt; argument is set to &lt;tt&gt;false&lt;/tt&gt; in the
 &lt;tt&gt;controllerArguments&lt;/tt&gt; options?
