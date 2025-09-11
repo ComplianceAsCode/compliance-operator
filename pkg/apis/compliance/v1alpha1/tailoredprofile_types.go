@@ -27,13 +27,18 @@ type RuleReferenceSpec struct {
 }
 
 // ValueReferenceSpec specifies a value to be set for a variable with a reason why
+// +kubebuilder:validation:XValidation:rule="has(self.value) != has(self.selection)",message="exactly one of value or selection must be specified"
 type VariableValueSpec struct {
 	// Name of the variable that's being referenced
 	Name string `json:"name"`
 	// Rationale of why this value is being tailored
 	Rationale string `json:"rationale"`
-	// Value of the variable being set
-	Value string `json:"value"`
+	// Value to set the variable to
+	// +optional
+	Value string `json:"value,omitempty"`
+	// Value to choose from predefined variable selections
+	// +optional
+	Selection string `json:"selection,omitempty"`
 }
 
 // TailoredProfileSpec defines the desired state of TailoredProfile
