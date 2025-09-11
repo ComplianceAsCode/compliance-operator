@@ -78,7 +78,7 @@ require (
 )
 
 require (
-	github.com/ajeddeloh/go-json v0.0.0-20200220154158-5ae607161559 // indirect
+	github.com/ajeddeloh/go-json e49c8866685a // indirect
 	github.com/antchfx/xmlquery v1.4.3
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0
