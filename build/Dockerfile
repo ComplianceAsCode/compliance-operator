@@ -1,7 +1,7 @@
 # Step one: build compliance-operator
 FROM golang:1.23 AS builder
 
-WORKDIR /go/src/github.com/openshift/compliance-operator
+WORKDIR /go/src/github.com/ComplianceAsCode/compliance-operator
 
 ENV GOFLAGS=-mod=vendor
 
@@ -16,7 +16,7 @@ ENV OPERATOR=/usr/local/bin/compliance-operator \
     USER_NAME=compliance-operator
 
 # install operator binary
-COPY --from=builder /go/src/github.com/openshift/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR}
+COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR}
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
