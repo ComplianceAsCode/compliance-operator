@@ -304,7 +304,7 @@ github.com/fsnotify/fsnotify/internal
 # github.com/fxamacker/cbor/v2 v2.7.0
 ## explicit; go 1.17
 github.com/fxamacker/cbor/v2
-# github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
+# github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 ## explicit
 github.com/ghodss/yaml
 # github.com/go-logr/logr v1.4.2
