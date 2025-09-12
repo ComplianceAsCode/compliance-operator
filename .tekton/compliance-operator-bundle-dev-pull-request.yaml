@@ -8,7 +8,9 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "master"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "master" &&
+      ( ".tekton/compliance-operator-bundle-dev-*.yaml".pathChanged() ||
+      "bundle-hack/***".pathChanged() || "bundle/***".pathChanged() || "bundle.openshift.Dockerfile".pathChanged() )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: compliance-operator-dev
