@@ -1365,13 +1365,11 @@ var _ = Describe("TailoredprofileController", func() {
 							Expression:  "true",
 							Inputs: []compv1alpha1.InputPayload{
 								{
-									KubeResource: compv1alpha1.KubeResource{
-										Name: "pods",
-										KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
-											Group:      "",
-											APIVersion: "v1",
-											Resource:   "pods",
-										},
+									Name: "pods",
+									KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+										Group:      "",
+										APIVersion: "v1",
+										Resource:   "pods",
 									},
 								},
 							},
@@ -1460,13 +1458,11 @@ var _ = Describe("TailoredprofileController", func() {
 							Expression:  "invalid expression",
 							Inputs: []compv1alpha1.InputPayload{
 								{
-									KubeResource: compv1alpha1.KubeResource{
-										Name: "pods",
-										KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
-											Group:      "",
-											APIVersion: "v1",
-											Resource:   "pods",
-										},
+									Name: "pods",
+									KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+										Group:      "",
+										APIVersion: "v1",
+										Resource:   "pods",
 									},
 								},
 							},
@@ -1553,13 +1549,11 @@ var _ = Describe("TailoredprofileController", func() {
 							Expression:  "true",
 							Inputs: []compv1alpha1.InputPayload{
 								{
-									KubeResource: compv1alpha1.KubeResource{
-										Name: "pods",
-										KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
-											Group:      "",
-											APIVersion: "v1",
-											Resource:   "pods",
-										},
+									Name: "pods",
+									KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+										Group:      "",
+										APIVersion: "v1",
+										Resource:   "pods",
 									},
 								},
 							},
