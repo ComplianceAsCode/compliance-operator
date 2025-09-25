@@ -3,11 +3,10 @@ module github.com/ComplianceAsCode/compliance-operator
 go 1.23.0
 
 require (
+	github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/google/cel-go v0.22.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.36.2
-	google.golang.org/genproto/googleapis/api v0.0.0-20241216192217-9240e9c98484
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.1
 	open-cluster-management.io/api v0.15.0
@@ -45,6 +44,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
+	github.com/google/cel-go v0.22.0 // indirect
 	github.com/google/generative-ai-go v0.19.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.5 // indirect
@@ -75,10 +75,12 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
 	google.golang.org/api v0.224.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20241216192217-9240e9c98484 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250227231956-55c901821b1e // indirect
 	google.golang.org/grpc v1.70.0 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
 require (
@@ -128,12 +130,12 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0
-	golang.org/x/mod v0.22.0
-	golang.org/x/net v0.37.0
+	golang.org/x/mod v0.25.0
+	golang.org/x/net v0.42.0
 	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/term v0.33.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
@@ -141,12 +143,12 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.32.3
+	k8s.io/api v0.33.2
 	k8s.io/apiextensions-apiserver v0.32.1
 	k8s.io/apiserver v0.32.1
 	k8s.io/component-base v0.32.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	k8s.io/pod-security-admission v0.32.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	sigs.k8s.io/controller-tools v0.17.1
@@ -198,8 +200,8 @@ require (
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	go4.org v0.0.0-20200104003542-c7e774b10ea0 // indirect
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/tools v0.29.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/tools v0.34.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	k8s.io/kube-aggregator v0.32.1 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
@@ -208,4 +210,7 @@ require (
 replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20250120092857-366ffb8c60da
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20250106104058-89709a455e2a
+	k8s.io/api => k8s.io/api v0.32.3
+	k8s.io/apimachinery => k8s.io/apimachinery v0.32.3
+	k8s.io/client-go => k8s.io/client-go v0.32.1
 )
