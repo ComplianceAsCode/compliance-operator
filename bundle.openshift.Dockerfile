@@ -17,7 +17,7 @@ FROM scratch
 
 ARG CO_NEW_VERSION
 
-LABEL name=openshift-compliance-operator-bundle
+LABEL name=compliance/openshift-compliance-operator-bundle
 LABEL version=${CO_NEW_VERSION}
 LABEL summary='OpenShift Compliance Operator'
 LABEL maintainer='Infrastructure Security and Compliance Team <isc-team@redhat.com>'
@@ -31,6 +31,7 @@ LABEL url="https://github.com/ComplianceAsCode/compliance-operator"
 LABEL distribution-scope=public
 
 LABEL com.redhat.component=openshift-compliance-operator-bundle-container
+LABEL cpe=cpe:/a:redhat:openshift_file_integrity_operator:1::el9
 LABEL com.redhat.delivery.appregistry=false
 LABEL com.redhat.delivery.operator.bundle=true
 LABEL com.redhat.openshift.versions="v4.10"
