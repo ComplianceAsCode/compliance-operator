@@ -47,13 +47,11 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Expression:  "pods.items.all(pod, pod.spec.containers.all(container, container.securityContext.runAsNonRoot == true))",
 						Inputs: []v1alpha1.InputPayload{
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "pods",
-									KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-										Group:      "",
-										APIVersion: "v1",
-										Resource:   "pods",
-									},
+								Name: "pods",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									Group:      "",
+									APIVersion: "v1",
+									Resource:   "pods",
 								},
 							},
 						},
@@ -111,23 +109,19 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Expression:  "namespaces.items.all(ns, networkpolicies.items.exists(np, np.metadata.namespace == ns.metadata.name))",
 						Inputs: []v1alpha1.InputPayload{
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "namespaces",
-									KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-										Group:      "",
-										APIVersion: "v1",
-										Resource:   "namespaces",
-									},
+								Name: "namespaces",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									Group:      "",
+									APIVersion: "v1",
+									Resource:   "namespaces",
 								},
 							},
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "networkpolicies",
-									KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-										Group:      "networking.k8s.io",
-										APIVersion: "v1",
-										Resource:   "networkpolicies",
-									},
+								Name: "networkpolicies",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									Group:      "networking.k8s.io",
+									APIVersion: "v1",
+									Resource:   "networkpolicies",
 								},
 							},
 						},
@@ -136,6 +130,49 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 				},
 			},
 			expectedPhase: v1alpha1.CustomRulePhaseReady,
+			expectError:   false,
+		},
+		{
+			name: "Valid CustomRule with multiple inputs and missing one input",
+			rule: &v1alpha1.CustomRule{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "valid-multi-input-missing-one-input",
+					Namespace:  "test",
+					Generation: 1,
+				},
+				Spec: v1alpha1.CustomRuleSpec{
+					RulePayload: v1alpha1.RulePayload{
+						ID:          "test-rule-5",
+						Title:       "Multi-input Rule",
+						Description: "A rule with multiple inputs",
+						Severity:    "medium",
+					},
+					CELPayload: v1alpha1.CELPayload{
+						ScannerType: v1alpha1.ScannerTypeCEL,
+						Expression:  "namespaces.items.all(ns, networkpolicies-non-existent.items.exists(np, np.metadata.namespace == ns.metadata.name))",
+						Inputs: []v1alpha1.InputPayload{
+							{
+								Name: "namespaces",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									Group:      "",
+									APIVersion: "v1",
+									Resource:   "namespaces",
+								},
+							},
+							{
+								Name: "networkpolicies",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									Group:      "networking.k8s.io",
+									APIVersion: "v1",
+									Resource:   "networkpolicies",
+								},
+							},
+						},
+						ErrorMessage: "All namespaces must have network policies",
+					},
+				},
+			},
+			expectedPhase: v1alpha1.CustomRulePhaseError,
 			expectError:   false,
 		},
 		{
@@ -158,12 +195,10 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Expression:  "true",
 						Inputs: []v1alpha1.InputPayload{
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "test",
-									KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-										// Missing APIVersion and Resource
-										Group: "apps",
-									},
+								Name: "test",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									// Missing APIVersion and Resource
+									Group: "apps",
 								},
 							},
 						},
@@ -254,12 +289,10 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 						Expression: "true",
 						Inputs: []v1alpha1.InputPayload{
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "test",
-									KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-										APIVersion: "v1",
-										Resource:   "pods",
-									},
+								Name: "tewst",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									APIVersion: "v1",
+									Resource:   "pods",
 								},
 							},
 						},
@@ -277,9 +310,7 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 						Expression: "",
 						Inputs: []v1alpha1.InputPayload{
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "test",
-								},
+								Name: "test",
 							},
 						},
 					},
@@ -309,12 +340,10 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 						Expression: "true",
 						Inputs: []v1alpha1.InputPayload{
 							{
-								KubeResource: v1alpha1.KubeResource{
-									Name: "",
-									KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-										APIVersion: "v1",
-										Resource:   "pods",
-									},
+								Name: "",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									APIVersion: "v1",
+									Resource:   "pods",
 								},
 							},
 						},
