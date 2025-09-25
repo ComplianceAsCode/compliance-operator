@@ -21,22 +21,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
-	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
+	"github.com/ComplianceAsCode/compliance-sdk/pkg/fetchers"
+	"github.com/ComplianceAsCode/compliance-sdk/pkg/scanner"
 	backoff "github.com/cenkalti/backoff/v4"
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/checker/decls"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-	expr "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -47,23 +41,141 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/yaml"
+)
+
+// Exit codes for CEL scanner - matching OpenSCAP conventions
+const (
+	// CelExitCodeCompliant indicates all checks passed (matches OpenSCAP exit code 0)
+	CelExitCodeCompliant = 0
+	// CelExitCodeError indicates an error occurred during scanning
+	CelExitCodeError = 1
+	// CelExitCodeNonCompliant indicates at least one check failed (matches OpenSCAP exit code 2)
+	CelExitCodeNonCompliant = 2
 )
 
 type CelScanner struct {
-	resourceFetcherClients
-	celConfig celConfig
+	client     runtimeclient.Client
+	clientset  *kubernetes.Clientset
+	scheme     *runtime.Scheme
+	celConfig  celConfig
+	sdkScanner *scanner.Scanner
+}
+
+// ComplianceLogger adapts controller-runtime logging for SDK
+type ComplianceLogger struct {
+	debug bool
+	log   logr.Logger
+}
+
+func (l ComplianceLogger) Debug(msg string, args ...interface{}) {
+	if l.debug {
+		l.log.V(1).Info(fmt.Sprintf(msg, args...))
+	}
+}
+
+func (l ComplianceLogger) Info(msg string, args ...interface{}) {
+	l.log.Info(fmt.Sprintf(msg, args...))
+}
+
+func (l ComplianceLogger) Warn(msg string, args ...interface{}) {
+	l.log.Info(fmt.Sprintf("Warning: "+msg, args...))
+}
+
+func (l ComplianceLogger) Error(msg string, args ...interface{}) {
+	l.log.Error(nil, fmt.Sprintf(msg, args...))
 }
 
 func NewCelScanner(scheme *runtime.Scheme, client runtimeclient.Client, clientSet *kubernetes.Clientset, config celConfig) CelScanner {
-	return CelScanner{
-		resourceFetcherClients: resourceFetcherClients{
-			clientset: clientSet,
-			client:    client,
-			scheme:    scheme,
-		},
-		celConfig: config,
+	// Create SDK-compatible logger using controller-runtime's logger
+	logger := ComplianceLogger{
+		debug: debugLog,
+		log:   cmdLog.WithName("cel-scanner"),
 	}
+
+	// Create a composite fetcher
+	compositeFetcher := fetchers.NewCompositeFetcher()
+
+	// Add Kubernetes fetcher if we have a valid client
+	if client != nil && clientSet != nil {
+		kubeFetcher := fetchers.NewKubernetesFetcher(client, clientSet)
+		compositeFetcher.RegisterCustomFetcher(scanner.InputTypeKubernetes, kubeFetcher)
+	} else if config.ApiResourcePath != "" {
+		// If we have an API resource path, configure file-based fetching
+		fileFetcher := fetchers.NewKubernetesFileFetcher(config.ApiResourcePath)
+		compositeFetcher.RegisterCustomFetcher(scanner.InputTypeKubernetes, fileFetcher)
+	}
+
+	// Create SDK scanner with our custom fetcher
+	sdkScanner := scanner.NewScanner(&ComplianceFetcherAdapter{
+		fetcher: compositeFetcher,
+		client:  client,
+		scheme:  scheme,
+	}, logger)
+
+	return CelScanner{
+		client:     client,
+		clientset:  clientSet,
+		scheme:     scheme,
+		celConfig:  config,
+		sdkScanner: sdkScanner,
+	}
+}
+
+// ComplianceFetcherAdapter adapts the SDK fetcher to work with compliance-operator resources
+type ComplianceFetcherAdapter struct {
+	fetcher scanner.InputFetcher
+	client  runtimeclient.Client
+	scheme  *runtime.Scheme
+}
+
+// celVariableAdapter adapts compliance-operator Variable to SDK CelVariable
+type celVariableAdapter struct {
+	name      string
+	namespace string
+	value     string
+}
+
+func (v *celVariableAdapter) Name() string      { return v.name }
+func (v *celVariableAdapter) Namespace() string { return v.namespace }
+func (v *celVariableAdapter) Value() string     { return v.value }
+func (v *celVariableAdapter) GroupVersionKind() schema.GroupVersionKind {
+	// Variables don't have a GVK, return empty
+	return schema.GroupVersionKind{}
+}
+
+func (a *ComplianceFetcherAdapter) FetchResources(ctx context.Context, rule scanner.Rule, variables []scanner.CelVariable) (map[string]interface{}, []string, error) {
+	warnings := []string{}
+
+	// Validate rule inputs before fetching
+	if rule == nil {
+		err := fmt.Errorf("rule is nil")
+		warnings = append(warnings, err.Error())
+		return nil, warnings, err
+	}
+
+	inputs := rule.Inputs()
+	if len(inputs) == 0 {
+		cmdLog.V(1).Info("Rule has no inputs", "ruleID", rule.Identifier())
+	}
+
+	// Use the composite fetcher to fetch inputs
+	resources, err := a.fetcher.FetchInputs(inputs, variables)
+
+	// Log detailed information for debugging
+	if debugLog {
+		cmdLog.V(1).Info("Fetched resources for rule",
+			"ruleID", rule.Identifier(),
+			"inputCount", len(inputs),
+			"resourceCount", len(resources),
+			"error", err)
+	}
+
+	if err != nil {
+		// Add context to the error message
+		warnings = append(warnings, fmt.Sprintf("Error fetching resources for rule %s: %v", rule.Identifier(), err))
+	}
+
+	return resources, warnings, err
 }
 
 // getCelScannerClient builds a controller-runtime client from the standard rest.Config.
@@ -114,6 +226,7 @@ func defineCelScannerFlags(cmd *cobra.Command) {
 	// Add flags registered by imported packages (e.g. glog and controller-runtime)
 	flags.AddGoFlagSet(flag.CommandLine)
 }
+
 func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 	var conf celConfig
 	conf.CheckResultDir = getValidStringArg(cmd, "check-resultdir")
@@ -146,105 +259,170 @@ func runCelScanner(cmd *cobra.Command, args []string) {
 
 	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		FATAL("Error building kubeClientSet: %v", err)
+		cmdLog.Error(err, "Error building kubeClientSet")
+		os.Exit(CelExitCodeError)
 	}
 	client, err := getCelScannerClient(restConfig, scheme)
 	if err != nil {
-		FATAL("Error building client: %v", err)
+		cmdLog.Error(err, "Error building client")
+		os.Exit(CelExitCodeError)
 	}
 
 	scanner := NewCelScanner(scheme, client, kubeClientSet, *celConf)
 	if celConf.ScanType == "Platform" {
 		scanner.runPlatformScan()
 	} else {
-		FATAL("Unsupported scan type: %s", celConf.ScanType)
+		cmdLog.Error(nil, "Unsupported scan type", "scanType", celConf.ScanType)
+		os.Exit(CelExitCodeError)
 	}
 }
 
 // runPlatformScan runs the platform scan based on the profile and inputs.
 func (c *CelScanner) runPlatformScan() {
-	DBG("Running platform scan")
+	cmdLog.V(1).Info("Running platform scan")
 	// Load and parse the profile
 	profile := c.celConfig.Profile
 	if profile == "" {
-		FATAL("Profile not provided")
+		cmdLog.Error(nil, "Profile not provided")
+		os.Exit(CelExitCodeError)
 	}
-	exitCode := 0
+	exitCode := CelExitCodeCompliant
 	// Check if a tailored profile is provided, and get selected rules
-	// TODO(@Vincent056): Right now only CEL CustomRules are supported
-	// We will add support for Rule Object when CEL is supported for Rule
 	var selectedRules []*cmpv1alpha1.CustomRule
 	var setVars []*cmpv1alpha1.Variable
 	if c.celConfig.Tailoring != "" {
 		tailoredProfile, err := c.getTailoredProfile(c.celConfig.NameSpace)
 		if err != nil {
-			FATAL("Failed to get tailored profile: %v", err)
+			cmdLog.Error(err, "Failed to get tailored profile")
+			os.Exit(CelExitCodeError)
 		}
 		selectedRules, err = c.getSelectedCustomRules(tailoredProfile)
 		if err != nil {
-			FATAL("Failed to get selected rules: %v", err)
+			cmdLog.Error(err, "Failed to get selected rules")
+			os.Exit(CelExitCodeError)
 		}
 		// Collect all the variables being set in the tailoredProfile
 		setVars, err = c.getSetVariables(tailoredProfile)
 		if err != nil {
-			FATAL("Failed to get set variables: %v", err)
+			cmdLog.Error(err, "Failed to get set variables")
+			os.Exit(CelExitCodeError)
 		}
 	} else {
-		FATAL("No tailored profile provided")
+		cmdLog.Error(nil, "No tailored profile provided")
+		os.Exit(CelExitCodeError)
 	}
 
-	evalResultList := []*v1alpha1.ComplianceCheckResult{}
-	// Process each selected rule
-	for _, rule := range selectedRules {
-		DBG("Processing rule: %s\n", rule.Name)
-		// Fetch the resources based on the rule inputs, we will either use the pre-fetched resources or access the API server
-		// Check if we have the resources in the pre-fetched resources
-		var resourceMap map[string]interface{}
-
-		if c.celConfig.ApiResourcePath == "" {
-			LOG("Fetching resources from API server")
-			// Fetch the resources from the API server
-			collectedResources, warnings, err := c.FetchResources(rule, setVars)
-
-			if err != nil {
-				LOG("Error fetching resources: %v", err)
-			}
-			if len(warnings) > 0 {
-				LOG("Warnings while fetching resources: %v", warnings)
-			}
-			resourceMap = collectedResources
-
-		} else {
-			LOG("Using pre-fetched resources")
-			// Collect the necessary resources from the mounted directory based on rule inputs
-			resourceMap = c.collectResourcesFromFiles(c.celConfig.ApiResourcePath, rule)
+	// Convert variables to SDK format
+	celVariables := make([]scanner.CelVariable, 0, len(setVars))
+	for _, v := range setVars {
+		// Create an inline adapter for Variable to CelVariable
+		celVar := &celVariableAdapter{
+			name:      v.Name,
+			namespace: v.Namespace,
+			value:     v.Value,
 		}
-		DBG("Collected resources: %v\n", resourceMap)
-		// Create CEL declarations
-		declsList := createCelDeclarations(resourceMap)
-		// Create a CEL environment
-		env := createCelEnvironment(declsList)
-		// Compile and evaluate the CEL expression
-		ast, err := compileCelExpression(env, rule.Spec.Expression)
-		if err != nil {
-			FATAL("Failed to compile CEL expression: %v", err)
-		}
-		result := evaluateCelExpression(env, ast, resourceMap, rule)
-		if result.Status == v1alpha1.CheckResultFail {
-			exitCode = 2
-		} else if result.Status == v1alpha1.CheckResultError {
-			exitCode = -1
-		}
-		evalResultList = append(evalResultList, &result)
+		celVariables = append(celVariables, celVar)
 	}
+
+	// Convert CustomRules to SDK Rules
+	// CustomRule now properly implements scanner.Rule and scanner.CelRule interfaces
+	sdkRules := make([]scanner.Rule, 0, len(selectedRules))
+	for _, customRule := range selectedRules {
+		// Validate the rule before adding it
+		if customRule == nil {
+			cmdLog.Info("Warning: Skipping nil custom rule")
+			continue
+		}
+		if customRule.Spec.CELPayload.Expression == "" {
+			cmdLog.Info("Warning: Skipping rule with empty expression", "rule", customRule.Name)
+			continue
+		}
+		sdkRules = append(sdkRules, customRule)
+	}
+
+	// Create scan configuration
+	scanConfig := scanner.ScanConfig{
+		Rules:              sdkRules,
+		Variables:          celVariables,
+		ApiResourcePath:    c.celConfig.ApiResourcePath,
+		EnableDebugLogging: debugLog,
+	}
+
+	// Run the scan using SDK scanner
+	ctx := context.Background()
+	checkResults, err := c.sdkScanner.Scan(ctx, scanConfig)
+	if err != nil {
+		cmdLog.Error(err, "Failed to run scan")
+		os.Exit(CelExitCodeError)
+	}
+
+	// Convert SDK results to compliance operator results
+	evalResultList := []*cmpv1alpha1.ComplianceCheckResult{}
+	for _, result := range checkResults {
+		// Find the original rule to get additional metadata
+		var originalRule *cmpv1alpha1.CustomRule
+		for _, rule := range selectedRules {
+			// Use the Identifier() method for consistency with the interface
+			if rule.Identifier() == result.ID {
+				originalRule = rule
+				break
+			}
+		}
+
+		if originalRule == nil {
+			cmdLog.Info("Warning: Could not find original rule for result", "resultID", result.ID)
+			continue
+		}
+
+		// Convert SDK CheckResult to ComplianceCheckResult
+		// Generate a DNS-friendly name from the scan name and rule ID
+		checkResultName := fmt.Sprintf("%s-%s", c.celConfig.ScanName, utils.IDToDNSFriendlyName(originalRule.Spec.ID))
+
+		compResult := &cmpv1alpha1.ComplianceCheckResult{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "compliance.openshift.io/v1alpha1",
+				Kind:       "ComplianceCheckResult",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      checkResultName,
+				Namespace: c.celConfig.NameSpace,
+			},
+			ID:           originalRule.Spec.ID,
+			Description:  originalRule.Spec.Description,
+			Rationale:    originalRule.Spec.Rationale,
+			Severity:     cmpv1alpha1.ComplianceCheckResultSeverity(originalRule.Spec.Severity),
+			Instructions: originalRule.Spec.Instructions,
+			Warnings:     result.Warnings,
+		}
+
+		// Map SDK status to compliance operator status
+		switch result.Status {
+		case scanner.CheckResultPass:
+			compResult.Status = cmpv1alpha1.CheckResultPass
+		case scanner.CheckResultFail:
+			compResult.Status = cmpv1alpha1.CheckResultFail
+			exitCode = CelExitCodeNonCompliant
+		case scanner.CheckResultError:
+			compResult.Status = cmpv1alpha1.CheckResultError
+			exitCode = CelExitCodeError
+		case scanner.CheckResultNotApplicable:
+			compResult.Status = cmpv1alpha1.CheckResultNotApplicable
+		}
+
+		if result.ErrorMessage != "" {
+			compResult.Warnings = append(compResult.Warnings, result.ErrorMessage)
+		}
+
+		evalResultList = append(evalResultList, compResult)
+	}
+
 	// Save the scan result
 	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "result.xml")
 	saveScanResult(outputFilePath, evalResultList)
+
 	// Check if we need to generate ComplianceCheckResult objects
 	if c.celConfig.CCRGeneration {
-		// TODO(@Vincent056): Generate ComplianceCheckResult objects
-		// We need to do clean up the duplicated code in aggregator
-		DBG("Generating ComplianceCheckResult objects")
+		cmdLog.V(1).Info("Generating ComplianceCheckResult objects")
 		var scan = &cmpv1alpha1.ComplianceScan{}
 		err := c.client.Get(context.TODO(), v1api.NamespacedName{
 			Namespace: c.celConfig.NameSpace,
@@ -255,13 +433,13 @@ func (c *CelScanner) runPlatformScan() {
 				"ComplianceScan.Name", c.celConfig.ScanName,
 				"ComplianceScan.Namespace", c.celConfig.NameSpace,
 			)
-			os.Exit(1)
+			os.Exit(CelExitCodeError)
 		}
 
-		staleComplianceCheckResults := make(map[string]compv1alpha1.ComplianceCheckResult)
-		complianceCheckResults := compv1alpha1.ComplianceCheckResultList{}
+		staleComplianceCheckResults := make(map[string]cmpv1alpha1.ComplianceCheckResult)
+		complianceCheckResults := cmpv1alpha1.ComplianceCheckResultList{}
 		withLabel := map[string]string{
-			compv1alpha1.ComplianceScanLabel: scan.Name,
+			cmpv1alpha1.ComplianceScanLabel: scan.Name,
 		}
 		lo := runtimeclient.ListOptions{
 			Namespace:     scan.Namespace,
@@ -272,9 +450,6 @@ func (c *CelScanner) runPlatformScan() {
 			cmdLog.Error(err, "Cannot list ComplianceCheckResults", "ComplianceScan.Name", scan.Name)
 		}
 		for _, r := range complianceCheckResults.Items {
-			// Use a map so that we can find specific
-			// ComplianceCheckResults without iterating over the list for
-			// every new result from the latest scan.
 			staleComplianceCheckResults[r.Name] = r
 		}
 
@@ -290,57 +465,51 @@ func (c *CelScanner) runPlatformScan() {
 			checkResultAnnotations := getCheckResultAnnotations(pr, pr.Annotations)
 
 			crkey := getObjKey(pr.Name, pr.Namespace)
-			foundCheckResult := &compv1alpha1.ComplianceCheckResult{}
-			// Copy type metadata so dynamic client copies data correctly
+			foundCheckResult := &cmpv1alpha1.ComplianceCheckResult{}
 			foundCheckResult.TypeMeta = pr.TypeMeta
 			cmdLog.Info("Getting ComplianceCheckResult", "ComplianceCheckResult.Name", crkey.Name,
 				"ComplianceCheckResult.Namespace", crkey.Namespace)
 			checkResultExists := getObjectIfFoundCEL(c.client, crkey, foundCheckResult)
 			if checkResultExists {
-				// Copy resource version and other metadata needed for update
 				foundCheckResult.ObjectMeta.DeepCopyInto(&pr.ObjectMeta)
-			} else if !scan.Spec.ShowNotApplicable && pr.Status == compv1alpha1.CheckResultNotApplicable {
-				// If the result is not applicable we skip creation
-				// Note that updating a not-applicable result should still
-				// work in order to get older deployments to keep working.
+			} else if !scan.Spec.ShowNotApplicable && pr.Status == cmpv1alpha1.CheckResultNotApplicable {
 				continue
 			}
 			// check is owned by the scan
 			if err := createOrUpdateResult(c.client, scan, checkResultLabels, checkResultAnnotations, checkResultExists, pr); err != nil {
-				// return fmt.Errorf("cannot create or update checkResult %s: %v", pr.CheckResult.Name, err)
 				cmdLog.Error(err, "Cannot create or update checkResult", "ComplianceCheckResult.Name", pr.Name)
 			}
 
-			// Remove the ComplianceCheckResult from the list of stale
-			// results so we don't delete it later.
+			// Remove the ComplianceCheckResult from the list of stale results
 			_, ok := staleComplianceCheckResults[foundCheckResult.Name]
 			if ok {
 				delete(staleComplianceCheckResults, foundCheckResult.Name)
 			}
-
 		}
 
-		// If there are any ComplianceCheckResults left in
-		// staleComplianceCheckResults, they were from previous scans and we
-		// should delete them. Otherwise, we give users the impression changes
-		// they've made to their scans, profiles, or settings haven't taken
-		// effect.
+		// Delete stale ComplianceCheckResults
 		for _, result := range staleComplianceCheckResults {
 			err := c.client.Delete(context.TODO(), &result)
 			if err != nil {
-				LOG("Unable to delete stale ComplianceCheckResult %s: %v", result.Name, err)
+				cmdLog.Error(err, "Unable to delete stale ComplianceCheckResult", "name", result.Name)
 			}
 		}
+	}
 
-	}
-	// Save the exit code to a file
-	// We are matching the exit code to the openscap exit codes
+	// Save the exit code to a file (matching OpenSCAP behavior)
+	// This exit code represents the compliance status (0=compliant, 2=non-compliant)
 	exitCodeFilePath := filepath.Join(c.celConfig.CheckResultDir, "exit_code")
-	err := os.WriteFile(exitCodeFilePath, []byte(fmt.Sprintf("%d", exitCode)), 0644)
+	err = os.WriteFile(exitCodeFilePath, []byte(fmt.Sprintf("%d", exitCode)), 0644)
 	if err != nil {
-		FATAL("Failed to write exit code to file: %v", err)
+		cmdLog.Error(err, "Failed to write exit code to file")
+		os.Exit(CelExitCodeError)
 	}
-	os.Exit(0)
+
+	// Log scan completion
+	// Note: We exit with 0 (success) regardless of compliance status to prevent pod restarts
+	// The actual compliance status is saved in the exit_code file and results
+	cmdLog.Info("CEL scan completed successfully", "complianceExitCode", exitCode)
+	os.Exit(0) // Always exit with 0 for successful scan completion
 }
 
 // Returns whether or not an object exists, and updates the data in the obj.
@@ -415,26 +584,80 @@ func (c *CelScanner) getTailoredProfile(namespace string) (*cmpv1alpha1.Tailored
 	}
 	return tailoredProfile, nil
 }
+
 func (c *CelScanner) getSelectedCustomRules(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.CustomRule, error) {
 	var selectedRules []*cmpv1alpha1.CustomRule
-	// for _, rule := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
-	// 	if rule.Name != obj.GetName() {
-	// 		continue
-	for _, selection := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
-		for _, rule := range selectedRules {
-			if rule.Name == selection.Name {
-				return nil, fmt.Errorf("Rule '%s' appears twice in selections", selection.Name)
-			}
+	ruleMap := make(map[string]bool) // Track rules to detect duplicates
+
+	allSelections := append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...)
+
+	for _, selection := range allSelections {
+		// Check for duplicate rules
+		if ruleMap[selection.Name] {
+			return nil, fmt.Errorf("rule '%s' appears twice in selections", selection.Name)
 		}
+		ruleMap[selection.Name] = true
+
 		rule := &cmpv1alpha1.CustomRule{}
 		ruleKey := v1api.NamespacedName{Name: selection.Name, Namespace: tp.Namespace}
 		err := c.client.Get(context.TODO(), ruleKey, rule)
 		if err != nil {
-			return nil, fmt.Errorf("Fetching rule: %w", err)
+			if errors.IsNotFound(err) {
+				return nil, fmt.Errorf("rule '%s' not found in namespace '%s'", selection.Name, tp.Namespace)
+			}
+			return nil, fmt.Errorf("fetching rule '%s': %w", selection.Name, err)
 		}
+
+		// Validate the rule has required fields
+		if err := c.validateCustomRule(rule); err != nil {
+			return nil, fmt.Errorf("invalid rule '%s': %w", rule.Name, err)
+		}
+
 		selectedRules = append(selectedRules, rule)
 	}
+
+	if len(selectedRules) == 0 {
+		cmdLog.Info("Warning: No rules selected from tailored profile", "profile", tp.Name)
+	}
+
 	return selectedRules, nil
+}
+
+// validateCustomRule validates that a CustomRule has all required fields
+func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
+	if rule == nil {
+		return fmt.Errorf("rule is nil")
+	}
+
+	if rule.Name == "" {
+		return fmt.Errorf("rule name is empty")
+	}
+
+	if rule.Spec.CELPayload.Expression == "" {
+		return fmt.Errorf("CEL expression is empty")
+	}
+
+	if len(rule.Spec.CELPayload.Inputs) == 0 {
+		return fmt.Errorf("rule has no inputs defined")
+	}
+
+	// Validate each input
+	for i, input := range rule.Spec.CELPayload.Inputs {
+		if input.Name == "" {
+			return fmt.Errorf("input %d has empty resource name", i)
+		}
+
+		// Validate KubernetesInputSpec using its own Validate method
+		if err := input.KubernetesInputSpec.Validate(); err != nil {
+			return fmt.Errorf("input %d validation failed: %w", i, err)
+		}
+	}
+
+	if rule.Spec.CELPayload.ErrorMessage == "" {
+		cmdLog.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
+	}
+
+	return nil
 }
 
 func (c *CelScanner) getSetVariables(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.Variable, error) {
@@ -442,247 +665,22 @@ func (c *CelScanner) getSetVariables(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1a
 	for _, sVar := range tp.Spec.SetValues {
 		for _, iVar := range setVars {
 			if iVar.Name == sVar.Name {
-				return nil, fmt.Errorf("Variables '%s' appears twice in selections", sVar.Name)
+				return nil, fmt.Errorf("variables '%s' appears twice in selections", sVar.Name)
 			}
 		}
 		variable := &cmpv1alpha1.Variable{}
 		varKey := v1api.NamespacedName{Name: sVar.Name, Namespace: tp.Namespace}
 		err := c.client.Get(context.TODO(), varKey, variable)
 		if err != nil {
-			return nil, fmt.Errorf("Fetching variable: %w", err)
+			return nil, fmt.Errorf("fetching variable: %w", err)
 		}
 		variable.Value = sVar.Value
 		setVars = append(setVars, variable)
 	}
 	return setVars, nil
 }
-func (c *CelScanner) collectResourcesFromFiles(resourceDir string, rule *cmpv1alpha1.CustomRule) map[string]interface{} {
-	resultMap := make(map[string]interface{})
-	if rule.Spec.Inputs != nil {
-		for _, input := range rule.Spec.Inputs {
 
-			// check make sure type is not unknow
-			if input.KubeResource.Type != compv1alpha1.InputResourceTypeKubeResource {
-				FATAL("Got unknown KubeResource type in rule input")
-			}
-			if input.KubeResource == (cmpv1alpha1.KubeResource{}) {
-				FATAL("Got empty KubeResource in rule input")
-			}
-			// Define the GroupVersionResource for the current input
-			gvr := schema.GroupVersionResource{
-				Group:    input.KubeResource.APIGroup,
-				Version:  input.KubeResource.Version,
-				Resource: input.KubeResource.Resource,
-			}
-			// Derive the resource path using a common function
-			objPath := DeriveResourcePath(gvr, input.KubeResource.Namespace) + ".json"
-			// Build the complete file path
-			filePath := filepath.Join(resourceDir, objPath)
-			// Read the file content
-			fileContent, err := os.ReadFile(filePath)
-			if err != nil {
-				panic(fmt.Sprintf("Failed to read file %s: %v", filePath, err))
-			}
-			// check if input.resource contains /, if so, it is a subresource
-			if strings.Contains(input.KubeResource.Resource, "/") {
-				// Unmarshal JSON content into an unstructured object
-				result := &unstructured.Unstructured{}
-				err = json.Unmarshal(fileContent, &result)
-				if err != nil {
-					panic(fmt.Sprintf("Failed to parse JSON from file %s: %v", filePath, err))
-				}
-				resultMap[input.KubeResource.Name] = result
-			} else {
-				// Unmarshal JSON content into an unstructured list
-				results := &unstructured.UnstructuredList{}
-				err = json.Unmarshal(fileContent, &results)
-				if err != nil {
-					panic(fmt.Sprintf("Failed to parse JSON from file %s: %v", filePath, err))
-				}
-				resultMap[input.KubeResource.Name] = results
-			}
-		}
-	}
-	return resultMap
-}
-func createCelDeclarations(resultMap map[string]interface{}) []*expr.Decl {
-	declsList := []*expr.Decl{}
-	for k := range resultMap {
-		declsList = append(declsList, decls.NewVar(k, decls.Dyn))
-	}
-	return declsList
-}
-func createCelEnvironment(declsList []*expr.Decl) *cel.Env {
-	mapStrDyn := cel.MapType(cel.StringType, cel.DynType)
-	jsonenvOpts := cel.Function("parseJSON",
-		cel.MemberOverload("parseJSON_string",
-			[]*cel.Type{cel.StringType}, mapStrDyn, cel.UnaryBinding(parseJSONString)))
-	yamlenvOpts := cel.Function("parseYAML",
-		cel.MemberOverload("parseYAML_string",
-			[]*cel.Type{cel.StringType}, mapStrDyn, cel.UnaryBinding(parseYAMLString)))
-	env, err := cel.NewEnv(
-		cel.Declarations(declsList...), jsonenvOpts, yamlenvOpts,
-	)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create CEL environment: %s", err))
-	}
-	return env
-}
-func compileCelExpression(env *cel.Env, expression string) (*cel.Ast, error) {
-	ast, issues := env.Compile(expression)
-	if issues.Err() != nil {
-		return nil, fmt.Errorf("Failed to compile CEL expression: %s", issues.Err())
-	}
-	return ast, nil
-}
-func evaluateCelExpression(env *cel.Env, ast *cel.Ast, resourceMap map[string]interface{}, rule *cmpv1alpha1.CustomRule) v1alpha1.ComplianceCheckResult {
-	evalVars := map[string]interface{}{}
-	ruleResult := v1alpha1.ComplianceCheckResult{
-		ID: rule.Spec.ID,
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      rule.Name,
-			Namespace: rule.Namespace,
-		},
-		Description:  rule.Spec.Description,
-		Rationale:    rule.Spec.Rationale,
-		Severity:     v1alpha1.ComplianceCheckResultSeverity(rule.Spec.Severity),
-		Warnings:     []string{},
-		Instructions: rule.Spec.Instructions,
-		// TODO: populate the values used in the rule
-	}
-	for k, v := range resourceMap {
-		// print debug log
-		DBG("Evaluating variable %s: %v\n", k, v)
-		evalVars[k] = toCelValue(v)
-	}
-	prg, err := env.Program(ast)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create CEL program: %s", err))
-	}
-	out, _, err := prg.Eval(evalVars)
-	if err != nil {
-		if strings.HasPrefix(err.Error(), "no such key") {
-			fmt.Printf("Warning: %s in %s\n", err, rule.Spec.Inputs[0].KubeResource.Resource)
-			ruleResult.Warnings = append(ruleResult.Warnings, fmt.Sprintf("Warning: %s in %s\n", err, rule.Spec.Inputs[0].KubeResource.Resource))
-			ruleResult.Status = v1alpha1.CheckResultFail
-			return ruleResult
-		}
-		// we will only set the rule result to error if the error is not no such key
-		// which means the we were not able to find the resource in the map
-		ruleResult.Status = v1alpha1.CheckResultError
-		panic(fmt.Sprintf("Failed to evaluate CEL expression: %s", err))
-	}
-	// TODO: handle CPE based on platform
-	if out.Value() == false {
-		ruleResult.Warnings = append(ruleResult.Warnings, fmt.Sprintf("Failed to evaluate CEL expression: %s", err))
-		ruleResult.Status = v1alpha1.CheckResultFail
-		fmt.Println(rule.Spec.ErrorMessage)
-	} else {
-		ruleResult.Status = v1alpha1.CheckResultPass
-		fmt.Printf("%s: %v\n", rule.Spec.Title, out)
-	}
-	return ruleResult
-}
-
-func (c *CelScanner) FetchResources(rule *cmpv1alpha1.CustomRule, variables []*cmpv1alpha1.Variable) (map[string]interface{}, []string, error) {
-	figuredResourcePaths, foundMap, variableResultMap, err := c.FigureResources(rule, variables)
-	if err != nil {
-		LOG("Error figuring resources: %v for rule: %s", err, rule.Name)
-		return nil, nil, err
-	}
-
-	found, warnings, err := fetch(context.Background(), getStreamerFn, c.resourceFetcherClients, figuredResourcePaths)
-	if err != nil {
-		return nil, warnings, err
-	}
-	// print the found resources
-	for k, v := range found {
-		LOG("Found resource: %s\n", k)
-		LOG("Resource content: %s\n", v)
-	}
-
-	resultMap := make(map[string]interface{})
-	// loop through the found resources make a map that consist of input name and resource content
-	for k, v := range found {
-		if foundMap[k] != "" {
-			// check if v contains kube resource not found
-			if strings.Contains(string(v), "kube-api-error=NotFound") {
-				// make it a empty resource
-				resultMap[foundMap[k]] = &unstructured.Unstructured{}
-			} else {
-				//chcekc if k contains /, if so, it is a subresource
-				if strings.HasPrefix(k, "/") {
-					// Unmarshal JSON content into an unstructured object
-					result := &unstructured.Unstructured{}
-					err = json.Unmarshal(v, &result)
-					if err != nil {
-						panic(fmt.Sprintf("Failed to parse JSON for %s: %v", k, err))
-					}
-					resultMap[foundMap[k]] = result
-				} else {
-					// Unmarshal JSON content into an unstructured list
-					results := &unstructured.UnstructuredList{}
-					err = json.Unmarshal(v, &results)
-					if err != nil {
-						panic(fmt.Sprintf("Failed to parse JSON from file for %s: %v", k, err))
-					}
-					resultMap[foundMap[k]] = results
-				}
-			}
-		}
-	}
-	// loop through the variableResultMap and add it to the resultMap
-	for k, v := range variableResultMap {
-		resultMap[k] = v
-	}
-
-	DBG("Result map: %v\n", resultMap)
-
-	return resultMap, warnings, nil
-}
-
-// we will find resource and return the resource
-func (c *CelScanner) FigureResources(rule *cmpv1alpha1.CustomRule, variables []*cmpv1alpha1.Variable) ([]utils.ResourcePath, map[string]string, map[string]string, error) {
-	// Initial set of resources to fetch
-	found := []utils.ResourcePath{}
-	foundMap := make(map[string]string)
-	// map variable name to user defined name
-	variableResultMap := make(map[string]string)
-	DBG("Processing rule: %s\n", rule.Name)
-	DBG("Rule inputs: %v\n", rule.Spec.Inputs)
-	for _, universalInput := range rule.Spec.Inputs {
-		input := universalInput.KubeResource
-		gvr := schema.GroupVersionResource{
-			Group:    input.APIGroup,
-			Version:  input.Version,
-			Resource: input.Resource,
-		}
-		// Check if we have any variables set in the tailored profile
-		if variables != nil {
-			for _, variable := range variables {
-				// check if the gvr is the same as the input
-				if gvr.Group == variable.GroupVersionKind().Group && gvr.Version == variable.GroupVersionKind().Version {
-					// check if the resource is the same as the inputvariable.TypeMeta.GetObjectKind() + / + resource name
-					if gvr.Resource == variable.GroupVersionKind().Kind+"/"+variable.Name && input.Namespace == variable.Namespace {
-						variableResultMap[input.Name] = variable.Value
-					}
-				}
-			}
-		}
-		// Derive the resource path using the common function
-		objPath := DeriveResourcePath(gvr, input.Namespace)
-		found = append(found, utils.ResourcePath{
-			ObjPath:  objPath,
-			DumpPath: objPath,
-		})
-		foundMap[objPath] = input.Name
-	}
-
-	DBG("resources: %v\n", found)
-	return found, foundMap, variableResultMap, nil
-}
-
-func saveScanResult(filePath string, resultsList []*v1alpha1.ComplianceCheckResult) {
+func saveScanResult(filePath string, resultsList []*cmpv1alpha1.ComplianceCheckResult) {
 	file, err := os.Create(filePath)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create result file %s: %v", filePath, err))
@@ -695,45 +693,4 @@ func saveScanResult(filePath string, resultsList []*v1alpha1.ComplianceCheckResu
 	if err != nil {
 		panic(fmt.Sprintf("Failed to encode results map to JSON: %v", err))
 	}
-}
-func parseJSONString(val ref.Val) ref.Val {
-	str := val.(types.String)
-	decodedVal := map[string]interface{}{}
-	err := json.Unmarshal([]byte(str), &decodedVal)
-	if err != nil {
-		return types.NewErr("failed to decode '%v' in parseJSON: %w", str, err)
-	}
-	r, err := types.NewRegistry()
-	if err != nil {
-		return types.NewErr("failed to create a new registry in parseJSON: %w", err)
-	}
-	return types.NewDynamicMap(r, decodedVal)
-}
-func parseYAMLString(val ref.Val) ref.Val {
-	str := val.(types.String)
-	decodedVal := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(str), &decodedVal)
-	if err != nil {
-		return types.NewErr("failed to decode '%v' in parseYAML: %w", str, err)
-	}
-	r, err := types.NewRegistry()
-	if err != nil {
-		return types.NewErr("failed to create a new registry in parseYAML: %w", err)
-	}
-	return types.NewDynamicMap(r, decodedVal)
-}
-func toCelValue(u interface{}) interface{} {
-	if unstruct, ok := u.(*unstructured.Unstructured); ok {
-		return unstruct.Object
-	}
-	if unstructList, ok := u.(*unstructured.UnstructuredList); ok {
-		list := []interface{}{}
-		for _, item := range unstructList.Items {
-			list = append(list, item.Object)
-		}
-		return map[string]interface{}{
-			"items": list,
-		}
-	}
-	return nil
 }
