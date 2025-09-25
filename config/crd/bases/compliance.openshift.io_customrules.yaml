@@ -14,7 +14,17 @@ spec:
     singular: customrule
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Status
+      type: string
+    - jsonPath: .spec.severity
+      name: Severity
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: CustomRule is the Schema for the customrules API
@@ -85,7 +95,6 @@ spec:
                 description: Inputs defines the Kubernetes resources that need to
                   be fetched before evaluating the expression
                 items:
-                  nullable: true
                   properties:
                     kubernetesInputSpec:
                       description: KubernetesInputSpec is the specification of the
@@ -160,8 +169,30 @@ spec:
             - title
             type: object
           status:
-            description: Status is intentionally left empty.
+            description: Status contains the validation status and other runtime information
+            properties:
+              errorMessage:
+                description: ErrorMessage contains any validation error message
+                type: string
+              lastValidationTime:
+                description: LastValidationTime is the timestamp of the last validation
+                format: date-time
+                type: string
+              observedGeneration:
+                description: ObservedGeneration represents the .metadata.generation
+                  that the status was set based upon
+                format: int64
+                type: integer
+              phase:
+                description: Phase describes the current phase of the CustomRule (Ready
+                  or Error)
+                enum:
+                - Ready
+                - Error
+                type: string
             type: object
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}

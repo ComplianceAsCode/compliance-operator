@@ -102,12 +102,62 @@ func NewScanner(resourceFetcher ResourceFetcher, logger Logger) *Scanner {
 	}
 }
 
+// ValidateRule validates a rule without executing it
+// This method allows SDK users to validate CEL expressions before deployment
+func (s *Scanner) ValidateRule(rule Rule) ValidationResult {
+	validator := NewRuleValidator(s.logger)
+	return validator.ValidateRule(rule)
+}
+
+// ValidateCELExpression validates a CEL expression with given inputs
+// This is a convenience method for validating just the expression
+func (s *Scanner) ValidateCELExpression(expression string, inputs []Input) error {
+	return CompileCELExpression(expression, inputs)
+}
+
+// ValidateAllRules validates all rules in a ScanConfig without executing them
+// Returns a map of rule ID to ValidationResult for detailed analysis
+func (s *Scanner) ValidateAllRules(config ScanConfig) map[string]ValidationResult {
+	results := make(map[string]ValidationResult)
+
+	for _, rule := range config.Rules {
+		s.logger.Debug("Validating rule: %s (type: %s)", rule.Identifier(), rule.Type())
+		result := s.ValidateRule(rule)
+		results[rule.Identifier()] = result
+
+		if !result.Valid {
+			s.logger.Warn("Rule %s validation failed with %d issues", rule.Identifier(), len(result.Issues))
+		} else {
+			s.logger.Info("Rule %s validation passed", rule.Identifier())
+		}
+	}
+
+	return results
+}
+
+// PreflightCheck performs validation on all rules before scanning
+// Returns true if all rules are valid, false otherwise
+func (s *Scanner) PreflightCheck(config ScanConfig) (bool, map[string]ValidationResult) {
+	validationResults := s.ValidateAllRules(config)
+	allValid := true
+
+	for ruleID, result := range validationResults {
+		if !result.Valid {
+			allValid = false
+			s.logger.Error("Rule %s failed preflight check", ruleID)
+		}
+	}
+
+	return allValid, validationResults
+}
+
 // ScanConfig holds configuration for scanning
 type ScanConfig struct {
-	Rules              []Rule        `json:"rules"`
-	Variables          []CelVariable `json:"variables"`
-	ApiResourcePath    string        `json:"apiResourcePath"`
-	EnableDebugLogging bool          `json:"enableDebugLogging"`
+	Rules                   []Rule        `json:"rules"`
+	Variables               []CelVariable `json:"variables"`
+	ApiResourcePath         string        `json:"apiResourcePath"`
+	EnableDebugLogging      bool          `json:"enableDebugLogging"`
+	ValidateBeforeExecution bool          `json:"validateBeforeExecution"` // Validate rules before running them
 }
 
 // Scan executes compliance checks for the given rules and returns results
@@ -116,6 +166,31 @@ func (s *Scanner) Scan(ctx context.Context, config ScanConfig) ([]CheckResult, e
 
 	for _, rule := range config.Rules {
 		s.logger.Debug("Processing rule: %s (type: %s)", rule.Identifier(), rule.Type())
+
+		// Validate rule before processing (optional but recommended)
+		if config.ValidateBeforeExecution {
+			validationResult := s.ValidateRule(rule)
+			if !validationResult.Valid {
+				s.logger.Warn("Rule %s failed validation: %v", rule.Identifier(), validationResult.Issues)
+				// Create error result with validation details
+				var errorMsgs []string
+				for _, issue := range validationResult.Issues {
+					msg := fmt.Sprintf("%s: %s", issue.Type, issue.Message)
+					if issue.Details != "" {
+						msg += " - " + issue.Details
+					}
+					errorMsgs = append(errorMsgs, msg)
+				}
+				result := CheckResult{
+					ID:           rule.Identifier(),
+					Status:       CheckResultError,
+					Warnings:     append(validationResult.Warnings, errorMsgs...),
+					ErrorMessage: fmt.Sprintf("Rule validation failed: %s", strings.Join(errorMsgs, "; ")),
+				}
+				results = append(results, result)
+				continue
+			}
+		}
 
 		// Check rule type and handle accordingly
 		switch rule.Type() {
@@ -192,15 +267,35 @@ func (s *Scanner) processCelRule(ctx context.Context, rule CelRule, config ScanC
 	// Compile the CEL expression - handle compilation errors gracefully
 	ast, err := s.compileCelExpression(env, rule.Expression())
 	if err != nil {
-		// Create an error result for this rule and continue with next rule
-		result := s.createErrorResultWithContext(rule, warnings, fmt.Sprintf("CEL compilation error: %v", err), resourceMap, config.Variables)
-		s.logger.Error("Failed to compile CEL expression for rule %s: %v", rule.Identifier(), err)
+		// Try to get more detailed error information using validation API
+		detailedError := s.getDetailedCompilationError(rule, err)
+		result := s.createErrorResultWithContext(rule, warnings, detailedError, resourceMap, config.Variables)
+		s.logger.Error("Failed to compile CEL expression for rule %s: %v", rule.Identifier(), detailedError)
 		return result
 	}
 
 	// Evaluate the CEL expression
 	result := s.evaluateCelExpression(env, ast, resourceMap, rule, warnings, config.Variables)
 	return result
+}
+
+// getDetailedCompilationError uses the validation API to get detailed error information
+func (s *Scanner) getDetailedCompilationError(rule Rule, compilationErr error) string {
+	// Use the validation API to get more detailed error information
+	celRule, ok := rule.(CelRule)
+	if !ok {
+		return fmt.Sprintf("CEL compilation error: %v", compilationErr)
+	}
+
+	// Validate the expression to get detailed error info
+	err := s.ValidateCELExpression(celRule.Expression(), rule.Inputs())
+	if err != nil {
+		// The validation API provides more detailed error messages
+		return err.Error()
+	}
+
+	// Fallback to original error if validation doesn't provide more detail
+	return fmt.Sprintf("CEL compilation error: %v", compilationErr)
 }
 
 // createErrorResultWithContext creates a CheckResult with ERROR status and detailed context
@@ -295,18 +390,25 @@ func (s *Scanner) createCelEnvironment(declsList []*expr.Decl) (*cel.Env, error)
 	mapStrDyn := cel.MapType(cel.StringType, cel.DynType)
 
 	jsonenvOpts := cel.Function("parseJSON",
-		cel.MemberOverload("parseJSON_string",
+		cel.Overload("parseJSON_string",
 			[]*cel.Type{cel.StringType}, mapStrDyn, cel.UnaryBinding(parseJSONString)))
 
 	yamlenvOpts := cel.Function("parseYAML",
-		cel.MemberOverload("parseYAML_string",
+		cel.Overload("parseYAML_string",
 			[]*cel.Type{cel.StringType}, mapStrDyn, cel.UnaryBinding(parseYAMLString)))
 
-	env, err := cel.NewEnv(
-		cel.Declarations(declsList...),
+	envOpts := []cel.EnvOption{
+		cel.StdLib(),
 		jsonenvOpts,
 		yamlenvOpts,
-	)
+	}
+
+	// Add variable declarations if provided
+	if len(declsList) > 0 {
+		envOpts = append(envOpts, cel.Declarations(declsList...))
+	}
+
+	env, err := cel.NewEnv(envOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL environment: %v", err)
 	}

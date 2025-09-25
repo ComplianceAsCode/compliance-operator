@@ -213,7 +213,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 
 		// we will not use ProfileBundle for CustomRules
 		if len(customRules) <= 0 {
-			reqLogger.V(1).Info("No Custom Rules found for TailoredProfile", "tailoredProfile", instance.GetName())
+			reqLogger.Info("No Custom Rules found for TailoredProfile", "tailoredProfile", instance.GetName())
 			var pbgetErr error
 			pb, pbgetErr = r.getProfileBundleFromRulesOrVars(instance)
 			if pbgetErr != nil && !common.IsRetriable(pbgetErr) {
