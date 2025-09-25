@@ -5,5 +5,12 @@
   "labels": ["ok-to-test","px-approved","docs-approved","qe-approved"],
   "schedule": [
       "every weekend"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["gomod"],
+      "matchBaseBranches": ["/^release-.*/"],
+      "enabled": false
+    }
   ]
 }
