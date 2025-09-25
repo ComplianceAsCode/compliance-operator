@@ -1,6 +1,9 @@
 package v1alpha1
 
 import (
+	"fmt"
+
+	"github.com/ComplianceAsCode/compliance-sdk/pkg/scanner"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -16,52 +19,54 @@ type InputPayload struct {
 	// The kubernetes resource that will be used as input
 	// +nullable
 	// +optional
-	KubeResource `json:",inline,omitempty"`
+	KubeResource KubeResource `json:",inline,omitempty"`
 }
 
-type InputResourceType string
+// KubernetesInputSpec defines the specification for a Kubernetes resource input
+// This is a concrete implementation compatible with the SDK's KubernetesInputSpec interface
+type KubernetesInputSpec struct {
+	// Group is the API group (e.g., "apps", "" for core resources)
+	// +optional
+	Group string `json:"group,omitempty"`
 
-const (
-	InputResourceTypeKubeResource InputResourceType = "KubeGroupVersionResource"
-	InputResourceTypeUnknown      InputResourceType = "Unknown"
-)
+	// APIVersion is the API version (e.g., "v1", "v1beta1")
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	APIVersion string `json:"apiVersion"`
 
-// ResourceInput defines a Kubernetes resource that will be fetched for CEL evaluation
+	// Resource is the resource type (e.g., "pods", "configmaps")
+	// Use the plural form of the resource
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Resource string `json:"resource"`
+
+	// ResourceNamespace is the namespace to search in
+	// Leave empty for cluster-scoped resources or to search all namespaces
+	// +optional
+	ResourceNamespace string `json:"resourceNamespace,omitempty"`
+
+	// ResourceName is the specific resource name
+	// Leave empty to fetch all resources of this type
+	// +optional
+	ResourceName string `json:"resourceName,omitempty"`
+}
+
 type KubeResource struct {
 	// Name is the variable name used to reference this resource in the CEL expression
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
-	// Type is the type of the resource
 
+	// KubernetesInputSpec is the specification of the Kubernetes resource to fetch
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=KubeGroupVersionResource
-	Type InputResourceType `json:"type"`
-
-	// APIGroup is the Kubernetes API group of the resource
-	// +kubebuilder:validation:Required
-	APIGroup string `json:"apiGroup"`
-
-	// Version is the Kubernetes API version of the resource
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Version string `json:"version"`
-
-	// Resource is the Kubernetes resource type
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Resource string `json:"resource"`
-
-	// Namespace is the Kubernetes namespace of the resource
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
+	KubernetesInputSpec KubernetesInputSpec `json:"kubernetesInputSpec"`
 }
 
 type CELPayload struct {
 
 	// ScannerType specifies what type of check this rule performs
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=CEL;OpenSCAP
+	// +kubebuilder:validation:Enum=CEL
 	ScannerType ScannerType `json:"scannerType"`
 
 	// Expression is the CEL expression to evaluate
@@ -85,18 +90,47 @@ type CustomRuleSpec struct {
 	CELPayload  `json:",inline"`
 }
 
-// CustomRuleStatus is intentionally empty.
-type CustomRuleStatus struct{}
+// CustomRuleStatus defines the observed state of CustomRule
+type CustomRuleStatus struct {
+	// Phase describes the current phase of the CustomRule (Ready or Error)
+	// +kubebuilder:validation:Enum=Ready;Error
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// ErrorMessage contains any validation error message
+	// +optional
+	ErrorMessage string `json:"errorMessage,omitempty"`
+
+	// LastValidationTime is the timestamp of the last validation
+	// +optional
+	LastValidationTime *metav1.Time `json:"lastValidationTime,omitempty"`
+
+	// ObservedGeneration represents the .metadata.generation that the status was set based upon
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+}
+
+// CustomRule phases
+const (
+	// CustomRulePhaseReady means the rule has been validated and is ready for use
+	CustomRulePhaseReady = "Ready"
+	// CustomRulePhaseError means the rule validation failed
+	CustomRulePhaseError = "Error"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:resource:path=customrules,scope=Namespaced
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Severity",type=string,JSONPath=`.spec.severity`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // CustomRule is the Schema for the customrules API
 type CustomRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              CustomRuleSpec `json:"spec,omitempty"`
-	// Status is intentionally left empty.
+	// Status contains the validation status and other runtime information
 	Status CustomRuleStatus `json:"status,omitempty"`
 }
 
@@ -107,6 +141,134 @@ type CustomRuleList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []CustomRule `json:"items"`
+}
+
+// Implement scanner.KubernetesInputSpec interface methods
+// These methods allow KubernetesInputSpec to be used where the SDK interface is expected
+
+// ApiGroup implements scanner.KubernetesInputSpec
+func (k *KubernetesInputSpec) ApiGroup() string {
+	return k.Group
+}
+
+// Version implements scanner.KubernetesInputSpec
+func (k *KubernetesInputSpec) Version() string {
+	return k.APIVersion
+}
+
+// ResourceType implements scanner.KubernetesInputSpec
+func (k *KubernetesInputSpec) ResourceType() string {
+	return k.Resource
+}
+
+// Namespace implements scanner.KubernetesInputSpec
+func (k *KubernetesInputSpec) Namespace() string {
+	return k.ResourceNamespace
+}
+
+// Name implements scanner.KubernetesInputSpec
+func (k *KubernetesInputSpec) Name() string {
+	return k.ResourceName
+}
+
+// Validate implements scanner.InputSpec
+func (k *KubernetesInputSpec) Validate() error {
+	// Validate required fields
+	if k.APIVersion == "" {
+		return fmt.Errorf("apiVersion is required")
+	}
+
+	if k.Resource == "" {
+		return fmt.Errorf("resource is required")
+	}
+
+	return nil
+}
+
+// ToSDKInput converts KubeResource to the SDK's Input interface
+// This helper function bridges between the CRD types and SDK types
+func (kr *KubeResource) ToSDKInput() interface{} {
+	// When you need to use this with the SDK, you can create an adapter
+	// that returns the appropriate SDK Input type
+	// Example usage in your scanner code:
+	// input := &scanner.InputImpl{
+	//     InputName: kr.Name,
+	//     InputType: scanner.InputTypeKubernetes,
+	//     InputSpec: &kr.KubernetesInputSpec,
+	// }
+	return struct {
+		Name string
+		Spec *KubernetesInputSpec
+	}{
+		Name: kr.Name,
+		Spec: &kr.KubernetesInputSpec,
+	}
+}
+
+// ===== Implement scanner.Rule and scanner.CelRule interfaces =====
+// These methods allow CustomRule to be used directly with the SDK scanner
+
+// Identifier implements scanner.Rule
+func (cr *CustomRule) Identifier() string {
+	// Use the rule's Name as the identifier
+	return cr.Name
+}
+
+// Type implements scanner.Rule
+func (cr *CustomRule) Type() scanner.RuleType {
+	// CustomRules are always CEL type
+	return scanner.RuleTypeCEL
+}
+
+// Inputs implements scanner.Rule
+func (cr *CustomRule) Inputs() []scanner.Input {
+	inputs := make([]scanner.Input, 0, len(cr.Spec.CELPayload.Inputs))
+	for _, input := range cr.Spec.CELPayload.Inputs {
+		if input.KubeResource.Name != "" {
+			// Create SDK-compatible input using our concrete struct
+			sdkInput := &scanner.InputImpl{
+				InputName: input.KubeResource.Name,
+				InputType: scanner.InputTypeKubernetes,
+				InputSpec: &input.KubeResource.KubernetesInputSpec,
+			}
+			inputs = append(inputs, sdkInput)
+		}
+	}
+	return inputs
+}
+
+// Metadata implements scanner.Rule
+func (cr *CustomRule) Metadata() *scanner.RuleMetadata {
+	return &scanner.RuleMetadata{
+		Name:        cr.Name,
+		Description: cr.Spec.Description,
+		Extensions: map[string]interface{}{
+			"id":             cr.Spec.ID,
+			"description":    cr.Spec.Description,
+			"title":          cr.Spec.Title,
+			"warning":        cr.Spec.Warning,
+			"checkType":      cr.Spec.CheckType,
+			"availableFixes": cr.Spec.AvailableFixes,
+			"rationale":      cr.Spec.Rationale,
+			"severity":       cr.Spec.Severity,
+			"instructions":   cr.Spec.Instructions,
+		},
+	}
+}
+
+// Content implements scanner.Rule
+func (cr *CustomRule) Content() interface{} {
+	return cr.Spec.CELPayload.Expression
+}
+
+// Expression implements scanner.CelRule
+func (cr *CustomRule) Expression() string {
+	return cr.Spec.CELPayload.Expression
+}
+
+// ErrorMessage returns the error message to display when the rule fails
+func (cr *CustomRule) ErrorMessage() string {
+	return cr.Spec.CELPayload.ErrorMessage
 }
 
 func init() {
