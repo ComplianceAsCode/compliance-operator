@@ -16,10 +16,14 @@ const (
 )
 
 type InputPayload struct {
-	// The kubernetes resource that will be used as input
-	// +nullable
-	// +optional
-	KubeResource KubeResource `json:",inline,omitempty"`
+	// Name is the variable name used to reference this resource in the CEL expression
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// KubernetesInputSpec is the specification of the Kubernetes resource to fetch
+	// +kubebuilder:validation:Required
+	KubernetesInputSpec KubernetesInputSpec `json:"kubernetesInputSpec"`
 }
 
 // KubernetesInputSpec defines the specification for a Kubernetes resource input
@@ -49,17 +53,6 @@ type KubernetesInputSpec struct {
 	// Leave empty to fetch all resources of this type
 	// +optional
 	ResourceName string `json:"resourceName,omitempty"`
-}
-
-type KubeResource struct {
-	// Name is the variable name used to reference this resource in the CEL expression
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
-
-	// KubernetesInputSpec is the specification of the Kubernetes resource to fetch
-	// +kubebuilder:validation:Required
-	KubernetesInputSpec KubernetesInputSpec `json:"kubernetesInputSpec"`
 }
 
 type CELPayload struct {
@@ -185,26 +178,6 @@ func (k *KubernetesInputSpec) Validate() error {
 	return nil
 }
 
-// ToSDKInput converts KubeResource to the SDK's Input interface
-// This helper function bridges between the CRD types and SDK types
-func (kr *KubeResource) ToSDKInput() interface{} {
-	// When you need to use this with the SDK, you can create an adapter
-	// that returns the appropriate SDK Input type
-	// Example usage in your scanner code:
-	// input := &scanner.InputImpl{
-	//     InputName: kr.Name,
-	//     InputType: scanner.InputTypeKubernetes,
-	//     InputSpec: &kr.KubernetesInputSpec,
-	// }
-	return struct {
-		Name string
-		Spec *KubernetesInputSpec
-	}{
-		Name: kr.Name,
-		Spec: &kr.KubernetesInputSpec,
-	}
-}
-
 // ===== Implement scanner.Rule and scanner.CelRule interfaces =====
 // These methods allow CustomRule to be used directly with the SDK scanner
 
@@ -224,12 +197,12 @@ func (cr *CustomRule) Type() scanner.RuleType {
 func (cr *CustomRule) Inputs() []scanner.Input {
 	inputs := make([]scanner.Input, 0, len(cr.Spec.CELPayload.Inputs))
 	for _, input := range cr.Spec.CELPayload.Inputs {
-		if input.KubeResource.Name != "" {
+		if input.Name != "" {
 			// Create SDK-compatible input using our concrete struct
 			sdkInput := &scanner.InputImpl{
-				InputName: input.KubeResource.Name,
+				InputName: input.Name,
 				InputType: scanner.InputTypeKubernetes,
-				InputSpec: &input.KubeResource.KubernetesInputSpec,
+				InputSpec: &input.KubernetesInputSpec,
 			}
 			inputs = append(inputs, sdkInput)
 		}
