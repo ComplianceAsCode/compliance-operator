@@ -1,9 +1,14 @@
 {
   "extends": [
-    "config:base"
+    "config:recommended"
   ],
-  "labels": ["ok-to-test","px-approved","docs-approved","qe-approved"],
+  "labels": [
+    "ok-to-test",
+    "px-approved",
+    "docs-approved",
+    "qe-approved"
+  ],
   "schedule": [
-      "every weekend"
+    "every weekend"
   ]
 }
