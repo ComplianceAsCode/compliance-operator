@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -116,11 +117,14 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 
 	customRules, err := r.getCustomRulesFromSelections(instance)
 	if err != nil && !common.IsRetriable(err) {
-		// the Profile or ProfileBundle objects didn't exist. Surface the error.
+		// the Profile or ProfileBundle objects didn't exist, or CustomRule validation failed. Surface the error.
 		err = r.handleTailoredProfileStatusError(instance, err)
 		return reconcile.Result{}, err
 	} else if err != nil {
-		return reconcile.Result{}, err
+		// This is a retriable error (e.g., CustomRule not ready yet)
+		reqLogger.Info("CustomRules not ready, requeueing", "error", err.Error())
+		// Requeue after a short delay to check again
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	if instance.Spec.Extends != "" {
@@ -209,7 +213,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 
 		// we will not use ProfileBundle for CustomRules
 		if len(customRules) <= 0 {
-			fmt.Printf("No Custom Rules found for TailoredProfile %v", instance.GetName())
+			reqLogger.V(1).Info("No Custom Rules found for TailoredProfile", "tailoredProfile", instance.GetName())
 			var pbgetErr error
 			pb, pbgetErr = r.getProfileBundleFromRulesOrVars(instance)
 			if pbgetErr != nil && !common.IsRetriable(pbgetErr) {
@@ -246,7 +250,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 		}
 
 		if len(customRules) > 0 {
-			fmt.Println("Custom rules detected, skipping ProfileBundle and setting product type to platform")
+			reqLogger.Info("Custom rules detected, skipping ProfileBundle and setting product type to platform")
 			// we are detection custom rules, we will not use ProfileBundle, and at the moment we only support platform type
 
 			needsAnnotation := false
@@ -376,9 +380,12 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 			},
 		}
 
+		// Log successful validation of CustomRules
+		reqLogger.Info("All CustomRules are validated and ready", "count", len(customRules))
+
 		err = r.updateTailoredProfileStatusReady(instance, tpcm)
 		if err != nil {
-			fmt.Printf("Couldn't update TailoredProfile status: %v\n", err)
+			reqLogger.Error(err, "Couldn't update TailoredProfile status")
 			return reconcile.Result{}, err
 		}
 	}
@@ -649,18 +656,13 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 	rules := make(map[string]*cmpv1alpha1.CustomRule, len(tp.Spec.EnableRules)+len(tp.Spec.DisableRules)+len(tp.Spec.ManualRules))
 	ruleKind := cmpv1alpha1.CustomRuleKind
 	for _, selection := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
+		// Skip non-CustomRule selections (Kind must be explicitly set to CustomRule)
 		if selection.Kind != ruleKind {
-			fmt.Println("Skipping selection:", selection.Name, "because it is not of kind", ruleKind)
 			continue
 		}
 		_, ok := rules[selection.Name]
 		if ok {
 			return nil, common.NewNonRetriableCtrlError("Rule '%s' appears twice in selections (enableRules or disableRules or manualRules)", selection.Name)
-		}
-		// make sure all rules have the same scanner type
-		if selection.Kind != "" && selection.Kind != ruleKind {
-			fmt.Println("Skipping selection:", selection.Name, "because it is not of kind", ruleKind)
-			return nil, common.NewNonRetriableCtrlError("Rule '%s' has unsupported Type: %s, we do not support multiple types of rules in a single TailoredProfile", selection.Name, selection.Kind)
 		}
 		rule := &cmpv1alpha1.CustomRule{}
 		ruleKey := types.NamespacedName{Name: selection.Name, Namespace: tp.Namespace}
@@ -675,6 +677,17 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 		// Make sure all CustomRule has ScannerType as CEL as we only support CEL at this time
 		if rule.Spec.ScannerType != cmpv1alpha1.ScannerTypeCEL {
 			return nil, common.NewNonRetriableCtrlError("CustomRule '%s' has unsupported ScannerType: %s", rule.Name, rule.Spec.ScannerType)
+		}
+
+		// Check if the CustomRule is ready (validated)
+		if rule.Status.Phase != cmpv1alpha1.CustomRulePhaseReady {
+			if rule.Status.Phase == cmpv1alpha1.CustomRulePhaseError {
+				return nil, common.NewNonRetriableCtrlError("CustomRule '%s' has validation errors: %s", rule.Name, rule.Status.ErrorMessage)
+			}
+			// If the rule is not ready yet (perhaps still being validated), return a retriable error
+			// This will cause the TailoredProfile to be requeued
+			// Note: plain errors are retriable by default in this codebase
+			return nil, fmt.Errorf("CustomRule '%s' is not ready yet", rule.Name)
 		}
 
 		rules[selection.Name] = rule
@@ -826,7 +839,7 @@ func (r *ReconcileTailoredProfile) ensureOutputObject(tp *cmpv1alpha1.TailoredPr
 		// update status
 		err = r.updateTailoredProfileStatusReady(tp, tpcm)
 		if err != nil {
-			fmt.Printf("Couldn't update TailoredProfile status: %v\n", err)
+			logger.Error(err, "Couldn't update TailoredProfile status")
 			return reconcile.Result{}, err
 		}
 
@@ -848,7 +861,7 @@ func (r *ReconcileTailoredProfile) ensureOutputObject(tp *cmpv1alpha1.TailoredPr
 	update.Data = tpcm.Data
 	err = r.Client.Update(context.TODO(), update)
 	if err != nil {
-		fmt.Printf("Couldn't update TailoredProfile configMap: %v\n", err)
+		logger.Error(err, "Couldn't update TailoredProfile configMap")
 		return reconcile.Result{}, err
 	}
 
