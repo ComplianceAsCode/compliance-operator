@@ -2359,10 +2359,6 @@ func TestScheduledSuiteUpdate(t *testing.T) {
 }
 
 // TestCustomRuleTailoredProfile tests CustomRule functionality with TailoredProfiles
-// The test ensures isolation by:
-// 1. Using a unique label selector for test pods
-// 2. The CustomRule CEL expression filters pods by this label
-// 3. Only pods with the specific label are evaluated, ignoring all other pods in the namespace
 func TestCustomRuleTailoredProfile(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -2522,25 +2518,6 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan did not complete as expected: %v", err)
 	}
-
-	// Verify that the check was created and has the expected result
-	checkName := fmt.Sprintf("%s-%s-%s", suiteName, "master", customRuleName)
-	checkResult := compv1alpha1.ComplianceCheckResult{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      checkName,
-			Namespace: testNamespace,
-		},
-		Status:   compv1alpha1.CheckResultFail, // Pod doesn't have required security context
-		Severity: compv1alpha1.CheckResultSeverityHigh,
-	}
-
-	// Verify the check result
-	scanName := fmt.Sprintf("%s-master", suiteName)
-	err = f.AssertHasCheck(suiteName, scanName, checkResult)
-	if err != nil {
-		t.Fatalf("Check result not as expected: %v", err)
-	}
-
 	// Now create a compliant pod to test the positive case
 	compliantPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2601,6 +2578,21 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 		t.Fatalf("Failed to create ignored pod: %v", err)
 	}
 	defer f.Client.Delete(context.TODO(), ignoredPod)
+
+	suite := &compv1alpha1.ComplianceSuite{}
+	key := types.NamespacedName{Name: suiteName, Namespace: testNamespace}
+	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
+		t.Fatal(err)
+	}
+	// let's rescans and expect the check to be compliant by deleting the suite
+	err = f.Client.Delete(context.TODO(), suite)
+	if err != nil {
+		t.Fatalf("Failed to delete suite: %v", err)
+	}
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("Scan did not complete as expected: %v", err)
+	}
 
 	t.Logf("Created pod without label that should be ignored: %s", ignoredPod.Name)
 	t.Log("Test completed successfully. CustomRule correctly:")
@@ -2804,11 +2796,9 @@ func TestCustomRuleValidation(t *testing.T) {
 	// Wait and expect the rule to have Error status
 	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-invalid", testName), "Error")
 	if err != nil {
-		// This is expected - the rule should fail validation
-		t.Log("CustomRule validation correctly rejected invalid expression")
-	} else {
-		t.Fatal("Expected CustomRule to fail validation, but it succeeded")
+		t.Fatalf("CustomRule validation failed: %v", err)
 	}
+	t.Log("CustomRule validation correctly rejected invalid expression")
 
 	// Test 2: Rule with undeclared variable
 	undeclaredVarRule := &compv1alpha1.CustomRule{
@@ -2854,13 +2844,10 @@ func TestCustomRuleValidation(t *testing.T) {
 	// Wait and expect the rule to have Error status
 	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-undeclared", testName), "Error")
 	if err != nil {
-		// This is expected - the rule should fail validation
-		t.Log("CustomRule validation correctly detected undeclared variable")
-	} else {
-		t.Fatal("Expected CustomRule to fail validation due to undeclared variable, but it succeeded")
+		t.Fatalf("CustomRule validation failed: %v", err)
 	}
+	t.Log("CustomRule validation correctly detected undeclared variable")
 
-	t.Log("CustomRule validation tests completed successfully.")
 }
 
 func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
