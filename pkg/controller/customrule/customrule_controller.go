@@ -79,7 +79,7 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// 2. Validate and compile CEL expression using SDK's RuleBuilder
 	if validationErr == nil {
 		if err := r.validateCELExpressionWithBuilder(rule); err != nil {
-			validationErr = fmt.Errorf("CEL expression validation failed: %w", err)
+			validationErr = err
 		}
 	}
 
@@ -126,12 +126,12 @@ func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) erro
 
 	// Validate each input
 	for i, input := range rule.Spec.CELPayload.Inputs {
-		if input.KubeResource.Name == "" {
+		if input.Name == "" {
 			return fmt.Errorf("input %d has empty variable name", i)
 		}
 
 		// Use the built-in Validate method
-		if err := input.KubeResource.KubernetesInputSpec.Validate(); err != nil {
+		if err := input.KubernetesInputSpec.Validate(); err != nil {
 			return fmt.Errorf("input %d validation failed: %w", i, err)
 		}
 	}
@@ -144,26 +144,35 @@ func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) erro
 	return nil
 }
 
-// validateCELExpressionWithBuilder validates the CEL expression using SDK's RuleBuilder
+// validateCELExpressionWithBuilder validates the CEL expression using SDK's validation
 func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.CustomRule) error {
-	// Create a RuleBuilder to leverage SDK's validation
-	builder := scanner.NewRuleBuilder(rule.Name, scanner.RuleTypeCEL)
-
-	// Add inputs to the builder
+	// Use the SDK's validation functionality directly
+	// Convert CustomRule inputs to SDK inputs for validation
+	inputs := make([]scanner.Input, 0, len(rule.Spec.CELPayload.Inputs))
 	for _, input := range rule.Spec.CELPayload.Inputs {
-		spec := &input.KubeResource.KubernetesInputSpec
+		spec := &input.KubernetesInputSpec
 
 		// Create a Kubernetes input using the SDK's constructor
 		// The CustomRule's KubernetesInputSpec implements the interface
 		sdkInput := &scanner.InputImpl{
-			InputName: input.KubeResource.Name,
+			InputName: input.Name,
 			InputType: scanner.InputTypeKubernetes,
 			InputSpec: spec,
 		}
-		builder.WithInput(sdkInput)
+		inputs = append(inputs, sdkInput)
 	}
 
-	// Set the CEL expression
+	// Use the new validation API to validate the CEL expression
+	err := scanner.CompileCELExpression(rule.Spec.CELPayload.Expression, inputs)
+	if err != nil {
+		return fmt.Errorf("CEL expression validation failed: %w", err)
+	}
+
+	// Also use RuleBuilder for additional validation
+	builder := scanner.NewRuleBuilder(rule.Name, scanner.RuleTypeCEL)
+	for _, input := range inputs {
+		builder.WithInput(input)
+	}
 	builder.SetCelExpression(rule.Spec.CELPayload.Expression)
 
 	// Add metadata if available
@@ -175,10 +184,10 @@ func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.C
 		builder.WithMetadata(metadata)
 	}
 
-	// Try to build the rule - this will validate the basic structure
-	_, err := builder.BuildCelRule()
-	if err != nil {
-		return fmt.Errorf("%w", err)
+	// Try to build the rule - this provides additional structural validation
+	_, buildErr := builder.BuildCelRule()
+	if buildErr != nil {
+		return fmt.Errorf("rule building validation failed: %w", buildErr)
 	}
 
 	return nil
