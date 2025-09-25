@@ -2694,11 +2694,9 @@ func TestCustomRuleValidation(t *testing.T) {
 	// Wait and expect the rule to have Error status
 	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-invalid", testName), "Error")
 	if err != nil {
-		// This is expected - the rule should fail validation
-		t.Log("CustomRule validation correctly rejected invalid expression")
-	} else {
-		t.Fatal("Expected CustomRule to fail validation, but it succeeded")
+		t.Fatalf("CustomRule validation failed: %v", err)
 	}
+	t.Log("CustomRule validation correctly rejected invalid expression")
 
 	// Test 2: Rule with undeclared variable
 	undeclaredVarRule := &compv1alpha1.CustomRule{
@@ -2744,13 +2742,10 @@ func TestCustomRuleValidation(t *testing.T) {
 	// Wait and expect the rule to have Error status
 	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-undeclared", testName), "Error")
 	if err != nil {
-		// This is expected - the rule should fail validation
-		t.Log("CustomRule validation correctly detected undeclared variable")
-	} else {
-		t.Fatal("Expected CustomRule to fail validation due to undeclared variable, but it succeeded")
+		t.Fatalf("CustomRule validation failed: %v", err)
 	}
+	t.Log("CustomRule validation correctly detected undeclared variable")
 
-	t.Log("CustomRule validation tests completed successfully.")
 }
 
 func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
