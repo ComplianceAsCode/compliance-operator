@@ -304,6 +304,30 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 	tp := &compv1alpha1.TailoredProfile{}
 	var profileName string
 
+	if instance.Spec.ScannerType == compv1alpha1.ScannerTypeCEL {
+		tailoredProfiles := &compv1alpha1.TailoredProfileList{}
+		profileGuid := instance.GetLabels()[compv1alpha1.ProfileGuidLabel]
+		if err := r.Client.List(context.TODO(), tailoredProfiles, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
+			logger.Error(err, "Could not list TailoredProfiles", "ComplianceScan", instance.Name)
+			return err
+		}
+		for _, t := range tailoredProfiles.Items {
+			if t.GetLabels()[compv1alpha1.ProfileGuidLabel] == profileGuid {
+				if t.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+					logger.Info("ComplianceScan is running with a deprecated tailored profile", "ComplianceScan", instance.Name, "TailoredProfile", t.Name)
+					r.Recorder.Eventf(
+						instance, corev1.EventTypeWarning, "DeprecatedTailoredProfile",
+						"TailoredProfile %s is deprecated and should be avoided. "+
+							"Please consider using another profile", t.Name)
+				}
+				return nil
+			}
+		}
+		// For CEL scans, we don't need to check ProfileBundles
+		// CEL scans use TailoredProfiles with custom rules, not ProfileBundles
+		return nil
+	}
+
 	if instance.Spec.TailoringConfigMap != nil {
 		// The ComplianceScan references a TailoredProfile
 		tpName := xccdf.GetNameFromXCCDFTailoredProfileID(instance.Spec.Profile)
