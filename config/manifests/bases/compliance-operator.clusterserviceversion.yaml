@@ -1579,5 +1579,5 @@ spec:
   provider:
     name: Red Hat Inc.
     url: www.redhat.com
-  replaces: compliance-operator.v1.7.0
+  replaces: compliance-operator.v1.7.1
   version: 1.7.1
