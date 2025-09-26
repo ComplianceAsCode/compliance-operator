@@ -536,14 +536,30 @@ func (r *ReconcileTailoredProfile) getRulesFromSelections(tp *cmpv1alpha1.Tailor
 	}
 	return rules, nil
 }
-
 func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.TailoredProfile, pb *cmpv1alpha1.ProfileBundle) ([]*cmpv1alpha1.Variable, error) {
-	variableList := []*cmpv1alpha1.Variable{}
-	for _, setValues := range tp.Spec.SetValues {
+	// First pass: Build de-duplicated map of variables, keeping last occurrence when duplicates exist.
+	variables := make(map[string]string)
+
+	for i, setValue := range tp.Spec.SetValues {
+		if oldVal, seen := variables[setValue.Name]; seen {
+			// We found a duplicate. Warn that we will ignore the previous usage.
+			r.Eventf(tp, corev1.EventTypeWarning,
+				"DuplicatedSetValue",
+				"Variable '%s' appears multiple times in setValues. The operator will keep the last usage with value '%s' (position %d), ignoring the previous value '%s'. Specifying a variable multiple times using setValues will fail in a future release. Please remove duplicates from setValues as it introduces ambiguity.",
+				setValue.Name, setValue.Value, i, oldVal)
+		}
+		// Always use the last occurrence's value
+		variables[setValue.Name] = setValue.Value
+	}
+
+	// Second pass: Retrieve Variables from cluster and set their values
+	// Variables are processed in random order (map iteration)
+	variableList := make([]*cmpv1alpha1.Variable, 0, len(variables))
+	for varName, value := range variables {
+		// Grab the Variable from the cluster
 		variable := &cmpv1alpha1.Variable{}
-		varKey := types.NamespacedName{Name: setValues.Name, Namespace: tp.Namespace}
-		err := r.Client.Get(context.TODO(), varKey, variable)
-		if err != nil {
+		varKey := types.NamespacedName{Name: varName, Namespace: tp.Namespace}
+		if err := r.Client.Get(context.TODO(), varKey, variable); err != nil {
 			if kerrors.IsNotFound(err) {
 				return nil, common.NewNonRetriableCtrlError("fetching variable: %w", err)
 			}
@@ -557,8 +573,7 @@ func (r *ReconcileTailoredProfile) getVariablesFromSelections(tp *cmpv1alpha1.Ta
 		}
 
 		// try setting the variable, this also validates the value
-		err = variable.SetValue(setValues.Value)
-		if err != nil {
+		if err := variable.SetValue(value); err != nil {
 			return nil, common.NewNonRetriableCtrlError("setting variable: %s", err)
 		}
 
