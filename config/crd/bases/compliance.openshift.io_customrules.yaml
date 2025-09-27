@@ -1,0 +1,133 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.1
+  name: customrules.compliance.openshift.io
+spec:
+  group: compliance.openshift.io
+  names:
+    kind: CustomRule
+    listKind: CustomRuleList
+    plural: customrules
+    singular: customrule
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CustomRule is the Schema for the customrules API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              description:
+                description: The description of the Rule
+                type: string
+              evaluation:
+                properties:
+                  cel:
+                    description: CEL Evaluation
+                    properties:
+                      errorMessage:
+                        description: ErrorMessage is displayed when the rule evaluation
+                          fails
+                        minLength: 1
+                        type: string
+                      expression:
+                        description: Expression is the CEL expression to evaluate
+                        minLength: 1
+                        type: string
+                      inputs:
+                        description: Inputs defines the Kubernetes resources that
+                          need to be fetched before evaluating the expression
+                        items:
+                          nullable: true
+                          properties:
+                            apiGroup:
+                              description: APIGroup is the Kubernetes API group of
+                                the resource
+                              type: string
+                            name:
+                              description: Name is the variable name used to reference
+                                this resource in the CEL expression
+                              minLength: 1
+                              type: string
+                            namespace:
+                              description: Namespace is the Kubernetes namespace of
+                                the resource
+                              type: string
+                            resource:
+                              description: Resource is the Kubernetes resource type
+                              minLength: 1
+                              type: string
+                            type:
+                              enum:
+                              - KubeGroupVersionResource
+                              type: string
+                            version:
+                              description: Version is the Kubernetes API version of
+                                the resource
+                              minLength: 1
+                              type: string
+                          required:
+                          - apiGroup
+                          - name
+                          - resource
+                          - type
+                          - version
+                          type: object
+                        minItems: 1
+                        type: array
+                    required:
+                    - errorMessage
+                    - expression
+                    - inputs
+                    type: object
+                type: object
+              id:
+                description: The ID of the Rule
+                type: string
+              instructions:
+                description: Instructions for auditing this specific rule
+                type: string
+              rationale:
+                description: The rationale of the Rule
+                type: string
+              severity:
+                description: The severity level
+                type: string
+              title:
+                description: The title of the Rule
+                type: string
+              warning:
+                description: A discretionary warning about the of the Rule
+                type: string
+            required:
+            - evaluation
+            - id
+            - title
+            type: object
+          status:
+            description: Status is intentionally left empty.
+            type: object
+        type: object
+    served: true
+    storage: true
