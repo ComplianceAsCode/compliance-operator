@@ -220,6 +220,11 @@ spec:
       kind: ComplianceSuite
       name: compliancesuites.compliance.openshift.io
       version: v1alpha1
+    - description: CustomRule is the Schema for the customrules API
+      displayName: Custom Rule
+      kind: CustomRule
+      name: customrules.compliance.openshift.io
+      version: v1alpha1
     - description: ProfileBundle is the Schema for the profilebundles API
       displayName: Profile Bundle
       kind: ProfileBundle
