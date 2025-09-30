@@ -2304,7 +2304,7 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 				Description: fmt.Sprintf("Ensures test pods with label customrule-test=%s have proper security context", testLabel),
 				Severity:    "high",
 			},
-			CELPayload: compv1alpha1.CELPayload{
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: fmt.Sprintf(`
 					// Filter only pods with our test label
@@ -2527,7 +2527,7 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 				Description: "Ensures all namespaces have at least one network policy",
 				Severity:    "medium",
 			},
-			CELPayload: compv1alpha1.CELPayload{
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					namespaces.items.all(ns,
@@ -2656,7 +2656,7 @@ func TestCustomRuleValidation(t *testing.T) {
 				Description: "This rule has invalid CEL expression",
 				Severity:    "low",
 			},
-			CELPayload: compv1alpha1.CELPayload{
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					pods.items.all(pod, 
@@ -2703,7 +2703,7 @@ func TestCustomRuleValidation(t *testing.T) {
 				Description: "This rule uses undeclared variables",
 				Severity:    "low",
 			},
-			CELPayload: compv1alpha1.CELPayload{
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					pods.items.all(pod,

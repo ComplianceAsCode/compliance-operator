@@ -26,7 +26,7 @@ type ValueSelection struct {
 type VariablePayload struct {
 	// FIXME: several values are shared with Rule object, maybe create a shared
 	// struct? The shared values are documented in table 5 of the XCCDF spec
-	// The XCCDF ID
+	// The ID of the Rule
 
 	// the ID of the variable
 	ID string `json:"id"`

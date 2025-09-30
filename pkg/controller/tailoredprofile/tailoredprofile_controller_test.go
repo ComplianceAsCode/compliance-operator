@@ -1272,7 +1272,7 @@ var _ = Describe("TailoredprofileController", func() {
 							Description: "A test custom rule",
 							Severity:    "medium",
 						},
-						CELPayload: compv1alpha1.CELPayload{
+						CustomRulePayload: compv1alpha1.CustomRulePayload{
 							ScannerType: compv1alpha1.ScannerTypeCEL,
 							Expression:  "true",
 							Inputs: []compv1alpha1.InputPayload{
@@ -1365,7 +1365,7 @@ var _ = Describe("TailoredprofileController", func() {
 							Description: "A test custom rule with validation error",
 							Severity:    "high",
 						},
-						CELPayload: compv1alpha1.CELPayload{
+						CustomRulePayload: compv1alpha1.CustomRulePayload{
 							ScannerType: compv1alpha1.ScannerTypeCEL,
 							Expression:  "invalid expression",
 							Inputs: []compv1alpha1.InputPayload{
@@ -1456,7 +1456,7 @@ var _ = Describe("TailoredprofileController", func() {
 							Description: "A test custom rule pending validation",
 							Severity:    "low",
 						},
-						CELPayload: compv1alpha1.CELPayload{
+						CustomRulePayload: compv1alpha1.CustomRulePayload{
 							ScannerType: compv1alpha1.ScannerTypeCEL,
 							Expression:  "true",
 							Inputs: []compv1alpha1.InputPayload{
@@ -1596,7 +1596,7 @@ var _ = Describe("TailoredprofileController", func() {
 							Description: "A test custom rule with unsupported scanner",
 							Severity:    "medium",
 						},
-						CELPayload: compv1alpha1.CELPayload{
+						CustomRulePayload: compv1alpha1.CustomRulePayload{
 							ScannerType:  compv1alpha1.ScannerTypeOpenSCAP, // Unsupported for CustomRules
 							Expression:   "true",
 							Inputs:       []compv1alpha1.InputPayload{},

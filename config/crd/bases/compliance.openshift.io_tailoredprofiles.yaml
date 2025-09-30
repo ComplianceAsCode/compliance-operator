@@ -60,7 +60,7 @@ spec:
                     kind:
                       description: |-
                         Type of the rule reference, either "Rule" or "CustomRule"
-                        We will use "Rule" by default if not specified
+                        "Rule" is the default if not specified.
                       type: string
                     name:
                       description: Name of the rule that's being referenced
@@ -83,7 +83,7 @@ spec:
                     kind:
                       description: |-
                         Type of the rule reference, either "Rule" or "CustomRule"
-                        We will use "Rule" by default if not specified
+                        "Rule" is the default if not specified.
                       type: string
                     name:
                       description: Name of the rule that's being referenced
@@ -110,7 +110,7 @@ spec:
                     kind:
                       description: |-
                         Type of the rule reference, either "Rule" or "CustomRule"
-                        We will use "Rule" by default if not specified
+                        "Rule" is the default if not specified.
                       type: string
                     name:
                       description: Name of the rule that's being referenced
@@ -160,7 +160,7 @@ spec:
               errorMessage:
                 type: string
               id:
-                description: The XCCDF ID of the tailored profile
+                description: The ID of the Rule of the tailored profile
                 type: string
               outputRef:
                 description: Points to the generated resource
