@@ -42,7 +42,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Description: "A test rule for validation",
 						Severity:    "medium",
 					},
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						ScannerType: v1alpha1.ScannerTypeCEL,
 						Expression:  "pods.items.all(pod, pod.spec.containers.all(container, container.securityContext.runAsNonRoot == true))",
 						Inputs: []v1alpha1.InputPayload{
@@ -77,7 +77,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Description: "A rule with empty expression",
 						Severity:    "high",
 					},
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						ScannerType:  v1alpha1.ScannerTypeCEL,
 						Expression:   "", // Empty expression
 						Inputs:       []v1alpha1.InputPayload{},
@@ -104,7 +104,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Description: "A rule with multiple inputs",
 						Severity:    "medium",
 					},
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						ScannerType: v1alpha1.ScannerTypeCEL,
 						Expression:  "namespaces.items.all(ns, networkpolicies.items.exists(np, np.metadata.namespace == ns.metadata.name))",
 						Inputs: []v1alpha1.InputPayload{
@@ -147,7 +147,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Description: "A rule with multiple inputs",
 						Severity:    "medium",
 					},
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						ScannerType: v1alpha1.ScannerTypeCEL,
 						Expression:  "namespaces.items.all(ns, networkpolicies-non-existent.items.exists(np, np.metadata.namespace == ns.metadata.name))",
 						Inputs: []v1alpha1.InputPayload{
@@ -190,7 +190,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 						Description: "A rule with missing required fields",
 						Severity:    "medium",
 					},
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						ScannerType: v1alpha1.ScannerTypeCEL,
 						Expression:  "true",
 						Inputs: []v1alpha1.InputPayload{
@@ -285,7 +285,7 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 			name: "Valid structure",
 			rule: &v1alpha1.CustomRule{
 				Spec: v1alpha1.CustomRuleSpec{
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						Expression: "true",
 						Inputs: []v1alpha1.InputPayload{
 							{
@@ -306,7 +306,7 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 			name: "Empty expression",
 			rule: &v1alpha1.CustomRule{
 				Spec: v1alpha1.CustomRuleSpec{
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						Expression: "",
 						Inputs: []v1alpha1.InputPayload{
 							{
@@ -323,7 +323,7 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 			name: "No inputs",
 			rule: &v1alpha1.CustomRule{
 				Spec: v1alpha1.CustomRuleSpec{
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						Expression: "true",
 						Inputs:     []v1alpha1.InputPayload{},
 					},
@@ -336,7 +336,7 @@ func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
 			name: "Input with empty name",
 			rule: &v1alpha1.CustomRule{
 				Spec: v1alpha1.CustomRuleSpec{
-					CELPayload: v1alpha1.CELPayload{
+					CustomRulePayload: v1alpha1.CustomRulePayload{
 						Expression: "true",
 						Inputs: []v1alpha1.InputPayload{
 							{

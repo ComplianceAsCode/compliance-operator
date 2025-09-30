@@ -30,7 +30,7 @@ type RuleReferenceSpec struct {
 	// Rationale of why this rule is being selected/deselected
 	Rationale string `json:"rationale"`
 	// Type of the rule reference, either "Rule" or "CustomRule"
-	// We will use "Rule" by default if not specified
+	// "Rule" is the default if not specified.
 	Kind string `json:"kind,omitempty"`
 }
 
@@ -87,7 +87,7 @@ const (
 
 // TailoredProfileStatus defines the observed state of TailoredProfile
 type TailoredProfileStatus struct {
-	// The XCCDF ID of the tailored profile
+	// The ID of the Rule of the tailored profile
 	ID string `json:"id,omitempty"`
 	// Points to the generated resource
 	OutputRef OutputRef `json:"outputRef,omitempty"`

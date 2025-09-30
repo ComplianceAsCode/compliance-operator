@@ -59,7 +59,7 @@ spec:
             description: The description of the Rule
             type: string
           id:
-            description: The XCCDF ID
+            description: The ID of the Rule
             type: string
           instructions:
             description: Instructions for auditing this specific rule

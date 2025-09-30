@@ -55,9 +55,9 @@ type KubernetesInputSpec struct {
 	ResourceName string `json:"resourceName,omitempty"`
 }
 
-type CELPayload struct {
+type CustomRulePayload struct {
 
-	// ScannerType specifies what type of check this rule performs
+	// ScannerType denotes the scanning implementation to use when evaluating rules
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=CEL
 	ScannerType ScannerType `json:"scannerType"`
@@ -79,8 +79,8 @@ type CELPayload struct {
 }
 
 type CustomRuleSpec struct {
-	RulePayload `json:",inline"`
-	CELPayload  `json:",inline"`
+	RulePayload       `json:",inline"`
+	CustomRulePayload `json:",inline"`
 }
 
 // CustomRuleStatus defines the observed state of CustomRule
@@ -195,8 +195,8 @@ func (cr *CustomRule) Type() scanner.RuleType {
 
 // Inputs implements scanner.Rule
 func (cr *CustomRule) Inputs() []scanner.Input {
-	inputs := make([]scanner.Input, 0, len(cr.Spec.CELPayload.Inputs))
-	for _, input := range cr.Spec.CELPayload.Inputs {
+	inputs := make([]scanner.Input, 0, len(cr.Spec.CustomRulePayload.Inputs))
+	for _, input := range cr.Spec.CustomRulePayload.Inputs {
 		if input.Name != "" {
 			// Create SDK-compatible input using our concrete struct
 			sdkInput := &scanner.InputImpl{
@@ -231,17 +231,17 @@ func (cr *CustomRule) Metadata() *scanner.RuleMetadata {
 
 // Content implements scanner.Rule
 func (cr *CustomRule) Content() interface{} {
-	return cr.Spec.CELPayload.Expression
+	return cr.Spec.CustomRulePayload.Expression
 }
 
 // Expression implements scanner.CelRule
 func (cr *CustomRule) Expression() string {
-	return cr.Spec.CELPayload.Expression
+	return cr.Spec.CustomRulePayload.Expression
 }
 
 // ErrorMessage returns the error message to display when the rule fails
 func (cr *CustomRule) ErrorMessage() string {
-	return cr.Spec.CELPayload.ErrorMessage
+	return cr.Spec.CustomRulePayload.ErrorMessage
 }
 
 func init() {

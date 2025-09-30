@@ -116,16 +116,16 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // validateStructure validates the basic structure of the CustomRule
 func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) error {
-	if rule.Spec.CELPayload.Expression == "" {
+	if rule.Spec.CustomRulePayload.Expression == "" {
 		return fmt.Errorf("CEL expression is empty")
 	}
 
-	if len(rule.Spec.CELPayload.Inputs) == 0 {
+	if len(rule.Spec.CustomRulePayload.Inputs) == 0 {
 		return fmt.Errorf("no inputs defined")
 	}
 
 	// Validate each input
-	for i, input := range rule.Spec.CELPayload.Inputs {
+	for i, input := range rule.Spec.CustomRulePayload.Inputs {
 		if input.Name == "" {
 			return fmt.Errorf("input %d has empty variable name", i)
 		}
@@ -136,7 +136,7 @@ func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) erro
 		}
 	}
 
-	if rule.Spec.CELPayload.ErrorMessage == "" {
+	if rule.Spec.CustomRulePayload.ErrorMessage == "" {
 		// This is a warning, not an error
 		log.Log.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
 	}
@@ -148,8 +148,8 @@ func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) erro
 func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.CustomRule) error {
 	// Use the SDK's validation functionality directly
 	// Convert CustomRule inputs to SDK inputs for validation
-	inputs := make([]scanner.Input, 0, len(rule.Spec.CELPayload.Inputs))
-	for _, input := range rule.Spec.CELPayload.Inputs {
+	inputs := make([]scanner.Input, 0, len(rule.Spec.CustomRulePayload.Inputs))
+	for _, input := range rule.Spec.CustomRulePayload.Inputs {
 		spec := &input.KubernetesInputSpec
 
 		// Create a Kubernetes input using the SDK's constructor
@@ -163,7 +163,7 @@ func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.C
 	}
 
 	// Use the new validation API to validate the CEL expression
-	err := scanner.CompileCELExpression(rule.Spec.CELPayload.Expression, inputs)
+	err := scanner.CompileCELExpression(rule.Spec.CustomRulePayload.Expression, inputs)
 	if err != nil {
 		return fmt.Errorf("CEL expression validation failed: %w", err)
 	}
@@ -173,7 +173,7 @@ func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.C
 	for _, input := range inputs {
 		builder.WithInput(input)
 	}
-	builder.SetCelExpression(rule.Spec.CELPayload.Expression)
+	builder.SetCelExpression(rule.Spec.CustomRulePayload.Expression)
 
 	// Add metadata if available
 	if rule.Spec.Description != "" || rule.Spec.Title != "" {
