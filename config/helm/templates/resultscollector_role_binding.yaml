@@ -1,12 +1,1 @@
----
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: resultscollector
-subjects:
-- kind: ServiceAccount
-  name: resultscollector
-roleRef:
-  kind: Role
-  name: resultscollector
-  apiGroup: rbac.authorization.k8s.io
+../../rbac/resultscollector_role_binding.yaml
