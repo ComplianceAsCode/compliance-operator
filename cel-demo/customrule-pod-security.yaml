@@ -12,6 +12,7 @@ spec:
       pod.spec.securityContext.runAsNonRoot == true
     )
   id: custom_pods_security_context
+  checkType: Platform
   inputs:
     - kubernetesInputSpec:
         apiVersion: v1
