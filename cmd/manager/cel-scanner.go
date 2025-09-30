@@ -333,7 +333,7 @@ func (c *CelScanner) runPlatformScan() {
 			cmdLog.Info("Warning: Skipping nil custom rule")
 			continue
 		}
-		if customRule.Spec.CELPayload.Expression == "" {
+		if customRule.Spec.CustomRulePayload.Expression == "" {
 			cmdLog.Info("Warning: Skipping rule with empty expression", "rule", customRule.Name)
 			continue
 		}
@@ -633,16 +633,16 @@ func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
 		return fmt.Errorf("rule name is empty")
 	}
 
-	if rule.Spec.CELPayload.Expression == "" {
+	if rule.Spec.CustomRulePayload.Expression == "" {
 		return fmt.Errorf("CEL expression is empty")
 	}
 
-	if len(rule.Spec.CELPayload.Inputs) == 0 {
+	if len(rule.Spec.CustomRulePayload.Inputs) == 0 {
 		return fmt.Errorf("rule has no inputs defined")
 	}
 
 	// Validate each input
-	for i, input := range rule.Spec.CELPayload.Inputs {
+	for i, input := range rule.Spec.CustomRulePayload.Inputs {
 		if input.Name == "" {
 			return fmt.Errorf("input %d has empty resource name", i)
 		}
@@ -653,7 +653,7 @@ func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
 		}
 	}
 
-	if rule.Spec.CELPayload.ErrorMessage == "" {
+	if rule.Spec.CustomRulePayload.ErrorMessage == "" {
 		cmdLog.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
 	}
 
