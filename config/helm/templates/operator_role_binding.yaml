@@ -1,11 +1,1 @@
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: compliance-operator
-subjects:
-- kind: ServiceAccount
-  name: compliance-operator
-roleRef:
-  kind: Role
-  name: compliance-operator
-  apiGroup: rbac.authorization.k8s.io
+../../rbac/operator_role_binding.yaml
