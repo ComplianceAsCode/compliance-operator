@@ -121,14 +121,20 @@ spec:
                     rationale:
                       description: Rationale of why this value is being tailored
                       type: string
+                    selection:
+                      description: Selection to choose from predefined variable selections
+                        in the datastream
+                      type: string
                     value:
                       description: Value of the variable being set
                       type: string
                   required:
                   - name
                   - rationale
-                  - value
                   type: object
+                  x-kubernetes-validations:
+                  - message: exactly one of value or selection must be specified
+                    rule: has(self.value) != has(self.selection)
                 nullable: true
                 type: array
               title:

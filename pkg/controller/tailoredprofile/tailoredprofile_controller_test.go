@@ -89,8 +89,23 @@ var _ = Describe("TailoredprofileController", func() {
 					Namespace: namespace,
 				},
 				VariablePayload: compv1alpha1.VariablePayload{
-					ID: fmt.Sprintf("var_%d", i),
+					ID:   fmt.Sprintf("var_%d", i),
+					Type: compv1alpha1.VarTypeString,
 				},
+			}
+
+			// Add selections for var-1 to test selection functionality
+			if i == 1 {
+				v.Selections = []compv1alpha1.ValueSelection{
+					{
+						Description: "default",
+						Value:       "default_value",
+					},
+					{
+						Description: "alternative",
+						Value:       "alt_value",
+					},
+				}
 			}
 
 			// Rules and Variables 1, 2, 3, 4 are owned by pb1
@@ -1247,6 +1262,146 @@ var _ = Describe("TailoredprofileController", func() {
 				By("Has the appropriate error status")
 				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateError))
 				Expect(tp.Status.ErrorMessage).NotTo(BeEmpty())
+			})
+		})
+
+		Context("with variable selection", func() {
+			BeforeEach(func() {
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{
+								Name:      "rule-1",
+								Rationale: "Enable rule for test",
+							},
+						},
+						SetValues: []compv1alpha1.VariableValueSpec{
+							{
+								Name:      "var-1",
+								Rationale: "Using selection for variable value",
+								Selection: "default",
+							},
+						},
+					},
+				}
+
+				createErr := r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+			It("sets the variable value using selection", func() {
+				tpKey := types.NamespacedName{
+					Name:      tpName,
+					Namespace: namespace,
+				}
+				tpReq := reconcile.Request{}
+				tpReq.Name = tpName
+				tpReq.Namespace = namespace
+
+				By("Reconciling the first time (setting ownership)")
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{}
+				geterr := r.Client.Get(ctx, tpKey, tp)
+				Expect(geterr).To(BeNil())
+
+				By("Sets the profile bundle as the owner")
+				ownerRefs := tp.GetOwnerReferences()
+				Expect(ownerRefs).To(HaveLen(1))
+				Expect(ownerRefs[0].Kind).To(Equal("ProfileBundle"))
+
+				By("Reconciling a second time (setting status)")
+				_, err = r.Reconcile(context.TODO(), tpReq)
+
+				tp = &compv1alpha1.TailoredProfile{}
+				geterr = r.Client.Get(ctx, tpKey, tp)
+				Expect(geterr).To(BeNil())
+
+				By("Has the appropriate status")
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateReady))
+				Expect(tp.Status.OutputRef.Name).To(Equal(tp.Name + "-tp"))
+				Expect(tp.Status.OutputRef.Namespace).To(Equal(tp.Namespace))
+
+				By("Generated an appropriate ConfigMap with selection-based value")
+				cm := &corev1.ConfigMap{}
+				cmKey := types.NamespacedName{
+					Name:      tp.Status.OutputRef.Name,
+					Namespace: tp.Status.OutputRef.Namespace,
+				}
+
+				geterr = r.Client.Get(ctx, cmKey, cm)
+				Expect(geterr).To(BeNil())
+				data := cm.Data["tailoring.xml"]
+				// Should set var-1 to "default_value" based on the "default" selection
+				Expect(data).To(ContainSubstring(`set-value idref="var_1">default_value<`))
+			})
+		})
+
+		Context("with both value and selection specified", func() {
+			BeforeEach(func() {
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{
+								Name:      "rule-1",
+								Rationale: "Enable rule for test",
+							},
+						},
+						SetValues: []compv1alpha1.VariableValueSpec{
+							{
+								Name:      "var-1",
+								Rationale: "Testing invalid configuration",
+								Value:     "direct_value",
+								Selection: "default",
+							},
+						},
+					},
+				}
+
+				createErr := r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+			It("reports an error for conflicting value and selection", func() {
+				tpKey := types.NamespacedName{
+					Name:      tpName,
+					Namespace: namespace,
+				}
+				tpReq := reconcile.Request{}
+				tpReq.Name = tpName
+				tpReq.Namespace = namespace
+
+				By("Reconciling the first time (setting ownership)")
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{}
+				geterr := r.Client.Get(ctx, tpKey, tp)
+				Expect(geterr).To(BeNil())
+
+				By("Sets the profile bundle as the owner")
+				ownerRefs := tp.GetOwnerReferences()
+				Expect(ownerRefs).To(HaveLen(1))
+				Expect(ownerRefs[0].Kind).To(Equal("ProfileBundle"))
+
+				By("Reconciling a second time (should hit error)")
+				_, err = r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp = &compv1alpha1.TailoredProfile{}
+				geterr = r.Client.Get(ctx, tpKey, tp)
+				Expect(geterr).To(BeNil())
+
+				By("Has an error status")
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateError))
+				Expect(tp.Status.ErrorMessage).To(ContainSubstring("cannot specify both 'value' and 'selection' fields"))
 			})
 		})
 	})
