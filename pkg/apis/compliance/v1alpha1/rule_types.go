@@ -28,7 +28,7 @@ const (
 )
 
 type RulePayload struct {
-	// The ID of the Rule
+	// The XCCDF ID
 	ID string `json:"id"`
 	// The title of the Rule
 	Title string `json:"title"`
