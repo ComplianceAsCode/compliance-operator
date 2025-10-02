@@ -456,7 +456,7 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 		},
 	}
 	// check if customRule are set, we will only add following when we don't have custom rules
-	scannerType, err := scanInstance.GetScanerTypeIfValid()
+	scannerType, err := scanInstance.GetScannerTypeIfValid()
 	if err != nil {
 		logger.Error(err, "Failed to get scanner type")
 		// we will use default scanner OpenSCAP
