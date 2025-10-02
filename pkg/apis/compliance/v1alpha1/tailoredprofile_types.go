@@ -29,8 +29,9 @@ type RuleReferenceSpec struct {
 	Name string `json:"name"`
 	// Rationale of why this rule is being selected/deselected
 	Rationale string `json:"rationale"`
-	// Type of the rule reference, either "Rule" or "CustomRule"
-	// "Rule" is the default if not specified.
+	// Specifies the type of rule reference: either "Rule" or "CustomRule".
+	// If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+	// when referencing CustomRule resources in TailoredProfiles via enableRules.
 	Kind string `json:"kind,omitempty"`
 }
 
