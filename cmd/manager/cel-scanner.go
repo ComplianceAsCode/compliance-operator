@@ -413,7 +413,7 @@ func (c *CelScanner) runPlatformScan() {
 	}
 
 	// Save the scan result
-	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "result.xml")
+	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "result.json")
 	saveScanResult(outputFilePath, evalResultList)
 
 	// Check if we need to generate ComplianceCheckResult objects
@@ -677,17 +677,18 @@ func (c *CelScanner) getVariablesForTailoredProfile(tp *cmpv1alpha1.TailoredProf
 	return setVars, nil
 }
 
+// saveScanResult saves the scan results to a JSON file with proper indentation
 func saveScanResult(filePath string, resultsList []*cmpv1alpha1.ComplianceCheckResult) {
 	file, err := os.Create(filePath)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create result file %s: %v", filePath, err))
 	}
 	defer file.Close()
-	// serialize the results map to JSON
+	// Serialize the results list to JSON
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	err = encoder.Encode(resultsList)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to encode results map to JSON: %v", err))
+		panic(fmt.Sprintf("Failed to encode results list to JSON: %v", err))
 	}
 }
