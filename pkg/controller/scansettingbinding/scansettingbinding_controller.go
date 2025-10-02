@@ -847,7 +847,23 @@ func suiteNeedsUpdate(have, found *compliancev1alpha1.ComplianceSuite) bool {
 }
 
 func scanSettingBindingStatusNeedsUpdate(ssb *compliancev1alpha1.ScanSettingBinding) bool {
-	return ssb.Status.Conditions.GetCondition("Ready") == nil || ssb.Status.OutputRef == nil || ssb.Status.OutputRef.Name == ""
+	// Check if we need to initialize the condition or set the output reference
+	if ssb.Status.Conditions.GetCondition("Ready") == nil || ssb.Status.OutputRef == nil || ssb.Status.OutputRef.Name == "" {
+		return true
+	}
+
+	// Check if we need to transition from Invalid to Ready
+	// This happens when a TailoredProfile was in error state (making SSB Invalid)
+	// but has now been fixed and is Ready
+	readyCondition := ssb.Status.Conditions.GetCondition("Ready")
+	if readyCondition != nil && readyCondition.Reason == "Invalid" && ssb.Status.Phase == compliancev1alpha1.ScanSettingBindingPhaseInvalid {
+		// The SSB is currently Invalid, but we've passed all the profile checks
+		// (otherwise we would have returned early in the reconcile loop)
+		// So we need to update the status back to Ready
+		return true
+	}
+
+	return false
 }
 
 func scanSettingBindingHasSuspendedCondition(ssb *compliancev1alpha1.ScanSettingBinding) bool {
