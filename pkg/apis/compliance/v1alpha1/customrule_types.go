@@ -72,10 +72,10 @@ type CustomRulePayload struct {
 	// +kubebuilder:validation:MinItems=1
 	Inputs []InputPayload `json:"inputs"`
 
-	// ErrorMessage is displayed when the rule evaluation fails
+	// FailureReason is displayed when the rule evaluation fails
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
-	ErrorMessage string `json:"errorMessage"`
+	FailureReason string `json:"failureReason"`
 }
 
 type CustomRuleSpec struct {
@@ -241,7 +241,7 @@ func (cr *CustomRule) Expression() string {
 
 // ErrorMessage returns the error message to display when the rule fails
 func (cr *CustomRule) ErrorMessage() string {
-	return cr.Spec.CustomRulePayload.ErrorMessage
+	return cr.Spec.CustomRulePayload.FailureReason
 }
 
 func init() {

@@ -80,12 +80,12 @@ spec:
               description:
                 description: The description of the Rule
                 type: string
-              errorMessage:
-                description: ErrorMessage is displayed when the rule evaluation fails
-                minLength: 1
-                type: string
               expression:
                 description: Expression is the CEL expression to evaluate
+                minLength: 1
+                type: string
+              failureReason:
+                description: FailureReason is displayed when the rule evaluation fails
                 minLength: 1
                 type: string
               id:
@@ -162,8 +162,8 @@ spec:
                 description: A discretionary warning about the of the Rule
                 type: string
             required:
-            - errorMessage
             - expression
+            - failureReason
             - id
             - inputs
             - scannerType
