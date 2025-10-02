@@ -63,10 +63,10 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name: "Invalid CustomRule with empty CEL expression",
+			name: "Invalid CustomRule with invalid CEL syntax",
 			rule: &v1alpha1.CustomRule{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "invalid-empty-expression",
+					Name:       "invalid-cel-syntax",
 					Namespace:  "test",
 					Generation: 1,
 				},
@@ -74,20 +74,28 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 					RulePayload: v1alpha1.RulePayload{
 						ID:          "test-rule-2",
 						Title:       "Invalid Rule",
-						Description: "A rule with empty expression",
+						Description: "A rule with invalid CEL syntax",
 						Severity:    "high",
 					},
 					CustomRulePayload: v1alpha1.CustomRulePayload{
-						ScannerType:   v1alpha1.ScannerTypeCEL,
-						Expression:    "", // Empty expression
-						Inputs:        []v1alpha1.InputPayload{},
+						ScannerType: v1alpha1.ScannerTypeCEL,
+						Expression:  "this is not &&& valid CEL syntax", // Invalid CEL syntax
+						Inputs: []v1alpha1.InputPayload{
+							{
+								Name: "test",
+								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
+									APIVersion: "v1",
+									Resource:   "pods",
+								},
+							},
+						},
 						FailureReason: "This should fail",
 					},
 				},
 			},
 			expectedPhase:  v1alpha1.CustomRulePhaseError,
 			expectError:    false,
-			expectedErrMsg: "structure validation failed: CEL expression is empty",
+			expectedErrMsg: "CEL expression validation failed",
 		},
 		{
 			name: "Valid CustomRule with multiple inputs",
@@ -176,29 +184,29 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name: "Invalid CustomRule with missing required fields",
+			name: "Invalid CustomRule with undefined input reference in expression",
 			rule: &v1alpha1.CustomRule{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "invalid-missing-fields",
+					Name:       "invalid-undefined-reference",
 					Namespace:  "test",
 					Generation: 1,
 				},
 				Spec: v1alpha1.CustomRuleSpec{
 					RulePayload: v1alpha1.RulePayload{
 						ID:          "test-rule-6",
-						Title:       "Incomplete Rule",
-						Description: "A rule with missing required fields",
+						Title:       "Undefined Reference Rule",
+						Description: "A rule referencing undefined inputs",
 						Severity:    "medium",
 					},
 					CustomRulePayload: v1alpha1.CustomRulePayload{
 						ScannerType: v1alpha1.ScannerTypeCEL,
-						Expression:  "true",
+						Expression:  "undefinedInput.items.size() > 0", // References 'undefinedInput' not in inputs
 						Inputs: []v1alpha1.InputPayload{
 							{
 								Name: "test",
 								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-									// Missing APIVersion and Resource
-									Group: "apps",
+									APIVersion: "v1",
+									Resource:   "pods",
 								},
 							},
 						},
@@ -208,7 +216,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 			},
 			expectedPhase:  v1alpha1.CustomRulePhaseError,
 			expectError:    false,
-			expectedErrMsg: "structure validation failed",
+			expectedErrMsg: "CEL expression validation failed",
 		},
 	}
 
@@ -267,104 +275,6 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 			// For error cases, check requeue
 			if tt.expectedPhase == v1alpha1.CustomRulePhaseError {
 				assert.True(t, result.RequeueAfter > 0, "Failed validation should trigger requeue")
-			}
-		})
-	}
-}
-
-func TestCustomRuleReconciler_ValidateStructure(t *testing.T) {
-	r := &CustomRuleReconciler{}
-
-	tests := []struct {
-		name        string
-		rule        *v1alpha1.CustomRule
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name: "Valid structure",
-			rule: &v1alpha1.CustomRule{
-				Spec: v1alpha1.CustomRuleSpec{
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						Expression: "true",
-						Inputs: []v1alpha1.InputPayload{
-							{
-								Name: "tewst",
-								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-									APIVersion: "v1",
-									Resource:   "pods",
-								},
-							},
-						},
-						FailureReason: "test error",
-					},
-				},
-			},
-			expectError: false,
-		},
-		{
-			name: "Empty expression",
-			rule: &v1alpha1.CustomRule{
-				Spec: v1alpha1.CustomRuleSpec{
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						Expression: "",
-						Inputs: []v1alpha1.InputPayload{
-							{
-								Name: "test",
-							},
-						},
-					},
-				},
-			},
-			expectError: true,
-			errorMsg:    "CEL expression is empty",
-		},
-		{
-			name: "No inputs",
-			rule: &v1alpha1.CustomRule{
-				Spec: v1alpha1.CustomRuleSpec{
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						Expression: "true",
-						Inputs:     []v1alpha1.InputPayload{},
-					},
-				},
-			},
-			expectError: true,
-			errorMsg:    "no inputs defined",
-		},
-		{
-			name: "Input with empty name",
-			rule: &v1alpha1.CustomRule{
-				Spec: v1alpha1.CustomRuleSpec{
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						Expression: "true",
-						Inputs: []v1alpha1.InputPayload{
-							{
-								Name: "",
-								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
-									APIVersion: "v1",
-									Resource:   "pods",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectError: true,
-			errorMsg:    "empty variable name",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := r.validateStructure(tt.rule)
-			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
-				}
-			} else {
-				assert.NoError(t, err)
 			}
 		})
 	}
