@@ -99,9 +99,9 @@ func NewCelScanner(scheme *runtime.Scheme, client runtimeclient.Client, clientSe
 	if client != nil && clientSet != nil {
 		kubeFetcher := fetchers.NewKubernetesFetcher(client, clientSet)
 		compositeFetcher.RegisterCustomFetcher(scanner.InputTypeKubernetes, kubeFetcher)
-	} else if config.ApiResourcePath != "" {
-		// If we have an API resource path, configure file-based fetching
-		fileFetcher := fetchers.NewKubernetesFileFetcher(config.ApiResourcePath)
+	} else if config.ApiResourceCacheDir != "" {
+		// If we have an API resource cache directory, configure file-based fetching
+		fileFetcher := fetchers.NewKubernetesFileFetcher(config.ApiResourceCacheDir)
 		compositeFetcher.RegisterCustomFetcher(scanner.InputTypeKubernetes, fileFetcher)
 	}
 
@@ -201,14 +201,14 @@ func init() {
 }
 
 type celConfig struct {
-	Tailoring       string
-	CheckResultDir  string
-	Profile         string
-	ApiResourcePath string
-	ScanType        string
-	CCRGeneration   bool
-	ScanName        string
-	NameSpace       string
+	Tailoring           string
+	CheckResultDir      string
+	Profile             string
+	ApiResourceCacheDir string
+	ScanType            string
+	CCRGeneration       bool
+	ScanName            string
+	NameSpace           string
 }
 
 func defineCelScannerFlags(cmd *cobra.Command) {
@@ -243,7 +243,7 @@ func parseCelScannerConfig(cmd *cobra.Command) *celConfig {
 		conf.Tailoring = tailoredProfileName
 	}
 	if apiResourceDir != "" {
-		conf.ApiResourcePath = apiResourceDir
+		conf.ApiResourceCacheDir = apiResourceDir
 	}
 	if ccrGeneration == "true" {
 		conf.CCRGeneration = true
@@ -341,10 +341,11 @@ func (c *CelScanner) runPlatformScan() {
 	}
 
 	// Create scan configuration
+	// Note: ApiResourcePath in the SDK expects the cache directory path
 	scanConfig := scanner.ScanConfig{
 		Rules:              sdkRules,
 		Variables:          celVariables,
-		ApiResourcePath:    c.celConfig.ApiResourcePath,
+		ApiResourcePath:    c.celConfig.ApiResourceCacheDir,
 		EnableDebugLogging: debugLog,
 	}
 
