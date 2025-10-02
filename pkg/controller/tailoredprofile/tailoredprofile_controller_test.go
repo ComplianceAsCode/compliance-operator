@@ -1285,7 +1285,7 @@ var _ = Describe("TailoredprofileController", func() {
 									},
 								},
 							},
-							ErrorMessage: "Test error",
+							FailureReason: "Test error",
 						},
 					},
 					Status: compv1alpha1.CustomRuleStatus{
@@ -1378,7 +1378,7 @@ var _ = Describe("TailoredprofileController", func() {
 									},
 								},
 							},
-							ErrorMessage: "Test error",
+							FailureReason: "Test error",
 						},
 					},
 					Status: compv1alpha1.CustomRuleStatus{
@@ -1469,7 +1469,7 @@ var _ = Describe("TailoredprofileController", func() {
 									},
 								},
 							},
-							ErrorMessage: "Test error",
+							FailureReason: "Test error",
 						},
 					},
 					Status: compv1alpha1.CustomRuleStatus{
@@ -1597,10 +1597,10 @@ var _ = Describe("TailoredprofileController", func() {
 							Severity:    "medium",
 						},
 						CustomRulePayload: compv1alpha1.CustomRulePayload{
-							ScannerType:  compv1alpha1.ScannerTypeOpenSCAP, // Unsupported for CustomRules
-							Expression:   "true",
-							Inputs:       []compv1alpha1.InputPayload{},
-							ErrorMessage: "Test error",
+							ScannerType:   compv1alpha1.ScannerTypeOpenSCAP, // Unsupported for CustomRules
+							Expression:    "true",
+							Inputs:        []compv1alpha1.InputPayload{},
+							FailureReason: "Test error",
 						},
 					},
 					Status: compv1alpha1.CustomRuleStatus{

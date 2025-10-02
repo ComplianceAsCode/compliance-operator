@@ -653,7 +653,7 @@ func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
 		}
 	}
 
-	if rule.Spec.CustomRulePayload.ErrorMessage == "" {
+	if rule.Spec.CustomRulePayload.FailureReason == "" {
 		cmdLog.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
 	}
 
