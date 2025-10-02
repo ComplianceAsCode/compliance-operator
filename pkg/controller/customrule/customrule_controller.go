@@ -68,19 +68,11 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	// Perform validation
+	// Validate and compile CEL expression using SDK's RuleBuilder
+	// Basic field validation is already handled by kubebuilder annotations
 	var validationErr error
-
-	// 1. Validate basic structure
-	if err := r.validateStructure(rule); err != nil {
-		validationErr = fmt.Errorf("structure validation failed: %w", err)
-	}
-
-	// 2. Validate and compile CEL expression using SDK's RuleBuilder
-	if validationErr == nil {
-		if err := r.validateCELExpressionWithBuilder(rule); err != nil {
-			validationErr = err
-		}
+	if err := r.validateCELExpressionWithBuilder(rule); err != nil {
+		validationErr = err
 	}
 
 	// Update status based on validation results
@@ -112,36 +104,6 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// validateStructure validates the basic structure of the CustomRule
-func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) error {
-	if rule.Spec.CustomRulePayload.Expression == "" {
-		return fmt.Errorf("CEL expression is empty")
-	}
-
-	if len(rule.Spec.CustomRulePayload.Inputs) == 0 {
-		return fmt.Errorf("no inputs defined")
-	}
-
-	// Validate each input
-	for i, input := range rule.Spec.CustomRulePayload.Inputs {
-		if input.Name == "" {
-			return fmt.Errorf("input %d has empty variable name", i)
-		}
-
-		// Use the built-in Validate method
-		if err := input.KubernetesInputSpec.Validate(); err != nil {
-			return fmt.Errorf("input %d validation failed: %w", i, err)
-		}
-	}
-
-	if rule.Spec.CustomRulePayload.FailureReason == "" {
-		// This is a warning, not an error
-		log.Log.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
-	}
-
-	return nil
 }
 
 // validateCELExpressionWithBuilder validates the CEL expression using SDK's validation
