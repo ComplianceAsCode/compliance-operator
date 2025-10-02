@@ -28,8 +28,6 @@ kind: TailoredProfile
 metadata:
   name: custom-security-checks
   namespace: openshift-compliance
-  labels:
-    compliance.openshift.io/profile-guid: d93a81af-a09d-5c5a-88c6-6afb9e59ea9b
 spec:
   description: Custom security compliance profile using CEL-based CustomRules
   enableRules:
