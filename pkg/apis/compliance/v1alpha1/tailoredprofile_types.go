@@ -87,7 +87,7 @@ const (
 
 // TailoredProfileStatus defines the observed state of TailoredProfile
 type TailoredProfileStatus struct {
-	// The ID of the Rule of the tailored profile
+	// The XCCDF ID of the tailored profile
 	ID string `json:"id,omitempty"`
 	// Points to the generated resource
 	OutputRef OutputRef `json:"outputRef,omitempty"`
