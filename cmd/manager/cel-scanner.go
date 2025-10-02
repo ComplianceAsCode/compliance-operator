@@ -466,7 +466,7 @@ func (c *CelScanner) runPlatformScan() {
 			foundCheckResult.TypeMeta = pr.TypeMeta
 			cmdLog.Info("Getting ComplianceCheckResult", "ComplianceCheckResult.Name", crkey.Name,
 				"ComplianceCheckResult.Namespace", crkey.Namespace)
-			checkResultExists := getObjectIfFoundCEL(c.client, crkey, foundCheckResult)
+			checkResultExists := utils.GetObjectIfFound(c.client, crkey, foundCheckResult)
 			if checkResultExists {
 				foundCheckResult.ObjectMeta.DeepCopyInto(&pr.ObjectMeta)
 			} else if !scan.Spec.ShowNotApplicable && pr.Status == cmpv1alpha1.CheckResultNotApplicable {
@@ -509,27 +509,6 @@ func (c *CelScanner) runPlatformScan() {
 	// The actual compliance status is saved in the exit_code file and results
 	cmdLog.Info("CEL scan completed successfully", "complianceExitCode", exitCode)
 	os.Exit(0) // Always exit with 0 for successful scan completion
-}
-
-// Returns whether or not an object exists, and updates the data in the obj.
-func getObjectIfFoundCEL(crClient runtimeclient.Client, key v1api.NamespacedName, obj runtimeclient.Object) bool {
-	var found bool
-	err := backoff.Retry(func() error {
-		err := crClient.Get(context.TODO(), key, obj)
-		if errors.IsNotFound(err) {
-			return nil
-		} else if err != nil {
-			cmdLog.Error(err, "Retrying with a backoff because of an error while getting object")
-			return err
-		}
-		found = true
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
-
-	if err != nil {
-		cmdLog.Error(err, "Couldn't get object", "Name", key.Name, "Namespace", key.Namespace)
-	}
-	return found
 }
 
 func createOrUpdateResult(crClient runtimeclient.Client, owner metav1.Object, labels map[string]string, annotations map[string]string, exists bool, res compResultIface) error {
