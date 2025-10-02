@@ -2409,7 +2409,7 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 		},
 		Spec: compv1alpha1.CustomRuleSpec{
 			RulePayload: compv1alpha1.RulePayload{
-				ID:          fmt.Sprintf("custom_pods_security_context_%s", testName),
+				ID:          "custom_pods_security_context",
 				Title:       "Test Pods Must Have Security Context",
 				Description: fmt.Sprintf("Ensures test pods with label customrule-test=%s have proper security context", testLabel),
 				Severity:    "high",
