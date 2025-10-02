@@ -136,7 +136,7 @@ func (r *CustomRuleReconciler) validateStructure(rule *v1alpha1.CustomRule) erro
 		}
 	}
 
-	if rule.Spec.CustomRulePayload.ErrorMessage == "" {
+	if rule.Spec.CustomRulePayload.FailureReason == "" {
 		// This is a warning, not an error
 		log.Log.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
 	}

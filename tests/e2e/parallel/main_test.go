@@ -2370,7 +2370,7 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 						},
 					},
 				},
-				ErrorMessage: fmt.Sprintf("Test pod(s) with label customrule-test=%s found without proper security context (runAsNonRoot must be true)", testLabel),
+				FailureReason: fmt.Sprintf("Test pod(s) with label customrule-test=%s found without proper security context (runAsNonRoot must be true)", testLabel),
 			},
 		},
 	}
@@ -2598,7 +2598,7 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 						},
 					},
 				},
-				ErrorMessage: "Namespace(s) found without network policies",
+				FailureReason: "Namespace(s) found without network policies",
 			},
 		},
 	}
@@ -2714,7 +2714,7 @@ func TestCustomRuleValidation(t *testing.T) {
 						},
 					},
 				},
-				ErrorMessage: "This should fail validation",
+				FailureReason: "This should fail validation",
 			},
 		},
 	}
@@ -2762,7 +2762,7 @@ func TestCustomRuleValidation(t *testing.T) {
 					},
 					// 'deployments' is used but not declared as input
 				},
-				ErrorMessage: "This should fail validation due to undeclared variable",
+				FailureReason: "This should fail validation due to undeclared variable",
 			},
 		},
 	}
