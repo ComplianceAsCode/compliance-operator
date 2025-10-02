@@ -5,7 +5,7 @@ metadata:
   namespace: openshift-compliance
 spec:
   description: Ensures all pods have a security context defined with runAsNonRoot set to true
-  errorMessage: Pod(s) found without proper security context (runAsNonRoot must be true)
+  failureReason: Pod(s) found without proper security context (runAsNonRoot must be true)
   expression: |
     pods.items.all(pod,
       pod.spec.securityContext != null &&
