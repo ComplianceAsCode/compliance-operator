@@ -220,7 +220,8 @@ spec:
       kind: ComplianceSuite
       name: compliancesuites.compliance.openshift.io
       version: v1alpha1
-    - description: CustomRule is the Schema for the customrules API
+    - description: CustomRule represents a rule that can be used with TailoredProfiles
+        to execute arbitrary checks against the cluster.
       displayName: Custom Rule
       kind: CustomRule
       name: customrules.compliance.openshift.io

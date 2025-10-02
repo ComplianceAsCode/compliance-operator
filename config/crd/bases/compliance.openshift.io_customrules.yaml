@@ -27,7 +27,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: CustomRule is the Schema for the customrules API
+        description: CustomRule represents a rule that can be used with TailoredProfiles
+          to execute arbitrary checks against the cluster.
         properties:
           apiVersion:
             description: |-

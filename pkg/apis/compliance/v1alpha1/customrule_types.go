@@ -118,7 +118,7 @@ const (
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Severity",type=string,JSONPath=`.spec.severity`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// CustomRule is the Schema for the customrules API
+// CustomRule represents a rule that can be used with TailoredProfiles to execute arbitrary checks against the cluster.
 type CustomRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
