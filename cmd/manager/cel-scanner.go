@@ -178,8 +178,8 @@ func (a *ComplianceFetcherAdapter) FetchResources(ctx context.Context, rule scan
 	return resources, warnings, err
 }
 
-// getCelScannerClient builds a controller-runtime client from the standard rest.Config.
-func getCelScannerClient(config *rest.Config, scheme *runtime.Scheme) (runtimeclient.Client, error) {
+// getRuntimeClient builds a controller-runtime client from the standard rest.Config.
+func getRuntimeClient(config *rest.Config, scheme *runtime.Scheme) (runtimeclient.Client, error) {
 	client, err := runtimeclient.New(config, runtimeclient.Options{
 		Scheme: scheme,
 	})
@@ -262,7 +262,7 @@ func runCelScanner(cmd *cobra.Command, args []string) {
 		cmdLog.Error(err, "Error building kubeClientSet")
 		os.Exit(CelExitCodeError)
 	}
-	client, err := getCelScannerClient(restConfig, scheme)
+	client, err := getRuntimeClient(restConfig, scheme)
 	if err != nil {
 		cmdLog.Error(err, "Error building client")
 		os.Exit(CelExitCodeError)
