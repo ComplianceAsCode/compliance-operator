@@ -59,8 +59,9 @@ spec:
                   properties:
                     kind:
                       description: |-
-                        Type of the rule reference, either "Rule" or "CustomRule"
-                        "Rule" is the default if not specified.
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
                       type: string
                     name:
                       description: Name of the rule that's being referenced
@@ -82,8 +83,9 @@ spec:
                   properties:
                     kind:
                       description: |-
-                        Type of the rule reference, either "Rule" or "CustomRule"
-                        "Rule" is the default if not specified.
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
                       type: string
                     name:
                       description: Name of the rule that's being referenced
@@ -109,8 +111,9 @@ spec:
                   properties:
                     kind:
                       description: |-
-                        Type of the rule reference, either "Rule" or "CustomRule"
-                        "Rule" is the default if not specified.
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
                       type: string
                     name:
                       description: Name of the rule that's being referenced
