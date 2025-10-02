@@ -379,9 +379,9 @@ func (cs *ComplianceScan) GetScanTypeIfValid() (ComplianceScanType, error) {
 	return "", ErrUnkownScanType
 }
 
-// GetScanerTypeIfValid returns scaner type we will be using if the scan has a valid one, else it returns
+// GetScannerTypeIfValid returns scaner type we will be using if the scan has a valid one, else it returns
 // an error
-func (cs *ComplianceScan) GetScanerTypeIfValid() (ScannerType, error) {
+func (cs *ComplianceScan) GetScannerTypeIfValid() (ScannerType, error) {
 	if strings.ToLower(string(cs.Spec.ScannerType)) == strings.ToLower(string(ScannerTypeOpenSCAP)) {
 		return ScannerTypeOpenSCAP, nil
 	}
@@ -404,7 +404,7 @@ func (cs *ComplianceScan) GetScanType() ComplianceScanType {
 
 // GetScannerType will get the scanner type for a scan
 func (cs *ComplianceScan) GetScannerType() ScannerType {
-	scannertype, err := cs.GetScanerTypeIfValid()
+	scannertype, err := cs.GetScannerTypeIfValid()
 	if err != nil {
 		// This shouldn't happen
 		panic(err)
