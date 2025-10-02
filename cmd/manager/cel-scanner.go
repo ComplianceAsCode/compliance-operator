@@ -444,6 +444,7 @@ func (c *CelScanner) runPlatformScan() {
 		err = c.client.List(context.TODO(), &complianceCheckResults, &lo)
 		if err != nil {
 			cmdLog.Error(err, "Cannot list ComplianceCheckResults", "ComplianceScan.Name", scan.Name)
+			os.Exit(CelExitCodeError)
 		}
 		for _, r := range complianceCheckResults.Items {
 			staleComplianceCheckResults[r.Name] = r
@@ -474,6 +475,7 @@ func (c *CelScanner) runPlatformScan() {
 			// check is owned by the scan
 			if err := createOrUpdateResult(c.client, scan, checkResultLabels, checkResultAnnotations, checkResultExists, pr); err != nil {
 				cmdLog.Error(err, "Cannot create or update checkResult", "ComplianceCheckResult.Name", pr.Name)
+				os.Exit(CelExitCodeError)
 			}
 
 			// Remove the ComplianceCheckResult from the list of stale results
@@ -488,6 +490,7 @@ func (c *CelScanner) runPlatformScan() {
 			err := c.client.Delete(context.TODO(), &result)
 			if err != nil {
 				cmdLog.Error(err, "Unable to delete stale ComplianceCheckResult", "name", result.Name)
+				os.Exit(CelExitCodeError)
 			}
 		}
 	}
