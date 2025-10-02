@@ -2409,7 +2409,7 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 		},
 		Spec: compv1alpha1.CustomRuleSpec{
 			RulePayload: compv1alpha1.RulePayload{
-				ID:          "custom_pods_security_context",
+				ID:          customRuleName,
 				Title:       "Test Pods Must Have Security Context",
 				Description: fmt.Sprintf("Ensures test pods with label customrule-test=%s have proper security context", testLabel),
 				Severity:    "high",
@@ -2601,7 +2601,7 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 		},
 		Spec: compv1alpha1.CustomRuleSpec{
 			RulePayload: compv1alpha1.RulePayload{
-				ID:          fmt.Sprintf("custom_network_policy_%s", testName),
+				ID:          customRuleName,
 				Title:       "Namespaces Must Have Network Policies",
 				Description: "Ensures all namespaces have at least one network policy",
 				Severity:    "medium",
@@ -2737,7 +2737,7 @@ func TestCustomRuleValidation(t *testing.T) {
 		},
 		Spec: compv1alpha1.CustomRuleSpec{
 			RulePayload: compv1alpha1.RulePayload{
-				ID:          fmt.Sprintf("custom_invalid_%s", testName),
+				ID:          fmt.Sprintf("%s-invalid", testName),
 				Title:       "Invalid Rule",
 				Description: "This rule has invalid CEL expression",
 				Severity:    "low",
@@ -2784,7 +2784,7 @@ func TestCustomRuleValidation(t *testing.T) {
 		},
 		Spec: compv1alpha1.CustomRuleSpec{
 			RulePayload: compv1alpha1.RulePayload{
-				ID:          fmt.Sprintf("custom_undeclared_%s", testName),
+				ID:          fmt.Sprintf("%s-undeclared", testName),
 				Title:       "Undeclared Variable Rule",
 				Description: "This rule uses undeclared variables",
 				Severity:    "low",
@@ -2824,6 +2824,214 @@ func TestCustomRuleValidation(t *testing.T) {
 	}
 	t.Log("CustomRule validation correctly detected undeclared variable")
 
+}
+
+func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	testNamespace := f.OperatorNamespace
+	customRuleName := fmt.Sprintf("%s-cel", testName)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+
+	// Step 1: Create a valid CustomRule
+	validRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      customRuleName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          customRuleName,
+				Title:       "Pods Must Have Security Context",
+				Description: "Ensures all pods have security context defined with runAsNonRoot set to true",
+				Severity:    "medium",
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeCEL,
+				Expression: `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)
+				`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "pods",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "pods",
+						},
+					},
+				},
+				FailureReason: "Pod(s) found without resource limits",
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), validRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), validRule)
+
+	// Wait for CustomRule to be validated and ready
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+	t.Logf("CustomRule %s is ready", customRuleName)
+
+	// Step 2: Create TailoredProfile with CustomRule
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Cascading Test Profile",
+			Description: "Test profile for cascading status updates",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      customRuleName,
+					Kind:      "CustomRule",
+					Rationale: "Pods should have resource limits for stability",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	// Wait for TailoredProfile to be ready
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("TailoredProfile failed to become ready: %v", err)
+	}
+	t.Logf("TailoredProfile %s is ready", tpName)
+
+	// Step 3: Create ScanSettingBinding
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for ScanSettingBinding to become ready
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("Failed waiting for ScanSettingBinding to become ready: %v", err)
+	}
+	t.Logf("ScanSettingBinding %s is ready", ssbName)
+
+	// Step 4: Update CustomRule with invalid expression
+	t.Log("Updating CustomRule with invalid expression")
+
+	// Fetch the current rule
+	currentRule := &compv1alpha1.CustomRule{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: customRuleName, Namespace: testNamespace}, currentRule)
+	if err != nil {
+		t.Fatalf("Failed to get CustomRule: %v", err)
+	}
+
+	// Update with invalid expression
+	currentRule.Spec.CustomRulePayload.Expression = `podsx.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
+
+	err = f.Client.Update(context.TODO(), currentRule)
+	if err != nil {
+		t.Fatalf("Failed to update CustomRule: %v", err)
+	}
+
+	// Step 5: Wait for cascading error states
+	t.Log("Waiting for cascading error states...")
+
+	// CustomRule should go to Error state
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Error")
+	if err != nil {
+		t.Fatalf("CustomRule did not enter Error state: %v", err)
+	}
+	t.Logf("CustomRule %s is now in Error state", customRuleName)
+
+	// TailoredProfile should go to Error state
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpName, compv1alpha1.TailoredProfileStateError)
+	if err != nil {
+		t.Fatalf("TailoredProfile did not enter Error state: %v", err)
+	}
+	t.Logf("TailoredProfile %s is now in Error state", tpName)
+
+	// ScanSettingBinding should go to Invalid state
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseInvalid)
+	if err != nil {
+		t.Fatalf("ScanSettingBinding did not enter Invalid state: %v", err)
+	}
+	t.Logf("ScanSettingBinding %s is now in Invalid state", ssbName)
+
+	// Step 6: Fix the CustomRule expression
+	t.Log("Fixing CustomRule expression")
+
+	// Fetch the current rule again
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: customRuleName, Namespace: testNamespace}, currentRule)
+	if err != nil {
+		t.Fatalf("Failed to get CustomRule: %v", err)
+	}
+
+	// Update with a valid but different expression to ensure change is detected
+	currentRule.Spec.CustomRulePayload.Expression = `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
+
+	err = f.Client.Update(context.TODO(), currentRule)
+	if err != nil {
+		t.Fatalf("Failed to update CustomRule with fix: %v", err)
+	}
+
+	// Step 7: Wait for everything to recover
+	t.Log("Waiting for resources to recover to good state...")
+
+	// CustomRule should go back to Ready state
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule did not recover to Ready state: %v", err)
+	}
+	t.Logf("CustomRule %s recovered to Ready state", customRuleName)
+
+	// TailoredProfile should go back to Ready state
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("TailoredProfile did not recover to Ready state: %v", err)
+	}
+	t.Logf("TailoredProfile %s recovered to Ready state", tpName)
+
+	// ScanSettingBinding should go back to Ready state
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("ScanSettingBinding did not recover to Ready state: %v", err)
+	}
+	t.Logf("ScanSettingBinding %s recovered to Ready state", ssbName)
+
+	t.Log("CustomRule cascading status update test completed successfully")
 }
 
 func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
