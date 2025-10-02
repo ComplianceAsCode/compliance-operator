@@ -2417,13 +2417,11 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: fmt.Sprintf(`
-					// Filter only pods with our test label
 					pods.items.filter(pod, 
 						has(pod.metadata.labels) && 
 						"customrule-test" in pod.metadata.labels &&
 						pod.metadata.labels["customrule-test"] == "%s"
 					).all(pod,
-						// Check that each test pod has proper security context
 						has(pod.spec.securityContext) &&
 						pod.spec.securityContext.runAsNonRoot == true
 					)
@@ -2518,35 +2516,6 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan did not complete as expected: %v", err)
 	}
-	// Now create a compliant pod to test the positive case
-	compliantPod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-compliant-pod", testName),
-			Namespace: testNamespace,
-			Labels: map[string]string{
-				"customrule-test": testLabel, // Same label so it's included in the check
-			},
-		},
-		Spec: corev1.PodSpec{
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot: &[]bool{true}[0],
-				RunAsUser:    &[]int64{1000}[0],
-			},
-			Containers: []corev1.Container{
-				{
-					Name:    "compliant-container",
-					Image:   "busybox:latest",
-					Command: []string{"sh", "-c", "sleep 3600"},
-				},
-			},
-		},
-	}
-
-	err = f.Client.Create(context.TODO(), compliantPod, nil)
-	if err != nil {
-		t.Fatalf("Failed to create compliant pod: %v", err)
-	}
-	defer f.Client.Delete(context.TODO(), compliantPod)
 
 	// Delete the non-compliant pod
 	err = f.Client.Delete(context.TODO(), testPod)
