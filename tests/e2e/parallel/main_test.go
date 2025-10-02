@@ -2706,6 +2706,13 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), ssb)
 
+	// Wait for ScanSettingBinding to become ready
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("Failed waiting for ScanSettingBinding to become ready: %v", err)
+	}
+	t.Logf("ScanSettingBinding %s is now ready", ssbName)
+
 	// Wait for suite to be created and for scans to complete
 	suiteName := ssbName
 
