@@ -18,9 +18,6 @@ spec:
     - jsonPath: .status.phase
       name: Status
       type: string
-    - jsonPath: .spec.severity
-      name: Severity
-      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date

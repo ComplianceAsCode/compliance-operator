@@ -116,7 +116,6 @@ const (
 // +kubebuilder:resource:path=customrules,scope=Namespaced
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
-// +kubebuilder:printcolumn:name="Severity",type=string,JSONPath=`.spec.severity`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // CustomRule represents a rule that can be used with TailoredProfiles to execute arbitrary checks against the cluster.
 type CustomRule struct {
