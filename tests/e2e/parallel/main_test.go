@@ -2372,34 +2372,30 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	// Create a unique label for our test pods to ensure isolation
 	// Only pods with this label will be checked by the CustomRule
 	testLabel := fmt.Sprintf("test-customrule-%s", testName)
-
-	// Create a test pod without security context (should fail the check)
-	testPod := &corev1.Pod{
+	// Create a pod without our test label to verify it's NOT checked by the rule
+	ignoredPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-test-pod", testName),
+			Name:      fmt.Sprintf("%s-ignored-pod", testName),
 			Namespace: testNamespace,
-			Labels: map[string]string{
-				"customrule-test": testLabel,
-			},
+			// NO label - this pod should be ignored by our CustomRule
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "test-container",
+					Name:    "ignored-container",
 					Image:   "busybox:latest",
 					Command: []string{"sh", "-c", "sleep 3600"},
 				},
 			},
-			// Deliberately not setting securityContext to test the CustomRule
+			// No security context, but should be ignored
 		},
 	}
 
-	// Create test pod
-	err := f.Client.Create(context.TODO(), testPod, nil)
+	err := f.Client.Create(context.TODO(), ignoredPod, nil)
 	if err != nil {
-		t.Fatalf("Failed to create test pod: %v", err)
+		t.Fatalf("Failed to create ignored pod: %v", err)
 	}
-	defer f.Client.Delete(context.TODO(), testPod)
+	defer f.Client.Delete(context.TODO(), ignoredPod)
 
 	// Create CustomRule that only checks our test pods
 	customRule := &compv1alpha1.CustomRule{
@@ -2512,41 +2508,37 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 
 	// Wait for scans to complete
 	// The scan should be NON-COMPLIANT because our test pod doesn't have the required security context
-	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
 	if err != nil {
 		t.Fatalf("Scan did not complete as expected: %v", err)
 	}
-
-	// Delete the non-compliant pod
-	err = f.Client.Delete(context.TODO(), testPod)
-	if err != nil {
-		t.Fatalf("Failed to delete non-compliant pod: %v", err)
-	}
-
-	// Create a pod without our test label to verify it's NOT checked by the rule
-	ignoredPod := &corev1.Pod{
+	// Create a test pod without security context (should fail the check)
+	testPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-ignored-pod", testName),
+			Name:      fmt.Sprintf("%s-test-pod", testName),
 			Namespace: testNamespace,
-			// NO label - this pod should be ignored by our CustomRule
+			Labels: map[string]string{
+				"customrule-test": testLabel,
+			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "ignored-container",
+					Name:    "test-container",
 					Image:   "busybox:latest",
 					Command: []string{"sh", "-c", "sleep 3600"},
 				},
 			},
-			// No security context, but should be ignored
+			// Deliberately not setting securityContext to test the CustomRule
 		},
 	}
 
-	err = f.Client.Create(context.TODO(), ignoredPod, nil)
+	// Create test pod
+	err = f.Client.Create(context.TODO(), testPod, nil)
 	if err != nil {
-		t.Fatalf("Failed to create ignored pod: %v", err)
+		t.Fatalf("Failed to create test pod: %v", err)
 	}
-	defer f.Client.Delete(context.TODO(), ignoredPod)
+	defer f.Client.Delete(context.TODO(), testPod)
 
 	suite := &compv1alpha1.ComplianceSuite{}
 	key := types.NamespacedName{Name: suiteName, Namespace: testNamespace}
@@ -2558,7 +2550,7 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to delete suite: %v", err)
 	}
-	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
 	if err != nil {
 		t.Fatalf("Scan did not complete as expected: %v", err)
 	}
@@ -2567,7 +2559,6 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	t.Log("Test completed successfully. CustomRule correctly:")
 	t.Log("  - Identified non-compliant pod with the test label")
 	t.Log("  - Ignored pods without the test label")
-	t.Log("  - Would pass for compliant pods with the test label")
 }
 
 func TestCustomRuleWithMultipleInputs(t *testing.T) {
