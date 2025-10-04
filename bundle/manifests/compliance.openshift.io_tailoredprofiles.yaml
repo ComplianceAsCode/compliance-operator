@@ -57,6 +57,12 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -75,6 +81,12 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -97,6 +109,12 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string

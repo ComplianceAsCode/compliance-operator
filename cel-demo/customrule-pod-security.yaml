@@ -1,0 +1,51 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: pods-must-have-security-context
+  namespace: openshift-compliance
+spec:
+  description: Ensures all pods have a security context defined with runAsNonRoot set to true
+  failureReason: Pod(s) found without proper security context (runAsNonRoot must be true)
+  expression: |
+    pods.items.all(pod,
+      pod.spec.securityContext != null &&
+      pod.spec.securityContext.runAsNonRoot == true
+    )
+  id: custom_pods_security_context
+  checkType: Platform
+  inputs:
+    - kubernetesInputSpec:
+        apiVersion: v1
+        resource: pods
+        resourceNamespace: openshift-compliance
+      name: pods
+  scannerType: CEL
+  severity: high
+  title: Pods Must Have Security Context
+---
+apiVersion: compliance.openshift.io/v1alpha1
+kind: TailoredProfile
+metadata:
+  name: custom-security-checks
+  namespace: openshift-compliance
+spec:
+  description: Custom security compliance profile using CEL-based CustomRules
+  enableRules:
+    - kind: CustomRule
+      name: pods-must-have-security-context
+      rationale: Security best practice requires pods to run as non-root
+  title: test
+---
+apiVersion: compliance.openshift.io/v1alpha1
+kind: ScanSettingBinding
+metadata:
+  name: cel-ssb
+  namespace: openshift-compliance
+profiles:
+  - apiGroup: compliance.openshift.io/v1alpha1
+    kind: TailoredProfile
+    name: custom-security-checks
+settingsRef:
+  apiGroup: compliance.openshift.io/v1alpha1
+  kind: ScanSetting
+  name: default
