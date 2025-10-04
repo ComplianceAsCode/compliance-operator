@@ -2817,6 +2817,226 @@ func TestCustomRuleValidation(t *testing.T) {
 
 }
 
+func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	testNamespace := f.OperatorNamespace
+	customRuleName := fmt.Sprintf("%s-custom", testName)
+	tpName := fmt.Sprintf("%s-tp-mixed", testName)
+
+	// Step 1: Create a valid CustomRule
+	customRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      customRuleName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          customRuleName,
+				Title:       "No Privileged Containers",
+				Description: "Ensures no containers are running in privileged mode",
+				Severity:    "high",
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeCEL,
+				Expression: `
+					pods.items.all(pod,
+						pod.spec.containers.all(container,
+							!has(container.securityContext) ||
+							!has(container.securityContext.privileged) ||
+							container.securityContext.privileged == false
+						)
+					)
+				`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "pods",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "pods",
+						},
+					},
+				},
+				FailureReason: "Privileged container(s) found",
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), customRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), customRule)
+
+	// Wait for CustomRule to be validated and ready
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+	t.Logf("CustomRule %s is ready", customRuleName)
+
+	// Step 2: Create TailoredProfile that mixes CustomRules and regular Rules
+	// This should fail validation
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Mixed Rule Types Test",
+			Description: "This profile incorrectly mixes CustomRules and regular Rules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					// CustomRule - CEL-based
+					Name:      customRuleName,
+					Kind:      "CustomRule",
+					Rationale: "Ensure containers are not privileged",
+				},
+				{
+					// Regular Rule - OpenSCAP-based
+					Name:      "ocp4-cluster-version-operator-exists",
+					Kind:      "Rule",
+					Rationale: "Make sure cluster version operator exists",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	// Step 3: Wait for TailoredProfile to be in Error state
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpName, compv1alpha1.TailoredProfileStateError)
+	if err != nil {
+		t.Fatalf("TailoredProfile did not enter Error state: %v", err)
+	}
+	t.Logf("TailoredProfile %s is in Error state as expected", tpName)
+
+	// Step 4: Verify the error message
+	tpWithError := &compv1alpha1.TailoredProfile{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: tpName, Namespace: testNamespace}, tpWithError)
+	if err != nil {
+		t.Fatalf("Failed to get TailoredProfile: %v", err)
+	}
+
+	expectedErrorContent := "cannot mix CustomRules and regular Rules"
+	if !strings.Contains(tpWithError.Status.ErrorMessage, expectedErrorContent) {
+		t.Fatalf("Expected error message to contain '%s', but got: %s", expectedErrorContent, tpWithError.Status.ErrorMessage)
+	}
+	t.Logf("Error message correctly indicates mixed rule types: %s", tpWithError.Status.ErrorMessage)
+
+	// Step 5: Create a TailoredProfile with only CustomRules (should work)
+	tpValidName := fmt.Sprintf("%s-tp-valid", testName)
+	tpValid := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpValidName,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "CustomRules Only Test",
+			Description: "This profile correctly uses only CustomRules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      customRuleName,
+					Kind:      "CustomRule",
+					Rationale: "Ensure containers are not privileged",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tpValid, nil)
+	if err != nil {
+		t.Fatalf("Failed to create valid TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tpValid)
+
+	// Should be ready since it only has CustomRules
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpValidName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("Valid TailoredProfile did not become ready: %v", err)
+	}
+	t.Logf("TailoredProfile %s with only CustomRules is ready as expected", tpValidName)
+
+	// Step 6: Create a TailoredProfile with only regular Rules (should work)
+	tpRegularName := fmt.Sprintf("%s-tp-regular", testName)
+	tpRegular := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpRegularName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Regular Rules Only Test",
+			Description: "This profile correctly uses only regular Rules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-cluster-version-operator-exists",
+					Rationale: "Make sure cluster version operator exists",
+				},
+				{
+					Name:      "ocp4-file-owner-scheduler-kubeconfig",
+					Kind:      "Rule", // Explicitly set Kind to Rule
+					Rationale: "Ensure proper ownership of scheduler kubeconfig",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tpRegular, nil)
+	if err != nil {
+		t.Fatalf("Failed to create regular TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tpRegular)
+
+	// Should be ready since it only has regular Rules
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpRegularName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("Regular TailoredProfile did not become ready: %v", err)
+	}
+	t.Logf("TailoredProfile %s with only regular Rules is ready as expected", tpRegularName)
+
+	// Step 7: Test updating from valid to invalid (adding a different rule type)
+	// Get the valid CustomRule-only profile
+	tpToUpdate := &compv1alpha1.TailoredProfile{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: tpValidName, Namespace: testNamespace}, tpToUpdate)
+	if err != nil {
+		t.Fatalf("Failed to get TailoredProfile for update: %v", err)
+	}
+
+	// Update to add a regular Rule, making it invalid
+	tpToUpdateCopy := tpToUpdate.DeepCopy()
+	tpToUpdateCopy.Spec.EnableRules = append(tpToUpdateCopy.Spec.EnableRules, compv1alpha1.RuleReferenceSpec{
+		Name:      "ocp4-cluster-version-operator-exists",
+		Kind:      "Rule",
+		Rationale: "Adding regular rule to make it invalid",
+	})
+
+	err = f.Client.Update(context.TODO(), tpToUpdateCopy)
+	if err != nil {
+		t.Fatalf("Failed to update TailoredProfile: %v", err)
+	}
+
+	// Should go to Error state
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpValidName, compv1alpha1.TailoredProfileStateError)
+	if err != nil {
+		t.Fatalf("Updated TailoredProfile did not enter Error state: %v", err)
+	}
+	t.Logf("TailoredProfile %s correctly went to Error state after adding mixed rule types", tpValidName)
+
+	t.Log("TestTailoredProfileRejectsMixedRuleTypes completed successfully")
+}
+
 func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 	t.Parallel()
 	f := framework.Global

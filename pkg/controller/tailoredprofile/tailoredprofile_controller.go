@@ -127,6 +127,12 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	// Check if TailoredProfile mixes CustomRules and regular Rules
+	if err := r.validateNoMixedRuleTypes(instance, customRules); err != nil {
+		err = r.handleTailoredProfileStatusError(instance, err)
+		return reconcile.Result{}, err
+	}
+
 	if instance.Spec.Extends != "" {
 		// make sure we don't have any custom rules, as they are not supported with extends
 		if len(customRules) > 0 {
@@ -693,6 +699,38 @@ func (r *ReconcileTailoredProfile) getCustomRulesFromSelections(tp *cmpv1alpha1.
 		rules[selection.Name] = rule
 	}
 	return rules, nil
+}
+
+// validateNoMixedRuleTypes ensures that a TailoredProfile doesn't mix CustomRules and regular Rules
+func (r *ReconcileTailoredProfile) validateNoMixedRuleTypes(tp *cmpv1alpha1.TailoredProfile, customRules map[string]*cmpv1alpha1.CustomRule) error {
+	// If we have CustomRules, check if there are any regular Rules
+	if len(customRules) > 0 {
+		hasRegularRules := false
+		var regularRuleNames []string
+		var customRuleNames []string
+
+		for _, selection := range append(tp.Spec.EnableRules, append(tp.Spec.DisableRules, tp.Spec.ManualRules...)...) {
+			// If Kind is empty or explicitly set to "Rule", it's a regular rule
+			if selection.Kind == "" || selection.Kind == cmpv1alpha1.RuleKind {
+				hasRegularRules = true
+				regularRuleNames = append(regularRuleNames, selection.Name)
+			} else if selection.Kind == cmpv1alpha1.CustomRuleKind {
+				customRuleNames = append(customRuleNames, selection.Name)
+			}
+		}
+
+		if hasRegularRules {
+			return common.NewNonRetriableCtrlError(
+				"TailoredProfile cannot mix CustomRules and regular Rules. Found %d CustomRules (%v) and %d regular Rules (%v). Please use either CustomRules or regular Rules, not both",
+				len(customRuleNames), customRuleNames, len(regularRuleNames), regularRuleNames,
+			)
+		}
+	}
+
+	// Also check the reverse case: if we have regular rules with Kind explicitly set to CustomRule
+	// This is already handled by getCustomRulesFromSelections() but let's be explicit
+
+	return nil
 }
 
 // getCustomVariablesFromSelections is for getting all avaiable variables for CustomRule
