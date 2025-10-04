@@ -12,6 +12,7 @@ import (
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -2709,6 +2710,9 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 
 	// Wait for scans to complete
 	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatalf("Failed waiting for suite scans to complete: %v", err)
+	}
 
 	t.Log("CustomRule with multiple inputs test completed successfully.")
 }
@@ -3035,6 +3039,264 @@ func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 	t.Logf("TailoredProfile %s correctly went to Error state after adding mixed rule types", tpValidName)
 
 	t.Log("TestTailoredProfileRejectsMixedRuleTypes completed successfully")
+}
+
+func TestCustomRuleFailureReasonInCheckResult(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	testNamespace := f.OperatorNamespace
+	customRuleName := fmt.Sprintf("%s-replica-check", testName)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+
+	// Create a CustomRule that will intentionally fail with a specific failure reason
+	customRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      customRuleName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          fmt.Sprintf("custom_%s", customRuleName),
+				Title:       "Ensure Deployments Have at Least 3 Replicas",
+				Description: "Validates that all deployments have at least 3 replicas for high availability",
+				Severity:    "medium",
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeCEL,
+				Expression: `
+					deployments.items.all(deployment, 
+						deployment.spec.replicas >= 3
+					)
+				`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "deployments",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							Group:             "apps",
+							APIVersion:        "v1",
+							Resource:          "deployments",
+							ResourceNamespace: testNamespace,
+						},
+					},
+				},
+				FailureReason: "One or more deployments have less than 3 replicas, which violates the high availability requirement",
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), customRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), customRule)
+
+	// Wait for CustomRule to be validated and ready
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+	t.Logf("CustomRule %s is ready", customRuleName)
+
+	// Create TailoredProfile with the CustomRule
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Test Failure Reason",
+			Description: "Test that FailureReason appears in ComplianceCheckResult",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      customRuleName,
+					Kind:      "CustomRule",
+					Rationale: "Testing failure reason propagation",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	// Wait for TailoredProfile to be ready
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("TailoredProfile failed to become ready: %v", err)
+	}
+	t.Logf("TailoredProfile %s is ready", tpName)
+
+	// Create ScanSettingBinding
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for scans to complete
+	// The scan should be NON-COMPLIANT because the compliance-operator deployment likely has only 1 replica
+	suiteName := ssbName
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		// It might be compliant if there are 3+ replicas, which is okay for this test
+		// We just need to check that the scan completed
+		err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+		if err != nil {
+			t.Fatalf("Scan did not complete: %v", err)
+		}
+		t.Log("Scan completed as compliant (deployments have 3+ replicas)")
+	} else {
+		t.Log("Scan completed as non-compliant (some deployments have <3 replicas)")
+
+		// Get the ComplianceCheckResult and verify the FailureReason appears in warnings
+		checkResultName := fmt.Sprintf("%s-%s", tpName, strings.ReplaceAll(fmt.Sprintf("custom_%s", customRuleName), "_", "-"))
+		checkResult := &compv1alpha1.ComplianceCheckResult{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      checkResultName,
+			Namespace: testNamespace,
+		}, checkResult)
+		if err != nil {
+			t.Fatalf("Failed to get ComplianceCheckResult: %v", err)
+		}
+
+		// Verify the check failed
+		if checkResult.Status != compv1alpha1.CheckResultFail {
+			t.Logf("Check result status is %s, not FAIL - deployments might have 3+ replicas", checkResult.Status)
+		} else {
+			// Verify the FailureReason appears in the warnings
+			expectedFailureReason := "One or more deployments have less than 3 replicas, which violates the high availability requirement"
+			found := false
+			for _, warning := range checkResult.Warnings {
+				if warning == expectedFailureReason {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("Expected FailureReason not found in warnings. Warnings: %v", checkResult.Warnings)
+			}
+			t.Logf("FailureReason correctly appears in ComplianceCheckResult warnings: %s", expectedFailureReason)
+		}
+	}
+
+	// Create a deployment with only 1 replica to ensure the rule fails
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-test-deployment", testName),
+			Namespace: testNamespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: func() *int32 { i := int32(1); return &i }(),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": fmt.Sprintf("%s-test", testName),
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": fmt.Sprintf("%s-test", testName),
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "test-container",
+							Image:   "busybox:latest",
+							Command: []string{"sh", "-c", "sleep 3600"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), deployment, nil)
+	if err != nil {
+		t.Fatalf("Failed to create test deployment: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), deployment)
+
+	// Re-run the scan to ensure it fails
+	suite := &compv1alpha1.ComplianceSuite{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: suiteName, Namespace: testNamespace}, suite)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceSuite: %v", err)
+	}
+
+	// Delete and recreate the suite to trigger a new scan
+	err = f.Client.Delete(context.TODO(), suite)
+	if err != nil {
+		t.Fatalf("Failed to delete ComplianceSuite: %v", err)
+	}
+
+	// Wait for the new scan to complete
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatalf("Re-run scan did not complete as non-compliant: %v", err)
+	}
+
+	// Get the ComplianceCheckResult again and verify the FailureReason
+	checkResultName := fmt.Sprintf("%s-%s", tpName, strings.ReplaceAll(fmt.Sprintf("custom_%s", customRuleName), "_", "-"))
+	checkResult := &compv1alpha1.ComplianceCheckResult{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkResultName,
+		Namespace: testNamespace,
+	}, checkResult)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceCheckResult after re-run: %v", err)
+	}
+
+	// Verify the check failed
+	if checkResult.Status != compv1alpha1.CheckResultFail {
+		t.Fatalf("Expected check result status to be FAIL but got %s", checkResult.Status)
+	}
+
+	// Verify the FailureReason appears in the warnings
+	expectedFailureReason := "One or more deployments have less than 3 replicas, which violates the high availability requirement"
+	found := false
+	for _, warning := range checkResult.Warnings {
+		if warning == expectedFailureReason {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("Expected FailureReason not found in warnings after re-run. Warnings: %v", checkResult.Warnings)
+	}
+
+	t.Logf("FailureReason correctly appears in ComplianceCheckResult warnings: %s", expectedFailureReason)
+	t.Log("TestCustomRuleFailureReasonInCheckResult completed successfully")
 }
 
 func TestCustomRuleCascadingStatusUpdate(t *testing.T) {

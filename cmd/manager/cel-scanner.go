@@ -398,6 +398,10 @@ func (c *CelScanner) runPlatformScan() {
 		case scanner.CheckResultFail:
 			compResult.Status = cmpv1alpha1.CheckResultFail
 			exitCode = CelExitCodeNonCompliant
+			// Add the FailureReason to warnings when the check fails
+			if originalRule.Spec.FailureReason != "" {
+				compResult.Warnings = append(compResult.Warnings, originalRule.Spec.FailureReason)
+			}
 		case scanner.CheckResultError:
 			compResult.Status = cmpv1alpha1.CheckResultError
 			exitCode = CelExitCodeError
