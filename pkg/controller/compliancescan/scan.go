@@ -67,9 +67,6 @@ func scanLimits(scanInstance *compv1alpha1.ComplianceScan, defaultMem, defaultCp
 }
 
 func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.Node, logger logr.Logger) *corev1.Pod {
-	mode := int32(0744)
-
-	kubeMode := int32(0600)
 
 	podName := getPodForNodeName(scanInstance.Name, node.Name)
 	cmName := getConfigMapForNodeName(scanInstance.Name, node.Name)
@@ -182,6 +179,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"--tls-client-cert=/etc/pki/tls/tls.crt",
 						"--tls-client-key=/etc/pki/tls/tls.key",
 						"--tls-ca=/etc/pki/tls/ca.crt",
+						"--disable-raw-upload=" + getDisableRawResultUploadValue(scanInstance),
 					},
 					ImagePullPolicy: corev1.PullAlways,
 					SecurityContext: &corev1.SecurityContext{
@@ -201,18 +199,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 							corev1.ResourceCPU:    resource.MustParse("100m"),
 						},
 					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "report-dir",
-							MountPath: "/reports",
-							ReadOnly:  true,
-						},
-						{
-							Name:      "tls",
-							MountPath: "/etc/pki/tls",
-							ReadOnly:  true,
-						},
-					},
+					VolumeMounts: getLogCollectorVolumeMounts(scanInstance),
 				},
 				{
 					Name:    OpenSCAPScanContainerName,
@@ -297,71 +284,12 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 			HostNetwork:   true,
 			DNSPolicy:     "ClusterFirstWithHostNet",
 			RestartPolicy: corev1.RestartPolicyOnFailure,
-			Volumes: []corev1.Volume{
-				{
-					Name: "host",
-					VolumeSource: corev1.VolumeSource{
-						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/",
-							Type: &hostPathDir,
-						},
-					},
-				},
-				{
-					Name: "report-dir",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: "content-dir",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: "tmp-dir",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: scriptCmForScan(scanInstance),
-					VolumeSource: corev1.VolumeSource{
-						ConfigMap: &corev1.ConfigMapVolumeSource{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: scriptCmForScan(scanInstance),
-							},
-							DefaultMode: &mode,
-						},
-					},
-				},
-				{
-					Name: "kubeletconfig",
-					VolumeSource: corev1.VolumeSource{
-						ConfigMap: &corev1.ConfigMapVolumeSource{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: getKubeletCMNameForScan(scanInstance, node),
-							},
-							DefaultMode: &kubeMode,
-						},
-					},
-				},
-				{
-					Name: "tls",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: ClientCertPrefix + scanInstance.Name,
-						},
-					},
-				},
-			},
+			Volumes:       getNodeScannerPodVolumes(scanInstance, node),
 		},
 	}
 }
 
 func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.ComplianceScan, logger logr.Logger) *corev1.Pod {
-	mode := int32(0755)
 	podName := getPodForNodeName(scanInstance.Name, PlatformScanName)
 	cmName := getConfigMapForNodeName(scanInstance.Name, PlatformScanName)
 	podLabels := map[string]string{
@@ -513,6 +441,7 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 						"--tls-client-cert=/etc/pki/tls/tls.crt",
 						"--tls-client-key=/etc/pki/tls/tls.key",
 						"--tls-ca=/etc/pki/tls/ca.crt",
+						"--disable-raw-upload=" + getDisableRawResultUploadValue(scanInstance),
 					},
 					ImagePullPolicy: corev1.PullAlways,
 					SecurityContext: &corev1.SecurityContext{
@@ -532,18 +461,7 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 							corev1.ResourceCPU:    resource.MustParse("100m"),
 						},
 					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "report-dir",
-							MountPath: "/reports",
-							ReadOnly:  true,
-						},
-						{
-							Name:      "tls",
-							MountPath: "/etc/pki/tls",
-							ReadOnly:  true,
-						},
-					},
+					VolumeMounts: getLogCollectorVolumeMounts(scanInstance),
 				},
 				{
 					Name:    OpenSCAPScanContainerName,
@@ -603,51 +521,7 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 			NodeSelector:  r.schedulingInfo.Selector,
 			Tolerations:   r.schedulingInfo.Tolerations,
 			RestartPolicy: corev1.RestartPolicyOnFailure,
-			Volumes: []corev1.Volume{
-				{
-					Name: "report-dir",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: "content-dir",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: "tmp-dir",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: "fetch-results",
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
-				{
-					Name: scriptCmForScan(scanInstance),
-					VolumeSource: corev1.VolumeSource{
-						ConfigMap: &corev1.ConfigMapVolumeSource{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: scriptCmForScan(scanInstance),
-							},
-							DefaultMode: &mode,
-						},
-					},
-				},
-				{
-					Name: "tls",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: ClientCertPrefix + scanInstance.Name,
-						},
-					},
-				},
-			},
+			Volumes:       getPlatformScannerPodVolumes(scanInstance),
 		},
 	}
 }

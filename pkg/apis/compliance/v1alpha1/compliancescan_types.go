@@ -136,6 +136,12 @@ type ComplianceScanType string
 // When changing the defaults, remember to change also the DefaultRawStorageSize and
 // DefaultStorageRotation constants
 type RawResultStorageSettings struct {
+	// Specifies if raw scan results should be saved to persistent volumes.
+	// This is useful for enabling compliance scans in environments that
+	// don't have storage. Defaults to true.
+	// +kubebuilder:validation:Default=true
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
 	// Specifies the amount of storage to ask for storing the raw results. Note that
 	// if re-scans happen, the new results will also need to be stored. Defaults to 1Gi.
 	// +kubebuilder:validation:Default=1Gi

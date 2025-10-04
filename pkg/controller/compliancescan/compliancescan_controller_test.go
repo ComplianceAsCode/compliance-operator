@@ -133,6 +133,7 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 				ScanType: compv1alpha1.ScanTypeNode,
 				ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 					RawResultStorage: compv1alpha1.RawResultStorageSettings{
+						Enabled:       true,
 						PVAccessModes: defaultAccessMode,
 						Size:          compv1alpha1.DefaultRawStorageSize,
 					},
@@ -150,6 +151,7 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 				ScanType: compv1alpha1.ScanTypePlatform,
 				ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 					RawResultStorage: compv1alpha1.RawResultStorageSettings{
+						Enabled:       true,
 						PVAccessModes: defaultAccessMode,
 						Size:          compv1alpha1.DefaultRawStorageSize,
 					},
