@@ -2414,8 +2414,8 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: fmt.Sprintf(`
-					pods.items.filter(pod, 
-						has(pod.metadata.labels) && 
+					pods.items.filter(pod,
+						has(pod.metadata.labels) &&
 						"customrule-test" in pod.metadata.labels &&
 						pod.metadata.labels["customrule-test"] == "%s"
 					).all(pod,
@@ -2740,7 +2740,7 @@ func TestCustomRuleValidation(t *testing.T) {
 			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
-					pods.items.all(pod, 
+					pods.items.all(pod,
 						invalid_function_that_doesnt_exist(pod)
 					)
 				`,
@@ -2829,7 +2829,7 @@ func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 	testNamespace := f.OperatorNamespace
 	customRuleName := fmt.Sprintf("%s-custom", testName)
 	tpName := fmt.Sprintf("%s-tp-mixed", testName)
-
+	expression := `pods.items.all(pod, pod.spec.containers.all(container, !has(container.securityContext) || !has(container.securityContext.privileged) || container.securityContext.privileged == false ))`
 	// Step 1: Create a valid CustomRule
 	customRule := &compv1alpha1.CustomRule{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2845,15 +2845,7 @@ func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 			},
 			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
-				Expression: `
-					pods.items.all(pod,
-						pod.spec.containers.all(container,
-							!has(container.securityContext) ||
-							!has(container.securityContext.privileged) ||
-							container.securityContext.privileged == false
-						)
-					)
-				`,
+				Expression:  expression,
 				Inputs: []compv1alpha1.InputPayload{
 					{
 						Name: "pods",
@@ -2989,9 +2981,9 @@ func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 					Rationale: "Make sure cluster version operator exists",
 				},
 				{
-					Name:      "ocp4-file-owner-scheduler-kubeconfig",
+					Name:      "ocp4-kubeadmin-removed",
 					Kind:      "Rule", // Explicitly set Kind to Rule
-					Rationale: "Ensure proper ownership of scheduler kubeconfig",
+					Rationale: "Ensure kubeadmin user has been removed",
 				},
 			},
 		},
@@ -3067,7 +3059,7 @@ func TestCustomRuleFailureReasonInCheckResult(t *testing.T) {
 			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
-					deployments.items.all(deployment, 
+					deployments.items.all(deployment,
 						deployment.spec.replicas >= 3
 					)
 				`,
