@@ -2557,8 +2557,8 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	}
 
 	// Validate that the CustomRule result is FAIL
-	// The scan name should be the same as the suite name for platform scans
-	scanName := suiteName
+	// For TailoredProfiles, the scan name is the TailoredProfile name
+	scanName := tpName
 	expectedCheck := compv1alpha1.ComplianceCheckResult{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", scanName, customRuleName),
@@ -2733,8 +2733,8 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 	}
 
 	// Validate that the CustomRule result is FAIL
-	// The scan name should be the same as the suite name for platform scans
-	scanName := suiteName
+	// For TailoredProfiles, the scan name is the TailoredProfile name
+	scanName := tpName
 	expectedCheck := compv1alpha1.ComplianceCheckResult{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", scanName, customRuleName),
