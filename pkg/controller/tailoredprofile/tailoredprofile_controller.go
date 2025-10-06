@@ -218,7 +218,7 @@ func (r *ReconcileTailoredProfile) Reconcile(ctx context.Context, request reconc
 		}
 
 		// we will not use ProfileBundle for CustomRules
-		if len(customRules) <= 0 {
+		if len(customRules) == 0 {
 			reqLogger.Info("No Custom Rules found for TailoredProfile", "tailoredProfile", instance.GetName())
 			var pbgetErr error
 			pb, pbgetErr = r.getProfileBundleFromRulesOrVars(instance)
@@ -421,7 +421,8 @@ func generateWarningMessage(ruleNeedToBeMigratedList []string) string {
 
 // handleRulePruning check if there are any migrated rules in the TailoredProfile
 // and we will handle the migration of the tailored profile accordingly
-func (r *ReconcileTailoredProfile) handleRulePruning(v1alphaTp *cmpv1alpha1.TailoredProfile, logger logr.Logger, pruneOudated bool) (doContinue bool, ruleNeedToBeMigratedList []string, err error) {
+func (r *ReconcileTailoredProfile) handleRulePruning(
+	v1alphaTp *cmpv1alpha1.TailoredProfile, logger logr.Logger, pruneOudated bool) (doContinue bool, ruleNeedToBeMigratedList []string, err error) {
 	doContinue = true
 	// Get the list of KubeletConfig rules that are migrated with checkType change
 	migratedRules, err := r.getMigratedRules(v1alphaTp, logger)
@@ -634,7 +635,7 @@ func (r *ReconcileTailoredProfile) getRulesFromSelections(tp *cmpv1alpha1.Tailor
 		}
 		// make sure all rules have the same scanner type
 		if selection.Kind != "" && selection.Kind != ruleKind {
-			return nil, common.NewNonRetriableCtrlError("Rule '%s' has unsupported Type: %s, we do not support multiple types of rules in a single TailoredProfile", selection.Name, selection.Kind)
+			return nil, common.NewNonRetriableCtrlError("Rule '%s' has unsupported Type: %s, compliance operator does not support multiple types of rules in a single TailoredProfile", selection.Name, selection.Kind)
 		}
 
 		rule := &cmpv1alpha1.Rule{}

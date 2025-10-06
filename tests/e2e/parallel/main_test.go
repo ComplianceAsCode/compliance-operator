@@ -2546,7 +2546,7 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
 		t.Fatal(err)
 	}
-	// let's rescans and expect the check to be compliant by deleting the suite
+	// let's rescans and expect the check to be non compliant by deleting the suite
 	err = f.Client.Delete(context.TODO(), suite)
 	if err != nil {
 		t.Fatalf("Failed to delete suite: %v", err)
@@ -2556,10 +2556,28 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 		t.Fatalf("Scan did not complete as expected: %v", err)
 	}
 
+	// Validate that the CustomRule result is FAIL
+	// The scan name should be the same as the suite name for platform scans
+	scanName := suiteName
+	expectedCheck := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", scanName, customRuleName),
+			Namespace: testNamespace,
+		},
+		ID:     customRuleName,
+		Status: compv1alpha1.CheckResultFail,
+	}
+
+	err = f.AssertHasCheck(suiteName, scanName, expectedCheck)
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+
 	t.Logf("Created pod without label that should be ignored: %s", ignoredPod.Name)
 	t.Log("Test completed successfully. CustomRule correctly:")
 	t.Log("  - Identified non-compliant pod with the test label")
 	t.Log("  - Ignored pods without the test label")
+	t.Logf("  - Validated that rule %s has FAIL status", customRuleName)
 }
 
 func TestCustomRuleWithMultipleInputs(t *testing.T) {
@@ -2714,7 +2732,25 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 		t.Fatalf("Failed waiting for suite scans to complete: %v", err)
 	}
 
+	// Validate that the CustomRule result is FAIL
+	// The scan name should be the same as the suite name for platform scans
+	scanName := suiteName
+	expectedCheck := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", scanName, customRuleName),
+			Namespace: testNamespace,
+		},
+		ID:     customRuleName,
+		Status: compv1alpha1.CheckResultFail,
+	}
+
+	err = f.AssertHasCheck(suiteName, scanName, expectedCheck)
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+
 	t.Log("CustomRule with multiple inputs test completed successfully.")
+	t.Logf("  - Validated that rule %s has FAIL status", customRuleName)
 }
 
 func TestCustomRuleValidation(t *testing.T) {
