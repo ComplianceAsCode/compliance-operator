@@ -111,7 +111,7 @@ require (
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.79.2
-	github.com/prometheus-operator/prometheus-operator/pkg/client v0.79.2
+	github.com/prometheus-operator/prometheus-operator/pkg/client v0.86.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.62.0 // indirect
