@@ -1,7 +1,7 @@
 #!/bin/sh -e
 
 # This is documented here:
-# https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/images/creating-images#use-uid_create-images
+# https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/images/creating-images#use-uid_create-images
 
 # Since version 4.1 OCP supports arbitrary UIDs without requiring /etc/passwd entries
 # https://docs.redhat.com/en/documentation/openshift_container_platform/4.1/html/images/creating_images
