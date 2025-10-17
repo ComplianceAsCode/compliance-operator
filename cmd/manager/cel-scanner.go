@@ -348,7 +348,7 @@ func (c *CelScanner) runPlatformScan() {
 	ctx := context.Background()
 	checkResults, err := c.sdkScanner.Scan(ctx, scanConfig)
 	if err != nil {
-		cmdLog.Error(err, "Failed to run scan", "scanName", c.celConfig.ScanName, "profile", c.celConfig.Profile)
+		cmdLog.Error(err, "Failed to run scan", "scanName", c.celConfig.ScanName, "TailoredProfile", c.celConfig.Tailoring)
 		os.Exit(CelExitCodeError)
 	}
 
