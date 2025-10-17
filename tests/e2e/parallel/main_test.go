@@ -2857,6 +2857,190 @@ func TestCustomRuleValidation(t *testing.T) {
 
 }
 
+func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	testNamespace := f.OperatorNamespace
+
+	// Test 1: Invalid checkType (should be Platform only)
+	invalidCheckTypeRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-invalid-checktype", testName),
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          fmt.Sprintf("%s-invalid-checktype", testName),
+				Title:       "Invalid CheckType Rule",
+				Description: "This rule has invalid checkType",
+				Severity:    "low",
+				CheckType:   "Node", // This should be rejected
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeCEL,
+				Expression:  `pods.items.size() >= 0`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "pods",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "pods",
+						},
+					},
+				},
+				FailureReason: "This should fail validation due to invalid checkType",
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), invalidCheckTypeRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), invalidCheckTypeRule)
+
+	// Wait and expect the rule to have Error status
+	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-invalid-checktype", testName), "Error")
+	if err != nil {
+		t.Fatalf("CustomRule validation should have failed for invalid checkType: %v", err)
+	}
+	t.Log("CustomRule validation correctly rejected invalid checkType")
+
+	// Test 2: Invalid scannerType (should be CEL only)
+	invalidScannerTypeRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-invalid-scannertype", testName),
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          fmt.Sprintf("%s-invalid-scannertype", testName),
+				Title:       "Invalid ScannerType Rule",
+				Description: "This rule has invalid scannerType",
+				Severity:    "low",
+				CheckType:   "Platform", // Valid checkType
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
+				Expression:  `pods.items.size() >= 0`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "pods",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "pods",
+						},
+					},
+				},
+				FailureReason: "This should fail validation due to invalid scannerType",
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), invalidScannerTypeRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), invalidScannerTypeRule)
+
+	// Wait and expect the rule to have Error status
+	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-invalid-scannertype", testName), "Error")
+	if err != nil {
+		t.Fatalf("CustomRule validation should have failed for invalid scannerType: %v", err)
+	}
+	t.Log("CustomRule validation correctly rejected invalid scannerType")
+
+	// Test 3: Valid CustomRule with Platform checkType and CEL scannerType
+	validRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-valid", testName),
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          fmt.Sprintf("%s-valid", testName),
+				Title:       "Valid Rule",
+				Description: "This rule has valid checkType and scannerType",
+				Severity:    "low",
+				CheckType:   "Platform", // Valid checkType
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
+				Expression:  `pods.items.size() >= 0`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "pods",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "pods",
+						},
+					},
+				},
+				FailureReason: "This should pass validation",
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), validRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), validRule)
+
+	// Wait and expect the rule to have Ready status
+	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-valid", testName), "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation should have passed for valid rule: %v", err)
+	}
+	t.Log("CustomRule validation correctly accepted valid checkType and scannerType")
+
+	// Test 4: Valid CustomRule with empty checkType (should default to Platform)
+	validEmptyCheckTypeRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-valid-empty-checktype", testName),
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          fmt.Sprintf("%s-valid-empty-checktype", testName),
+				Title:       "Valid Empty CheckType Rule",
+				Description: "This rule has empty checkType which should be valid",
+				Severity:    "low",
+				// CheckType is empty, which should be valid
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
+				Expression:  `pods.items.size() >= 0`,
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "pods",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "pods",
+						},
+					},
+				},
+				FailureReason: "This should pass validation with empty checkType",
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), validEmptyCheckTypeRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), validEmptyCheckTypeRule)
+
+	// Wait and expect the rule to have Ready status
+	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-valid-empty-checktype", testName), "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation should have passed for rule with empty checkType: %v", err)
+	}
+	t.Log("CustomRule validation correctly accepted empty checkType")
+}
+
 func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 	t.Parallel()
 	f := framework.Global

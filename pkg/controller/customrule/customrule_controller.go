@@ -108,6 +108,10 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // validateCELExpressionWithBuilder validates the CEL expression using SDK's validation
 func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.CustomRule) error {
+	if err := rule.Validate(); err != nil {
+		return fmt.Errorf("CustomRule validation failed: %w", err)
+	}
+
 	// Use the SDK's validation functionality directly
 	// Convert CustomRule inputs to SDK inputs for validation
 	inputs := make([]scanner.Input, 0, len(rule.Spec.CustomRulePayload.Inputs))

@@ -243,6 +243,21 @@ func (cr *CustomRule) ErrorMessage() string {
 	return cr.Spec.CustomRulePayload.FailureReason
 }
 
+// Validate performs validation specific to CustomRule constraints
+func (cr *CustomRule) Validate() error {
+	// Validate checkType is always "Platform" for CustomRules
+	if cr.Spec.CheckType != "" && cr.Spec.CheckType != CheckTypePlatform {
+		return fmt.Errorf("checkType must be 'Platform' for CustomRules, got: %s", cr.Spec.CheckType)
+	}
+
+	// Validate ScannerType is always "CEL" for CustomRules
+	if cr.Spec.ScannerType != ScannerTypeCEL {
+		return fmt.Errorf("scannerType must be 'CEL' for CustomRules, got: %s", cr.Spec.ScannerType)
+	}
+
+	return nil
+}
+
 func init() {
 	SchemeBuilder.Register(&CustomRule{}, &CustomRuleList{})
 }

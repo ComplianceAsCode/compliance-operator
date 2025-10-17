@@ -616,6 +616,10 @@ func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
 		return fmt.Errorf("rule name is empty")
 	}
 
+	if err := rule.Validate(); err != nil {
+		return fmt.Errorf("CustomRule validation failed: %w", err)
+	}
+
 	if rule.Spec.CustomRulePayload.Expression == "" {
 		return fmt.Errorf("CEL expression is empty")
 	}

@@ -74,6 +74,7 @@ spec:
                 description: |-
                   What type of check will this rule execute:
                   Platform, Node or none (represented by an empty string)
+                  For CustomRules, only Platform is supported.
                 type: string
               description:
                 description: The description of the Rule
@@ -87,7 +88,7 @@ spec:
                 minLength: 1
                 type: string
               id:
-                description: The XCCDF ID
+                description: The ID of the Rule
                 type: string
               inputs:
                 description: Inputs defines the Kubernetes resources that need to
