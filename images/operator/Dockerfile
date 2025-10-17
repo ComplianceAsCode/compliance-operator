@@ -30,19 +30,14 @@ LABEL \
 
 WORKDIR /
 
-# Needed by the user_setup and entrypoint scripts
-ENV OPERATOR_BIN=/usr/local/bin/compliance-operator \
-    USER_NAME=compliance-operator \
-    USER_UID=1001
+ENV OPERATOR_BIN=/usr/local/bin/compliance-operator
 
 COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/LICENSE /licenses/LICENSE
 COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR_BIN}
-COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/build/bin/* /usr/local/bin
+COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/build/bin/entrypoint /usr/local/bin/entrypoint
 # This is required for the bundle build.
 COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/bundle /bundle
 
-RUN  /usr/local/bin/user_setup
-
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 
-USER ${USER_UID}
+USER 1001
