@@ -1021,8 +1021,8 @@ func trimToValue(listToBeTrimmed []string) []string {
 		for _, match := range matches {
 			if len(match) > 0 {
 				// Extract just the variable name without the dot prefix
-                                // Skip the leading dot
-				varName := strings.TrimPrefix(match, ".")
+				// Skip the leading dot
+				varName := strings.TrimPrefix(match[0], ".")
 				trimmedValuesList = append(trimmedValuesList, varName)
 			}
 		}
