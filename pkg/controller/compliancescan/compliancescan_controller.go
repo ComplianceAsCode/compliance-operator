@@ -337,9 +337,12 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 			}
 		}
 		if pbName == "" {
-			err := goerrors.New("Could not find ProfileBundle used by scan")
-			logger.Error(err, "ComplianceScan uses non-existent ProfileBundle", "ComplianceScan", instance.Name, "Profile", instance.Spec.Profile)
-			return err
+			logger.Info("Could not find ProfileBundle used by scan to check if the Profile is deprecated",
+				"ComplianceScan", instance.Name,
+				"Profile", instance.Spec.Profile,
+				"ContentImage", instance.Spec.ContentImage,
+				"Content", instance.Spec.Content)
+			return nil
 		}
 
 		xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)

@@ -3733,3 +3733,59 @@ func TestScanCleansUpComplianceCheckResults(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestScanWithoutBundlePassesDeprecationCheck(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	scanName := framework.GetObjNameFromTest(t)
+	testScan := &compv1alpha1.ComplianceScan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceScanSpec{
+			Profile: "xccdf_org.ssgproject.content_profile_moderate",
+			// Make the ProfileBundle lookup fail because the
+			// Content and ContentImage mismatch. This means the
+			// operator can't check if the profile is deprecated
+			// because it can't reliably know which bundle it came
+			// from and hasn't parsed that specific datastream. In
+			// cases like this, the profile deprecation logic
+			// shouldn't prevent the scan. Advanced users might use
+			// this technique to point to their own custom content,
+			// which is rare but possible.
+			Content:      framework.OcpContentFile,
+			ContentImage: contentImagePath,
+			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+				Debug: true,
+			},
+		},
+	}
+
+	// Create the scan directly since we want to set these attributes
+	// directly, and not assume the existing ProfileBundles.
+	err := f.Client.Create(context.TODO(), testScan, nil)
+	if err != nil {
+		t.Fatalf("failed to create scan %s: %s", scanName, err)
+	}
+	defer f.Client.Delete(context.TODO(), testScan)
+
+	// Wait for the scan to reach Done phase
+	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the final scan state
+	if err = f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: f.OperatorNamespace}, testScan); err != nil {
+		t.Fatal(err)
+	}
+
+	// The scan should NOT fail on profile deprecation check when ProfileBundle matching fails
+	if testScan.Status.ErrorMessage == "Could not check whether the Profile used by ComplianceScan is deprecated" {
+		t.Fatal(errors.New("scan should not fail on profile deprecation check when ProfileBundle matching fails"))
+	}
+
+	t.Logf("Scan completed with result: %s", testScan.Status.Result)
+}
