@@ -2940,16 +2940,10 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 	}
 
 	err = f.Client.Create(context.TODO(), invalidScannerTypeRule, nil)
-	if err != nil {
-		t.Fatalf("Failed to create CustomRule: %v", err)
+	if err == nil {
+		t.Fatalf("we should not be able to create a CustomRule with an invalid scannerType")
 	}
-	defer f.Client.Delete(context.TODO(), invalidScannerTypeRule)
 
-	// Wait and expect the rule to have Error status
-	err = f.WaitForCustomRuleStatus(testNamespace, fmt.Sprintf("%s-invalid-scannertype", testName), "Error")
-	if err != nil {
-		t.Fatalf("CustomRule validation should have failed for invalid scannerType: %v", err)
-	}
 	t.Log("CustomRule validation correctly rejected invalid scannerType")
 
 	// Test 3: Valid CustomRule with Platform checkType and CEL scannerType
