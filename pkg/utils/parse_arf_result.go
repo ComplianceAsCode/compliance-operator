@@ -392,29 +392,6 @@ func RemoveDuplicate(input []string) []string {
 	return result
 }
 
-// RemoveDuplicateWords removes duplicate words from a string
-func RemoveDuplicateWords(input string) string {
-	// Split the input string into words
-	words := strings.Fields(input)
-
-	if len(words) <= 1 {
-		return input // Fast path: no processing needed for empty string or single word
-	}
-
-	// Use map for efficient deduplication while preserving original word order
-	seen := make(map[string]bool, len(words))
-	deduped := make([]string, 0, len(words))
-
-	for _, word := range words {
-		if !seen[word] {
-			seen[word] = true
-			deduped = append(deduped, word)
-		}
-	}
-
-	return strings.Join(deduped, " ")
-}
-
 func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string) []string {
 	var valueList []string
 	ruleTests := GetRuleOvalTest(rule, defTable)
@@ -1012,7 +989,10 @@ func getParsedValueName(t *template.Template) []string {
 
 // trim {{value | urlquery}} list to value list
 func trimToValue(listToBeTrimmed []string) []string {
+	// Use map to track seen variables and prevent duplicates
+	seen := make(map[string]struct{})
 	var trimmedValuesList []string
+
 	for _, oriVal := range listToBeTrimmed {
 		// Match variable names in templates like .var_name or .the_value_1
 		// Only match those that start with a dot and are specific to our templates
@@ -1023,7 +1003,11 @@ func trimToValue(listToBeTrimmed []string) []string {
 				// Extract just the variable name without the dot prefix
 				// Skip the leading dot
 				varName := strings.TrimPrefix(match[0], ".")
-				trimmedValuesList = append(trimmedValuesList, varName)
+				// Only add if we haven't seen this variable before
+				if _, exists := seen[varName]; !exists {
+					seen[varName] = struct{}{}
+					trimmedValuesList = append(trimmedValuesList, varName)
+				}
 			}
 		}
 	}

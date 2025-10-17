@@ -218,7 +218,7 @@ Server 3.fedora.pool.ntp.org`
 			})
 
 			It("The remdiation should have correct Value-Used annotation", func() {
-				Expect(RemoveDuplicateWords(rem.Annotations[compv1alpha1.RemediationValueUsedAnnotation])).To(Equal(expValueUsedAnnotation))
+				Expect(rem.Annotations[compv1alpha1.RemediationValueUsedAnnotation]).To(Equal(expValueUsedAnnotation))
 			})
 
 			It("The remdiation should have correct Required-Value annotation", func() {
