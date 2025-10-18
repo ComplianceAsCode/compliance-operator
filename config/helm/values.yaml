@@ -8,7 +8,7 @@
 namespace: openshift-compliance
 
 # The default platform for the compliance-operator. Available platforms are
-# 'openshift', 'eks', 'generic', and 'unknown'.
+# 'openshift', 'eks', 'generic', 'hypershift' and 'unknown'.
 platform: openshift
 
 # By default, the compliance-operator will deploy to nodes tagged with the
