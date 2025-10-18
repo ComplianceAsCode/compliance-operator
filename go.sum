@@ -30,8 +30,6 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3 h1:H5xDQaE3Xow
 github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3/go.mod h1:wP83P5OoQ5p6ip3ScPr0BAq0BvuPAvacpEuSzyouqAI=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6 h1:Ii5TiB5AbWjoe0zSvAUI/okrLUxIhFk5Q6Tub4lPDLc=
-github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e h1:A1S/hKj6qtdFE9MtZBcGHJrIzn40O4/AMbqEohqSibU=
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
@@ -449,8 +447,8 @@ github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
-github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
+github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/ulikunitz/xz v0.5.6/go.mod h1:2bypXElzHzzJZwzH67Y6wb67pO62Rzfn7BSiF4ABRW8=
 github.com/vincent-petithory/dataurl v0.0.0-20160330182126-9a301d65acbb/go.mod h1:FHafX5vmDzyP+1CQATJn7WFKc9CvnvxyvZy6I1MrG/U=
 github.com/vincent-petithory/dataurl v1.0.0 h1:cXw+kPto8NLuJtlMsI152irrVw9fRDX8AbShPRpg2CI=
