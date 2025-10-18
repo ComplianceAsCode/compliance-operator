@@ -73,6 +73,7 @@ type WriteNotified interface {
 }
 
 type WatcherMetrics struct {
+	reg                   prometheus.Registerer
 	recordsRead           *prometheus.CounterVec
 	recordDecodeFails     *prometheus.CounterVec
 	samplesSentPreTailing *prometheus.CounterVec
@@ -113,6 +114,7 @@ type Watcher struct {
 
 func NewWatcherMetrics(reg prometheus.Registerer) *WatcherMetrics {
 	m := &WatcherMetrics{
+		reg: reg,
 		recordsRead: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "prometheus",
@@ -169,6 +171,19 @@ func NewWatcherMetrics(reg prometheus.Registerer) *WatcherMetrics {
 	}
 
 	return m
+}
+
+// Unregister unregisters metrics emitted by this instance.
+func (m *WatcherMetrics) Unregister() {
+	if m.reg == nil {
+		return
+	}
+
+	m.reg.Unregister(m.recordsRead)
+	m.reg.Unregister(m.recordDecodeFails)
+	m.reg.Unregister(m.samplesSentPreTailing)
+	m.reg.Unregister(m.currentSegment)
+	m.reg.Unregister(m.notificationsSkipped)
 }
 
 // NewWatcher creates a new WAL watcher for a given WriteTo.
@@ -479,7 +494,7 @@ func (w *Watcher) garbageCollectSeries(segmentNum int) error {
 // Also used with readCheckpoint - implements segmentReadFn.
 func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 	var (
-		dec                   = record.NewDecoder(labels.NewSymbolTable()) // One table per WAL segment means it won't grow indefinitely.
+		dec                   = record.NewDecoder(labels.NewSymbolTable(), w.logger) // One table per WAL segment means it won't grow indefinitely.
 		series                []record.RefSeries
 		samples               []record.RefSample
 		samplesToSend         []record.RefSample
@@ -491,12 +506,13 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 		metadata              []record.RefMetadata
 	)
 	for r.Next() && !isClosed(w.quit) {
+		var err error
 		rec := r.Record()
 		w.recordsReadMetric.WithLabelValues(dec.Type(rec).String()).Inc()
 
 		switch dec.Type(rec) {
 		case record.Series:
-			series, err := dec.Series(rec, series[:0])
+			series, err = dec.Series(rec, series[:0])
 			if err != nil {
 				w.recordDecodeFailsMetric.Inc()
 				return err
@@ -509,7 +525,7 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 			if !tail {
 				break
 			}
-			samples, err := dec.Samples(rec, samples[:0])
+			samples, err = dec.Samples(rec, samples[:0])
 			if err != nil {
 				w.recordDecodeFailsMetric.Inc()
 				return err
@@ -539,14 +555,14 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 			if !tail {
 				break
 			}
-			exemplars, err := dec.Exemplars(rec, exemplars[:0])
+			exemplars, err = dec.Exemplars(rec, exemplars[:0])
 			if err != nil {
 				w.recordDecodeFailsMetric.Inc()
 				return err
 			}
 			w.writer.AppendExemplars(exemplars)
 
-		case record.HistogramSamples:
+		case record.HistogramSamples, record.CustomBucketsHistogramSamples:
 			// Skip if experimental "histograms over remote write" is not enabled.
 			if !w.sendHistograms {
 				break
@@ -554,7 +570,7 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 			if !tail {
 				break
 			}
-			histograms, err := dec.HistogramSamples(rec, histograms[:0])
+			histograms, err = dec.HistogramSamples(rec, histograms[:0])
 			if err != nil {
 				w.recordDecodeFailsMetric.Inc()
 				return err
@@ -574,7 +590,7 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 				histogramsToSend = histogramsToSend[:0]
 			}
 
-		case record.FloatHistogramSamples:
+		case record.FloatHistogramSamples, record.CustomBucketsFloatHistogramSamples:
 			// Skip if experimental "histograms over remote write" is not enabled.
 			if !w.sendHistograms {
 				break
@@ -582,7 +598,7 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 			if !tail {
 				break
 			}
-			floatHistograms, err := dec.FloatHistogramSamples(rec, floatHistograms[:0])
+			floatHistograms, err = dec.FloatHistogramSamples(rec, floatHistograms[:0])
 			if err != nil {
 				w.recordDecodeFailsMetric.Inc()
 				return err
@@ -606,12 +622,12 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 			if !w.sendMetadata {
 				break
 			}
-			meta, err := dec.Metadata(rec, metadata[:0])
+			metadata, err = dec.Metadata(rec, metadata[:0])
 			if err != nil {
 				w.recordDecodeFailsMetric.Inc()
 				return err
 			}
-			w.writer.StoreMetadata(meta)
+			w.writer.StoreMetadata(metadata)
 
 		case record.Unknown:
 			// Could be corruption, or reading from a WAL from a newer Prometheus.
@@ -631,7 +647,7 @@ func (w *Watcher) readSegment(r *LiveReader, segmentNum int, tail bool) error {
 // Used with readCheckpoint - implements segmentReadFn.
 func (w *Watcher) readSegmentForGC(r *LiveReader, segmentNum int, _ bool) error {
 	var (
-		dec    = record.NewDecoder(labels.NewSymbolTable()) // Needed for decoding; labels do not outlive this function.
+		dec    = record.NewDecoder(labels.NewSymbolTable(), w.logger) // Needed for decoding; labels do not outlive this function.
 		series []record.RefSeries
 	)
 	for r.Next() && !isClosed(w.quit) {
@@ -679,7 +695,7 @@ func (w *Watcher) readCheckpoint(checkpointDir string, readFn segmentReadFn) err
 	// Ensure we read the whole contents of every segment in the checkpoint dir.
 	segs, err := listSegments(checkpointDir)
 	if err != nil {
-		return fmt.Errorf("Unable to get segments checkpoint dir: %w", err)
+		return fmt.Errorf("unable to get segments checkpoint dir: %w", err)
 	}
 	for _, segRef := range segs {
 		size, err := getSegmentSize(checkpointDir, segRef.index)

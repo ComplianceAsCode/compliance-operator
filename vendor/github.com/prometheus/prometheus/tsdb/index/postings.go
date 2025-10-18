@@ -47,7 +47,7 @@ const ensureOrderBatchSize = 1024
 
 // ensureOrderBatchPool is a pool used to recycle batches passed to workers in MemPostings.EnsureOrder().
 var ensureOrderBatchPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		x := make([][]storage.SeriesRef, 0, ensureOrderBatchSize)
 		return &x // Return pointer type as preferred by Pool.
 	},
@@ -168,10 +168,14 @@ func (p *MemPostings) LabelNames() []string {
 }
 
 // LabelValues returns label values for the given name.
-func (p *MemPostings) LabelValues(_ context.Context, name string) []string {
+func (p *MemPostings) LabelValues(_ context.Context, name string, hints *storage.LabelHints) []string {
 	p.mtx.RLock()
 	values := p.lvs[name]
 	p.mtx.RUnlock()
+
+	if hints != nil && hints.Limit > 0 && len(values) > hints.Limit {
+		values = values[:hints.Limit]
+	}
 
 	// The slice from p.lvs[name] is shared between all readers, and it is append-only.
 	// Since it's shared, we need to make a copy of it before returning it to make
@@ -235,25 +239,9 @@ func (p *MemPostings) Stats(label string, limit int, labelSizeFunc func(string, 
 	}
 }
 
-// Get returns a postings list for the given label pair.
-func (p *MemPostings) Get(name, value string) Postings {
-	var lp []storage.SeriesRef
-	p.mtx.RLock()
-	l := p.m[name]
-	if l != nil {
-		lp = l[value]
-	}
-	p.mtx.RUnlock()
-
-	if lp == nil {
-		return EmptyPostings()
-	}
-	return newListPostings(lp...)
-}
-
 // All returns a postings list over all documents ever added.
 func (p *MemPostings) All() Postings {
-	return p.Get(AllPostingsKey())
+	return p.Postings(context.Background(), allPostingsKey.Name, allPostingsKey.Value)
 }
 
 // EnsureOrder ensures that all postings lists are sorted. After it returns all further
@@ -490,7 +478,7 @@ func (p *MemPostings) PostingsForLabelMatching(ctx context.Context, name string,
 	}
 
 	// Now `vals` only contains the values that matched, get their postings.
-	its := make([]Postings, 0, len(vals))
+	its := make([]*ListPostings, 0, len(vals))
 	lps := make([]ListPostings, len(vals))
 	p.mtx.RLock()
 	e := p.m[name]
@@ -510,11 +498,27 @@ func (p *MemPostings) PostingsForLabelMatching(ctx context.Context, name string,
 	return Merge(ctx, its...)
 }
 
+// Postings returns a postings iterator for the given label values.
+func (p *MemPostings) Postings(ctx context.Context, name string, values ...string) Postings {
+	res := make([]*ListPostings, 0, len(values))
+	lps := make([]ListPostings, len(values))
+	p.mtx.RLock()
+	postingsMapForName := p.m[name]
+	for i, value := range values {
+		if lp := postingsMapForName[value]; lp != nil {
+			lps[i] = ListPostings{list: lp}
+			res = append(res, &lps[i])
+		}
+	}
+	p.mtx.RUnlock()
+	return Merge(ctx, res...)
+}
+
 func (p *MemPostings) PostingsForAllLabelValues(ctx context.Context, name string) Postings {
 	p.mtx.RLock()
 
 	e := p.m[name]
-	its := make([]Postings, 0, len(e))
+	its := make([]*ListPostings, 0, len(e))
 	lps := make([]ListPostings, len(e))
 	i := 0
 	for _, refs := range e {
@@ -560,10 +564,10 @@ type errPostings struct {
 	err error
 }
 
-func (e errPostings) Next() bool                  { return false }
-func (e errPostings) Seek(storage.SeriesRef) bool { return false }
-func (e errPostings) At() storage.SeriesRef       { return 0 }
-func (e errPostings) Err() error                  { return e.err }
+func (errPostings) Next() bool                  { return false }
+func (errPostings) Seek(storage.SeriesRef) bool { return false }
+func (errPostings) At() storage.SeriesRef       { return 0 }
+func (e errPostings) Err() error                { return e.err }
 
 var emptyPostings = errPostings{}
 
@@ -595,63 +599,62 @@ func Intersect(its ...Postings) Postings {
 	if len(its) == 1 {
 		return its[0]
 	}
-	for _, p := range its {
-		if p == EmptyPostings() {
-			return EmptyPostings()
-		}
+	if slices.Contains(its, EmptyPostings()) {
+		return EmptyPostings()
 	}
 
 	return newIntersectPostings(its...)
 }
 
 type intersectPostings struct {
-	arr []Postings
-	cur storage.SeriesRef
+	postings []Postings        // These are the postings we will be intersecting.
+	current  storage.SeriesRef // The current intersection, if Seek() or Next() has returned true.
 }
 
 func newIntersectPostings(its ...Postings) *intersectPostings {
-	return &intersectPostings{arr: its}
+	return &intersectPostings{postings: its}
 }
 
 func (it *intersectPostings) At() storage.SeriesRef {
-	return it.cur
+	return it.current
 }
 
-func (it *intersectPostings) doNext() bool {
-Loop:
+func (it *intersectPostings) Seek(target storage.SeriesRef) bool {
 	for {
-		for _, p := range it.arr {
-			if !p.Seek(it.cur) {
+		allEqual := true
+		for _, p := range it.postings {
+			if !p.Seek(target) {
 				return false
 			}
-			if p.At() > it.cur {
-				it.cur = p.At()
-				continue Loop
+			if p.At() > target {
+				target = p.At()
+				allEqual = false
 			}
 		}
-		return true
+
+		// if all p.At() are all equal, we found an intersection.
+		if allEqual {
+			it.current = target
+			return true
+		}
 	}
 }
 
 func (it *intersectPostings) Next() bool {
-	for _, p := range it.arr {
+	target := it.current
+	for _, p := range it.postings {
 		if !p.Next() {
 			return false
 		}
-		if p.At() > it.cur {
-			it.cur = p.At()
+		if p.At() > target {
+			target = p.At()
 		}
 	}
-	return it.doNext()
-}
-
-func (it *intersectPostings) Seek(id storage.SeriesRef) bool {
-	it.cur = id
-	return it.doNext()
+	return it.Seek(target)
 }
 
 func (it *intersectPostings) Err() error {
-	for _, p := range it.arr {
+	for _, p := range it.postings {
 		if p.Err() != nil {
 			return p.Err()
 		}
@@ -660,7 +663,7 @@ func (it *intersectPostings) Err() error {
 }
 
 // Merge returns a new iterator over the union of the input iterators.
-func Merge(_ context.Context, its ...Postings) Postings {
+func Merge[T Postings](_ context.Context, its ...T) Postings {
 	if len(its) == 0 {
 		return EmptyPostings()
 	}
@@ -675,19 +678,19 @@ func Merge(_ context.Context, its ...Postings) Postings {
 	return p
 }
 
-type mergedPostings struct {
-	p   []Postings
-	h   *loser.Tree[storage.SeriesRef, Postings]
+type mergedPostings[T Postings] struct {
+	p   []T
+	h   *loser.Tree[storage.SeriesRef, T]
 	cur storage.SeriesRef
 }
 
-func newMergedPostings(p []Postings) (m *mergedPostings, nonEmpty bool) {
+func newMergedPostings[T Postings](p []T) (m *mergedPostings[T], nonEmpty bool) {
 	const maxVal = storage.SeriesRef(math.MaxUint64) // This value must be higher than all real values used in the tree.
 	lt := loser.New(p, maxVal)
-	return &mergedPostings{p: p, h: lt}, true
+	return &mergedPostings[T]{p: p, h: lt}, true
 }
 
-func (it *mergedPostings) Next() bool {
+func (it *mergedPostings[T]) Next() bool {
 	for {
 		if !it.h.Next() {
 			return false
@@ -701,7 +704,7 @@ func (it *mergedPostings) Next() bool {
 	}
 }
 
-func (it *mergedPostings) Seek(id storage.SeriesRef) bool {
+func (it *mergedPostings[T]) Seek(id storage.SeriesRef) bool {
 	for !it.h.IsEmpty() && it.h.At() < id {
 		finished := !it.h.Winner().Seek(id)
 		it.h.Fix(finished)
@@ -713,11 +716,11 @@ func (it *mergedPostings) Seek(id storage.SeriesRef) bool {
 	return true
 }
 
-func (it mergedPostings) At() storage.SeriesRef {
+func (it mergedPostings[T]) At() storage.SeriesRef {
 	return it.cur
 }
 
-func (it mergedPostings) Err() error {
+func (it mergedPostings[T]) Err() error {
 	for _, p := range it.p {
 		if err := p.Err(); err != nil {
 			return err
@@ -859,8 +862,13 @@ func (it *ListPostings) Seek(x storage.SeriesRef) bool {
 	return false
 }
 
-func (it *ListPostings) Err() error {
+func (*ListPostings) Err() error {
 	return nil
+}
+
+// Len returns the remaining number of postings in the list.
+func (it *ListPostings) Len() int {
+	return len(it.list)
 }
 
 // bigEndianPostings implements the Postings interface over a byte stream of
@@ -907,7 +915,7 @@ func (it *bigEndianPostings) Seek(x storage.SeriesRef) bool {
 	return false
 }
 
-func (it *bigEndianPostings) Err() error {
+func (*bigEndianPostings) Err() error {
 	return nil
 }
 
@@ -1015,14 +1023,14 @@ func (h postingsWithIndexHeap) Less(i, j int) bool {
 func (h *postingsWithIndexHeap) Swap(i, j int) { (*h)[i], (*h)[j] = (*h)[j], (*h)[i] }
 
 // Push implements heap.Interface.
-func (h *postingsWithIndexHeap) Push(x interface{}) {
+func (h *postingsWithIndexHeap) Push(x any) {
 	*h = append(*h, x.(postingsWithIndex))
 }
 
 // Pop implements heap.Interface and pops the last element, which is NOT the min element,
 // so this doesn't return the same heap.Pop()
 // Although this method is implemented for correctness, we don't expect it to be used, see popIndex() method for details.
-func (h *postingsWithIndexHeap) Pop() interface{} {
+func (h *postingsWithIndexHeap) Pop() any {
 	old := *h
 	n := len(old)
 	x := old[n-1]
