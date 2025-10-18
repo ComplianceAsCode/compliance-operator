@@ -34,6 +34,8 @@ github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6 h1
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e h1:A1S/hKj6qtdFE9MtZBcGHJrIzn40O4/AMbqEohqSibU=
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
+github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19 h1:THSSJvmtj7k+c9QKoUeHap14FiOMOUsAJH/ENH5KMC0=
+github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/ajeddeloh/go-json v0.0.0-20170920214419-6a2fe990e083/go.mod h1:otnto4/Icqn88WCcM4bhIJNSgsh9VLBuspyyCfvof9c=
