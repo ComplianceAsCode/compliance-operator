@@ -209,7 +209,7 @@ require (
 
 replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20250120092857-366ffb8c60da
-	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20250106104058-89709a455e2a
+	github.com/openshift/client-go => github.com/openshift/client-go db0dee36e235
 	k8s.io/api => k8s.io/api v0.32.3
 	k8s.io/apimachinery => k8s.io/apimachinery v0.32.3
 	k8s.io/client-go => k8s.io/client-go v0.32.1
