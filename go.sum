@@ -30,8 +30,6 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3 h1:H5xDQaE3Xow
 github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3/go.mod h1:wP83P5OoQ5p6ip3ScPr0BAq0BvuPAvacpEuSzyouqAI=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6 h1:Ii5TiB5AbWjoe0zSvAUI/okrLUxIhFk5Q6Tub4lPDLc=
-github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925064713-3527649c82d6/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e h1:A1S/hKj6qtdFE9MtZBcGHJrIzn40O4/AMbqEohqSibU=
 github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
@@ -320,8 +318,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/linode/linodego v1.43.0 h1:sGeBB3caZt7vKBoPS5p4AVzmlG4JoqQOdigIibx3egk=
 github.com/linode/linodego v1.43.0/go.mod h1:n4TMFu1UVNala+icHqrTEFFaicYSF74cSAUG5zkTwfA=
-github.com/mailru/easyjson v0.9.0 h1:PrnmzHw7262yW8sTBwxi1PdJA3Iw/EKBa8psRf7d9a4=
-github.com/mailru/easyjson v0.9.0/go.mod h1:1+xMtQp2MRNVL/V1bOzuP3aP8VNwRW55fQUto+XFtTU=
+github.com/mailru/easyjson v0.9.1 h1:LbtsOm5WAswyWbvTEOqhypdPeZzHavpZx96/n553mR8=
+github.com/mailru/easyjson v0.9.1/go.mod h1:1+xMtQp2MRNVL/V1bOzuP3aP8VNwRW55fQUto+XFtTU=
 github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE=
 github.com/mattn/go-colorable v0.1.14/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
