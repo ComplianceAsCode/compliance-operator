@@ -94,7 +94,7 @@ github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/options
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/shared
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/version
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/public
-# github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e
+# github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19
 ## explicit; go 1.23.0
 github.com/ComplianceAsCode/compliance-sdk/pkg/fetchers
 github.com/ComplianceAsCode/compliance-sdk/pkg/scanner
