@@ -137,10 +137,10 @@ E2E_USE_DEFAULT_IMAGES?=false
 E2E_SKIP_CONTAINER_BUILD?=false
 
 # Used for substitutions
-DEFAULT_CONTENT_IMAGE=ghcr.io/complianceascode/k8scontent:latest
+DEFAULT_CONTENT_IMAGE=quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
 CONTENT_IMAGE?=$(DEFAULT_CONTENT_IMAGE)
 # Specifies the image path to use for the content in the tests
-E2E_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/k8scontent:latest
+E2E_CONTENT_IMAGE_PATH?=quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
 # We specifically omit the tag here since we use this for testing
 # different images referenced by different tags.
 E2E_BROKEN_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/test-broken-content-ocp
