@@ -50,8 +50,6 @@ const DefaultStorageRotation = 3
 
 var ErrUnkownScanType = errors.New("Unknown scan type")
 
-var ErrUnkownScanerType = errors.New("Unknown scanner type")
-
 // Represents the status of the compliance scan run.
 type ComplianceScanStatusPhase string
 
@@ -242,10 +240,6 @@ type ComplianceScanSpec struct {
 	// The type of Compliance scan.
 	// +kubebuilder:default=Node
 	ScanType ComplianceScanType `json:"scanType,omitempty"`
-	// The scanner used to evaluate the rules in a Profile or TailoredProfile.
-	// +kubebuilder:default=OpenSCAP
-	// +kubebuilder:validation:Enum=OpenSCAP;CEL
-	ScannerType ScannerType `json:"scannerType,omitempty"`
 	// Is the image with the content (Data Stream), that will be used to run
 	// OpenSCAP.
 	ContentImage string `json:"contentImage,omitempty"`
@@ -379,19 +373,6 @@ func (cs *ComplianceScan) GetScanTypeIfValid() (ComplianceScanType, error) {
 	return "", ErrUnkownScanType
 }
 
-// GetScannerTypeIfValid returns scaner type we will be using if the scan has a valid one, else it returns
-// an error
-func (cs *ComplianceScan) GetScannerTypeIfValid() (ScannerType, error) {
-	if strings.ToLower(string(cs.Spec.ScannerType)) == strings.ToLower(string(ScannerTypeOpenSCAP)) {
-		return ScannerTypeOpenSCAP, nil
-	}
-
-	if strings.ToLower(string(cs.Spec.ScannerType)) == strings.ToLower(string(ScannerTypeCEL)) {
-		return ScannerTypeCEL, nil
-	}
-	return "", ErrUnkownScanerType
-}
-
 // GetScanType get's the scan type for a scan
 func (cs *ComplianceScan) GetScanType() ComplianceScanType {
 	scantype, err := cs.GetScanTypeIfValid()
@@ -400,16 +381,6 @@ func (cs *ComplianceScan) GetScanType() ComplianceScanType {
 		panic(err)
 	}
 	return scantype
-}
-
-// GetScannerType will get the scanner type for a scan
-func (cs *ComplianceScan) GetScannerType() ScannerType {
-	scannertype, err := cs.GetScannerTypeIfValid()
-	if err != nil {
-		// This shouldn't happen
-		panic(err)
-	}
-	return scannertype
 }
 
 // Returns whether remediation enforcement is off or not

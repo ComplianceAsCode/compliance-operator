@@ -20,11 +20,10 @@
 package modfile
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -45,7 +44,6 @@ type File struct {
 	Replace   []*Replace
 	Retract   []*Retract
 	Tool      []*Tool
-	Ignore    []*Ignore
 
 	Syntax *FileSyntax
 }
@@ -98,12 +96,6 @@ type Retract struct {
 
 // A Tool is a single tool statement.
 type Tool struct {
-	Path   string
-	Syntax *Line
-}
-
-// An Ignore is a single ignore statement.
-type Ignore struct {
 	Path   string
 	Syntax *Line
 }
@@ -312,7 +304,7 @@ func parseToFile(file string, data []byte, fix VersionFixer, strict bool) (parse
 					})
 				}
 				continue
-			case "module", "godebug", "require", "exclude", "replace", "retract", "tool", "ignore":
+			case "module", "godebug", "require", "exclude", "replace", "retract", "tool":
 				for _, l := range x.Line {
 					f.add(&errs, x, l, x.Token[0], l.Token, fix, strict)
 				}
@@ -345,7 +337,7 @@ func (f *File) add(errs *ErrorList, block *LineBlock, line *Line, verb string, a
 	// and simply ignore those statements.
 	if !strict {
 		switch verb {
-		case "go", "module", "retract", "require", "ignore":
+		case "go", "module", "retract", "require":
 			// want these even for dependency go.mods
 		default:
 			return
@@ -536,21 +528,6 @@ func (f *File) add(errs *ErrorList, block *LineBlock, line *Line, verb string, a
 			return
 		}
 		f.Tool = append(f.Tool, &Tool{
-			Path:   s,
-			Syntax: line,
-		})
-
-	case "ignore":
-		if len(args) != 1 {
-			errorf("ignore directive expects exactly one argument")
-			return
-		}
-		s, err := parseString(&args[0])
-		if err != nil {
-			errorf("invalid quoted string: %v", err)
-			return
-		}
-		f.Ignore = append(f.Ignore, &Ignore{
 			Path:   s,
 			Syntax: line,
 		})
@@ -1642,36 +1619,6 @@ func (f *File) DropTool(path string) error {
 	return nil
 }
 
-// AddIgnore adds a new ignore directive with the given path.
-// It does nothing if the ignore line already exists.
-func (f *File) AddIgnore(path string) error {
-	for _, t := range f.Ignore {
-		if t.Path == path {
-			return nil
-		}
-	}
-
-	f.Ignore = append(f.Ignore, &Ignore{
-		Path:   path,
-		Syntax: f.Syntax.addLine(nil, "ignore", path),
-	})
-
-	f.SortBlocks()
-	return nil
-}
-
-// DropIgnore removes a ignore directive with the given path.
-// It does nothing if no such ignore directive exists.
-func (f *File) DropIgnore(path string) error {
-	for _, t := range f.Ignore {
-		if t.Path == path {
-			t.Syntax.markRemoved()
-			*t = Ignore{}
-		}
-	}
-	return nil
-}
-
 func (f *File) SortBlocks() {
 	f.removeDups() // otherwise sorting is unsafe
 
@@ -1686,13 +1633,15 @@ func (f *File) SortBlocks() {
 		if !ok {
 			continue
 		}
-		less := compareLine
+		less := lineLess
 		if block.Token[0] == "exclude" && useSemanticSortForExclude {
-			less = compareLineExclude
+			less = lineExcludeLess
 		} else if block.Token[0] == "retract" {
-			less = compareLineRetract
+			less = lineRetractLess
 		}
-		slices.SortStableFunc(block.Line, less)
+		sort.SliceStable(block.Line, func(i, j int) bool {
+			return less(block.Line[i], block.Line[j])
+		})
 	}
 }
 
@@ -1708,10 +1657,10 @@ func (f *File) SortBlocks() {
 // retract directives are not de-duplicated since comments are
 // meaningful, and versions may be retracted multiple times.
 func (f *File) removeDups() {
-	removeDups(f.Syntax, &f.Exclude, &f.Replace, &f.Tool, &f.Ignore)
+	removeDups(f.Syntax, &f.Exclude, &f.Replace, &f.Tool)
 }
 
-func removeDups(syntax *FileSyntax, exclude *[]*Exclude, replace *[]*Replace, tool *[]*Tool, ignore *[]*Ignore) {
+func removeDups(syntax *FileSyntax, exclude *[]*Exclude, replace *[]*Replace, tool *[]*Tool) {
 	kill := make(map[*Line]bool)
 
 	// Remove duplicate excludes.
@@ -1770,24 +1719,6 @@ func removeDups(syntax *FileSyntax, exclude *[]*Exclude, replace *[]*Replace, to
 		*tool = newTool
 	}
 
-	if ignore != nil {
-		haveIgnore := make(map[string]bool)
-		for _, i := range *ignore {
-			if haveIgnore[i.Path] {
-				kill[i.Syntax] = true
-				continue
-			}
-			haveIgnore[i.Path] = true
-		}
-		var newIgnore []*Ignore
-		for _, i := range *ignore {
-			if !kill[i.Syntax] {
-				newIgnore = append(newIgnore, i)
-			}
-		}
-		*ignore = newIgnore
-	}
-
 	// Duplicate require and retract directives are not removed.
 
 	// Drop killed statements from the syntax tree.
@@ -1815,38 +1746,39 @@ func removeDups(syntax *FileSyntax, exclude *[]*Exclude, replace *[]*Replace, to
 	syntax.Stmt = stmts
 }
 
-// compareLine compares li and lj. It sorts lexicographically without assigning
-// any special meaning to tokens.
-func compareLine(li, lj *Line) int {
+// lineLess returns whether li should be sorted before lj. It sorts
+// lexicographically without assigning any special meaning to tokens.
+func lineLess(li, lj *Line) bool {
 	for k := 0; k < len(li.Token) && k < len(lj.Token); k++ {
 		if li.Token[k] != lj.Token[k] {
-			return cmp.Compare(li.Token[k], lj.Token[k])
+			return li.Token[k] < lj.Token[k]
 		}
 	}
-	return cmp.Compare(len(li.Token), len(lj.Token))
+	return len(li.Token) < len(lj.Token)
 }
 
-// compareLineExclude compares li and lj for lines in an "exclude" block.
-func compareLineExclude(li, lj *Line) int {
+// lineExcludeLess reports whether li should be sorted before lj for lines in
+// an "exclude" block.
+func lineExcludeLess(li, lj *Line) bool {
 	if len(li.Token) != 2 || len(lj.Token) != 2 {
 		// Not a known exclude specification.
 		// Fall back to sorting lexicographically.
-		return compareLine(li, lj)
+		return lineLess(li, lj)
 	}
 	// An exclude specification has two tokens: ModulePath and Version.
 	// Compare module path by string order and version by semver rules.
 	if pi, pj := li.Token[0], lj.Token[0]; pi != pj {
-		return cmp.Compare(pi, pj)
+		return pi < pj
 	}
-	return semver.Compare(li.Token[1], lj.Token[1])
+	return semver.Compare(li.Token[1], lj.Token[1]) < 0
 }
 
-// compareLineRetract compares li and lj for lines in a "retract" block.
-// It treats each line as a version interval. Single versions are compared as
-// if they were intervals with the same low and high version.
+// lineRetractLess returns whether li should be sorted before lj for lines in
+// a "retract" block. It treats each line as a version interval. Single versions
+// are compared as if they were intervals with the same low and high version.
 // Intervals are sorted in descending order, first by low version, then by
-// high version, using [semver.Compare].
-func compareLineRetract(li, lj *Line) int {
+// high version, using semver.Compare.
+func lineRetractLess(li, lj *Line) bool {
 	interval := func(l *Line) VersionInterval {
 		if len(l.Token) == 1 {
 			return VersionInterval{Low: l.Token[0], High: l.Token[0]}
@@ -1860,9 +1792,9 @@ func compareLineRetract(li, lj *Line) int {
 	vii := interval(li)
 	vij := interval(lj)
 	if cmp := semver.Compare(vii.Low, vij.Low); cmp != 0 {
-		return -cmp
+		return cmp > 0
 	}
-	return -semver.Compare(vii.High, vij.High)
+	return semver.Compare(vii.High, vij.High) > 0
 }
 
 // checkCanonicalVersion returns a non-nil error if vers is not a canonical

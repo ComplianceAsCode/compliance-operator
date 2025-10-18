@@ -12,16 +12,6 @@ const ProductTypeAnnotation = "compliance.openshift.io/product-type"
 // or TailoredProfile is targetting. Example: ocp4, rhcos4, ...
 const ProductAnnotation = "compliance.openshift.io/product"
 
-// ScannerTypeAnnotation specifies the type of scanner to use for this Profile
-const ScannerTypeAnnotation = "compliance.openshift.io/scanner-type"
-
-// CustomRuleProfileAnnotation specifies that a TailoredProfile contains CustomRules
-const CustomRuleProfileAnnotation = "compliance.openshift.io/tailored-profile-contains-custom-rules"
-
-// UserProfileAnnotation define if tailored profile contains User Created rules
-// that are not part of the original profile
-const UserProfileAnnotation = "compliance.openshift.io/user-profile"
-
 // ProfileGuidLabel specifies the unique identifier of the Profile
 const ProfileGuidLabel = "compliance.openshift.io/profile-guid"
 

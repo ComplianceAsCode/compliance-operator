@@ -29,9 +29,6 @@ func (t *ruleMapper) Map(ctx context.Context, obj client.Object) []reconcile.Req
 			if rule.Name != obj.GetName() {
 				continue
 			}
-			if rule.Kind == v1alpha1.CustomRuleKind && rule.Kind != "" {
-				continue
-			}
 			add = true
 			break
 		}

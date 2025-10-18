@@ -465,16 +465,9 @@ func profileReferenceToScan(reference *profileReference) (*compliancev1alpha1.Co
 		Name:               reference.name,
 	}
 
-	hasCustomRuleTP := false
-	if reference.tailoredProfile != nil {
-		hasCustomRuleTP = hasCustomRule(reference.tailoredProfile)
-	}
-
-	if !hasCustomRuleTP {
-		err = fillContentData(reference.profileBundle, &scan)
-		if err != nil {
-			return nil, "", err
-		}
+	err = fillContentData(reference.profileBundle, &scan)
+	if err != nil {
+		return nil, "", err
 	}
 
 	if reference.tailoredProfile != nil {
@@ -497,21 +490,14 @@ func profileReferenceToScan(reference *profileReference) (*compliancev1alpha1.Co
 		if err != nil {
 			return nil, "", fmt.Errorf("cannot infer scan type from %s: %v", reference.profile.GetName(), err)
 		}
+
 		if scan.ScanType == compliancev1alpha1.ScanTypeNode {
 			product = reference.profile.GetAnnotations()[compliancev1alpha1.ProductAnnotation]
-		}
-		err = setScannerType(&scan, reference.profile.GetAnnotations())
-		if err != nil {
-			return nil, "", fmt.Errorf("cannot infer scanner type from %s: %v", reference.tailoredProfile.GetName(), err)
 		}
 	} else if reference.tailoredProfile != nil {
 		err = setScanType(&scan, reference.tailoredProfile.GetAnnotations())
 		if err != nil {
 			return nil, "", fmt.Errorf("cannot infer scan type from %s: %v", reference.tailoredProfile.GetName(), err)
-		}
-		err = setScannerType(&scan, reference.tailoredProfile.GetAnnotations())
-		if err != nil {
-			return nil, "", fmt.Errorf("cannot infer scanner type from %s: %v", reference.tailoredProfile.GetName(), err)
 		}
 	}
 
@@ -552,14 +538,10 @@ func fillTailoredProfileData(tp *unstructured.Unstructured, scan *compliancev1al
 		return common.WrapNonRetriableCtrlError(err)
 	}
 
-	if hasCustomRule(tp) {
-		scan.Profile = tp.GetName()
-	} else {
-		scan.Profile = v1alphaTp.Status.ID
-		if v1alphaTp.Status.OutputRef.Name != "" {
-			// FIXME: OutputRef also has a namespace, but tailorringCofnigMapRef not?
-			scan.TailoringConfigMap = &compliancev1alpha1.TailoringConfigMapRef{Name: v1alphaTp.Status.OutputRef.Name}
-		}
+	scan.Profile = v1alphaTp.Status.ID
+	if v1alphaTp.Status.OutputRef.Name != "" {
+		// FIXME: OutputRef also has a namespace, but tailorringCofnigMapRef not?
+		scan.TailoringConfigMap = &compliancev1alpha1.TailoringConfigMapRef{Name: v1alphaTp.Status.OutputRef.Name}
 	}
 
 	return nil
@@ -586,29 +568,6 @@ func setScanType(scan *compliancev1alpha1.ComplianceScanSpecWrapper, annotations
 
 	scan.ComplianceScanSpec.ScanType, err = getScanType(annotations)
 	return err
-}
-
-func setScannerType(scan *compliancev1alpha1.ComplianceScanSpecWrapper, annotations map[string]string) error {
-	var err error
-	scan.ComplianceScanSpec.ScannerType, err = getScannerType(annotations)
-	return err
-}
-
-func getScannerType(annotations map[string]string) (compliancev1alpha1.ScannerType, error) {
-	scannerType, ok := annotations[compliancev1alpha1.ScannerTypeAnnotation]
-	if !ok {
-		// we will default to OpenSCAP
-		return compliancev1alpha1.ScannerTypeOpenSCAP, nil
-	}
-	switch strings.ToLower(scannerType) {
-	case strings.ToLower(string(compliancev1alpha1.ScannerTypeOpenSCAP)):
-		return compliancev1alpha1.ScannerTypeOpenSCAP, nil
-	case strings.ToLower(string(compliancev1alpha1.ScannerTypeCEL)):
-		return compliancev1alpha1.ScannerTypeCEL, nil
-	default:
-		break
-	}
-	return compliancev1alpha1.ScannerTypeOpenSCAP, nil
 }
 
 func getScanType(annotations map[string]string) (compliancev1alpha1.ComplianceScanType, error) {
@@ -706,10 +665,6 @@ func resolveProfileReference(r *ReconcileScanSettingBinding, instance *complianc
 			if err != nil {
 				return nil, err
 			}
-
-		} else if hasCustomRule(profile) {
-			// we do not need to do anything here, as customRules based TailoredProfiles do not need
-			// a Profile or ProfileBundle
 		} else {
 			return nil, common.NewNonRetriableCtrlError("TailoredProfile must be owned by a Profile or ProfileBundle")
 		}
@@ -722,19 +677,6 @@ func resolveProfileReference(r *ReconcileScanSettingBinding, instance *complianc
 	}
 
 	return &profReference, nil
-}
-
-func hasCustomRule(object metav1.Object) bool {
-	// check if the object has CustomRuleProfileAnnotation to be true
-	// if it does, then we can assume that the object has custom rules
-	// if it doesn't, then we can assume that the object does not have custom rules
-	if object.GetAnnotations() == nil {
-		return false
-	}
-	if object.GetAnnotations()[compliancev1alpha1.CustomRuleProfileAnnotation] == "true" {
-		return true
-	}
-	return false
 }
 
 func resolveProfile(r *ReconcileScanSettingBinding, instance *compliancev1alpha1.ScanSettingBinding, profReference *profileReference, logger logr.Logger) (*unstructured.Unstructured, error) {
@@ -847,23 +789,7 @@ func suiteNeedsUpdate(have, found *compliancev1alpha1.ComplianceSuite) bool {
 }
 
 func scanSettingBindingStatusNeedsUpdate(ssb *compliancev1alpha1.ScanSettingBinding) bool {
-	// Check if we need to initialize the condition or set the output reference
-	if ssb.Status.Conditions.GetCondition("Ready") == nil || ssb.Status.OutputRef == nil || ssb.Status.OutputRef.Name == "" {
-		return true
-	}
-
-	// Check if we need to transition from Invalid to Ready
-	// This happens when a TailoredProfile was in error state (making SSB Invalid)
-	// but has now been fixed and is Ready
-	readyCondition := ssb.Status.Conditions.GetCondition("Ready")
-	if readyCondition != nil && readyCondition.Reason == "Invalid" && ssb.Status.Phase == compliancev1alpha1.ScanSettingBindingPhaseInvalid {
-		// The SSB is currently Invalid, but we've passed all the profile checks
-		// (otherwise we would have returned early in the reconcile loop)
-		// So we need to update the status back to Ready
-		return true
-	}
-
-	return false
+	return ssb.Status.Conditions.GetCondition("Ready") == nil || ssb.Status.OutputRef == nil || ssb.Status.OutputRef.Name == ""
 }
 
 func scanSettingBindingHasSuspendedCondition(ssb *compliancev1alpha1.ScanSettingBinding) bool {

@@ -52,8 +52,6 @@ const (
 const (
 	// OpenSCAPScanContainerName defines the name of the contianer that will run OpenSCAP
 	OpenSCAPScanContainerName = "scanner"
-	// ContainerName defines the name of the container that will run CEL
-	CELScannerContainerName = "cel-scanner"
 	// The default time we should wait before requeuing
 	requeueAfterDefault = 10 * time.Second
 )
@@ -225,16 +223,10 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 		return false, nil
 	}
 
-	if instance.Spec.ScanType == "" || instance.Spec.ScannerType == "" {
+	// Set default scan type if missing
+	if instance.Spec.ScanType == "" {
 		instanceCopy := instance.DeepCopy()
-		// Set default scan type if missing
-		if instance.Spec.ScanType == "" {
-			instanceCopy.Spec.ScanType = compv1alpha1.ScanTypeNode
-		}
-		// Set default scanner type if missing
-		if instance.Spec.ScannerType == "" {
-			instanceCopy.Spec.ScannerType = compv1alpha1.ScannerTypeOpenSCAP
-		}
+		instanceCopy.Spec.ScanType = compv1alpha1.ScanTypeNode
 		err := r.Client.Update(context.TODO(), instanceCopy)
 		return false, err
 	}
@@ -303,30 +295,6 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 	profile := &compv1alpha1.Profile{}
 	tp := &compv1alpha1.TailoredProfile{}
 	var profileName string
-
-	if instance.Spec.ScannerType == compv1alpha1.ScannerTypeCEL {
-		tailoredProfiles := &compv1alpha1.TailoredProfileList{}
-		profileGuid := instance.GetLabels()[compv1alpha1.ProfileGuidLabel]
-		if err := r.Client.List(context.TODO(), tailoredProfiles, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
-			logger.Error(err, "Could not list TailoredProfiles", "ComplianceScan", instance.Name)
-			return err
-		}
-		for _, t := range tailoredProfiles.Items {
-			if t.GetLabels()[compv1alpha1.ProfileGuidLabel] == profileGuid {
-				if t.GetAnnotations()[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
-					logger.Info("ComplianceScan is running with a deprecated tailored profile", "ComplianceScan", instance.Name, "TailoredProfile", t.Name)
-					r.Recorder.Eventf(
-						instance, corev1.EventTypeWarning, "DeprecatedTailoredProfile",
-						"TailoredProfile %s is deprecated and should be avoided. "+
-							"Please consider using another profile", t.Name)
-				}
-				return nil
-			}
-		}
-		// For CEL scans, we don't need to check ProfileBundles
-		// CEL scans use TailoredProfiles with custom rules, not ProfileBundles
-		return nil
-	}
 
 	if instance.Spec.TailoringConfigMap != nil {
 		// The ComplianceScan references a TailoredProfile
@@ -468,49 +436,45 @@ func (r *ReconcileComplianceScan) phaseLaunchingHandler(h scanTypeHandler, logge
 	logger.Info("Phase: Launching")
 
 	scan := h.getScan()
+	err = createConfigMaps(r, scriptCmForScan(scan), envCmForScan(scan), envCmForPlatformScan(scan), scan)
+	if err != nil {
+		logger.Error(err, "Cannot create the configmaps")
+		return reconcile.Result{}, err
+	}
 
-	// check the scanner type of the scan
-	if scan.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || scan.Spec.ScannerType == "" {
-		err = createConfigMaps(r, scriptCmForScan(scan), envCmForScan(scan), envCmForPlatformScan(scan), scan)
-		if err != nil {
-			logger.Error(err, "Cannot create the configmaps")
+	if err = r.handleRootCASecret(scan, logger); err != nil {
+		logger.Error(err, "Cannot create CA secret")
+		return reconcile.Result{}, err
+	}
+
+	if scan.Spec.RawResultStorage.Enabled != nil && *scan.Spec.RawResultStorage.Enabled {
+		if err = r.handleResultServerSecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result server cert secret")
 			return reconcile.Result{}, err
 		}
 
-		if err = r.handleRootCASecret(scan, logger); err != nil {
-			logger.Error(err, "Cannot create CA secret")
+		if err = r.handleResultClientSecret(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result Client cert secret")
 			return reconcile.Result{}, err
 		}
 
-		if scan.Spec.RawResultStorage.Enabled != nil && *scan.Spec.RawResultStorage.Enabled {
-			if err = r.handleResultServerSecret(scan, logger); err != nil {
-				logger.Error(err, "Cannot create result server cert secret")
-				return reconcile.Result{}, err
+		if resume, err := r.handleRawResultsForScan(scan, logger); err != nil || !resume {
+			if err != nil {
+				logger.Error(err, "Cannot create the PersistentVolumeClaims")
 			}
-
-			if err = r.handleResultClientSecret(scan, logger); err != nil {
-				logger.Error(err, "Cannot create result Client cert secret")
-				return reconcile.Result{}, err
-			}
-
-			if resume, err := r.handleRawResultsForScan(scan, logger); err != nil || !resume {
-				if err != nil {
-					logger.Error(err, "Cannot create the PersistentVolumeClaims")
-				}
-				return reconcile.Result{}, err
-			}
-
-			if err = r.createResultServer(scan, logger); err != nil {
-				logger.Error(err, "Cannot create result server")
-				return reconcile.Result{}, err
-			}
-
-		}
-
-		if err = r.handleRuntimeKubeletConfig(scan, logger); err != nil {
-			logger.Error(err, "Cannot handle runtime kubelet config")
 			return reconcile.Result{}, err
 		}
+
+		if err = r.createResultServer(scan, logger); err != nil {
+			logger.Error(err, "Cannot create result server")
+			return reconcile.Result{}, err
+		}
+
+	}
+
+	if err = r.handleRuntimeKubeletConfig(scan, logger); err != nil {
+		logger.Error(err, "Cannot handle runtime kubelet config")
+		return reconcile.Result{}, err
 	}
 
 	if err = h.createScanWorkload(); err != nil {
@@ -725,67 +689,64 @@ func (r *ReconcileComplianceScan) setAnnotationOnTimeout(scan *compv1alpha1.Comp
 func (r *ReconcileComplianceScan) phaseAggregatingHandler(h scanTypeHandler, logger logr.Logger) (reconcile.Result, error) {
 	logger.Info("Phase: Aggregating")
 	instance := h.getScan()
-	// We will skip aggregation if the scan is a CEL scan
-	if instance.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || instance.Spec.ScannerType == "" {
-		isReady, warnings, err := h.shouldLaunchAggregator()
+	isReady, warnings, err := h.shouldLaunchAggregator()
 
-		if warnings != "" {
-			instance.Status.Warnings = warnings
-		}
+	if warnings != "" {
+		instance.Status.Warnings = warnings
+	}
 
-		// We only wait if there are no errors.
-		if err == nil && !isReady {
-			logger.Info("ConfigMap missing (not ready). Requeuing.")
-			return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
-		}
+	// We only wait if there are no errors.
+	if err == nil && !isReady {
+		logger.Info("ConfigMap missing (not ready). Requeuing.")
+		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
+	}
 
+	if err != nil {
+		instance.Status.Phase = compv1alpha1.PhaseDone
+		instance.Status.EndTimestamp = &metav1.Time{Time: time.Now()}
+		instance.Status.Result = compv1alpha1.ResultError
+		instance.Status.SetConditionInvalid()
+		instance.Status.ErrorMessage = err.Error()
+		err = r.updateStatusWithEvent(instance, logger)
 		if err != nil {
-			instance.Status.Phase = compv1alpha1.PhaseDone
-			instance.Status.EndTimestamp = &metav1.Time{Time: time.Now()}
-			instance.Status.Result = compv1alpha1.ResultError
-			instance.Status.SetConditionInvalid()
-			instance.Status.ErrorMessage = err.Error()
-			err = r.updateStatusWithEvent(instance, logger)
-			if err != nil {
-				// metric status update error
-				return reconcile.Result{}, err
-			}
-			r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
-			return reconcile.Result{}, nil
-		}
-
-		logger.Info("Creating an aggregator pod for scan")
-		aggregator := r.newAggregatorPod(instance, logger)
-		if priorityClassExist, why := utils.ValidatePriorityClassExist(aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
-			logger.Info(why, "aggregator", aggregator.Name)
-			r.Recorder.Eventf(aggregator, corev1.EventTypeWarning, "PriorityClass", why+" aggregator:"+aggregator.Name)
-			aggregator.Spec.PriorityClassName = ""
-		}
-		err = r.launchAggregatorPod(instance, aggregator, logger)
-		if err != nil {
-			logger.Error(err, "Failed to launch aggregator pod", "aggregator", aggregator)
+			// metric status update error
 			return reconcile.Result{}, err
 		}
-		running, err := isAggregatorRunning(r, instance, logger)
-		if errors.IsNotFound(err) {
-			// Suppress loud error message by requeueing
-			return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault / 2}, nil
-		} else if err != nil {
-			logger.Error(err, "Failed to check if aggregator pod is running", "aggregator", aggregator)
-			return reconcile.Result{}, err
-		}
+		r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
+		return reconcile.Result{}, nil
+	}
 
-		if running {
-			logger.Info("Remaining in the aggregating phase")
-			instance.Status.Phase = compv1alpha1.PhaseAggregating
-			err = r.Client.Status().Update(context.TODO(), instance)
-			if err != nil {
-				logger.Error(err, "Cannot update the status, requeueing")
-				return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
-			}
-			r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
+	logger.Info("Creating an aggregator pod for scan")
+	aggregator := r.newAggregatorPod(instance, logger)
+	if priorityClassExist, why := utils.ValidatePriorityClassExist(aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
+		logger.Info(why, "aggregator", aggregator.Name)
+		r.Recorder.Eventf(aggregator, corev1.EventTypeWarning, "PriorityClass", why+" aggregator:"+aggregator.Name)
+		aggregator.Spec.PriorityClassName = ""
+	}
+	err = r.launchAggregatorPod(instance, aggregator, logger)
+	if err != nil {
+		logger.Error(err, "Failed to launch aggregator pod", "aggregator", aggregator)
+		return reconcile.Result{}, err
+	}
+	running, err := isAggregatorRunning(r, instance, logger)
+	if errors.IsNotFound(err) {
+		// Suppress loud error message by requeueing
+		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault / 2}, nil
+	} else if err != nil {
+		logger.Error(err, "Failed to check if aggregator pod is running", "aggregator", aggregator)
+		return reconcile.Result{}, err
+	}
+
+	if running {
+		logger.Info("Remaining in the aggregating phase")
+		instance.Status.Phase = compv1alpha1.PhaseAggregating
+		err = r.Client.Status().Update(context.TODO(), instance)
+		if err != nil {
+			logger.Error(err, "Cannot update the status, requeueing")
 			return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
 		}
+		r.Metrics.IncComplianceScanStatus(instance.Name, instance.Status)
+		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfterDefault}, nil
 	}
 
 	logger.Info("Moving on to the Done phase")
@@ -876,41 +837,37 @@ func (r *ReconcileComplianceScan) phaseDoneHandler(h scanTypeHandler, instance *
 	// We need to remove resources before doing a re-scan
 	if doDelete || instance.NeedsRescan() {
 		logger.Info("Cleaning up scan's resources")
-		if instance.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || instance.Spec.ScannerType == "" {
+		if err := r.deleteResultServer(instance, logger); err != nil {
+			logger.Error(err, "Cannot delete result server")
+			return reconcile.Result{}, err
+		}
 
-			if err := r.deleteResultServer(instance, logger); err != nil {
-				logger.Error(err, "Cannot delete result server")
-				return reconcile.Result{}, err
-			}
+		if err = r.deleteResultServerSecret(instance, logger); err != nil {
+			logger.Error(err, "Cannot delete result server cert secret")
+			return reconcile.Result{}, err
+		}
 
-			if err = r.deleteResultServerSecret(instance, logger); err != nil {
-				logger.Error(err, "Cannot delete result server cert secret")
-				return reconcile.Result{}, err
-			}
+		if err = r.deleteResultClientSecret(instance, logger); err != nil {
+			logger.Error(err, "Cannot delete result Client cert secret")
+			return reconcile.Result{}, err
+		}
 
-			if err = r.deleteResultClientSecret(instance, logger); err != nil {
-				logger.Error(err, "Cannot delete result Client cert secret")
-				return reconcile.Result{}, err
-			}
+		if err = r.deleteRootCASecret(instance, logger); err != nil {
+			logger.Error(err, "Cannot delete CA secret")
+			return reconcile.Result{}, err
+		}
 
-			if err = r.deleteRootCASecret(instance, logger); err != nil {
-				logger.Error(err, "Cannot delete CA secret")
-				return reconcile.Result{}, err
-			}
+		if err = r.deleteScriptConfigMaps(instance, logger); err != nil {
+			logger.Error(err, "Cannot delete script ConfigMaps")
+			return reconcile.Result{}, err
+		}
 
-			if err = r.deleteScriptConfigMaps(instance, logger); err != nil {
-				logger.Error(err, "Cannot delete script ConfigMaps")
-				return reconcile.Result{}, err
-			}
-
-			if err := r.deleteKubeletConfigConfigMaps(instance, logger); err != nil {
-				logger.Error(err, "Cannot delete KubeletConfig ConfigMaps")
-				return reconcile.Result{}, err
-			}
+		if err := r.deleteKubeletConfigConfigMaps(instance, logger); err != nil {
+			logger.Error(err, "Cannot delete KubeletConfig ConfigMaps")
+			return reconcile.Result{}, err
 		}
 
 		if instance.NeedsRescan() {
-
 			if err = r.deleteResultConfigMaps(instance, logger); err != nil {
 				logger.Error(err, "Cannot delete result ConfigMaps")
 				return reconcile.Result{}, err
@@ -937,14 +894,12 @@ func (r *ReconcileComplianceScan) phaseDoneHandler(h scanTypeHandler, instance *
 		}
 	} else {
 		// If we're done with the scan but we're not cleaning up just yet.
-		if (instance.Spec.RawResultStorage.Enabled != nil && *instance.Spec.RawResultStorage.Enabled) || (instance.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || instance.Spec.ScannerType == "") {
-
+		if instance.Spec.RawResultStorage.Enabled != nil && *instance.Spec.RawResultStorage.Enabled {
 			// scale down resultserver so it's not still listening for requests.
 			if err := r.scaleDownResultServer(instance, logger); err != nil {
 				logger.Error(err, "Cannot scale down result server")
 				return reconcile.Result{}, err
 			}
-
 		}
 	}
 

@@ -273,14 +273,6 @@ spec:
                 default: Node
                 description: The type of Compliance scan.
                 type: string
-              scannerType:
-                default: OpenSCAP
-                description: The scanner used to evaluate the rules in a Profile or
-                  TailoredProfile.
-                enum:
-                - OpenSCAP
-                - CEL
-                type: string
               showNotApplicable:
                 default: false
                 description: Determines whether to hide or show results that are not

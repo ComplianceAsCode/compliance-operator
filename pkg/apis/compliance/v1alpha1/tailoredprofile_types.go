@@ -15,11 +15,6 @@ const PruneOutdatedReferencesAnnotationKey = "compliance.openshift.io/prune-outd
 // RuleLastCheckTypeChangedAnnotationKey is the annotation key used to indicate that the rule check type has changed, store its previous check type
 const RuleLastCheckTypeChangedAnnotationKey = "compliance.openshift.io/rule-last-check-type"
 
-const (
-	RuleKind       string = "Rule"
-	CustomRuleKind string = "CustomRule"
-)
-
 // ExtendedProfileGuidLabel is a label used to store the unique ID of the profile being extends
 const ExtendedProfileGuidLabel = "compliance.openshift.io/extended-profile-unique-id"
 
@@ -29,10 +24,6 @@ type RuleReferenceSpec struct {
 	Name string `json:"name"`
 	// Rationale of why this rule is being selected/deselected
 	Rationale string `json:"rationale"`
-	// Specifies the type of rule reference: either "Rule" or "CustomRule".
-	// If not set, "Rule" is used by default. The "CustomRule" type is only applicable
-	// when referencing CustomRule resources in TailoredProfiles via enableRules.
-	Kind string `json:"kind,omitempty"`
 }
 
 // ValueReferenceSpec specifies a value to be set for a variable with a reason why

@@ -130,8 +130,7 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 				Name: "test",
 			},
 			Spec: compv1alpha1.ComplianceScanSpec{
-				ScanType:    compv1alpha1.ScanTypeNode,
-				ScannerType: compv1alpha1.ScannerTypeOpenSCAP,
+				ScanType: compv1alpha1.ScanTypeNode,
 				ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 					RawResultStorage: compv1alpha1.RawResultStorageSettings{
 						Enabled:       &trueValue,

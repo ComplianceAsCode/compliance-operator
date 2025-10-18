@@ -54,13 +54,12 @@ spec:
             description: |-
               What type of check will this rule execute:
               Platform, Node or none (represented by an empty string)
-              For CustomRules, only Platform is supported.
             type: string
           description:
             description: The description of the Rule
             type: string
           id:
-            description: The ID of the Rule
+            description: The XCCDF ID
             type: string
           instructions:
             description: Instructions for auditing this specific rule

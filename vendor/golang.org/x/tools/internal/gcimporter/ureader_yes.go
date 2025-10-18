@@ -14,7 +14,6 @@ import (
 
 	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/pkgbits"
-	"golang.org/x/tools/internal/typesinternal"
 )
 
 // A pkgReader holds the shared state for reading a unified IR package
@@ -573,8 +572,7 @@ func (pr *pkgReader) objIdx(idx pkgbits.Index) (*types.Package, string) {
 						sig := fn.Type().(*types.Signature)
 
 						recv := types.NewVar(fn.Pos(), fn.Pkg(), "", named)
-						typesinternal.SetVarKind(recv, typesinternal.RecvVar)
-						methods[i] = types.NewFunc(fn.Pos(), fn.Pkg(), fn.Name(), types.NewSignatureType(recv, nil, nil, sig.Params(), sig.Results(), sig.Variadic()))
+						methods[i] = types.NewFunc(fn.Pos(), fn.Pkg(), fn.Name(), types.NewSignature(recv, sig.Params(), sig.Results(), sig.Variadic()))
 					}
 
 					embeds := make([]types.Type, iface.NumEmbeddeds())
@@ -621,9 +619,7 @@ func (pr *pkgReader) objIdx(idx pkgbits.Index) (*types.Package, string) {
 		case pkgbits.ObjVar:
 			pos := r.pos()
 			typ := r.typ()
-			v := types.NewVar(pos, objPkg, objName, typ)
-			typesinternal.SetVarKind(v, typesinternal.PackageVar)
-			declare(v)
+			declare(types.NewVar(pos, objPkg, objName, typ))
 		}
 	}
 

@@ -414,29 +414,7 @@ func (ph *platformScanTypeHandler) shouldLaunchAggregator() (bool, string, error
 func (ph *platformScanTypeHandler) gatherResults() (compv1alpha1.ComplianceScanStatusResult, bool, error) {
 	var result compv1alpha1.ComplianceScanStatusResult
 	isReady := true
-	// For CEL we don't need to check the ConfigMap
-	if ph.scan.Spec.ScannerType == compv1alpha1.ScannerTypeCEL {
-		// we will fetch all the result with scan label and check the result
-		// if all the result are compliant then we will return compliant
-		// if any of the result is non-compliant then we will return non-compliant
-		// if any of the result is error then we will return error
-		var checkList compv1alpha1.ComplianceCheckResultList
-		checkListOpts := client.MatchingLabels{
-			compv1alpha1.ComplianceScanLabel: ph.scan.Name,
-		}
-		if err := ph.r.Client.List(context.TODO(), &checkList, &checkListOpts); err != nil {
-			isReady = false
-		}
-		overallResult := compv1alpha1.ResultCompliant
 
-		for _, check := range checkList.Items {
-			if check.Status == compv1alpha1.CheckResultFail || check.Status == compv1alpha1.CheckResultError {
-				overallResult = compv1alpha1.ResultNonCompliant
-				break
-			}
-		}
-		return overallResult, isReady, nil
-	}
 	foundCM, err := getPlatformScanCM(ph.r, ph.scan)
 
 	// Could be a transient error, so we requeue if there's any
@@ -446,6 +424,7 @@ func (ph *platformScanTypeHandler) gatherResults() (compv1alpha1.ComplianceScanS
 		isReady = false
 		return result, isReady, nil
 	}
+
 	cmHasResult := scanResultReady(foundCM)
 	if cmHasResult == false {
 		ph.l.Info("Scan results not ready, retrying. If the issue persists, restart or recreate the scan", "ComplianceScan.Name", ph.scan.Name)
