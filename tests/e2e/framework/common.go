@@ -1121,6 +1121,43 @@ func (f *Framework) WaitForTailoredProfileStatus(namespace, name string, targetS
 	return nil
 }
 
+func (f *Framework) WaitForCustomRuleStatus(namespace, name string, targetPhase string) error {
+	rule := &compv1alpha1.CustomRule{}
+	var lastErr error
+	defer f.logContainerOutput(namespace, name)
+	// retry and ignore errors until timeout
+	timeoutErr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		lastErr = f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, rule)
+		if lastErr != nil {
+			if apierrors.IsNotFound(lastErr) {
+				log.Printf("Waiting for availability of %s customrule\n", name)
+				return false, nil
+			}
+			log.Printf("Retrying. Got error: %v\n", lastErr)
+			return false, nil
+		}
+
+		if rule.Status.Phase == targetPhase {
+			return true, nil
+		}
+		log.Printf("Waiting for %s customrule to reach phase %s (current: %s)\n", name, targetPhase, rule.Status.Phase)
+		if rule.Status.ErrorMessage != "" {
+			log.Printf("CustomRule error message: %s\n", rule.Status.ErrorMessage)
+		}
+		return false, nil
+	})
+
+	if timeoutErr != nil {
+		return fmt.Errorf("failed waiting for customrule %s due to timeout: %s", name, timeoutErr)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("failed waiting for customrule %s: %s", name, lastErr)
+	}
+
+	log.Printf("CustomRule ready (%s)\n", rule.Status.Phase)
+	return nil
+}
+
 // waitForScanStatus will poll until the compliancescan that we're lookingfor reaches a certain status, or until
 // a timeout is reached.
 func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatus compv1alpha1.ComplianceScanStatusResult) error {

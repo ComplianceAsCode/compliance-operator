@@ -336,6 +336,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:           compv1alpha1.ScanTypeNode,
+					ScannerType:        compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage:       pBundleRhcos.Spec.ContentImage,
 					Profile:            profRhcosE8.ID,
 					Rule:               "",
@@ -351,6 +352,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:           compv1alpha1.ScanTypeNode,
+					ScannerType:        compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage:       pBundleRhcos.Spec.ContentImage,
 					Profile:            profRhcosE8.ID,
 					Rule:               "",
@@ -434,6 +436,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      tpRhcosE8.Status.ID,
 					Rule:         "",
@@ -451,6 +454,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      tpRhcosE8.Status.ID,
 					Rule:         "",
@@ -536,6 +540,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      scratchTP.Status.ID,
 					Rule:         "",
@@ -553,6 +558,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
+					ScannerType:  compv1alpha1.ScannerTypeOpenSCAP,
 					ContentImage: pBundleRhcos.Spec.ContentImage,
 					Profile:      scratchTP.Status.ID,
 					Rule:         "",
@@ -727,6 +733,59 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			Expect(ssb.Status.Conditions.GetCondition("Ready")).ToNot(BeNil())
 			Expect(ssb.Status.Conditions.IsTrueFor("Ready")).To(BeFalse())
 			Expect(ssb.Status.Conditions.GetCondition("Ready").Reason).To(Equal(compv1alpha1.ConditionReason("Invalid")))
+			Expect(ssb.Status.Phase).To(Equal(compv1alpha1.ScanSettingBindingPhaseInvalid))
+		})
+
+		It("transitions from Invalid to Ready when TailoredProfile is fixed", func() {
+			// First reconcile: SSB becomes Invalid due to TP error
+			res, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: ssb.Namespace,
+					Name:      ssb.Name,
+				},
+			})
+			Expect(err).To(BeNil())
+			Expect(res.Requeue).To(BeFalse())
+
+			// Verify SSB is Invalid
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{
+				Namespace: ssb.Namespace,
+				Name:      ssb.Name,
+			}, ssb)
+			Expect(err).To(BeNil())
+			Expect(ssb.Status.Phase).To(Equal(compv1alpha1.ScanSettingBindingPhaseInvalid))
+			Expect(ssb.Status.Conditions.GetCondition("Ready").Reason).To(Equal(compv1alpha1.ConditionReason("Invalid")))
+
+			// Fix the TailoredProfile - set it to Ready
+			By("Fixing the TailoredProfile - setting it to READY")
+			scratchTP.Status.State = compv1alpha1.TailoredProfileStateReady
+			scratchTP.Status.ID = "rhcos4-e8-tp"
+			updateErr := reconciler.Client.Status().Update(context.TODO(), scratchTP)
+			Expect(updateErr).To(BeNil())
+
+			// Second reconcile: SSB should transition to Ready
+			res, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: ssb.Namespace,
+					Name:      ssb.Name,
+				},
+			})
+			Expect(err).To(BeNil())
+			Expect(res.Requeue).To(BeFalse())
+
+			// Verify SSB is now Ready
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{
+				Namespace: ssb.Namespace,
+				Name:      ssb.Name,
+			}, ssb)
+			Expect(err).To(BeNil())
+			Expect(ssb.Status.Phase).To(Equal(compv1alpha1.ScanSettingBindingPhaseReady))
+			Expect(ssb.Status.Conditions.IsTrueFor("Ready")).To(BeTrue())
+			Expect(ssb.Status.Conditions.GetCondition("Ready").Reason).To(Equal(compv1alpha1.ConditionReason("Processed")))
+
+			// Verify ComplianceSuite was created
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: ssb.Name, Namespace: ssb.Namespace}, suite)
+			Expect(err).To(BeNil())
 		})
 	})
 

@@ -28,7 +28,7 @@ const (
 )
 
 type RulePayload struct {
-	// The XCCDF ID
+	// The ID of the Rule
 	ID string `json:"id"`
 	// The title of the Rule
 	Title string `json:"title"`
@@ -44,6 +44,7 @@ type RulePayload struct {
 	Instructions string `json:"instructions,omitempty"`
 	// What type of check will this rule execute:
 	// Platform, Node or none (represented by an empty string)
+	// For CustomRules, only Platform is supported.
 	CheckType string `json:"checkType,omitempty"`
 	// The Available fixes
 	// +nullable

@@ -289,13 +289,286 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 	}
 }
 
+// Add a scanner pod to the scan instance
+// based on scannerType
+func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.Pod) *corev1.Pod {
+	falseP := false
+	trueP := true
+
+	switch scanInstance.Spec.ScannerType {
+	case compv1alpha1.ScannerTypeCEL:
+		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+			Name:  CELScannerContainerName,
+			Image: utils.GetComponentImage(utils.OPERATOR),
+			Command: []string{
+				"compliance-operator", "cel-scanner",
+				// "--api-resource-dir=" + PlatformScanDataRoot,
+				// This is not used for now, we are fetching the data from the API server directly
+				"--profile=" + scanInstance.Spec.Profile,
+				"--check-resultdir=" + "/reports",
+				"--enable-ccr-generation=" + "true", // TODO(@Vincent056): make this configurable
+				"--scan-type=" + "Platform",
+				"--platform=" + os.Getenv("PLATFORM"),
+				"--debug=" + fmt.Sprintf("%t", scanInstance.Spec.Debug),
+				// TODO(@Vincent056): make this configurable, we need to update this to
+				// fetch this value dynamically when we start supporting CEL in Rule CRs
+				"--tailoring=" + "true",
+				"--scan-name=" + scanInstance.Name,
+				"--namespace=" + scanInstance.Namespace,
+			},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &falseP,
+				ReadOnlyRootFilesystem:   &trueP,
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+				// NOTE: when changing the default limits, remember to also change the
+				// doc text in the CRD.
+				Limits: *scanLimits(scanInstance, "500Mi", "100m"),
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "tmp-dir",
+					MountPath: "/tmp",
+				},
+				{
+					Name:      "fetch-results",
+					MountPath: PlatformScanDataRoot,
+				},
+				{
+					Name:      "report-dir",
+					MountPath: "/reports",
+				},
+			},
+		})
+	default:
+		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+			Name:    OpenSCAPScanContainerName,
+			Image:   utils.GetComponentImage(utils.OPENSCAP),
+			Command: []string{OpenScapScriptPath},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &falseP,
+				ReadOnlyRootFilesystem:   &trueP,
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+				// NOTE: when changing the default limits, remember to also change the
+				// doc text in the CRD.
+				Limits: *scanLimits(scanInstance, "500Mi", "100m"),
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "report-dir",
+					MountPath: "/reports",
+				},
+				{
+					Name:      "content-dir",
+					MountPath: "/content",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "tmp-dir",
+					MountPath: "/tmp",
+				},
+				{
+					Name:      "fetch-results",
+					MountPath: PlatformScanDataRoot,
+				},
+				{
+					Name:      scriptCmForScan(scanInstance),
+					MountPath: "/scripts",
+					ReadOnly:  true,
+				},
+			},
+			EnvFrom: []corev1.EnvFromSource{
+				{
+					ConfigMapRef: &corev1.ConfigMapEnvSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: envCmForPlatformScan(scanInstance),
+						},
+					},
+				},
+			},
+		})
+	}
+	return pod
+}
+
 func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.ComplianceScan, logger logr.Logger) *corev1.Pod {
 	podName := getPodForNodeName(scanInstance.Name, PlatformScanName)
-	cmName := getConfigMapForNodeName(scanInstance.Name, PlatformScanName)
 	podLabels := map[string]string{
 		compv1alpha1.ComplianceScanLabel: scanInstance.Name,
 		"workload":                       "scanner",
 	}
+	trueP := true
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: common.GetComplianceOperatorNamespace(),
+			Labels:    podLabels,
+			Annotations: map[string]string{
+				"workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
+			},
+		},
+		Spec: corev1.PodSpec{
+			ServiceAccountName: apiResourceCollectorSA,
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: &trueP,
+			},
+			PriorityClassName: scanInstance.Spec.PriorityClass,
+			InitContainers:    []corev1.Container{},
+			Containers:        []corev1.Container{},
+			NodeSelector:      r.schedulingInfo.Selector,
+			Tolerations:       r.schedulingInfo.Tolerations,
+			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			Volumes: []corev1.Volume{
+				{
+					Name: "tmp-dir",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: "fetch-results",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: "report-dir",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+		},
+	}
+	// check if customRule are set, we will only add following when we don't have custom rules
+	scannerType, err := scanInstance.GetScannerTypeIfValid()
+	if err != nil {
+		logger.Error(err, "Failed to get scanner type")
+		// we will use default scanner OpenSCAP
+		scannerType = compv1alpha1.ScannerTypeOpenSCAP
+	}
+	if scannerType == compv1alpha1.ScannerTypeOpenSCAP {
+		pod = addScannerInitContainer(scanInstance, pod, logger)
+		pod = addResultsCollectionPods(scanInstance, pod)
+	}
+
+	return addScannerContainer(scanInstance, pod)
+}
+
+// addResultsCollectionPods adds the results collection containers to the provided scan pod
+func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.Pod) *corev1.Pod {
+	// Example variable declarations; adjust as needed
+	trueP := true
+	falseP := false
+	var mode int32 = 0755
+	cmName := getConfigMapForNodeName(scanInstance.Name, PlatformScanName)
+
+	resultCollectionPods := []corev1.Container{
+		{
+			Name:  "log-collector",
+			Image: utils.GetComponentImage(utils.OPERATOR),
+			Command: []string{
+				"compliance-operator", "resultscollector",
+				"--arf-file=/reports/report-arf.xml",
+				"--results-file=/reports/report.xml",
+				"--exit-code-file=/reports/exit_code",
+				"--oscap-output-file=/reports/cmd_output",
+				"--warnings-output-file=/reports/warning_output",
+				"--config-map-name=" + cmName,
+				"--owner=" + scanInstance.Name,
+				"--namespace=" + scanInstance.Namespace,
+				"--resultserveruri=" + getResultServerURI(scanInstance),
+				"--tls-client-cert=/etc/pki/tls/tls.crt",
+				"--tls-client-key=/etc/pki/tls/tls.key",
+				"--tls-ca=/etc/pki/tls/ca.crt",
+				"--raw-results-output=" + getRawResultsOutputValue(scanInstance),
+			},
+			ImagePullPolicy: corev1.PullAlways,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &falseP,
+				ReadOnlyRootFilesystem:   &trueP,
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("20Mi"),
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("100Mi"),
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "report-dir",
+					MountPath: "/reports",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "tls",
+					MountPath: "/etc/pki/tls",
+					ReadOnly:  true,
+				},
+			},
+		},
+	}
+
+	podVolumes := []corev1.Volume{
+		{
+			Name: "content-dir",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: scriptCmForScan(scanInstance),
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: scriptCmForScan(scanInstance),
+					},
+					DefaultMode: &mode,
+				},
+			},
+		},
+		{
+			Name: "tls",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: ClientCertPrefix + scanInstance.Name,
+				},
+			},
+		},
+	}
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes, podVolumes...)
+	pod.Spec.Containers = append(pod.Spec.Containers, resultCollectionPods...)
+
+	return pod
+}
+
+// addScannerInitContainer adds the scanner init container to the scan pod
+func addScannerInitContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.Pod, logger logr.Logger) *corev1.Pod {
+	falseP := false
+	trueP := true
 	collectorCmd := []string{
 		"compliance-operator", "api-resource-collector",
 		"--content=/content/" + scanInstance.Spec.Content,
@@ -311,219 +584,102 @@ func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.
 		collectorCmd = append(collectorCmd, tailoringArg)
 	}
 
-	falseP := false
-	trueP := true
-
 	if scanInstance.Spec.Debug {
 		collectorCmd = append(collectorCmd, "--debug")
 	}
 
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: common.GetComplianceOperatorNamespace(),
-			Labels:    podLabels,
-			Annotations: map[string]string{
-				"workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
+	initContainers := []corev1.Container{
+		{
+			Name:  "content-container",
+			Image: getInitContainerImage(&scanInstance.Spec, logger),
+			Command: []string{
+				"sh",
+				"-c",
+				fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
+			},
+			ImagePullPolicy: corev1.PullAlways,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &falseP,
+				ReadOnlyRootFilesystem:   &trueP,
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("10Mi"),
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+					corev1.ResourceCPU:    resource.MustParse("50m"),
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "content-dir",
+					MountPath: "/content",
+				},
 			},
 		},
-		Spec: corev1.PodSpec{
-			ServiceAccountName: apiResourceCollectorSA,
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot: &trueP,
+		{
+			Name:            PlatformScanResourceCollectorName,
+			Image:           utils.GetComponentImage(utils.OPERATOR),
+			Command:         collectorCmd,
+			ImagePullPolicy: corev1.PullAlways,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &falseP,
+				ReadOnlyRootFilesystem:   &trueP,
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
 			},
-			PriorityClassName: scanInstance.Spec.PriorityClass,
-			InitContainers: []corev1.Container{
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("20Mi"),
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+				// NOTE: when changing the default limits, remember to also change the
+				// doc text in the CRD.
+				Limits: *scanLimits(scanInstance, "202Mi", "100m"),
+			},
+			VolumeMounts: []corev1.VolumeMount{
 				{
-					Name:  "content-container",
-					Image: getInitContainerImage(&scanInstance.Spec, logger),
-					Command: []string{
-						"sh",
-						"-c",
-						fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
-					},
-					ImagePullPolicy: corev1.PullAlways,
-					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: &falseP,
-						ReadOnlyRootFilesystem:   &trueP,
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-					},
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("10Mi"),
-							corev1.ResourceCPU:    resource.MustParse("10m"),
-						},
-						Limits: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("50Mi"),
-							corev1.ResourceCPU:    resource.MustParse("50m"),
-						},
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "content-dir",
-							MountPath: "/content",
+					Name:      "content-dir",
+					MountPath: "/content",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "fetch-results",
+					MountPath: PlatformScanDataRoot,
+				},
+				{
+					Name:      "report-dir",
+					MountPath: "/reports",
+				},
+			},
+			Env: []corev1.EnvVar{
+				{
+					Name: "POD_NAMESPACE",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.namespace",
 						},
 					},
 				},
 				{
-					Name:            PlatformScanResourceCollectorName,
-					Image:           utils.GetComponentImage(utils.OPERATOR),
-					Command:         collectorCmd,
-					ImagePullPolicy: corev1.PullAlways,
-					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: &falseP,
-						ReadOnlyRootFilesystem:   &trueP,
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-					},
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("20Mi"),
-							corev1.ResourceCPU:    resource.MustParse("10m"),
-						},
-						// NOTE: when changing the default limits, remember to also change the
-						// doc text in the CRD.
-						Limits: *scanLimits(scanInstance, "202Mi", "100m"),
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "content-dir",
-							MountPath: "/content",
-							ReadOnly:  true,
-						},
-						{
-							Name:      "fetch-results",
-							MountPath: PlatformScanDataRoot,
-						},
-						{
-							Name:      "report-dir",
-							MountPath: "/reports",
-						},
-					},
-					Env: []corev1.EnvVar{
-						{
-							Name: "POD_NAMESPACE",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "metadata.namespace",
-								},
-							},
-						},
-						{
-							Name: "POD_NAME",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "metadata.name",
-								},
-							},
+					Name: "POD_NAME",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.name",
 						},
 					},
 				},
 			},
-			Containers: []corev1.Container{
-				{
-					Name:  "log-collector",
-					Image: utils.GetComponentImage(utils.OPERATOR),
-					Command: []string{
-						"compliance-operator", "resultscollector",
-						"--arf-file=/reports/report-arf.xml",
-						"--results-file=/reports/report.xml",
-						"--exit-code-file=/reports/exit_code",
-						"--oscap-output-file=/reports/cmd_output",
-						"--warnings-output-file=/reports/warning_output",
-						"--config-map-name=" + cmName,
-						"--owner=" + scanInstance.Name,
-						"--namespace=" + scanInstance.Namespace,
-						"--resultserveruri=" + getResultServerURI(scanInstance),
-						"--tls-client-cert=/etc/pki/tls/tls.crt",
-						"--tls-client-key=/etc/pki/tls/tls.key",
-						"--tls-ca=/etc/pki/tls/ca.crt",
-						"--raw-results-output=" + getRawResultsOutputValue(scanInstance),
-					},
-					ImagePullPolicy: corev1.PullAlways,
-					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: &falseP,
-						ReadOnlyRootFilesystem:   &trueP,
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-					},
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("20Mi"),
-							corev1.ResourceCPU:    resource.MustParse("10m"),
-						},
-						Limits: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("100Mi"),
-							corev1.ResourceCPU:    resource.MustParse("100m"),
-						},
-					},
-					VolumeMounts: getLogCollectorVolumeMounts(scanInstance),
-				},
-				{
-					Name:    OpenSCAPScanContainerName,
-					Image:   utils.GetComponentImage(utils.OPENSCAP),
-					Command: []string{OpenScapScriptPath},
-					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: &falseP,
-						ReadOnlyRootFilesystem:   &trueP,
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-					},
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("50Mi"),
-							corev1.ResourceCPU:    resource.MustParse("10m"),
-						},
-						// NOTE: when changing the default limits, remember to also change the
-						// doc text in the CRD.
-						Limits: *scanLimits(scanInstance, "500Mi", "100m"),
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "report-dir",
-							MountPath: "/reports",
-						},
-						{
-							Name:      "content-dir",
-							MountPath: "/content",
-							ReadOnly:  true,
-						},
-						{
-							Name:      "tmp-dir",
-							MountPath: "/tmp",
-						},
-						{
-							Name:      "fetch-results",
-							MountPath: PlatformScanDataRoot,
-						},
-						{
-							Name:      scriptCmForScan(scanInstance),
-							MountPath: "/scripts",
-							ReadOnly:  true,
-						},
-					},
-					EnvFrom: []corev1.EnvFromSource{
-						{
-							ConfigMapRef: &corev1.ConfigMapEnvSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: envCmForPlatformScan(scanInstance),
-								},
-							},
-						},
-					},
-				},
-			},
-			NodeSelector:  r.schedulingInfo.Selector,
-			Tolerations:   r.schedulingInfo.Tolerations,
-			RestartPolicy: corev1.RestartPolicyOnFailure,
-			Volumes:       getPlatformScannerPodVolumes(scanInstance),
 		},
 	}
+	pod.Spec.InitContainers = initContainers
+	return pod
 }
 
 func (r *ReconcileComplianceScan) deleteScanPods(instance *compv1alpha1.ComplianceScan, nodes []corev1.Node, logger logr.Logger) error {
