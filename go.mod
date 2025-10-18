@@ -183,7 +183,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/openshift/client-go v0.0.0-20250324153519-f0faeb0f2f2e // indirect
+	github.com/openshift/client-go db0dee36e235 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/prometheus v0.301.0
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -203,5 +203,5 @@ require (
 
 replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20250120092857-366ffb8c60da
-	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20250106104058-89709a455e2a
+	github.com/openshift/client-go => github.com/openshift/client-go db0dee36e235
 )
