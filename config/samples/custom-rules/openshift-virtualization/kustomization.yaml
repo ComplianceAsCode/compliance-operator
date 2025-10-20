@@ -1,0 +1,6 @@
+resources:
+  - ocp-virt-permissions.yaml
+  - ocp-virt-rbac-binding.yaml
+  - kubevirt-nonroot-feature-gate-is-enabled.yaml
+  - tailored-profile.yaml
+  - scan-setting-binding.yaml
