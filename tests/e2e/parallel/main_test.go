@@ -5144,3 +5144,57 @@ func TestScanWithoutBundlePassesDeprecationCheck(t *testing.T) {
 
 	t.Logf("Scan completed with result: %s", testScan.Status.Result)
 }
+
+// TestRuleVariableAnnotation tests that rules with variables have the correct annotation
+func TestRuleVariableAnnotation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Test cases for rules that should have variable annotations
+	testCases := []struct {
+		ruleName         string
+		expectedVariable string
+		description      string
+	}{
+		{
+			ruleName:         "ocp4-configure-network-policies-namespaces",
+			expectedVariable: "var-network-policies-namespaces-exempt-regex",
+			description:      "Network policies namespace exemption variable",
+		},
+		{
+			ruleName:         "ocp4-resource-requests-limits-in-statefulset",
+			expectedVariable: "var-statefulset-limit-namespaces-exempt-regex",
+			description:      "StatefulSet resource limit namespace exemption variable",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.ruleName, func(t *testing.T) {
+			// Get the rule
+			rule := &compv1alpha1.Rule{}
+			err := f.Client.Get(context.TODO(), types.NamespacedName{
+				Name:      tc.ruleName,
+				Namespace: f.OperatorNamespace,
+			}, rule)
+			if err != nil {
+				t.Fatalf("Failed to get rule %s: %v", tc.ruleName, err)
+			}
+
+			// Check that the rule has the variable annotation
+			variableAnnotation, exists := rule.Annotations[compv1alpha1.RuleVariableAnnotationKey]
+			if !exists {
+				t.Fatalf("Rule %s is missing the %s annotation. This is a regression of OCPBUGS-42396",
+					tc.ruleName, compv1alpha1.RuleVariableAnnotationKey)
+			}
+
+			// Verify the annotation contains the expected variable
+			if variableAnnotation != tc.expectedVariable {
+				t.Fatalf("Rule %s has incorrect variable annotation.\nExpected: %s\nGot: %s\nDescription: %s",
+					tc.ruleName, tc.expectedVariable, variableAnnotation, tc.description)
+			}
+
+			t.Logf("Rule %s correctly has variable annotation: %s", tc.ruleName, tc.expectedVariable)
+		})
+	}
+}
