@@ -994,9 +994,9 @@ func trimToValue(listToBeTrimmed []string) []string {
 	var trimmedValuesList []string
 
 	for _, oriVal := range listToBeTrimmed {
-		// Match variable names in templates like .var_name or .the_value_1
+		// Match variable names in templates like .var_name or .var_value_1
 		// Only match those that start with a dot and are specific to our templates
-		re := regexp.MustCompile(`\.(var_[a-zA-Z0-9_-]+|the_value_[0-9]+|the_value_not_defined)`)
+		re := regexp.MustCompile(`\.(var_[a-zA-Z0-9_-]+)`)
 		matches := re.FindAllStringSubmatch(oriVal, -1)
 		for _, match := range matches {
 			if len(match) > 0 {

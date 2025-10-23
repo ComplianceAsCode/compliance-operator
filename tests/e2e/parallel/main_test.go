@@ -5184,7 +5184,7 @@ func TestRuleVariableAnnotation(t *testing.T) {
 			// Check that the rule has the variable annotation
 			variableAnnotation, exists := rule.Annotations[compv1alpha1.RuleVariableAnnotationKey]
 			if !exists {
-				t.Fatalf("Rule %s is missing the %s annotation. This is a regression of OCPBUGS-42396",
+				t.Fatalf("Rule %s is missing the %s annotation. This is a regression of CMP-3582",
 					tc.ruleName, compv1alpha1.RuleVariableAnnotationKey)
 			}
 

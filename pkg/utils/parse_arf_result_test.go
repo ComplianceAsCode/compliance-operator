@@ -482,10 +482,10 @@ Server 3.fedora.pool.ntp.org`
 
 	Describe("Testing for parseValues", func() {
 		var value_dic = map[string]string{
-			"the_value_1": "3600,1200,3122",
-			"the_value_2": "1111",
-			"the_value_3": "2222",
-			"the_value_4": "3333",
+			"var_value_1": "3600,1200,3122",
+			"var_value_2": "1111",
+			"var_value_3": "2222",
+			"var_value_4": "3333",
 			"var_kubelet_evictionhard_imagefs_available": "10%",
 			"var_version": "3.1.0",
 			"var_servers": "server1,server2,server3",
@@ -497,15 +497,15 @@ Server 3.fedora.pool.ntp.org`
 		var MachineConfig string
 		Context("Contents with only url-encoded template content", func() {
 
-			expUsedVals := []string{"the-value-1", "the-value-2"}
-			expMissingVals := []string{"the-value-not-defined"}
+			expUsedVals := []string{"var-value-1", "var-value-2"}
+			expMissingVals := []string{"var-value-not-defined"}
 
 			BeforeEach(func() {
 				/*
 					The content of following url-encoded data:
-					test1 := {{.the_value_1}}
-					test2 := {{.the_value_2}}
-					test_not_defined := {{.the_value_not_defined}}
+					test1 := {{.var_value_1}}
+					test2 := {{.var_value_2}}
+					test_not_defined := {{.var_value_not_defined}}
 				*/
 				MachineConfig = `apiVersion: machineconfiguration.openshift.io/v1
 			kind: MachineConfig
@@ -516,7 +516,7 @@ Server 3.fedora.pool.ntp.org`
 				storage:
 				  files:
 				  - contents:
-					  source: data:,{{ test1%20%3A%3D%20%7B%7B.the_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.the_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.the_value_not_defined%7D%7D }}
+					  source: data:,{{ test1%20%3A%3D%20%7B%7B.var_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.var_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.var_value_not_defined%7D%7D }}
 					mode: 420
 					overwrite: true
 					path: /etc/chrony.conf`
@@ -538,15 +538,15 @@ Server 3.fedora.pool.ntp.org`
 
 		Context("Contents with only url-encoded template content extra space at beginning", func() {
 
-			expUsedVals := []string{"the-value-1", "the-value-2"}
-			expMissingVals := []string{"the-value-not-defined"}
+			expUsedVals := []string{"var-value-1", "var-value-2"}
+			expMissingVals := []string{"var-value-not-defined"}
 
 			BeforeEach(func() {
 				/*
 					The content of following url-encoded data:
-					test1 := {{.the_value_1}}
-					test2 := {{.the_value_2}}
-					test_not_defined := {{.the_value_not_defined}}
+					test1 := {{.var_value_1}}
+					test2 := {{.var_value_2}}
+					test_not_defined := {{.var_value_not_defined}}
 				*/
 				MachineConfig = `apiVersion: machineconfiguration.openshift.io/v1
 			kind: MachineConfig
@@ -557,7 +557,7 @@ Server 3.fedora.pool.ntp.org`
 				storage:
 				  files:
 				  - contents:
-					  source: data:,{{   test1%20%3A%3D%20%7B%7B.the_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.the_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.the_value_not_defined%7D%7D }}
+					  source: data:,{{   test1%20%3A%3D%20%7B%7B.var_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.var_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.var_value_not_defined%7D%7D }}
 					mode: 420
 					overwrite: true
 					path: /etc/chrony.conf`
@@ -590,7 +590,7 @@ Server 3.fedora.pool.ntp.org`
 				storage:
 				  files:
 				  - contents:
-					  source: data:,{{ test1%20%3A%3D%20%7B%7B.t he_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.the_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.the_value_not_defined%7D%7D }}
+					  source: data:,{{ test1%20%3A%3D%20%7B%7B.t he_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.var_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.var_value_not_defined%7D%7D }}
 					mode: 420
 					overwrite: true
 					path: /etc/chrony.conf`
@@ -641,15 +641,15 @@ Server 3.fedora.pool.ntp.org`
 
 		Context("Contents with non-url-encoded template content loop array variable", func() {
 
-			expUsedVals := []string{"var-servers", "the-value-2"}
+			expUsedVals := []string{"var-servers", "var-value-2"}
 			BeforeEach(func() {
 
 				MachineConfig = `apiVersion: machineconfiguration.openshift.io/v1
 			kind: KubeletConfig
 			spec:
 				  {{$var_servers:=.var_servers}}
-				  {{$the_value_2:=.the_value_2}}
-				  {{range $element:=$var_servers|toArrayByComma}}server {{$element}} minpoll 4 maxpoll {{$the_value_2}}
+				  {{$var_value_2:=.var_value_2}}
+				  {{range $element:=$var_servers|toArrayByComma}}server {{$element}} minpoll 4 maxpoll {{$var_value_2}}
 				  {{end}}`
 
 				_, usedVals, missingVals, err = parseValues(MachineConfig, value_dic)
@@ -698,8 +698,8 @@ Server 3.fedora.pool.ntp.org`
 
 		Context("Contents with url-encoded template content and non-urlencoded template content", func() {
 
-			expUsedVals := []string{"the-value-1", "the-value-2", "var-version"}
-			expMissingVals := []string{"the-value-not-defined", "var-file"}
+			expUsedVals := []string{"var-value-1", "var-value-2", "var-version"}
+			expMissingVals := []string{"var-value-not-defined", "var-file"}
 
 			BeforeEach(func() {
 
@@ -712,7 +712,7 @@ Server 3.fedora.pool.ntp.org`
 				storage:
 				  files: {{.var_file}}
 				  - contents:
-					  source: data:,{{ test1%20%3A%3D%20%7B%7B.the_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.the_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.the_value_not_defined%7D%7D }}
+					  source: data:,{{ test1%20%3A%3D%20%7B%7B.var_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.var_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.var_value_not_defined%7D%7D }}
 					mode: 420
 					overwrite: true
 					path: /etc/chrony.conf`
@@ -745,7 +745,7 @@ Server 3.fedora.pool.ntp.org`
 				storage:
 				  files: 
 				  - contents:
-					  source: data:,test1%20%3A%3D%20%7B%7B.the_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.the_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.the_value_not_defined%7D%7D
+					  source: data:,test1%20%3A%3D%20%7B%7B.var_value_1%7D%7D%0Atest2%20%3A%3D%20%7B%7B.var_value_2%7D%7D%0Atest_not_defined%20%3A%3D%20%7B%7B.var_value_not_defined%7D%7D
 					mode: 420
 					overwrite: true
 					path: /etc/chrony.conf`
