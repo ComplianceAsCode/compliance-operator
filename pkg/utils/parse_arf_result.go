@@ -392,7 +392,7 @@ func RemoveDuplicate(input []string) []string {
 	return result
 }
 
-func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string) []string {
+func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string, warningVariables []string) []string {
 	var valueList []string
 	ruleTests := GetRuleOvalTest(rule, defTable)
 	// Extract variables from OVAL tests
@@ -409,10 +409,9 @@ func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariable
 	if len(valueListInstruct) > 0 {
 		valueList = append(valueList, valueListInstruct...)
 	}
-	// Extract variables from warnings
-	_, valueListWarnings := GetWarningsForRule(rule, variableList)
-	if len(valueListWarnings) > 0 {
-		valueList = append(valueList, valueListWarnings...)
+	// Add variables from warnings (already extracted)
+	if len(warningVariables) > 0 {
+		valueList = append(valueList, warningVariables...)
 	}
 	if len(valueList) == 0 {
 		return valueList
@@ -535,8 +534,9 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 		}
 
 		instructions, _ := GetInstructionsForRule(resultRule, questionsTable, valuesList)
-		ruleValues := getValueListUsedForRule(resultRule, ovalTestVarTable, defTable, questionsTable, valuesList)
-		resCheck, err := newComplianceCheckResult(result, resultRule, ruleIDRef, instructions, scanName, namespace, ruleValues, manualRules, valuesList)
+		warnings, warningVariables := GetWarningsForRule(resultRule, valuesList)
+		ruleValues := getValueListUsedForRule(resultRule, ovalTestVarTable, defTable, questionsTable, valuesList, warningVariables)
+		resCheck, err := newComplianceCheckResult(result, resultRule, ruleIDRef, instructions, warnings, scanName, namespace, ruleValues, manualRules, valuesList)
 		if err != nil {
 			continue
 		}
@@ -561,7 +561,7 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 }
 
 // Returns a new complianceCheckResult if the check data is usable
-func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleIdRef, instructions, scanName, namespace string, ruleValues []string, manualRules []string, valuesList map[string]string) (*compv1alpha1.ComplianceCheckResult, error) {
+func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleIdRef, instructions string, warnings []string, scanName, namespace string, ruleValues []string, manualRules []string, valuesList map[string]string) (*compv1alpha1.ComplianceCheckResult, error) {
 	name := nameFromId(scanName, ruleIdRef)
 	mappedStatus, err := mapComplianceCheckResultStatus(result)
 	if err != nil {
@@ -602,7 +602,6 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 			renderError = err
 		}
 	}
-	warning, _ := GetWarningsForRule(rule, valuesList)
 	return &compv1alpha1.ComplianceCheckResult{
 		ObjectMeta: v1.ObjectMeta{
 			Name:        name,
@@ -615,7 +614,7 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 		Instructions: instructions,
 		Description:  description,
 		Rationale:    rationale,
-		Warnings:     warning,
+		Warnings:     warnings,
 		ValuesUsed:   ruleValues,
 	}, renderError
 }
