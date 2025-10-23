@@ -395,9 +395,7 @@ func RemoveDuplicate(input []string) []string {
 func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string) []string {
 	var valueList []string
 	ruleTests := GetRuleOvalTest(rule, defTable)
-	if len(ruleTests) == 0 {
-		return valueList
-	}
+	// Extract variables from OVAL tests
 	for test := range ruleTests {
 		valueListTemp, ok := ovalTable[test]
 		if !ok {
@@ -406,9 +404,15 @@ func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariable
 		valueList = append(valueList, valueListTemp...)
 
 	}
+	// Extract variables from OCIL instructions
 	_, valueListInstruct := GetInstructionsForRule(rule, ocilTable, variableList)
 	if len(valueListInstruct) > 0 {
 		valueList = append(valueList, valueListInstruct...)
+	}
+	// Extract variables from warnings
+	_, valueListWarnings := GetWarningsForRule(rule, variableList)
+	if len(valueListWarnings) > 0 {
+		valueList = append(valueList, valueListWarnings...)
 	}
 	if len(valueList) == 0 {
 		return valueList
