@@ -286,7 +286,12 @@ func findAllVariablesFromState(node *xmlquery.Node) ([]string, bool) {
 			dnsFriendlyFixId := strings.ReplaceAll(varRef, "_", "-")
 			valueFormatted := strings.TrimPrefix(dnsFriendlyFixId, ovalCheckPrefix)
 			valueFormatted = strings.TrimSuffix(valueFormatted, ruleValueSuffix)
-			valueList = append(valueList, valueFormatted)
+
+			// Only include variables that start with "var-" (after underscore replacement)
+			// This filters out internal variables like ocp-data-root, filepath-suffix, etc.
+			if strings.HasPrefix(valueFormatted, "var-") {
+				valueList = append(valueList, valueFormatted)
+			}
 		}
 	}
 	if len(valueList) > 0 {
@@ -305,7 +310,12 @@ func findAllVariablesFromObject(node *xmlquery.Node) ([]string, bool) {
 			dnsFriendlyFixId := strings.ReplaceAll(nodes[i].InnerText(), "_", "-")
 			valueFormatted := strings.TrimPrefix(dnsFriendlyFixId, ovalCheckPrefix)
 			valueFormatted = strings.TrimSuffix(valueFormatted, ruleValueSuffix)
-			valueList = append(valueList, valueFormatted)
+
+			// Only include variables that start with "var-" (after underscore replacement)
+			// This filters out internal variables like ocp-data-root, filepath-suffix, etc.
+			if strings.HasPrefix(valueFormatted, "var-") {
+				valueList = append(valueList, valueFormatted)
+			}
 		}
 	}
 	if len(valueList) > 0 {
@@ -1044,18 +1054,22 @@ func trimToValue(listToBeTrimmed []string) []string {
 
 	for _, oriVal := range listToBeTrimmed {
 		// Match variable names in templates like .var_name or .var_value_1
-		// Only match those that start with a dot and are specific to our templates
+		// Only match those that start with var_ to filter out internal variables
 		re := regexp.MustCompile(`\.(var_[a-zA-Z0-9_-]+)`)
 		matches := re.FindAllStringSubmatch(oriVal, -1)
 		for _, match := range matches {
-			if len(match) > 0 {
-				// Extract just the variable name without the dot prefix
-				// Skip the leading dot
-				varName := strings.TrimPrefix(match[0], ".")
-				// Only add if we haven't seen this variable before
-				if _, exists := seen[varName]; !exists {
-					seen[varName] = struct{}{}
-					trimmedValuesList = append(trimmedValuesList, varName)
+			if len(match) > 1 {
+				// Extract the variable name from capture group (without the dot)
+				varName := match[1]
+
+				// Only include variables that start with "var_"
+				// This filters out internal variables like ocp_data_root, filepath_suffix, etc.
+				if strings.HasPrefix(varName, "var_") {
+					// Only add if we haven't seen this variable before
+					if _, exists := seen[varName]; !exists {
+						seen[varName] = struct{}{}
+						trimmedValuesList = append(trimmedValuesList, varName)
+					}
 				}
 			}
 		}
