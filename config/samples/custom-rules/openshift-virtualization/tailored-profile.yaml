@@ -1,0 +1,12 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: TailoredProfile
+metadata:
+  name: openshift-virt-platform-checks
+  namespace: openshift-compliance
+spec:
+  description: Custom security checks for OpenShift Virtualization
+  enableRules:
+    - kind: CustomRule
+      name: kubevirt-nonroot-feature-gate-is-enabled
+      rationale: Unauthorized access to a root account without restrictions implemented by the nonRoot feature introduces the risk of unintended or unauthorized access to privilege elevation and the ability to perform administrative tasks.
+  title: Platform checks for OpenShift Virtualization
