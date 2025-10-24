@@ -945,13 +945,16 @@ Server 3.fedora.pool.ntp.org`
 
 	Describe("Testing GetVariablesFromCheckExport", func() {
 		Context("Rule with check-export elements", func() {
-			It("Should extract variables from check-export", func() {
+			It("Should extract only var_ prefixed variables from check-export", func() {
 				// Create a sample XCCDF rule with check-export
+				// This simulates a rule with both user-configurable variables (var_*)
+				// and internal variables (ocp_data_root, filepath_suffix, etc.)
 				xmlContent := `<?xml version="1.0" encoding="UTF-8"?>
 <xccdf-1.2:Rule xmlns:xccdf-1.2="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.ssgproject.content_rule_test">
   <xccdf-1.2:check system="http://oval.mitre.org/XMLSchema/oval-definitions-5">
     <xccdf-1.2:check-export export-name="oval:ssg-ocp_data_root:var:1" value-id="xccdf_org.ssgproject.content_value_ocp_data_root"/>
     <xccdf-1.2:check-export export-name="oval:ssg-var_test_variable:var:1" value-id="xccdf_org.ssgproject.content_value_var_test_variable"/>
+    <xccdf-1.2:check-export export-name="oval:ssg-var_oauth_token_maxage:var:1" value-id="xccdf_org.ssgproject.content_value_var_oauth_token_maxage"/>
     <xccdf-1.2:check-content-ref name="oval:ssg-test_rule:def:1" href="ssg-test-oval.xml"/>
   </xccdf-1.2:check>
 </xccdf-1.2:Rule>`
@@ -961,9 +964,11 @@ Server 3.fedora.pool.ntp.org`
 
 				variables := GetVariablesFromCheckExport(ruleNode)
 
+				// Should only extract var_* prefixed variables, filtering out internal variables
 				Expect(variables).To(HaveLen(2))
-				Expect(variables).To(ContainElement("ocp-data-root"))
 				Expect(variables).To(ContainElement("var-test-variable"))
+				Expect(variables).To(ContainElement("var-oauth-token-maxage"))
+				Expect(variables).NotTo(ContainElement("ocp-data-root"))
 			})
 		})
 

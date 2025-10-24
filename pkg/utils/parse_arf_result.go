@@ -377,6 +377,8 @@ func GetRuleOvalTest(rule *xmlquery.Node, defTable NodeByIdHashTable) NodeByIdHa
 
 // GetVariablesFromCheckExport extracts variable names from XCCDF check-export elements
 // Returns a list of DNS-friendly variable names (with underscores replaced by hyphens)
+// Only returns variables with the "var_" or "var-" prefix, filtering out internal variables
+// like ocp_data_root, filepath_suffix, etc.
 func GetVariablesFromCheckExport(rule *xmlquery.Node) []string {
 	var variables []string
 
@@ -395,6 +397,13 @@ func GetVariablesFromCheckExport(rule *xmlquery.Node) []string {
 			// Extract the variable name from the value-id
 			if strings.HasPrefix(valueID, valuePrefix) {
 				varName := strings.TrimPrefix(valueID, valuePrefix)
+
+				// Only include variables that start with "var_" prefix
+				// This filters out internal variables like ocp_data_root, filepath_suffix, etc.
+				if !strings.HasPrefix(varName, "var_") {
+					continue
+				}
+
 				// Convert to DNS-friendly format (replace underscores with hyphens)
 				dnsFriendlyVarName := strings.ReplaceAll(varName, "_", "-")
 				variables = append(variables, dnsFriendlyVarName)
