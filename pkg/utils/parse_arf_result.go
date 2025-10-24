@@ -277,11 +277,13 @@ func newValueListTable(dsDom *xmlquery.Node, statesTable, objectsTable NodeByIdH
 
 func findAllVariablesFromState(node *xmlquery.Node) ([]string, bool) {
 	var valueList []string
-	nodes := node.SelectElements("*")
+	// Search for all descendants with var_ref attribute, not just direct children
+	nodes := node.SelectElements("//*[@var_ref]")
 
 	for i := range nodes {
-		if nodes[i].SelectAttr("var_ref") != "" {
-			dnsFriendlyFixId := strings.ReplaceAll(nodes[i].SelectAttr("var_ref"), "_", "-")
+		varRef := nodes[i].SelectAttr("var_ref")
+		if varRef != "" {
+			dnsFriendlyFixId := strings.ReplaceAll(varRef, "_", "-")
 			valueFormatted := strings.TrimPrefix(dnsFriendlyFixId, ovalCheckPrefix)
 			valueFormatted = strings.TrimSuffix(valueFormatted, ruleValueSuffix)
 			valueList = append(valueList, valueFormatted)
@@ -373,6 +375,36 @@ func GetRuleOvalTest(rule *xmlquery.Node, defTable NodeByIdHashTable) NodeByIdHa
 	return testList
 }
 
+// GetVariablesFromCheckExport extracts variable names from XCCDF check-export elements
+// Returns a list of DNS-friendly variable names (with underscores replaced by hyphens)
+func GetVariablesFromCheckExport(rule *xmlquery.Node) []string {
+	var variables []string
+
+	// Look for all check elements in the rule
+	for _, check := range rule.SelectElements("//xccdf-1.2:check") {
+		// Find all check-export elements within this check
+		checkExports := check.SelectElements("xccdf-1.2:check-export")
+		for _, exportEl := range checkExports {
+			// Get the value-id attribute which references the XCCDF variable
+			// Format: "xccdf_org.ssgproject.content_value_<variable_name>"
+			valueID := exportEl.SelectAttr("value-id")
+			if valueID == "" {
+				continue
+			}
+
+			// Extract the variable name from the value-id
+			if strings.HasPrefix(valueID, valuePrefix) {
+				varName := strings.TrimPrefix(valueID, valuePrefix)
+				// Convert to DNS-friendly format (replace underscores with hyphens)
+				dnsFriendlyVarName := strings.ReplaceAll(varName, "_", "-")
+				variables = append(variables, dnsFriendlyVarName)
+			}
+		}
+	}
+
+	return RemoveDuplicate(variables)
+}
+
 func RemoveDuplicate(input []string) []string {
 	if len(input) <= 1 {
 		return input // No duplicates possible with 0 or 1 element
@@ -412,6 +444,11 @@ func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariable
 	// Add variables from warnings (already extracted)
 	if len(warningVariables) > 0 {
 		valueList = append(valueList, warningVariables...)
+	}
+	// Extract variables from check-export elements
+	checkExportVars := GetVariablesFromCheckExport(rule)
+	if len(checkExportVars) > 0 {
+		valueList = append(valueList, checkExportVars...)
 	}
 	if len(valueList) == 0 {
 		return valueList

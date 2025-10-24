@@ -609,6 +609,13 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 			}
 
 			warnings, renderedValues := utils.GetWarningsForRule(ruleObj, valuesList)
+
+			// Extract variables from check-export elements
+			checkExportVars := utils.GetVariablesFromCheckExport(ruleObj)
+			if len(checkExportVars) > 0 {
+				renderedValues = append(renderedValues, checkExportVars...)
+			}
+
 			if len(renderedValues) > 0 {
 				annotations[cmpv1alpha1.RuleVariableAnnotationKey] = strings.ReplaceAll(strings.Join(utils.RemoveDuplicate(renderedValues), ","), "_", "-")
 			}
