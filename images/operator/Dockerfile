@@ -22,7 +22,8 @@ LABEL \
         description="An operator that performs compliance scanning and remediation on a cluster" \
         maintainer="Red Hat ISC <isc-team@redhat.com>" \
         License="GPLv2+" \
-        name="openshift-compliance-operator" \
+        name="compliance/openshift-compliance-rhel8-operator" \
+        cpe="cpe:/a:redhat:openshift_compliance_operator:1::el9" \
         com.redhat.component="openshift-compliance-operator-container" \
         io.openshift.maintainer.product="OpenShift Container Platform" \
         io.openshift.maintainer.component="Compliance Operator" \
