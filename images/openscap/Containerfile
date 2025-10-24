@@ -9,7 +9,8 @@ LABEL \
         description="An OpenSCAP operand for the compliance-operator" \
         maintainer="Red Hat ISC <isc-team@redhat.com>" \
         License="GPLv2+" \
-        name="openshift-compliance-openscap" \
+        name="compliance/openshift-compliance-openscap-rhel8" \
+        cpe="cpe:/a:redhat:openshift_compliance_operator:1::el9" \
         com.redhat.component="openshift-compliance-openscap-container" \
         io.openshift.maintainer.product="OpenShift Container Platform" \
         io.openshift.maintainer.component="Compliance Operator" \
