@@ -10,5 +10,12 @@
   ],
   "schedule": [
     "every weekend"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["gomod"],
+      "matchBaseBranches": ["/^release-.*/"],
+      "enabled": false
+    }
   ]
 }
