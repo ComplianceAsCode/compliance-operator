@@ -277,14 +277,21 @@ func newValueListTable(dsDom *xmlquery.Node, statesTable, objectsTable NodeByIdH
 
 func findAllVariablesFromState(node *xmlquery.Node) ([]string, bool) {
 	var valueList []string
-	nodes := node.SelectElements("*")
+	// Search for all descendants with var_ref attribute, not just direct children
+	nodes := node.SelectElements("//*[@var_ref]")
 
 	for i := range nodes {
-		if nodes[i].SelectAttr("var_ref") != "" {
-			dnsFriendlyFixId := strings.ReplaceAll(nodes[i].SelectAttr("var_ref"), "_", "-")
+		varRef := nodes[i].SelectAttr("var_ref")
+		if varRef != "" {
+			dnsFriendlyFixId := strings.ReplaceAll(varRef, "_", "-")
 			valueFormatted := strings.TrimPrefix(dnsFriendlyFixId, ovalCheckPrefix)
 			valueFormatted = strings.TrimSuffix(valueFormatted, ruleValueSuffix)
-			valueList = append(valueList, valueFormatted)
+
+			// Only include variables that start with "var-" (after underscore replacement)
+			// This filters out internal variables like ocp-data-root, filepath-suffix, etc.
+			if strings.HasPrefix(valueFormatted, "var-") {
+				valueList = append(valueList, valueFormatted)
+			}
 		}
 	}
 	if len(valueList) > 0 {
@@ -303,7 +310,12 @@ func findAllVariablesFromObject(node *xmlquery.Node) ([]string, bool) {
 			dnsFriendlyFixId := strings.ReplaceAll(nodes[i].InnerText(), "_", "-")
 			valueFormatted := strings.TrimPrefix(dnsFriendlyFixId, ovalCheckPrefix)
 			valueFormatted = strings.TrimSuffix(valueFormatted, ruleValueSuffix)
-			valueList = append(valueList, valueFormatted)
+
+			// Only include variables that start with "var-" (after underscore replacement)
+			// This filters out internal variables like ocp-data-root, filepath-suffix, etc.
+			if strings.HasPrefix(valueFormatted, "var-") {
+				valueList = append(valueList, valueFormatted)
+			}
 		}
 	}
 	if len(valueList) > 0 {
@@ -373,24 +385,68 @@ func GetRuleOvalTest(rule *xmlquery.Node, defTable NodeByIdHashTable) NodeByIdHa
 	return testList
 }
 
-func RemoveDuplicate(input []string) []string {
-	keys := make(map[string]bool)
-	trimmedList := []string{}
+// GetVariablesFromCheckExport extracts variable names from XCCDF check-export elements
+// Returns a list of DNS-friendly variable names (with underscores replaced by hyphens)
+// Only returns variables with the "var_" or "var-" prefix, filtering out internal variables
+// like ocp_data_root, filepath_suffix, etc.
+func GetVariablesFromCheckExport(rule *xmlquery.Node) []string {
+	var variables []string
 
-	for _, e := range input {
-		if _, value := keys[e]; !value {
-			keys[e] = true
-			trimmedList = append(trimmedList, e)
+	// Look for all check elements in the rule
+	for _, check := range rule.SelectElements("//xccdf-1.2:check") {
+		// Find all check-export elements within this check
+		checkExports := check.SelectElements("xccdf-1.2:check-export")
+		for _, exportEl := range checkExports {
+			// Get the value-id attribute which references the XCCDF variable
+			// Format: "xccdf_org.ssgproject.content_value_<variable_name>"
+			valueID := exportEl.SelectAttr("value-id")
+			if valueID == "" {
+				continue
+			}
+
+			// Extract the variable name from the value-id
+			if strings.HasPrefix(valueID, valuePrefix) {
+				varName := strings.TrimPrefix(valueID, valuePrefix)
+
+				// Only include variables that start with "var_" prefix
+				// This filters out internal variables like ocp_data_root, filepath_suffix, etc.
+				if !strings.HasPrefix(varName, "var_") {
+					continue
+				}
+
+				// Convert to DNS-friendly format (replace underscores with hyphens)
+				dnsFriendlyVarName := strings.ReplaceAll(varName, "_", "-")
+				variables = append(variables, dnsFriendlyVarName)
+			}
 		}
 	}
-	return trimmedList
+
+	return RemoveDuplicate(variables)
 }
-func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string) []string {
+
+func RemoveDuplicate(input []string) []string {
+	if len(input) <= 1 {
+		return input // No duplicates possible with 0 or 1 element
+	}
+
+	// More efficient to use struct{} as map value since it doesn't use additional memory
+	seen := make(map[string]struct{}, len(input))
+	result := make([]string, 0, len(input))
+
+	for _, item := range input {
+		if _, exists := seen[item]; !exists {
+			seen[item] = struct{}{}
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariablesTable, defTable NodeByIdHashTable, ocilTable NodeByIdHashTable, variableList map[string]string, warningVariables []string) []string {
 	var valueList []string
 	ruleTests := GetRuleOvalTest(rule, defTable)
-	if len(ruleTests) == 0 {
-		return valueList
-	}
+	// Extract variables from OVAL tests
 	for test := range ruleTests {
 		valueListTemp, ok := ovalTable[test]
 		if !ok {
@@ -399,9 +455,19 @@ func getValueListUsedForRule(rule *xmlquery.Node, ovalTable nodeByIdHashVariable
 		valueList = append(valueList, valueListTemp...)
 
 	}
+	// Extract variables from OCIL instructions
 	_, valueListInstruct := GetInstructionsForRule(rule, ocilTable, variableList)
 	if len(valueListInstruct) > 0 {
 		valueList = append(valueList, valueListInstruct...)
+	}
+	// Add variables from warnings (already extracted)
+	if len(warningVariables) > 0 {
+		valueList = append(valueList, warningVariables...)
+	}
+	// Extract variables from check-export elements
+	checkExportVars := GetVariablesFromCheckExport(rule)
+	if len(checkExportVars) > 0 {
+		valueList = append(valueList, checkExportVars...)
 	}
 	if len(valueList) == 0 {
 		return valueList
@@ -524,8 +590,9 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 		}
 
 		instructions, _ := GetInstructionsForRule(resultRule, questionsTable, valuesList)
-		ruleValues := getValueListUsedForRule(resultRule, ovalTestVarTable, defTable, questionsTable, valuesList)
-		resCheck, err := newComplianceCheckResult(result, resultRule, ruleIDRef, instructions, scanName, namespace, ruleValues, manualRules, valuesList)
+		warnings, warningVariables := GetWarningsForRule(resultRule, valuesList)
+		ruleValues := getValueListUsedForRule(resultRule, ovalTestVarTable, defTable, questionsTable, valuesList, warningVariables)
+		resCheck, err := newComplianceCheckResult(result, resultRule, ruleIDRef, instructions, warnings, scanName, namespace, ruleValues, manualRules, valuesList)
 		if err != nil {
 			continue
 		}
@@ -550,7 +617,7 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 }
 
 // Returns a new complianceCheckResult if the check data is usable
-func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleIdRef, instructions, scanName, namespace string, ruleValues []string, manualRules []string, valuesList map[string]string) (*compv1alpha1.ComplianceCheckResult, error) {
+func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleIdRef, instructions string, warnings []string, scanName, namespace string, ruleValues []string, manualRules []string, valuesList map[string]string) (*compv1alpha1.ComplianceCheckResult, error) {
 	name := nameFromId(scanName, ruleIdRef)
 	mappedStatus, err := mapComplianceCheckResultStatus(result)
 	if err != nil {
@@ -591,7 +658,6 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 			renderError = err
 		}
 	}
-
 	return &compv1alpha1.ComplianceCheckResult{
 		ObjectMeta: v1.ObjectMeta{
 			Name:        name,
@@ -604,7 +670,7 @@ func newComplianceCheckResult(result *xmlquery.Node, rule *xmlquery.Node, ruleId
 		Instructions: instructions,
 		Description:  description,
 		Rationale:    rationale,
-		Warnings:     GetWarningsForRule(rule),
+		Warnings:     warnings,
 		ValuesUsed:   ruleValues,
 	}, renderError
 }
@@ -643,15 +709,15 @@ func getElementText(nptr *xmlquery.Node, elem string, valuesList map[string]stri
 	return "", nil
 }
 
-func GetWarningsForRule(rule *xmlquery.Node) []string {
+func GetWarningsForRule(rule *xmlquery.Node, valuesList map[string]string) ([]string, []string) {
 	warningObjs := rule.SelectElements("//xccdf-1.2:warning")
-
 	warnings := []string{}
-
+	warningText := ""
 	for _, warn := range warningObjs {
 		if warn == nil {
 			continue
 		}
+		warningText += warn.InnerText()
 		// We skip this warning if it's relevant
 		// to parsing the API paths.
 		if warningHasApiObjects(warn) {
@@ -659,11 +725,11 @@ func GetWarningsForRule(rule *xmlquery.Node) []string {
 		}
 		warnings = append(warnings, XmlNodeAsMarkdown(warn))
 	}
-
+	_, valuesRendered, _ := RenderValues(warningText, valuesList)
 	if len(warnings) == 0 {
-		return nil
+		return nil, valuesRendered
 	}
-	return warnings
+	return warnings, valuesRendered
 }
 
 func RuleHasApiObjectWarning(rule *xmlquery.Node) bool {
@@ -921,7 +987,6 @@ func parseValues(remContent string, resultValues map[string]string) (string, []s
 		if preProcessedContent == trimmedContent {
 			continue
 		}
-
 		fixedContent, usedVals, missingVals, err := processContent(preProcessedContent, resultValues)
 		if err != nil {
 			return remContent, valuesUsedList, valuesMissingList, errors.Wrap(err, "error while processing remediation context: ")
@@ -938,8 +1003,8 @@ func parseValues(remContent string, resultValues map[string]string) (string, []s
 	if err != nil {
 		return remContent, valuesUsedList, valuesMissingList, errors.Wrap(err, "error while processing remediation context: ")
 	}
-	valuesUsedList = append(valuesUsedList, usedVals...)
-	valuesMissingList = append(valuesMissingList, missingVals...)
+	valuesUsedList = RemoveDuplicate(append(valuesUsedList, usedVals...))
+	valuesMissingList = RemoveDuplicate(append(valuesMissingList, missingVals...))
 
 	return fixedText, valuesUsedList, valuesMissingList, nil
 }
@@ -983,19 +1048,41 @@ func getParsedValueName(t *template.Template) []string {
 
 // trim {{value | urlquery}} list to value list
 func trimToValue(listToBeTrimmed []string) []string {
-	trimmedValuesList := listToBeTrimmed[:0]
+	// Use map to track seen variables and prevent duplicates
+	seen := make(map[string]struct{})
+	var trimmedValuesList []string
+
 	for _, oriVal := range listToBeTrimmed {
-		re := regexp.MustCompile("([a-zA-Z-0-9]+(_[a-zA-Z-0-9]+)+)")
-		trimedValueMatch := re.FindStringSubmatch(oriVal)
-		if len(trimedValueMatch) > 1 {
-			trimmedValuesList = append(trimmedValuesList, trimedValueMatch[0])
+		// Match variable names in templates like .var_name or .var_value_1
+		// Only match those that start with var_ to filter out internal variables
+		re := regexp.MustCompile(`\.(var_[a-zA-Z0-9_-]+)`)
+		matches := re.FindAllStringSubmatch(oriVal, -1)
+		for _, match := range matches {
+			if len(match) > 1 {
+				// Extract the variable name from capture group (without the dot)
+				varName := match[1]
+
+				// Only include variables that start with "var_"
+				// This filters out internal variables like ocp_data_root, filepath_suffix, etc.
+				if strings.HasPrefix(varName, "var_") {
+					// Only add if we haven't seen this variable before
+					if _, exists := seen[varName]; !exists {
+						seen[varName] = struct{}{}
+						trimmedValuesList = append(trimmedValuesList, varName)
+					}
+				}
+			}
 		}
 	}
 	return trimmedValuesList
 }
 
 func listNodeFields(node parse.Node, res []string) []string {
-	if node.Type() == parse.NodeAction {
+	if node == nil {
+		return res
+	}
+
+	if node.Type() != parse.NodeNil {
 		res = append(res, node.String())
 	}
 
