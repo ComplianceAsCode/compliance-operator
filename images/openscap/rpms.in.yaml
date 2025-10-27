@@ -13,4 +13,4 @@ arches:
   - ppc64le
 
 context:
-    containerfile: images/openscap/Containerfile
+    containerfile: ./Containerfile

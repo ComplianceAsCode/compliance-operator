@@ -12,4 +12,4 @@ arches:
   - ppc64le
 
 context:
-    containerfile: images/operator/Dockerfile
+    containerfile: ./Dockerfile

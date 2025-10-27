@@ -15,4 +15,4 @@ arches:
   - ppc64le
 
 context:
-    containerfile: images/must-gather/Containerfile
+    containerfile: ./Containerfile
