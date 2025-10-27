@@ -14,10 +14,10 @@ import (
 
 // Konflux pull specs used across multiple functions
 var (
-	konfluxOperatorPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:8b07d699804a263a567715422f86c8086c39a45baccbcae3734b062b57c67b1e"
-	konfluxContentPullSpec    = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:0acf3a33d24b4ed4fdc5fca8933015869f64818361da2534d0da0ddf839579a9"
-	konfluxOpenscapPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:c27b9680fdee28b566fbfa636777c18b03c4332a5694ac07ca3ada30420698e3"
-	konfluxMustGatherPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:b9a914216870c2a3b78ff641add7d0548e1805d70a411880109b645efa724262"
+	konfluxOperatorPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev@sha256:8b07d699804a263a567715422f86c8086c39a45baccbcae3734b062b57c67b1e"
+	konfluxContentPullSpec    = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev@sha256:0acf3a33d24b4ed4fdc5fca8933015869f64818361da2534d0da0ddf839579a9"
+	konfluxOpenscapPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev@sha256:c27b9680fdee28b566fbfa636777c18b03c4332a5694ac07ca3ada30420698e3"
+	konfluxMustGatherPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-dev@sha256:b9a914216870c2a3b78ff641add7d0548e1805d70a411880109b645efa724262"
 )
 
 func readCSV(csvFilename string, csv *map[string]interface{}) {
