@@ -28,4 +28,9 @@ spec:
         explicitly required. This feature allows VMs to claim exclusive access
         to storage resources, potentially impacting availability and enabling
         resource manipulation outside normal access controls.
+    - kind: CustomRule
+      name: ocp-virt-restrict-patching-annotations
+      rationale: |-
+        Cloud administrators should not patch OpenShift Virtualization objects,
+        but rather configure the OpenShift Virtualization options available in HCO.
   title: Platform checks for OpenShift Virtualization

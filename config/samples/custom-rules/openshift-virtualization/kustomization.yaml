@@ -6,3 +6,4 @@ resources:
   - kubevirt-persistent-reservation-disabled.yaml
   - tailored-profile.yaml
   - scan-setting-binding.yaml
+  - ocp-virt-restrict-patching-annotations.yaml
