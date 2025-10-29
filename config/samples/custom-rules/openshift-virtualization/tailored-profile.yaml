@@ -28,4 +28,11 @@ spec:
         explicitly required. This feature allows VMs to claim exclusive access
         to storage resources, potentially impacting availability and enabling
         resource manipulation outside normal access controls.
+    - kind: CustomRule
+      name: kubevirt-enforce-trusted-tls-registries
+      rationale: |-
+        Container images should be pulled from trusted registries to reduce 
+        the risk of introducing unknown vulnerabilities or malicious software. 
+        This helps ensure that their applications and systems remain 
+        secure and stable.
   title: Platform checks for OpenShift Virtualization
