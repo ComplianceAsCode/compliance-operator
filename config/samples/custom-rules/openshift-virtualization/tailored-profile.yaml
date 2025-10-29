@@ -28,4 +28,12 @@ spec:
         explicitly required. This feature allows VMs to claim exclusive access
         to storage resources, potentially impacting availability and enabling
         resource manipulation outside normal access controls.
+    - kind: CustomRule
+      name: kubevirt-no-vms-overcommiting-guest-memory
+      rationale: |-
+        This is a hypervisor-level feature that allows nodes to host more
+        virtual machines than would normally be allowed by KubeVirt’s
+        scheduling algorithms. If the VM consumes the entire memory might
+        cause the guest to crash with workload interruptions and guest
+        malfunctioning.
   title: Platform checks for OpenShift Virtualization

@@ -4,5 +4,6 @@ resources:
   - kubevirt-nonroot-feature-gate-is-enabled.yaml
   - kubevirt-no-permitted-host-devices.yaml
   - kubevirt-persistent-reservation-disabled.yaml
+  - kubevirt-no-vms-overcommiting-guest-memory
   - tailored-profile.yaml
   - scan-setting-binding.yaml

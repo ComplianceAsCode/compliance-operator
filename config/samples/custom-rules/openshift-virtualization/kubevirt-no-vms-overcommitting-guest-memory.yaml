@@ -1,0 +1,36 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: kubevirt-no-vms-overcommitting-guest-memory
+  namespace: openshift-compliance
+spec:
+  title: "VMs Must Not Overcommit Guests Memory"
+  id: kubevirt_no_vms_overcommitting_guest_memory
+  description: |-
+    The overcommitGuestOverhead configuration option enables the request for
+    additional virtual machine management memory inside the virt-launcher pod.
+    The overcommit feature is used to increase virtual machine density on the
+    node, as long as the virtual machine doesn’t request all the memory that it
+    would need if fully loaded. However, if the VM were to use all of the
+    memory it could, this would lead to the OpenShift Scheduler killing the
+    workload.
+  failureReason: |-
+    The '.spec.template.spec.domain.recources.overcommitGuestOverhead' field exists and is
+    set to "true" in the 'VirtualMachineInstance' resource, allowing VMs to
+    overcommit KubeVirt's memory which may lead to guests crashing and
+    interrupting workloads causing malfunctions.
+  severity: Medium
+  checkType: Platform
+  scannerType: CEL
+  inputs:
+    - name: vms
+      kubernetesInputSpec:
+        apiVersion: kubevirt.io/v1
+        resource: VirtualMachine
+  expression: |
+    vms.all(h,
+        !has(h.spec.template.spec.domain.resources) ||
+        !has(h.spec.template.spec.domain.resources.overcommitGuestOverhead) ||
+        (has(h.spec.template.spec.domain.resources.overcommitGuestOverhead) &&
+         h.spec.template.spec.domain.resources.overcommitGuestOverhead == false)
+    )
