@@ -1,0 +1,40 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: ocp-virt-restrict-patching-annotations
+  namespace: openshift-compliance
+spec:
+  title: "OCP Virt restrict patching annotations"
+  id: ocp_virt_restrict_patching_annotations
+  description: |-
+    The kubevirt-hyperconverged (HCO) object provides a mechanism to customize
+    OpenShift Virtualization components through the control of patching operations.
+    Although this approach itself does not inherently introduce security risks,
+    enabling experimental features may have unintended consequences and might not
+    be officially supported. It is essential to weigh the benefits of using these
+    options against any potential security implications before proceeding.
+  failureReason: |-
+    The '.metadata.annotations' field contains sub-component json patches in
+    the 'kubevirt-hyperconverged' resource.
+  severity: Medium
+  checkType: Platform
+  scannerType: CEL
+  inputs:
+    - name: hcoList
+      kubernetesInputSpec:
+        apiVersion: hco.kubevirt.io/v1beta1
+        resource: hyperconvergeds
+  expression: |
+    hcoList.items.all(h,
+      !(h.metadata.name == 'kubevirt-hyperconverged' &&
+        h.metadata.namespace == 'openshift-cnv') ||
+      (
+        !has(h.metadata.annotations) ||
+        !(
+          "kubevirt.kubevirt.io/jsonpatch" in h.metadata.annotations ||
+          "containerizeddataimporter.kubevirt.io/jsonpatch" in h.metadata.annotations ||
+          "networkaddonsconfigs.kubevirt.io/jsonpatch" in h.metadata.annotations ||
+          "ssp.kubevirt.io/jsonpatch" in h.metadata.annotations
+        )
+      )
+    )
