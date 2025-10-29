@@ -28,4 +28,11 @@ spec:
         explicitly required. This feature allows VMs to claim exclusive access
         to storage resources, potentially impacting availability and enabling
         resource manipulation outside normal access controls.
+    - kind: CustomRule
+      name: kubevirt-no-shareable-disks
+      rationale: |-
+        Shareable disks are shared between VMs and can only be used safely with
+        cluster filesystems or distributed applications. Their incorrect usage
+        might cause data corruption and introduces security risks including
+        unauthorized access to data and potential data loss.
   title: Platform checks for OpenShift Virtualization
