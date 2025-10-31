@@ -367,7 +367,7 @@ func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version strin
 		return err
 	}
 
-	curlCMD := "curl -i -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" " + endpoint
+	curlCMD := "curl -i -ks " + endpoint
 	// We're just under test.
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
