@@ -107,7 +107,7 @@ github.com/alecthomas/units
 # github.com/antchfx/xmlquery v1.4.3
 ## explicit; go 1.14
 github.com/antchfx/xmlquery
-# github.com/antchfx/xpath v1.3.3
+# github.com/antchfx/xpath v1.3.5
 ## explicit; go 1.14
 github.com/antchfx/xpath
 # github.com/antlr4-go/antlr/v4 v4.13.0
