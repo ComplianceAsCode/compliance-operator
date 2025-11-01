@@ -56,6 +56,8 @@ type AlertmanagerSpecApplyConfiguration struct {
 	SecurityContext                      *corev1.PodSecurityContext                              `json:"securityContext,omitempty"`
 	DNSPolicy                            *monitoringv1.DNSPolicy                                 `json:"dnsPolicy,omitempty"`
 	DNSConfig                            *PodDNSConfigApplyConfiguration                         `json:"dnsConfig,omitempty"`
+	EnableServiceLinks                   *bool                                                   `json:"enableServiceLinks,omitempty"`
+	ServiceName                          *string                                                 `json:"serviceName,omitempty"`
 	ServiceAccountName                   *string                                                 `json:"serviceAccountName,omitempty"`
 	ListenLocal                          *bool                                                   `json:"listenLocal,omitempty"`
 	Containers                           []corev1.Container                                      `json:"containers,omitempty"`
@@ -72,12 +74,17 @@ type AlertmanagerSpecApplyConfiguration struct {
 	AlertmanagerConfigSelector           *metav1.LabelSelectorApplyConfiguration                 `json:"alertmanagerConfigSelector,omitempty"`
 	AlertmanagerConfigNamespaceSelector  *metav1.LabelSelectorApplyConfiguration                 `json:"alertmanagerConfigNamespaceSelector,omitempty"`
 	AlertmanagerConfigMatcherStrategy    *AlertmanagerConfigMatcherStrategyApplyConfiguration    `json:"alertmanagerConfigMatcherStrategy,omitempty"`
-	MinReadySeconds                      *uint32                                                 `json:"minReadySeconds,omitempty"`
+	MinReadySeconds                      *int32                                                  `json:"minReadySeconds,omitempty"`
 	HostAliases                          []HostAliasApplyConfiguration                           `json:"hostAliases,omitempty"`
 	Web                                  *AlertmanagerWebSpecApplyConfiguration                  `json:"web,omitempty"`
+	Limits                               *AlertmanagerLimitsSpecApplyConfiguration               `json:"limits,omitempty"`
+	ClusterTLS                           *ClusterTLSConfigApplyConfiguration                     `json:"clusterTLS,omitempty"`
 	AlertmanagerConfiguration            *AlertmanagerConfigurationApplyConfiguration            `json:"alertmanagerConfiguration,omitempty"`
 	AutomountServiceAccountToken         *bool                                                   `json:"automountServiceAccountToken,omitempty"`
 	EnableFeatures                       []string                                                `json:"enableFeatures,omitempty"`
+	AdditionalArgs                       []ArgumentApplyConfiguration                            `json:"additionalArgs,omitempty"`
+	TerminationGracePeriodSeconds        *int64                                                  `json:"terminationGracePeriodSeconds,omitempty"`
+	HostUsers                            *bool                                                   `json:"hostUsers,omitempty"`
 }
 
 // AlertmanagerSpecApplyConfiguration constructs a declarative configuration of the AlertmanagerSpec type for use with
@@ -346,6 +353,22 @@ func (b *AlertmanagerSpecApplyConfiguration) WithDNSConfig(value *PodDNSConfigAp
 	return b
 }
 
+// WithEnableServiceLinks sets the EnableServiceLinks field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnableServiceLinks field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithEnableServiceLinks(value bool) *AlertmanagerSpecApplyConfiguration {
+	b.EnableServiceLinks = &value
+	return b
+}
+
+// WithServiceName sets the ServiceName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ServiceName field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithServiceName(value string) *AlertmanagerSpecApplyConfiguration {
+	b.ServiceName = &value
+	return b
+}
+
 // WithServiceAccountName sets the ServiceAccountName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ServiceAccountName field is set to the value of the last call.
@@ -483,7 +506,7 @@ func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfigMatcherStrate
 // WithMinReadySeconds sets the MinReadySeconds field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the MinReadySeconds field is set to the value of the last call.
-func (b *AlertmanagerSpecApplyConfiguration) WithMinReadySeconds(value uint32) *AlertmanagerSpecApplyConfiguration {
+func (b *AlertmanagerSpecApplyConfiguration) WithMinReadySeconds(value int32) *AlertmanagerSpecApplyConfiguration {
 	b.MinReadySeconds = &value
 	return b
 }
@@ -506,6 +529,22 @@ func (b *AlertmanagerSpecApplyConfiguration) WithHostAliases(values ...*HostAlia
 // If called multiple times, the Web field is set to the value of the last call.
 func (b *AlertmanagerSpecApplyConfiguration) WithWeb(value *AlertmanagerWebSpecApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
 	b.Web = value
+	return b
+}
+
+// WithLimits sets the Limits field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Limits field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithLimits(value *AlertmanagerLimitsSpecApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
+	b.Limits = value
+	return b
+}
+
+// WithClusterTLS sets the ClusterTLS field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ClusterTLS field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithClusterTLS(value *ClusterTLSConfigApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
+	b.ClusterTLS = value
 	return b
 }
 
@@ -532,5 +571,34 @@ func (b *AlertmanagerSpecApplyConfiguration) WithEnableFeatures(values ...string
 	for i := range values {
 		b.EnableFeatures = append(b.EnableFeatures, values[i])
 	}
+	return b
+}
+
+// WithAdditionalArgs adds the given value to the AdditionalArgs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the AdditionalArgs field.
+func (b *AlertmanagerSpecApplyConfiguration) WithAdditionalArgs(values ...*ArgumentApplyConfiguration) *AlertmanagerSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithAdditionalArgs")
+		}
+		b.AdditionalArgs = append(b.AdditionalArgs, *values[i])
+	}
+	return b
+}
+
+// WithTerminationGracePeriodSeconds sets the TerminationGracePeriodSeconds field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TerminationGracePeriodSeconds field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithTerminationGracePeriodSeconds(value int64) *AlertmanagerSpecApplyConfiguration {
+	b.TerminationGracePeriodSeconds = &value
+	return b
+}
+
+// WithHostUsers sets the HostUsers field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HostUsers field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithHostUsers(value bool) *AlertmanagerSpecApplyConfiguration {
+	b.HostUsers = &value
 	return b
 }

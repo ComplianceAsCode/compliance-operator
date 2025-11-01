@@ -30,6 +30,7 @@ type HTTPConfigApplyConfiguration struct {
 	TLSConfig                     *SafeTLSConfigApplyConfiguration     `json:"tlsConfig,omitempty"`
 	ProxyConfigApplyConfiguration `json:",inline"`
 	FollowRedirects               *bool `json:"followRedirects,omitempty"`
+	EnableHTTP2                   *bool `json:"enableHttp2,omitempty"`
 }
 
 // HTTPConfigApplyConfiguration constructs a declarative configuration of the HTTPConfig type for use with
@@ -82,7 +83,7 @@ func (b *HTTPConfigApplyConfiguration) WithTLSConfig(value *SafeTLSConfigApplyCo
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyURL field is set to the value of the last call.
 func (b *HTTPConfigApplyConfiguration) WithProxyURL(value string) *HTTPConfigApplyConfiguration {
-	b.ProxyURL = &value
+	b.ProxyConfigApplyConfiguration.ProxyURL = &value
 	return b
 }
 
@@ -90,7 +91,7 @@ func (b *HTTPConfigApplyConfiguration) WithProxyURL(value string) *HTTPConfigApp
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NoProxy field is set to the value of the last call.
 func (b *HTTPConfigApplyConfiguration) WithNoProxy(value string) *HTTPConfigApplyConfiguration {
-	b.NoProxy = &value
+	b.ProxyConfigApplyConfiguration.NoProxy = &value
 	return b
 }
 
@@ -98,7 +99,7 @@ func (b *HTTPConfigApplyConfiguration) WithNoProxy(value string) *HTTPConfigAppl
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyFromEnvironment field is set to the value of the last call.
 func (b *HTTPConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *HTTPConfigApplyConfiguration {
-	b.ProxyFromEnvironment = &value
+	b.ProxyConfigApplyConfiguration.ProxyFromEnvironment = &value
 	return b
 }
 
@@ -107,11 +108,11 @@ func (b *HTTPConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *HTT
 // If called multiple times, the entries provided by each call will be put on the ProxyConnectHeader field,
 // overwriting an existing map entries in ProxyConnectHeader field with the same key.
 func (b *HTTPConfigApplyConfiguration) WithProxyConnectHeader(entries map[string][]corev1.SecretKeySelector) *HTTPConfigApplyConfiguration {
-	if b.ProxyConnectHeader == nil && len(entries) > 0 {
-		b.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
+	if b.ProxyConfigApplyConfiguration.ProxyConnectHeader == nil && len(entries) > 0 {
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
 	}
 	for k, v := range entries {
-		b.ProxyConnectHeader[k] = v
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader[k] = v
 	}
 	return b
 }
@@ -121,5 +122,13 @@ func (b *HTTPConfigApplyConfiguration) WithProxyConnectHeader(entries map[string
 // If called multiple times, the FollowRedirects field is set to the value of the last call.
 func (b *HTTPConfigApplyConfiguration) WithFollowRedirects(value bool) *HTTPConfigApplyConfiguration {
 	b.FollowRedirects = &value
+	return b
+}
+
+// WithEnableHTTP2 sets the EnableHTTP2 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnableHTTP2 field is set to the value of the last call.
+func (b *HTTPConfigApplyConfiguration) WithEnableHTTP2(value bool) *HTTPConfigApplyConfiguration {
+	b.EnableHTTP2 = &value
 	return b
 }
