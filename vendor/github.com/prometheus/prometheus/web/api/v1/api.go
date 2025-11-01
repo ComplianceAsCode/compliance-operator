@@ -68,21 +68,45 @@ const (
 	// Non-standard status code (originally introduced by nginx) for the case when a client closes
 	// the connection while the server is still processing the request.
 	statusClientClosedConnection = 499
+
+	// checkContextEveryNIterations is used in some tight loops to check if the context is done.
+	checkContextEveryNIterations = 128
 )
 
-type errorType string
+type errorNum int
+
+type errorType struct {
+	num errorNum
+	str string
+}
 
 const (
-	errorNone          errorType = ""
-	errorTimeout       errorType = "timeout"
-	errorCanceled      errorType = "canceled"
-	errorExec          errorType = "execution"
-	errorBadData       errorType = "bad_data"
-	errorInternal      errorType = "internal"
-	errorUnavailable   errorType = "unavailable"
-	errorNotFound      errorType = "not_found"
-	errorNotAcceptable errorType = "not_acceptable"
+	ErrorNone errorNum = iota
+	ErrorTimeout
+	ErrorCanceled
+	ErrorExec
+	ErrorBadData
+	ErrorInternal
+	ErrorUnavailable
+	ErrorNotFound
+	ErrorNotAcceptable
 )
+
+var (
+	errorNone          = errorType{ErrorNone, ""}
+	errorTimeout       = errorType{ErrorTimeout, "timeout"}
+	errorCanceled      = errorType{ErrorCanceled, "canceled"}
+	errorExec          = errorType{ErrorExec, "execution"}
+	errorBadData       = errorType{ErrorBadData, "bad_data"}
+	errorInternal      = errorType{ErrorInternal, "internal"}
+	errorUnavailable   = errorType{ErrorUnavailable, "unavailable"}
+	errorNotFound      = errorType{ErrorNotFound, "not_found"}
+	errorNotAcceptable = errorType{ErrorNotAcceptable, "not_acceptable"}
+)
+
+// OverrideErrorCode can be used to override status code for different error types.
+// Return false to fall back to default status code.
+type OverrideErrorCode func(errorNum, error) (code int, override bool)
 
 var LocalhostRepresentations = []string{"127.0.0.1", "localhost", "::1"}
 
@@ -92,7 +116,7 @@ type apiError struct {
 }
 
 func (e *apiError) Error() string {
-	return fmt.Sprintf("%s: %s", e.typ, e.err)
+	return fmt.Sprintf("%s: %s", e.typ.str, e.err)
 }
 
 // ScrapePoolsRetriever provide the list of all scrape pools.
@@ -144,6 +168,8 @@ type PrometheusVersion struct {
 type RuntimeInfo struct {
 	StartTime           time.Time `json:"startTime"`
 	CWD                 string    `json:"CWD"`
+	Hostname            string    `json:"hostname"`
+	ServerTime          time.Time `json:"serverTime"`
 	ReloadConfigSuccess bool      `json:"reloadConfigSuccess"`
 	LastConfigTime      time.Time `json:"lastConfigTime"`
 	CorruptionCount     int64     `json:"corruptionCount"`
@@ -157,16 +183,16 @@ type RuntimeInfo struct {
 
 // Response contains a response to a HTTP API request.
 type Response struct {
-	Status    status      `json:"status"`
-	Data      interface{} `json:"data,omitempty"`
-	ErrorType errorType   `json:"errorType,omitempty"`
-	Error     string      `json:"error,omitempty"`
-	Warnings  []string    `json:"warnings,omitempty"`
-	Infos     []string    `json:"infos,omitempty"`
+	Status    status   `json:"status"`
+	Data      any      `json:"data,omitempty"`
+	ErrorType string   `json:"errorType,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	Warnings  []string `json:"warnings,omitempty"`
+	Infos     []string `json:"infos,omitempty"`
 }
 
 type apiFuncResult struct {
-	data      interface{}
+	data      any
 	err       *apiError
 	warnings  annotations.Annotations
 	finalizer func()
@@ -181,6 +207,7 @@ type TSDBAdminStats interface {
 	Snapshot(dir string, withHead bool) error
 	Stats(statsByLabelName string, limit int) (*tsdb.Stats, error)
 	WALReplayStatus() (tsdb.WALReplayStatus, error)
+	BlockMetas() ([]tsdb.BlockMeta, error)
 }
 
 type QueryOpts interface {
@@ -217,6 +244,8 @@ type API struct {
 	statsRenderer       StatsRenderer
 	notificationsGetter func() []notifications.Notification
 	notificationsSub    func() (<-chan notifications.Notification, func(), bool)
+	// Allows customizing the default mapping
+	overrideErrorCode OverrideErrorCode
 
 	remoteWriteHandler http.Handler
 	remoteReadHandler  http.Handler
@@ -257,7 +286,11 @@ func NewAPI(
 	statsRenderer StatsRenderer,
 	rwEnabled bool,
 	acceptRemoteWriteProtoMsgs []config.RemoteWriteProtoMsg,
-	otlpEnabled bool,
+	otlpEnabled, otlpDeltaToCumulative, otlpNativeDeltaIngestion bool,
+	ctZeroIngestionEnabled bool,
+	lookbackDelta time.Duration,
+	enableTypeAndUnitLabels bool,
+	overrideErrorCode OverrideErrorCode,
 ) *API {
 	a := &API{
 		QueryEngine:       qe,
@@ -286,6 +319,7 @@ func NewAPI(
 		statsRenderer:       DefaultStatsRenderer,
 		notificationsGetter: notificationsGetter,
 		notificationsSub:    notificationsSub,
+		overrideErrorCode:   overrideErrorCode,
 
 		remoteReadHandler: remote.NewReadHandler(logger, registerer, q, configFunc, remoteReadSampleLimit, remoteReadConcurrencyLimit, remoteReadMaxBytesInFrame),
 	}
@@ -301,10 +335,16 @@ func NewAPI(
 	}
 
 	if rwEnabled {
-		a.remoteWriteHandler = remote.NewWriteHandler(logger, registerer, ap, acceptRemoteWriteProtoMsgs)
+		a.remoteWriteHandler = remote.NewWriteHandler(logger, registerer, ap, acceptRemoteWriteProtoMsgs, ctZeroIngestionEnabled)
 	}
 	if otlpEnabled {
-		a.otlpWriteHandler = remote.NewOTLPWriteHandler(logger, ap, configFunc)
+		a.otlpWriteHandler = remote.NewOTLPWriteHandler(logger, registerer, ap, configFunc, remote.OTLPOptions{
+			ConvertDelta:            otlpDeltaToCumulative,
+			NativeDelta:             otlpNativeDeltaIngestion,
+			LookbackDelta:           lookbackDelta,
+			IngestCTZeroSample:      ctZeroIngestionEnabled,
+			EnableTypeAndUnitLabels: enableTypeAndUnitLabels,
+		})
 	}
 
 	return a
@@ -398,6 +438,7 @@ func (api *API) Register(r *route.Router) {
 	r.Get("/status/buildinfo", wrap(api.serveBuildInfo))
 	r.Get("/status/flags", wrap(api.serveFlags))
 	r.Get("/status/tsdb", wrapAgent(api.serveTSDBStatus))
+	r.Get("/status/tsdb/blocks", wrapAgent(api.serveTSDBBlocks))
 	r.Get("/status/walreplay", api.serveWALReplayStatus)
 	r.Get("/notifications", api.notifications)
 	r.Get("/notifications/live", api.notificationsSSE)
@@ -430,11 +471,15 @@ func invalidParamError(err error, parameter string) apiFuncResult {
 	}, nil, nil}
 }
 
-func (api *API) options(*http.Request) apiFuncResult {
+func (*API) options(*http.Request) apiFuncResult {
 	return apiFuncResult{nil, nil, nil, nil}
 }
 
 func (api *API) query(r *http.Request) (result apiFuncResult) {
+	limit, err := parseLimitParam(r.FormValue("limit"))
+	if err != nil {
+		return invalidParamError(err, "limit")
+	}
 	ts, err := parseTimeParam(r, "time", api.now())
 	if err != nil {
 		return invalidParamError(err, "time")
@@ -476,6 +521,15 @@ func (api *API) query(r *http.Request) (result apiFuncResult) {
 		return apiFuncResult{nil, returnAPIError(res.Err), res.Warnings, qry.Close}
 	}
 
+	warnings := res.Warnings
+	if limit > 0 {
+		var isTruncated bool
+
+		res, isTruncated = truncateResults(res, limit)
+		if isTruncated {
+			warnings = warnings.Add(errors.New("results truncated due to limit"))
+		}
+	}
 	// Optional stats field in response if parameter "stats" is not empty.
 	sr := api.statsRenderer
 	if sr == nil {
@@ -487,10 +541,10 @@ func (api *API) query(r *http.Request) (result apiFuncResult) {
 		ResultType: res.Value.Type(),
 		Result:     res.Value,
 		Stats:      qs,
-	}, nil, res.Warnings, qry.Close}
+	}, nil, warnings, qry.Close}
 }
 
-func (api *API) formatQuery(r *http.Request) (result apiFuncResult) {
+func (*API) formatQuery(r *http.Request) (result apiFuncResult) {
 	expr, err := parser.ParseExpr(r.FormValue("query"))
 	if err != nil {
 		return invalidParamError(err, "query")
@@ -499,7 +553,7 @@ func (api *API) formatQuery(r *http.Request) (result apiFuncResult) {
 	return apiFuncResult{expr.Pretty(0), nil, nil, nil}
 }
 
-func (api *API) parseQuery(r *http.Request) apiFuncResult {
+func (*API) parseQuery(r *http.Request) apiFuncResult {
 	expr, err := parser.ParseExpr(r.FormValue("query"))
 	if err != nil {
 		return invalidParamError(err, "query")
@@ -523,6 +577,10 @@ func extractQueryOpts(r *http.Request) (promql.QueryOpts, error) {
 }
 
 func (api *API) queryRange(r *http.Request) (result apiFuncResult) {
+	limit, err := parseLimitParam(r.FormValue("limit"))
+	if err != nil {
+		return invalidParamError(err, "limit")
+	}
 	start, err := parseTime(r.FormValue("start"))
 	if err != nil {
 		return invalidParamError(err, "start")
@@ -587,6 +645,16 @@ func (api *API) queryRange(r *http.Request) (result apiFuncResult) {
 		return apiFuncResult{nil, returnAPIError(res.Err), res.Warnings, qry.Close}
 	}
 
+	warnings := res.Warnings
+	if limit > 0 {
+		var isTruncated bool
+
+		res, isTruncated = truncateResults(res, limit)
+		if isTruncated {
+			warnings = warnings.Add(errors.New("results truncated due to limit"))
+		}
+	}
+
 	// Optional stats field in response if parameter "stats" is not empty.
 	sr := api.statsRenderer
 	if sr == nil {
@@ -598,7 +666,7 @@ func (api *API) queryRange(r *http.Request) (result apiFuncResult) {
 		ResultType: res.Value.Type(),
 		Result:     res.Value,
 		Stats:      qs,
-	}, nil, res.Warnings, qry.Close}
+	}, nil, warnings, qry.Close}
 }
 
 func (api *API) queryExemplars(r *http.Request) apiFuncResult {
@@ -748,8 +816,7 @@ func (api *API) labelValues(r *http.Request) (result apiFuncResult) {
 		name = model.UnescapeName(name, model.ValueEncodingEscaping)
 	}
 
-	label := model.LabelName(name)
-	if !label.IsValid() {
+	if !model.UTF8Validation.IsValidLabelName(name) {
 		return apiFuncResult{nil, &apiError{errorBadData, fmt.Errorf("invalid label name: %q", name)}, nil, nil}
 	}
 
@@ -932,10 +999,15 @@ func (api *API) series(r *http.Request) (result apiFuncResult) {
 
 	warnings := set.Warnings()
 
+	i := 1
 	for set.Next() {
-		if err := ctx.Err(); err != nil {
-			return apiFuncResult{nil, returnAPIError(err), warnings, closer}
+		if i%checkContextEveryNIterations == 0 {
+			if err := ctx.Err(); err != nil {
+				return apiFuncResult{nil, returnAPIError(err), warnings, closer}
+			}
 		}
+		i++
+
 		metrics = append(metrics, set.At().Labels())
 
 		if limit > 0 && len(metrics) > limit {
@@ -951,7 +1023,7 @@ func (api *API) series(r *http.Request) (result apiFuncResult) {
 	return apiFuncResult{metrics, nil, warnings, closer}
 }
 
-func (api *API) dropSeries(_ *http.Request) apiFuncResult {
+func (*API) dropSeries(*http.Request) apiFuncResult {
 	return apiFuncResult{nil, &apiError{errorInternal, errors.New("not implemented")}, nil, nil}
 }
 
@@ -983,6 +1055,7 @@ type ScrapePoolsDiscovery struct {
 type DroppedTarget struct {
 	// Labels before any processing.
 	DiscoveredLabels labels.Labels `json:"discoveredLabels"`
+	ScrapePool       string        `json:"scrapePool"`
 }
 
 // TargetDiscovery has all the active targets.
@@ -1067,15 +1140,15 @@ func (api *API) scrapePools(r *http.Request) apiFuncResult {
 }
 
 func (api *API) targets(r *http.Request) apiFuncResult {
-	sortKeys := func(targets map[string][]*scrape.Target) ([]string, int) {
+	getSortedPools := func(targets map[string][]*scrape.Target) ([]string, int) {
 		var n int
-		keys := make([]string, 0, len(targets))
-		for k := range targets {
-			keys = append(keys, k)
-			n += len(targets[k])
+		pools := make([]string, 0, len(targets))
+		for p, t := range targets {
+			pools = append(pools, p)
+			n += len(t)
 		}
-		slices.Sort(keys)
-		return keys, n
+		slices.Sort(pools)
+		return pools, n
 	}
 
 	scrapePool := r.URL.Query().Get("scrapePool")
@@ -1083,18 +1156,18 @@ func (api *API) targets(r *http.Request) apiFuncResult {
 	showActive := state == "" || state == "any" || state == "active"
 	showDropped := state == "" || state == "any" || state == "dropped"
 	res := &TargetDiscovery{}
+	builder := labels.NewBuilder(labels.EmptyLabels())
 
 	if showActive {
 		targetsActive := api.targetRetriever(r.Context()).TargetsActive()
-		activeKeys, numTargets := sortKeys(targetsActive)
+		activePools, numTargets := getSortedPools(targetsActive)
 		res.ActiveTargets = make([]*Target, 0, numTargets)
-		builder := labels.NewScratchBuilder(0)
 
-		for _, key := range activeKeys {
-			if scrapePool != "" && key != scrapePool {
+		for _, pool := range activePools {
+			if scrapePool != "" && pool != scrapePool {
 				continue
 			}
-			for _, target := range targetsActive[key] {
+			for _, target := range targetsActive[pool] {
 				lastErrStr := ""
 				lastErr := target.LastError()
 				if lastErr != nil {
@@ -1104,9 +1177,9 @@ func (api *API) targets(r *http.Request) apiFuncResult {
 				globalURL, err := getGlobalURL(target.URL(), api.globalURLOptions)
 
 				res.ActiveTargets = append(res.ActiveTargets, &Target{
-					DiscoveredLabels: target.DiscoveredLabels(),
-					Labels:           target.Labels(&builder),
-					ScrapePool:       key,
+					DiscoveredLabels: target.DiscoveredLabels(builder),
+					Labels:           target.Labels(builder),
+					ScrapePool:       pool,
 					ScrapeURL:        target.URL().String(),
 					GlobalURL:        globalURL.String(),
 					LastError: func() string {
@@ -1132,18 +1205,18 @@ func (api *API) targets(r *http.Request) apiFuncResult {
 	}
 	if showDropped {
 		res.DroppedTargetCounts = api.targetRetriever(r.Context()).TargetsDroppedCounts()
-	}
-	if showDropped {
+
 		targetsDropped := api.targetRetriever(r.Context()).TargetsDropped()
-		droppedKeys, numTargets := sortKeys(targetsDropped)
+		droppedPools, numTargets := getSortedPools(targetsDropped)
 		res.DroppedTargets = make([]*DroppedTarget, 0, numTargets)
-		for _, key := range droppedKeys {
-			if scrapePool != "" && key != scrapePool {
+		for _, pool := range droppedPools {
+			if scrapePool != "" && pool != scrapePool {
 				continue
 			}
-			for _, target := range targetsDropped[key] {
+			for _, target := range targetsDropped[pool] {
 				res.DroppedTargets = append(res.DroppedTargets, &DroppedTarget{
-					DiscoveredLabels: target.DiscoveredLabels(),
+					DiscoveredLabels: target.DiscoveredLabels(builder),
+					ScrapePool:       pool,
 				})
 			}
 		}
@@ -1181,7 +1254,7 @@ func (api *API) targetMetadata(r *http.Request) apiFuncResult {
 		}
 	}
 
-	builder := labels.NewScratchBuilder(0)
+	builder := labels.NewBuilder(labels.EmptyLabels())
 	metric := r.FormValue("metric")
 	res := []metricMetadata{}
 	for _, tt := range api.targetRetriever(r.Context()).TargetsActive() {
@@ -1189,7 +1262,7 @@ func (api *API) targetMetadata(r *http.Request) apiFuncResult {
 			if limit >= 0 && len(res) >= limit {
 				break
 			}
-			targetLabels := t.Labels(&builder)
+			targetLabels := t.Labels(builder)
 			// Filter targets that don't satisfy the label matchers.
 			if matchTarget != "" && !matchLabels(targetLabels, matchers) {
 				continue
@@ -1198,11 +1271,11 @@ func (api *API) targetMetadata(r *http.Request) apiFuncResult {
 			if metric == "" {
 				for _, md := range t.ListMetadata() {
 					res = append(res, metricMetadata{
-						Target: targetLabels,
-						Metric: md.Metric,
-						Type:   md.Type,
-						Help:   md.Help,
-						Unit:   md.Unit,
+						Target:       targetLabels,
+						MetricFamily: md.MetricFamily,
+						Type:         md.Type,
+						Help:         md.Help,
+						Unit:         md.Unit,
 					})
 				}
 				continue
@@ -1223,11 +1296,11 @@ func (api *API) targetMetadata(r *http.Request) apiFuncResult {
 }
 
 type metricMetadata struct {
-	Target labels.Labels    `json:"target"`
-	Metric string           `json:"metric,omitempty"`
-	Type   model.MetricType `json:"type"`
-	Help   string           `json:"help"`
-	Unit   string           `json:"unit"`
+	Target       labels.Labels    `json:"target"`
+	MetricFamily string           `json:"metric,omitempty"`
+	Type         model.MetricType `json:"type"`
+	Help         string           `json:"help"`
+	Unit         string           `json:"unit"`
 }
 
 // AlertmanagerDiscovery has all the active Alertmanagers.
@@ -1327,7 +1400,7 @@ func (api *API) metricMetadata(r *http.Request) apiFuncResult {
 			if metric == "" {
 				for _, mm := range t.ListMetadata() {
 					m := metadata.Metadata{Type: mm.Type, Help: mm.Help, Unit: mm.Unit}
-					ms, ok := metrics[mm.Metric]
+					ms, ok := metrics[mm.MetricFamily]
 
 					if limitPerMetric > 0 && len(ms) >= limitPerMetric {
 						continue
@@ -1335,7 +1408,7 @@ func (api *API) metricMetadata(r *http.Request) apiFuncResult {
 
 					if !ok {
 						ms = map[metadata.Metadata]struct{}{}
-						metrics[mm.Metric] = ms
+						metrics[mm.MetricFamily] = ms
 					}
 					ms[m] = struct{}{}
 				}
@@ -1344,7 +1417,7 @@ func (api *API) metricMetadata(r *http.Request) apiFuncResult {
 
 			if md, ok := t.GetMetadata(metric); ok {
 				m := metadata.Metadata{Type: md.Type, Help: md.Help, Unit: md.Unit}
-				ms, ok := metrics[md.Metric]
+				ms, ok := metrics[md.MetricFamily]
 
 				if limitPerMetric > 0 && len(ms) >= limitPerMetric {
 					continue
@@ -1352,7 +1425,7 @@ func (api *API) metricMetadata(r *http.Request) apiFuncResult {
 
 				if !ok {
 					ms = map[metadata.Metadata]struct{}{}
-					metrics[md.Metric] = ms
+					metrics[md.MetricFamily] = ms
 				}
 				ms[m] = struct{}{}
 			}
@@ -1396,7 +1469,7 @@ type RuleGroup struct {
 	LastEvaluation time.Time `json:"lastEvaluation"`
 }
 
-type Rule interface{}
+type Rule any
 
 type AlertingRule struct {
 	// State can be "pending", "firing", "inactive".
@@ -1644,7 +1717,7 @@ type prometheusConfig struct {
 	YAML string `json:"yaml"`
 }
 
-func (api *API) serveRuntimeInfo(_ *http.Request) apiFuncResult {
+func (api *API) serveRuntimeInfo(*http.Request) apiFuncResult {
 	status, err := api.runtimeInfo()
 	if err != nil {
 		return apiFuncResult{status, &apiError{errorInternal, err}, nil, nil}
@@ -1652,18 +1725,18 @@ func (api *API) serveRuntimeInfo(_ *http.Request) apiFuncResult {
 	return apiFuncResult{status, nil, nil, nil}
 }
 
-func (api *API) serveBuildInfo(_ *http.Request) apiFuncResult {
+func (api *API) serveBuildInfo(*http.Request) apiFuncResult {
 	return apiFuncResult{api.buildInfo, nil, nil, nil}
 }
 
-func (api *API) serveConfig(_ *http.Request) apiFuncResult {
+func (api *API) serveConfig(*http.Request) apiFuncResult {
 	cfg := &prometheusConfig{
 		YAML: api.config().String(),
 	}
 	return apiFuncResult{cfg, nil, nil, nil}
 }
 
-func (api *API) serveFlags(_ *http.Request) apiFuncResult {
+func (api *API) serveFlags(*http.Request) apiFuncResult {
 	return apiFuncResult{api.flagsMap, nil, nil, nil}
 }
 
@@ -1699,6 +1772,19 @@ func TSDBStatsFromIndexStats(stats []index.Stat) []TSDBStat {
 		result = append(result, item)
 	}
 	return result
+}
+
+func (api *API) serveTSDBBlocks(*http.Request) apiFuncResult {
+	blockMetas, err := api.db.BlockMetas()
+	if err != nil {
+		return apiFuncResult{nil, &apiError{errorInternal, fmt.Errorf("error getting block metadata: %w", err)}, nil, nil}
+	}
+
+	return apiFuncResult{
+		data: map[string][]tsdb.BlockMeta{
+			"blocks": blockMetas,
+		},
+	}
 }
 
 func (api *API) serveTSDBStatus(r *http.Request) apiFuncResult {
@@ -1917,7 +2003,7 @@ func (api *API) cleanTombstones(*http.Request) apiFuncResult {
 
 // Query string is needed to get the position information for the annotations, and it
 // can be empty if the position information isn't needed.
-func (api *API) respond(w http.ResponseWriter, req *http.Request, data interface{}, warnings annotations.Annotations, query string) {
+func (api *API) respond(w http.ResponseWriter, req *http.Request, data any, warnings annotations.Annotations, query string) {
 	statusMessage := statusSuccess
 	warn, info := warnings.AsStrings(query, 10, 10)
 
@@ -1965,11 +2051,11 @@ func (api *API) negotiateCodec(req *http.Request, resp *Response) (Codec, error)
 	return defaultCodec, nil
 }
 
-func (api *API) respondError(w http.ResponseWriter, apiErr *apiError, data interface{}) {
+func (api *API) respondError(w http.ResponseWriter, apiErr *apiError, data any) {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	b, err := json.Marshal(&Response{
 		Status:    statusError,
-		ErrorType: apiErr.typ,
+		ErrorType: apiErr.typ.str,
 		Error:     apiErr.err.Error(),
 		Data:      data,
 	})
@@ -1980,29 +2066,41 @@ func (api *API) respondError(w http.ResponseWriter, apiErr *apiError, data inter
 	}
 
 	var code int
-	switch apiErr.typ {
-	case errorBadData:
-		code = http.StatusBadRequest
-	case errorExec:
-		code = http.StatusUnprocessableEntity
-	case errorCanceled:
-		code = statusClientClosedConnection
-	case errorTimeout:
-		code = http.StatusServiceUnavailable
-	case errorInternal:
-		code = http.StatusInternalServerError
-	case errorNotFound:
-		code = http.StatusNotFound
-	case errorNotAcceptable:
-		code = http.StatusNotAcceptable
-	default:
-		code = http.StatusInternalServerError
+	if api.overrideErrorCode != nil {
+		if newCode, override := api.overrideErrorCode(apiErr.typ.num, apiErr.err); override {
+			code = newCode
+		} else {
+			code = getDefaultErrorCode(apiErr.typ)
+		}
+	} else {
+		code = getDefaultErrorCode(apiErr.typ)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if n, err := w.Write(b); err != nil {
 		api.logger.Error("error writing response", "bytesWritten", n, "err", err)
+	}
+}
+
+func getDefaultErrorCode(errType errorType) int {
+	switch errType {
+	case errorBadData:
+		return http.StatusBadRequest
+	case errorExec:
+		return http.StatusUnprocessableEntity
+	case errorCanceled:
+		return statusClientClosedConnection
+	case errorTimeout:
+		return http.StatusServiceUnavailable
+	case errorInternal:
+		return http.StatusInternalServerError
+	case errorNotFound:
+		return http.StatusNotFound
+	case errorNotAcceptable:
+		return http.StatusNotAcceptable
+	default:
+		return http.StatusInternalServerError
 	}
 }
 
@@ -2013,7 +2111,7 @@ func parseTimeParam(r *http.Request, paramName string, defaultValue time.Time) (
 	}
 	result, err := parseTime(val)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Invalid time value for '%s': %w", paramName, err)
+		return time.Time{}, fmt.Errorf("invalid time value for '%s': %w", paramName, err)
 	}
 	return result, nil
 }
@@ -2098,4 +2196,26 @@ func toHintLimit(limit int) int {
 		return limit + 1
 	}
 	return limit
+}
+
+// truncateResults truncates result for queryRange() and query().
+// No truncation for other types(Scalars or Strings).
+func truncateResults(result *promql.Result, limit int) (*promql.Result, bool) {
+	isTruncated := false
+
+	switch v := result.Value.(type) {
+	case promql.Matrix:
+		if len(v) > limit {
+			result.Value = v[:limit]
+			isTruncated = true
+		}
+	case promql.Vector:
+		if len(v) > limit {
+			result.Value = v[:limit]
+			isTruncated = true
+		}
+	}
+
+	// Return the modified result. Unchanged for other types.
+	return result, isTruncated
 }

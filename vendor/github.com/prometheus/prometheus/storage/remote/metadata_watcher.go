@@ -37,8 +37,8 @@ type Watchable interface {
 
 type noopScrapeManager struct{}
 
-func (noop *noopScrapeManager) Get() (*scrape.Manager, error) {
-	return nil, errors.New("Scrape manager not ready")
+func (*noopScrapeManager) Get() (*scrape.Manager, error) {
+	return nil, errors.New("scrape manager not ready")
 }
 
 // MetadataWatcher watches the Scrape Manager for a given WriteMetadataTo.
