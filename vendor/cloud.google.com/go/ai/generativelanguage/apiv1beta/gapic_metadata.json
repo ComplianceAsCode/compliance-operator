@@ -10,6 +10,11 @@
         "grpc": {
           "libraryClient": "CacheClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateCachedContent": {
               "methods": [
                 "CreateCachedContent"
@@ -20,14 +25,29 @@
                 "DeleteCachedContent"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
             "GetCachedContent": {
               "methods": [
                 "GetCachedContent"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "ListCachedContents": {
               "methods": [
                 "ListCachedContents"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "UpdateCachedContent": {
@@ -40,6 +60,11 @@
         "rest": {
           "libraryClient": "CacheClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateCachedContent": {
               "methods": [
                 "CreateCachedContent"
@@ -50,14 +75,29 @@
                 "DeleteCachedContent"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
             "GetCachedContent": {
               "methods": [
                 "GetCachedContent"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "ListCachedContents": {
               "methods": [
                 "ListCachedContents"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "UpdateCachedContent": {
@@ -74,14 +114,34 @@
         "grpc": {
           "libraryClient": "DiscussClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CountMessageTokens": {
               "methods": [
                 "CountMessageTokens"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
             "GenerateMessage": {
               "methods": [
                 "GenerateMessage"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             }
           }
@@ -89,14 +149,34 @@
         "rest": {
           "libraryClient": "DiscussClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CountMessageTokens": {
               "methods": [
                 "CountMessageTokens"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
             "GenerateMessage": {
               "methods": [
                 "GenerateMessage"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             }
           }
@@ -108,6 +188,11 @@
         "grpc": {
           "libraryClient": "FileClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateFile": {
               "methods": [
                 "CreateFile"
@@ -118,14 +203,34 @@
                 "DeleteFile"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
+            "DownloadFile": {
+              "methods": [
+                "DownloadFile"
+              ]
+            },
             "GetFile": {
               "methods": [
                 "GetFile"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "ListFiles": {
               "methods": [
                 "ListFiles"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             }
           }
@@ -133,6 +238,11 @@
         "rest": {
           "libraryClient": "FileClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateFile": {
               "methods": [
                 "CreateFile"
@@ -143,14 +253,34 @@
                 "DeleteFile"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
+            "DownloadFile": {
+              "methods": [
+                "DownloadFile"
+              ]
+            },
             "GetFile": {
               "methods": [
                 "GetFile"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "ListFiles": {
               "methods": [
                 "ListFiles"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             }
           }
@@ -167,9 +297,24 @@
                 "BatchEmbedContents"
               ]
             },
+            "BidiGenerateContent": {
+              "methods": [
+                "BidiGenerateContent"
+              ]
+            },
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CountTokens": {
               "methods": [
                 "CountTokens"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "EmbedContent": {
@@ -185,6 +330,16 @@
             "GenerateContent": {
               "methods": [
                 "GenerateContent"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "StreamGenerateContent": {
@@ -202,9 +357,24 @@
                 "BatchEmbedContents"
               ]
             },
+            "BidiGenerateContent": {
+              "methods": [
+                "BidiGenerateContent"
+              ]
+            },
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CountTokens": {
               "methods": [
                 "CountTokens"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "EmbedContent": {
@@ -222,6 +392,16 @@
                 "GenerateContent"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
+              ]
+            },
             "StreamGenerateContent": {
               "methods": [
                 "StreamGenerateContent"
@@ -236,9 +416,19 @@
         "grpc": {
           "libraryClient": "ModelClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateTunedModel": {
               "methods": [
                 "CreateTunedModel"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "DeleteTunedModel": {
@@ -251,6 +441,11 @@
                 "GetModel"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "GetTunedModel": {
               "methods": [
                 "GetTunedModel"
@@ -259,6 +454,11 @@
             "ListModels": {
               "methods": [
                 "ListModels"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "ListTunedModels": {
@@ -276,9 +476,19 @@
         "rest": {
           "libraryClient": "ModelClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateTunedModel": {
               "methods": [
                 "CreateTunedModel"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "DeleteTunedModel": {
@@ -291,6 +501,11 @@
                 "GetModel"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "GetTunedModel": {
               "methods": [
                 "GetTunedModel"
@@ -299,6 +514,11 @@
             "ListModels": {
               "methods": [
                 "ListModels"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "ListTunedModels": {
@@ -320,9 +540,19 @@
         "grpc": {
           "libraryClient": "PermissionClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreatePermission": {
               "methods": [
                 "CreatePermission"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "DeletePermission": {
@@ -330,9 +560,19 @@
                 "DeletePermission"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "GetPermission": {
               "methods": [
                 "GetPermission"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "ListPermissions": {
@@ -355,9 +595,19 @@
         "rest": {
           "libraryClient": "PermissionClient",
           "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreatePermission": {
               "methods": [
                 "CreatePermission"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "DeletePermission": {
@@ -365,9 +615,19 @@
                 "DeletePermission"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "GetPermission": {
               "methods": [
                 "GetPermission"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "ListPermissions": {
@@ -383,6 +643,80 @@
             "UpdatePermission": {
               "methods": [
                 "UpdatePermission"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "PredictionService": {
+      "clients": {
+        "grpc": {
+          "libraryClient": "PredictionClient",
+          "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
+              ]
+            },
+            "Predict": {
+              "methods": [
+                "Predict"
+              ]
+            },
+            "PredictLongRunning": {
+              "methods": [
+                "PredictLongRunning"
+              ]
+            }
+          }
+        },
+        "rest": {
+          "libraryClient": "PredictionClient",
+          "rpcs": {
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
+              ]
+            },
+            "Predict": {
+              "methods": [
+                "Predict"
+              ]
+            },
+            "PredictLongRunning": {
+              "methods": [
+                "PredictLongRunning"
               ]
             }
           }
@@ -407,6 +741,11 @@
             "BatchUpdateChunks": {
               "methods": [
                 "BatchUpdateChunks"
+              ]
+            },
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
               ]
             },
             "CreateChunk": {
@@ -439,6 +778,11 @@
                 "DeleteDocument"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
             "GetChunk": {
               "methods": [
                 "GetChunk"
@@ -454,6 +798,11 @@
                 "GetDocument"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "ListChunks": {
               "methods": [
                 "ListChunks"
@@ -467,6 +816,11 @@
             "ListDocuments": {
               "methods": [
                 "ListDocuments"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "QueryCorpus": {
@@ -514,6 +868,11 @@
                 "BatchUpdateChunks"
               ]
             },
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CreateChunk": {
               "methods": [
                 "CreateChunk"
@@ -544,6 +903,11 @@
                 "DeleteDocument"
               ]
             },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
+              ]
+            },
             "GetChunk": {
               "methods": [
                 "GetChunk"
@@ -559,6 +923,11 @@
                 "GetDocument"
               ]
             },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
             "ListChunks": {
               "methods": [
                 "ListChunks"
@@ -572,6 +941,11 @@
             "ListDocuments": {
               "methods": [
                 "ListDocuments"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             },
             "QueryCorpus": {
@@ -613,9 +987,19 @@
                 "BatchEmbedText"
               ]
             },
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CountTextTokens": {
               "methods": [
                 "CountTextTokens"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "EmbedText": {
@@ -626,6 +1010,16 @@
             "GenerateText": {
               "methods": [
                 "GenerateText"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             }
           }
@@ -638,9 +1032,19 @@
                 "BatchEmbedText"
               ]
             },
+            "CancelOperation": {
+              "methods": [
+                "CancelOperation"
+              ]
+            },
             "CountTextTokens": {
               "methods": [
                 "CountTextTokens"
+              ]
+            },
+            "DeleteOperation": {
+              "methods": [
+                "DeleteOperation"
               ]
             },
             "EmbedText": {
@@ -651,6 +1055,16 @@
             "GenerateText": {
               "methods": [
                 "GenerateText"
+              ]
+            },
+            "GetOperation": {
+              "methods": [
+                "GetOperation"
+              ]
+            },
+            "ListOperations": {
+              "methods": [
+                "ListOperations"
               ]
             }
           }
