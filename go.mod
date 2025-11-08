@@ -43,7 +43,7 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/generative-ai-go v0.19.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.5 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
