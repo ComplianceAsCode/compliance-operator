@@ -1,6 +1,8 @@
 module github.com/ComplianceAsCode/compliance-operator
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.6
 
 require (
 	github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e
@@ -61,18 +63,17 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/prometheus/alertmanager v0.27.0 // indirect
 	github.com/prometheus/sigv4 v0.1.0 // indirect
-	github.com/rogpeppe/go-internal v1.13.2-0.20241226121412-a5dc8ff20d0a // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
-	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/pdata v1.22.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.116.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.58.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.59.0 // indirect
-	go.opentelemetry.io/otel v1.35.0 // indirect
-	go.opentelemetry.io/otel/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0 // indirect
+	go.opentelemetry.io/otel v1.38.0 // indirect
+	go.opentelemetry.io/otel/metric v1.38.0 // indirect
+	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
@@ -95,7 +96,7 @@ require (
 	github.com/dsnet/compress v0.0.1
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
