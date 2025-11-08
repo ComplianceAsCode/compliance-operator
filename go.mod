@@ -1,6 +1,8 @@
 module github.com/ComplianceAsCode/compliance-operator
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.6
 
 require (
 	github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e
@@ -28,6 +30,19 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.39.5 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.31.16 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.20 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.12 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.12 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.12 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.12 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.39.0 // indirect
+	github.com/aws/smithy-go v1.23.1 // indirect
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
@@ -50,7 +65,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
@@ -60,7 +74,7 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/prometheus/alertmanager v0.27.0 // indirect
-	github.com/prometheus/sigv4 v0.1.0 // indirect
+	github.com/prometheus/sigv4 v0.3.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.2-0.20241226121412-a5dc8ff20d0a // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
@@ -75,7 +89,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	google.golang.org/api v0.224.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
@@ -120,7 +136,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/client v0.79.2
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.62.0 // indirect
+	github.com/prometheus/common v0.67.2 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/securego/gosec/v2 v2.22.0
@@ -130,15 +146,15 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0
-	golang.org/x/mod v0.25.0
-	golang.org/x/net v0.42.0
-	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/term v0.33.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/mod v0.28.0
+	golang.org/x/net v0.46.0
+	golang.org/x/oauth2 v0.32.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/term v0.36.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -200,8 +216,8 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go4.org v0.0.0-20200104003542-c7e774b10ea0 // indirect
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/tools v0.34.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/tools v0.37.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	k8s.io/kube-aggregator v0.32.1 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
