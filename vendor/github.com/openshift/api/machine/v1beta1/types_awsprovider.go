@@ -17,6 +17,13 @@ type AWSMachineProviderConfig struct {
 	AMI AWSResourceReference `json:"ami"`
 	// instanceType is the type of instance to create. Example: m4.xlarge
 	InstanceType string `json:"instanceType"`
+	// cpuOptions defines CPU-related settings for the instance, including the confidential computing policy.
+	// When omitted, this means no opinion and the AWS platform is left to choose a reasonable default.
+	// More info:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CpuOptionsRequest.html,
+	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cpu-options-supported-instances-values.html
+	// +optional
+	CPUOptions *CPUOptions `json:"cpuOptions,omitempty,omitzero"`
 	// tags is the set of tags to add to apply to an instance, in addition to the ones
 	// added by default by the actuator. These tags are additive. The actuator will ensure
 	// these tags are present, but will not remove any other tags that may exist on the
@@ -95,6 +102,49 @@ type AWSMachineProviderConfig struct {
 	// The field size should be greater than 0 and the field input must start with cr-***
 	// +optional
 	CapacityReservationID string `json:"capacityReservationId"`
+	// marketType specifies the type of market for the EC2 instance.
+	// Valid values are OnDemand, Spot, CapacityBlock and omitted.
+	//
+	// Defaults to OnDemand.
+	// When SpotMarketOptions is provided, the marketType defaults to "Spot".
+	//
+	// When set to OnDemand the instance runs as a standard OnDemand instance.
+	// When set to Spot the instance runs as a Spot instance.
+	// When set to CapacityBlock the instance utilizes pre-purchased compute capacity (capacity blocks) with AWS Capacity Reservations.
+	// If this value is selected, capacityReservationID must be specified to identify the target reservation.
+	// +optional
+	MarketType MarketType `json:"marketType,omitempty"`
+}
+
+// AWSConfidentialComputePolicy represents the confidential compute configuration for the instance.
+// +kubebuilder:validation:Enum=Disabled;AMDEncryptedVirtualizationNestedPaging
+type AWSConfidentialComputePolicy string
+
+const (
+	// AWSConfidentialComputePolicyDisabled disables confidential computing for the instance.
+	AWSConfidentialComputePolicyDisabled AWSConfidentialComputePolicy = "Disabled"
+	// AWSConfidentialComputePolicySEVSNP enables AMD SEV-SNP as the confidential computing technology for the instance.
+	AWSConfidentialComputePolicySEVSNP AWSConfidentialComputePolicy = "AMDEncryptedVirtualizationNestedPaging"
+)
+
+// CPUOptions defines CPU-related settings for the instance, including the confidential computing policy.
+// If provided, it must not be empty — at least one field must be set.
+// +kubebuilder:validation:MinProperties=1
+type CPUOptions struct {
+	// confidentialCompute specifies whether confidential computing should be enabled for the instance,
+	// and, if so, which confidential computing technology to use.
+	// Valid values are: Disabled, AMDEncryptedVirtualizationNestedPaging and omitted.
+	// When set to Disabled, confidential computing will be disabled for the instance.
+	// When set to AMDEncryptedVirtualizationNestedPaging, AMD SEV-SNP will be used as the confidential computing technology for the instance.
+	// In this case, ensure the following conditions are met:
+	// 1) The selected instance type supports AMD SEV-SNP.
+	// 2) The selected AWS region supports AMD SEV-SNP.
+	// 3) The selected AMI supports AMD SEV-SNP.
+	// More details can be checked at https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sev-snp.html
+	// When omitted, this means no opinion and the AWS platform is left to choose a reasonable default,
+	// which is subject to change without notice. The current default is Disabled.
+	// +optional
+	ConfidentialCompute *AWSConfidentialComputePolicy `json:"confidentialCompute,omitempty"`
 }
 
 // BlockDeviceMappingSpec describes a block device mapping
@@ -128,8 +178,10 @@ type BlockDeviceMappingSpec struct {
 // https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/EbsBlockDevice
 type EBSBlockDeviceSpec struct {
 	// Indicates whether the EBS volume is deleted on machine termination.
+	//
+	// Deprecated: setting this field has no effect.
 	// +optional
-	DeleteOnTermination *bool `json:"deleteOnTermination,omitempty"`
+	DeprecatedDeleteOnTermination *bool `json:"deleteOnTermination,omitempty"`
 	// Indicates whether the EBS volume is encrypted. Encrypted Amazon EBS volumes
 	// may only be attached to machines that support Amazon EBS encryption.
 	// +optional
@@ -318,5 +370,26 @@ type AWSMachineProviderStatus struct {
 	// conditions is a set of conditions associated with the Machine to indicate
 	// errors or other status
 	// +optional
+	// +listType=map
+	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+// MarketType describes the market type of an EC2 Instance
+// +kubebuilder:validation:Enum:=OnDemand;Spot;CapacityBlock
+type MarketType string
+
+const (
+
+	// MarketTypeOnDemand is a MarketType enum value
+	// When set to OnDemand the instance runs as a standard OnDemand instance.
+	MarketTypeOnDemand MarketType = "OnDemand"
+
+	// MarketTypeSpot is a MarketType enum value
+	// When set to Spot the instance runs as a Spot instance.
+	MarketTypeSpot MarketType = "Spot"
+
+	// MarketTypeCapacityBlock is a MarketType enum value
+	// When set to CapacityBlock the instance utilizes pre-purchased compute capacity (capacity blocks) with AWS Capacity Reservations.
+	MarketTypeCapacityBlock MarketType = "CapacityBlock"
+)
