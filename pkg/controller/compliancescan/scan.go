@@ -207,11 +207,11 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					Command: []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:               &falseP,
-						AllowPrivilegeEscalation: &falseP,
+						AllowPrivilegeEscalation: &trueP,
 						ReadOnlyRootFilesystem:   &trueP,
 						Capabilities: &corev1.Capabilities{
 							Drop: []corev1.Capability{"ALL"},
-							Add:  []corev1.Capability{"CAP_SYS_CHROOT"},
+							Add:  []corev1.Capability{"CAP_SYS_CHROOT", "CAP_SYS_ADMIN"},
 						},
 						// TODO(jaosorior): Figure out if the default
 						// seccomp profile is sufficient here.
