@@ -20,6 +20,7 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -334,6 +335,16 @@ func (f *Framework) addFrameworks() error {
 	for _, obj := range scObjs {
 		if err := AddToFrameworkScheme(schedulingv1.AddToScheme, obj); err != nil {
 			return fmt.Errorf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+		}
+	}
+
+	// ValidatingAdmissionPolicy objects
+	vapObjs := [1]dynclient.ObjectList{
+		&admissionregistrationv1.ValidatingAdmissionPolicyList{},
+	}
+	for _, obj := range vapObjs {
+		if err := AddToFrameworkScheme(admissionregistrationv1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("failed to add admissionregistration resource scheme to framework: %v", err)
 		}
 	}
 
@@ -791,16 +802,60 @@ func (f *Framework) createMachineConfigPool(n string) error {
 	return nil
 }
 
+// validatingAdmissionPolicyExists checks if a ValidatingAdmissionPolicy with the given name exists
+func (f *Framework) validatingAdmissionPolicyExists(name string) (bool, error) {
+	vap := &admissionregistrationv1.ValidatingAdmissionPolicy{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name}, vap)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (f *Framework) createInvalidMachineConfigPool(n string) error {
 	if f.Platform == "rosa" {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
+
+	// Check if ValidatingAdmissionPolicy exists
+	vapExists, err := f.validatingAdmissionPolicyExists("custom-machine-config-pool-selector")
+	if err != nil {
+		return fmt.Errorf("failed to check ValidatingAdmissionPolicy: %w", err)
+	}
+
 	p := &mcfgv1.MachineConfigPool{
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
 		},
+	}
+
+	// Only add selectors if ValidatingAdmissionPolicy exists
+	// This ensures backward compatibility with older clusters
+	if vapExists {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' exists, adding minimal selectors to MachineConfigPool %s\n", n)
+		// Add minimal selectors to pass ValidatingAdmissionPolicy
+		// This pool is still "invalid" for testing as no nodes match this selector
+		p.Spec.NodeSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"node-role.kubernetes.io/e2e-invalid": "",
+			},
+		}
+		p.Spec.MachineConfigSelector = &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "machineconfiguration.openshift.io/role",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"worker"},
+				},
+			},
+		}
+	} else {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' not found, creating MachineConfigPool %s without selectors (legacy mode)\n", n)
 	}
 
 	createErr := backoff.RetryNotify(
