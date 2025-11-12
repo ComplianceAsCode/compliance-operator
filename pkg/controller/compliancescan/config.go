@@ -29,6 +29,11 @@ const (
 	// This is the folder where the kubeletconfig would be linked in the host
 	KubeletConfigLinkFolder = "/host/etc/kubernetes/compliance-operator"
 
+	// Runtime SSH configuration constants
+	RuntimeConfigFolder           = "/host/etc/compliance-operator/runtime"
+	RuntimeSSHConfigPath          = "/host/etc/compliance-operator/runtime/sshd_effective_config"
+	RuntimeSSHConfigInitContainer = "runtime-sshd-config-helper"
+
 	// a configMap with env vars for the script
 	OpenScapEnvConfigMapName = "openscap-env-map"
 	// A configMap same as above but minus hostroot

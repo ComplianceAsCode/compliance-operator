@@ -77,6 +77,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 	}
 	falseP := false
 	trueP := true
+	trueVal := true
 	hostToContainer := corev1.MountPropagationHostToContainer
 
 	return &corev1.Pod{
@@ -157,6 +158,41 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 							Name:      "kubeletconfig",
 							ReadOnly:  true,
 							MountPath: KubeletConfigMapPath,
+						},
+					},
+				},
+				{
+					Name:  RuntimeSSHConfigInitContainer,
+					Image: utils.GetComponentImage(utils.OPERATOR),
+					Command: []string{
+						"sh",
+						"-c",
+						fmt.Sprintf(`mkdir -p %s && \
+						 if [ -x /host/usr/sbin/sshd ]; then \
+						   chroot /host /usr/sbin/sshd -T 2>/dev/null | \
+						   tr '[:upper:]' '[:lower:]' > %s || true; \
+						   chmod 644 %s 2>/dev/null || true; \
+						 fi`, RuntimeConfigFolder, RuntimeSSHConfigPath, RuntimeSSHConfigPath),
+					},
+					ImagePullPolicy: corev1.PullAlways,
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:             &trueVal,
+						ReadOnlyRootFilesystem: &falseP,
+					},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("10Mi"),
+							corev1.ResourceCPU:    resource.MustParse("10m"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("50Mi"),
+							corev1.ResourceCPU:    resource.MustParse("50m"),
+						},
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host",
+							MountPath: "/host",
 						},
 					},
 				},
