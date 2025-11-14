@@ -194,6 +194,10 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 							Name:      "host",
 							MountPath: "/host",
 						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
+						},
 					},
 				},
 			},
@@ -289,6 +293,11 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						{
 							Name:      "kubeletconfig",
 							MountPath: KubeletConfigMapPath,
+							ReadOnly:  true,
+						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
 							ReadOnly:  true,
 						},
 					},

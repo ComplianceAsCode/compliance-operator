@@ -30,8 +30,9 @@ const (
 	KubeletConfigLinkFolder = "/host/etc/kubernetes/compliance-operator"
 
 	// Runtime SSH configuration constants
-	RuntimeConfigFolder           = "/host/etc/compliance-operator/runtime"
-	RuntimeSSHConfigPath          = "/host/etc/compliance-operator/runtime/sshd_effective_config"
+	RuntimeConfigVolumeName       = "runtime-config"
+	RuntimeConfigFolder           = "/tmp"
+	RuntimeSSHConfigPath          = "/tmp/sshd_effective_config"
 	RuntimeSSHConfigInitContainer = "runtime-sshd-config-helper"
 
 	// a configMap with env vars for the script
