@@ -25,7 +25,7 @@ type unit struct{}
 
 //// Sanity checking utilities
 
-// assert panics with the mesage msg if p is false.
+// assert panics with the message msg if p is false.
 // Avoid combining with expensive string formatting.
 func assert(p bool, msg string) {
 	if !p {
@@ -34,8 +34,6 @@ func assert(p bool, msg string) {
 }
 
 //// AST utilities
-
-func unparen(e ast.Expr) ast.Expr { return ast.Unparen(e) }
 
 // isBlankIdent returns true iff e is an Ident with name "_".
 // They have no associated types.Object, and thus no type.
@@ -85,21 +83,22 @@ func isRuneSlice(t types.Type) bool {
 	return false
 }
 
-// isBasicConvTypes returns true when a type set can be
-// one side of a Convert operation. This is when:
+// isBasicConvTypes returns true when the type set of a type
+// can be one side of a Convert operation. This is when:
 // - All are basic, []byte, or []rune.
 // - At least 1 is basic.
 // - At most 1 is []byte or []rune.
-func isBasicConvTypes(tset termList) bool {
-	basics := 0
-	all := underIs(tset, func(t types.Type) bool {
+func isBasicConvTypes(typ types.Type) bool {
+	basics, cnt := 0, 0
+	ok := underIs(typ, func(t types.Type) bool {
+		cnt++
 		if isBasic(t) {
 			basics++
 			return true
 		}
 		return isByteSlice(t) || isRuneSlice(t)
 	})
-	return all && basics >= 1 && tset.Len()-basics <= 1
+	return ok && basics >= 1 && cnt-basics <= 1
 }
 
 // isPointer reports whether t's underlying type is a pointer.
@@ -122,7 +121,7 @@ func is[T any](x any) bool {
 
 // recvType returns the receiver type of method obj.
 func recvType(obj *types.Func) types.Type {
-	return obj.Type().(*types.Signature).Recv().Type()
+	return obj.Signature().Recv().Type()
 }
 
 // fieldOf returns the index'th field of the (core type of) a struct type;
@@ -167,7 +166,7 @@ func declaredWithin(obj types.Object, fn *types.Func) bool {
 // returns a closure that prints the corresponding "end" message.
 // Call using 'defer logStack(...)()' to show builder stack on panic.
 // Don't forget trailing parens!
-func logStack(format string, args ...interface{}) func() {
+func logStack(format string, args ...any) func() {
 	msg := fmt.Sprintf(format, args...)
 	io.WriteString(os.Stderr, msg)
 	io.WriteString(os.Stderr, "\n")
@@ -194,14 +193,14 @@ func makeLen(T types.Type) *Builtin {
 	lenParams := types.NewTuple(anonVar(T))
 	return &Builtin{
 		name: "len",
-		sig:  types.NewSignature(nil, lenParams, lenResults, false),
+		sig:  types.NewSignatureType(nil, nil, nil, lenParams, lenResults, false),
 	}
 }
 
 // receiverTypeArgs returns the type arguments to a method's receiver.
 // Returns an empty list if the receiver does not have type arguments.
 func receiverTypeArgs(method *types.Func) []types.Type {
-	recv := method.Type().(*types.Signature).Recv()
+	recv := method.Signature().Recv()
 	_, named := typesinternal.ReceiverNamed(recv)
 	if named == nil {
 		return nil // recv is anonymous struct/interface
@@ -222,8 +221,8 @@ func receiverTypeArgs(method *types.Func) []types.Type {
 func recvAsFirstArg(sig *types.Signature) *types.Signature {
 	params := make([]*types.Var, 0, 1+sig.Params().Len())
 	params = append(params, sig.Recv())
-	for i := 0; i < sig.Params().Len(); i++ {
-		params = append(params, sig.Params().At(i))
+	for v := range sig.Params().Variables() {
+		params = append(params, v)
 	}
 	return types.NewSignatureType(nil, nil, nil, types.NewTuple(params...), sig.Results(), sig.Variadic())
 }
@@ -386,7 +385,7 @@ func (m *typeListMap) hash(ts []types.Type) uint32 {
 	// Some smallish prime far away from typeutil.Hash.
 	n := len(ts)
 	h := uint32(13619) + 2*uint32(n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		h += 3 * m.hasher.Hash(ts[i])
 	}
 	return h

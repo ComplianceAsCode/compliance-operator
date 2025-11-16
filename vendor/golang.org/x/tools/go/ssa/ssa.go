@@ -45,6 +45,8 @@ type Program struct {
 	// to avoid creation of duplicate methods from type information.
 	objectMethodsMu sync.Mutex
 	objectMethods   map[*types.Func]*Function
+
+	noReturn func(*types.Func) bool // (optional) predicate that decides whether a given call cannot return
 }
 
 // A Package is a single analyzed Go package containing Members for
@@ -719,9 +721,8 @@ type Convert struct {
 //	t1 = multiconvert D <- S (t0) [*[2]rune <- []rune | string <- []rune]
 type MultiConvert struct {
 	register
-	X    Value
-	from []*types.Term
-	to   []*types.Term
+	X        Value
+	from, to types.Type
 }
 
 // ChangeInterface constructs a value of one interface type from a
