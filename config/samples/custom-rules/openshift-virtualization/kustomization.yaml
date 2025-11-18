@@ -5,5 +5,6 @@ resources:
   - kubevirt-no-permitted-host-devices.yaml
   - kubevirt-persistent-reservation-disabled.yaml
   - kubevirt-no-vms-overcommiting-guest-memory
+  - kubevirt-no-shareable-disks.yaml
   - tailored-profile.yaml
   - scan-setting-binding.yaml
