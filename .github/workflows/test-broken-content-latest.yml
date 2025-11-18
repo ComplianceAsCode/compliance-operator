@@ -15,6 +15,7 @@ jobs:
           [
             "new_kubeletconfig",
             "unexistent_resource",
+            "runtime_sshd",
             "proff_diff_baseline",
             "proff_diff_mod",
             "rem_mod_base",

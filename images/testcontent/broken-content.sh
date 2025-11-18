@@ -12,6 +12,7 @@ declare -a tags=(
     'rem_mod_base'
     'hide_rule'
     'new_kubeletconfig'
+    'runtime_sshd'
     'rem_mod_change'
     'broken_os_detection'
     'from'
