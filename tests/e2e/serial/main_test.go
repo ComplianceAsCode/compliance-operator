@@ -2164,6 +2164,117 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+func TestRemediationBecomesOutdated(t *testing.T) {
+	// Test setup
+	ctx := context.Background()
+	f := framework.Global
+
+	namespace := f.OperatorNamespace
+	suiteName := framework.GetObjNameFromTest(t)
+
+	// Create suite description
+	suite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: namespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: true,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: framework.GetPoolNodeRoleSelector(),
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: suiteName + "-scan",
+				},
+			},
+		},
+	}
+
+	// Step 1: Create the suite
+	err := f.Client.Create(ctx, suite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(ctx, suite)
+
+	// Step 2: Wait for scan to complete
+	err = f.WaitForSuiteScansStatus(namespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 3: Verify remediation is Applied
+	scanName := suiteName + "-scan"
+	remName := fmt.Sprintf("%s-no-empty-passwords", scanName)
+	var rem compv1alpha1.ComplianceRemediation
+	err = f.Client.Get(ctx, types.NamespacedName{
+		Name:      remName,
+		Namespace: namespace,
+	}, &rem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rem.Status.ApplicationState != compv1alpha1.RemediationApplied {
+		t.Fatalf("expected remediation to be Applied, got %s", rem.Status.ApplicationState)
+	}
+
+	// Step 4: Update suite with different content image
+	modImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_change")
+	suite.Spec.Scans[0].ContentImage = modImage
+	err = f.Client.Update(ctx, suite)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 5: Trigger rescan
+	err = f.TriggerRescan(namespace, suiteName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 6: Wait for scan to complete again
+	err = f.WaitForSuiteScansStatus(namespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 7: Verify remediation became Outdated
+	err = f.Client.Get(ctx, types.NamespacedName{
+		Name:      remName,
+		Namespace: namespace,
+	}, &rem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rem.Status.ApplicationState != compv1alpha1.RemediationOutdated {
+		t.Fatalf("expected remediation to be Outdated, got %s", rem.Status.ApplicationState)
+	}
+
+	// Step 8: Verify outdated remediation can be removed and reapplied
+	suite.Annotations = map[string]string{
+		"compliance.openshift.io/remove-outdated": "",
+	}
+	err = f.Client.Update(ctx, suite)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait and verify remediation is Applied again
+	err = f.WaitForRemediationState(remName, namespace, compv1alpha1.RemediationApplied)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
