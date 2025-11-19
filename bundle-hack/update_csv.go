@@ -15,7 +15,7 @@ import (
 // Konflux pull specs used across multiple functions
 // Keep the pull specs a few lines apart from each other to avoid conflicts during build nudges
 var (
-	konfluxOperatorPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:61254e93bee0656607a4bec5e058cacaf4a907ea7f7ffcd233a6f594ab7d2a00"
+	konfluxOperatorPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:1a9ed321d28da1ae089684d4bfb1c206a6ca2442f5725656c48c6c309e128e77"
 
 
 	konfluxContentPullSpec    = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:65f971fa6ba812675f6e857c64f3102e053e0f0151d220a15711b2bcb35f3923"
