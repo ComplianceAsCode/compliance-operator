@@ -391,6 +391,28 @@ update-version-numbers: check-operator-version ## Set skip range and version num
 	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(VERSION)'/" config/manifests/bases/compliance-operator.clusterserviceversion.yaml
 	sed -i "s/\(\"name\": \"compliance-operator.v\).*\"/\1$(VERSION)\"/" catalog/preamble.json
 	sed -i "s/\(\"skipRange\": \">=.*\)<.*\"/\1<$(VERSION)\"/" catalog/preamble.json
+	sed -i "s/\(^[[:space:]]*version=\).*/\1$(VERSION)/" images/must-gather/Containerfile
+	sed -i "s/\(^[[:space:]]*version=\).*/\1$(VERSION)/" images/openscap/Containerfile
+	sed -i "s/\(^[[:space:]]*version=\).*/\1$(VERSION)/" images/operator/Dockerfile
+	sed -i "s/\(^ARG CO_NEW_VERSION=\).*/\1\"$(VERSION)\"/" bundle.openshift.Dockerfile
+
+.PHONY: verify-version-consistency
+verify-version-consistency: ## Verify that all container version labels are consistent.
+	@echo "Checking version consistency across container files..."
+	@MUST_GATHER_VER=$$(grep -E '^[[:space:]]*version=' images/must-gather/Containerfile | sed 's/^[[:space:]]*version=//'); \
+	OPENSCAP_VER=$$(grep -E '^[[:space:]]*version=' images/openscap/Containerfile | sed 's/^[[:space:]]*version=//'); \
+	OPERATOR_VER=$$(grep -E '^[[:space:]]*version=' images/operator/Dockerfile | sed 's/^[[:space:]]*version=//'); \
+	BUNDLE_VER=$$(grep '^ARG CO_NEW_VERSION=' bundle.openshift.Dockerfile | sed 's/^ARG CO_NEW_VERSION=//' | tr -d '"'); \
+	echo "  must-gather: $$MUST_GATHER_VER"; \
+	echo "  openscap:    $$OPENSCAP_VER"; \
+	echo "  operator:    $$OPERATOR_VER"; \
+	echo "  bundle:      $$BUNDLE_VER"; \
+	if [ "$$MUST_GATHER_VER" = "$$OPENSCAP_VER" ] && [ "$$OPENSCAP_VER" = "$$OPERATOR_VER" ] && [ "$$OPERATOR_VER" = "$$BUNDLE_VER" ]; then \
+		echo "✓ All versions are consistent: $$OPERATOR_VER"; \
+	else \
+		echo "✗ Version mismatch detected!"; \
+		exit 1; \
+	fi
 
 .PHONY: namespace
 namespace: ## Create the default namespace for the operator (e.g., openshift-compliance).
@@ -431,7 +453,7 @@ build: generate fmt vet test-unit ## Build the operator binary.
 manager: build  ## Alias for make build.
 
 .PHONY: verify-bundle
-verify-bundle: bundle ## Verify the bundle doesn't alter the state of the tree
+verify-bundle: bundle verify-version-consistency ## Verify the bundle doesn't alter the state of the tree
 	hack/tree-status
 
 .PHONY: bundle
