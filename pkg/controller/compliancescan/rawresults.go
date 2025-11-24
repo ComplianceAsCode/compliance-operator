@@ -63,6 +63,14 @@ func getPVCForScan(instance *compv1alpha1.ComplianceScan) *corev1.PersistentVolu
 	if storageSize == "" {
 		storageSize = compv1alpha1.DefaultRawStorageSize
 	}
+
+	// Defensively parse the storage size. If parsing fails (e.g., invalid value like "1B"),
+	// fall back to the default to prevent panics during deletion.
+	parsedSize, err := resource.ParseQuantity(storageSize)
+	if err != nil {
+		parsedSize = resource.MustParse(compv1alpha1.DefaultRawStorageSize)
+	}
+
 	accessModes := instance.Spec.RawResultStorage.PVAccessModes
 	if len(accessModes) == 0 {
 		accessModes = defaultAccessMode
@@ -85,7 +93,7 @@ func getPVCForScan(instance *compv1alpha1.ComplianceScan) *corev1.PersistentVolu
 			AccessModes:      accessModes,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse(storageSize),
+					corev1.ResourceStorage: parsedSize,
 				},
 			},
 		},
