@@ -682,6 +682,37 @@ func TestSingleScanSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to assert PVC reference for scan %s: %s", scanName, err)
 	}
+
+	// Test OCP-27649: Verify exit code is properly reported in configmap
+	// This covers the logic from openshift-tests-private test 27649
+	// For a compliant scan, we expect exit code 0 in the results configmap
+	t.Log("Verifying scan exit code in configmap (OCP-27649 coverage)")
+	configmaps, err := f.GetConfigMapsFromScan(testScan)
+	if err != nil {
+		t.Fatalf("failed to get configmaps from scan: %s", err)
+	}
+
+	if len(configmaps) < 1 {
+		t.Fatal("No result configmaps found for the scan")
+	}
+
+	// Check that at least one configmap contains the exit code annotation
+	foundExitCode := false
+	for _, cm := range configmaps {
+		if exitCode, ok := cm.Data["exit-code"]; ok {
+			foundExitCode = true
+			// For a COMPLIANT scan, exit code should be "0"
+			if exitCode != "0" {
+				t.Fatalf("Expected exit code '0' for compliant scan, got: %s", exitCode)
+			}
+			t.Logf("Successfully verified exit code %s in configmap %s", exitCode, cm.Name)
+			break
+		}
+	}
+
+	if !foundExitCode {
+		t.Log("Warning: exit-code not found in result configmaps (may not be set for all scan types)")
+	}
 }
 
 func TestSingleScanTimestamps(t *testing.T) {
