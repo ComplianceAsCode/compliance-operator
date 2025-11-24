@@ -51,6 +51,21 @@ func (r *ReconcileComplianceScan) handleRawResultsForScan(instance *compv1alpha1
 }
 
 func (r *ReconcileComplianceScan) deleteRawResultsForScan(instance *compv1alpha1.ComplianceScan) error {
+	// Validate storage size before attempting to construct PVC
+	// If the size is invalid, we can't construct a valid PVC object, so log a warning and skip deletion.
+	// The PVC may not exist anyway if the scan failed validation before PVC creation.
+	if instance.Spec.RawResultStorage.Size != "" {
+		if _, err := resource.ParseQuantity(instance.Spec.RawResultStorage.Size); err != nil {
+			log.Info("Cannot delete PVC with invalid storage size, skipping",
+				"ComplianceScan", instance.Name,
+				"InvalidSize", instance.Spec.RawResultStorage.Size,
+				"Error", err.Error())
+			// Return nil to allow the deletion to proceed - the PVC likely doesn't exist anyway
+			// since validation would have failed before PVC creation
+			return nil
+		}
+	}
+
 	pvc := getPVCForScan(instance)
 	if err := r.Client.Delete(context.TODO(), pvc); err != nil && !errors.IsNotFound(err) {
 		return err
@@ -63,14 +78,6 @@ func getPVCForScan(instance *compv1alpha1.ComplianceScan) *corev1.PersistentVolu
 	if storageSize == "" {
 		storageSize = compv1alpha1.DefaultRawStorageSize
 	}
-
-	// Defensively parse the storage size. If parsing fails (e.g., invalid value like "1B"),
-	// fall back to the default to prevent panics during deletion.
-	parsedSize, err := resource.ParseQuantity(storageSize)
-	if err != nil {
-		parsedSize = resource.MustParse(compv1alpha1.DefaultRawStorageSize)
-	}
-
 	accessModes := instance.Spec.RawResultStorage.PVAccessModes
 	if len(accessModes) == 0 {
 		accessModes = defaultAccessMode
@@ -93,7 +100,7 @@ func getPVCForScan(instance *compv1alpha1.ComplianceScan) *corev1.PersistentVolu
 			AccessModes:      accessModes,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: parsedSize,
+					corev1.ResourceStorage: resource.MustParse(storageSize),
 				},
 			},
 		},
