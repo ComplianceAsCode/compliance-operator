@@ -5211,3 +5211,85 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestScanWithCustomStorageClass tests OCP-34928
+// Verifies that access modes and Storage class are configurable through ComplianceSuite and ComplianceScan
+func TestScanWithCustomStorageClass(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	scanName := framework.GetObjNameFromTest(t)
+	suiteName := scanName + "-suite"
+	storageClassName := scanName + "-gold"
+
+	// Get the default storage class provisioner for our custom storage class
+	defaultProvisioner, err := f.GetDefaultStorageClassProvisioner()
+	if err != nil {
+		t.Fatalf("failed to get default storage class provisioner: %s", err)
+	}
+
+	// Create custom StorageClass named "gold"
+	customStorageClass := f.CreateCustomStorageClass(storageClassName, defaultProvisioner)
+	err = f.Client.Create(context.TODO(), customStorageClass, nil)
+	if err != nil {
+		t.Fatalf("failed to create custom storage class: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), customStorageClass)
+
+	// Create ComplianceSuite with custom storage configuration
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: scanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ScanType:     compv1alpha1.ScanTypeNode,
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: map[string]string{
+							"node-role.kubernetes.io/worker": "",
+						},
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								StorageClassName: &storageClassName,
+								PVAccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatalf("failed to create compliance suite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	// Wait for the scan to complete
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("scan did not complete successfully: %s", err)
+	}
+
+	// Verify PVC has correct storageClassName and accessModes
+	err = f.AssertScanPVCHasStorageConfig(scanName, f.OperatorNamespace, storageClassName, corev1.ReadWriteOnce)
+	if err != nil {
+		t.Fatalf("PVC verification failed: %s", err)
+	}
+
+	t.Logf("Successfully verified scan %s has custom storage configuration", scanName)
+}

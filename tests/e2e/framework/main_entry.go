@@ -122,6 +122,7 @@ func (f *Framework) SetUp() error {
 	}
 	err = f.createInvalidMachineConfigPool("e2e-invalid")
 	if err != nil {
+		// log.Printf("continuing without invalid MachineConfigPool (cluster may have ValidatingAdmissionPolicy)")
 		return fmt.Errorf("failed to create Machine Config Pool %s: %w", "e2e-invalid", err)
 	}
 
