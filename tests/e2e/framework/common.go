@@ -20,6 +20,8 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
@@ -263,6 +265,141 @@ func (f *Framework) createFromYAMLString(y string) error {
 	return nil
 }
 
+const complianceOperatorSubscriptionName = "compliance-operator"
+
+// installViaSubscription installs the compliance operator using OLM Subscription
+func (f *Framework) installViaSubscription(channel, source, sourceNamespace string) error {
+	// Create OperatorGroup
+	operatorGroup := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      f.OperatorNamespace,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{
+			TargetNamespaces: []string{f.OperatorNamespace},
+		},
+	}
+
+	log.Printf("creating OperatorGroup %s in namespace %s", operatorGroup.Name, operatorGroup.Namespace)
+	if err := f.Client.CreateWithoutCleanup(context.TODO(), operatorGroup); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create OperatorGroup: %w", err)
+		}
+		log.Printf("OperatorGroup %s already exists", operatorGroup.Name)
+	}
+
+	// Create Subscription
+	subscription := &operatorsv1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      complianceOperatorSubscriptionName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: &operatorsv1alpha1.SubscriptionSpec{
+			Channel:                channel,
+			InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
+			Package:                complianceOperatorSubscriptionName,
+			CatalogSource:          source,
+			CatalogSourceNamespace: sourceNamespace,
+		},
+	}
+
+	log.Printf("creating Subscription %s in namespace %s", subscription.Name, subscription.Namespace)
+	if err := f.Client.CreateWithoutCleanup(context.TODO(), subscription); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create Subscription: %w", err)
+		}
+		log.Printf("Subscription %s already exists", subscription.Name)
+	}
+
+	// Wait for the operator to be installed and CRDs to be ready
+	log.Printf("Waiting for operator installation via OLM...")
+	if err := f.waitForOperatorInstallation(); err != nil {
+		return fmt.Errorf("failed waiting for operator installation: %w", err)
+	}
+
+	return nil
+}
+
+// cleanUpSubscription deletes the CSV and Subscription created by installViaSubscription.
+func (f *Framework) cleanUpSubscription() error {
+	sub := &operatorsv1alpha1.Subscription{}
+	subKey := types.NamespacedName{Name: complianceOperatorSubscriptionName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), subKey, sub); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get Subscription: %w", err)
+		}
+		log.Printf("Subscription %s not found, skipping cleanup", complianceOperatorSubscriptionName)
+	} else {
+		csvName := sub.Status.InstalledCSV
+		log.Printf("deleting Subscription %s", sub.Name)
+		if err := f.Client.Delete(context.TODO(), sub); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete Subscription: %w", err)
+		}
+
+		if csvName != "" {
+			csv := &operatorsv1alpha1.ClusterServiceVersion{}
+			csvKey := types.NamespacedName{Name: csvName, Namespace: f.OperatorNamespace}
+			if err := f.Client.Get(context.TODO(), csvKey, csv); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return fmt.Errorf("failed to get CSV %s: %w", csvName, err)
+				}
+				log.Printf("CSV %s not found, skipping cleanup", csvName)
+			} else {
+				log.Printf("deleting CSV %s", csvName)
+				if err := f.Client.Delete(context.TODO(), csv); err != nil && !apierrors.IsNotFound(err) {
+					return fmt.Errorf("failed to delete CSV %s: %w", csvName, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// waitForOperatorInstallation polls until the compliance operator CSV reaches Succeeded phase.
+// It resolves the CSV name from the Subscription status rather than listing all CSVs.
+func (f *Framework) waitForOperatorInstallation() error {
+	retryInterval := time.Second * 5
+	timeout := time.Minute * 30
+
+	var lastPhase operatorsv1alpha1.ClusterServiceVersionPhase
+	var lastMsg string
+
+	err := wait.Poll(retryInterval, timeout, func() (bool, error) {
+		sub := &operatorsv1alpha1.Subscription{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: complianceOperatorSubscriptionName, Namespace: f.OperatorNamespace}, sub); err != nil {
+			log.Printf("Error getting Subscription: %v, retrying...", err)
+			return false, nil
+		}
+		csvName := sub.Status.CurrentCSV
+		if csvName == "" {
+			log.Printf("OLM has not resolved the CSV yet, waiting...")
+			return false, nil
+		}
+
+		csv := &operatorsv1alpha1.ClusterServiceVersion{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: csvName, Namespace: f.OperatorNamespace}, csv); err != nil {
+			log.Printf("Error getting CSV %s: %v, retrying...", csvName, err)
+			return false, nil
+		}
+
+		lastPhase, lastMsg = csv.Status.Phase, csv.Status.Message
+		if csv.Status.Phase == operatorsv1alpha1.CSVPhaseSucceeded {
+			log.Printf("CSV %s is in Succeeded phase", csv.Name)
+			return true, nil
+		}
+		log.Printf("CSV %s is in phase %s, waiting...", csv.Name, csv.Status.Phase)
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("timed out waiting for CSV to be installed (last phase: %s, message: %s): %w", lastPhase, lastMsg, err)
+	}
+
+	log.Printf("Operator CSV installed successfully")
+	return nil
+}
+
 func (f *Framework) WaitForScanCleanup() error {
 	timeouterr := wait.Poll(time.Second*5, time.Minute*2, func() (bool, error) {
 		var scans compv1alpha1.ComplianceScanList
@@ -280,6 +417,31 @@ func (f *Framework) WaitForScanCleanup() error {
 	if timeouterr != nil {
 		return fmt.Errorf("timed out waiting for scans to cleanup: %w", timeouterr)
 
+	}
+	return nil
+}
+
+// registerOLMSchemes registers only OLM resource schemes (OperatorGroup, Subscription)
+// This must be called BEFORE installViaSubscription when using subscription-based installation
+func (f *Framework) registerOLMSchemes() error {
+	// OLM objects - operatorsv1
+	olmV1Objs := [1]dynclient.ObjectList{
+		&operatorsv1.OperatorGroupList{},
+	}
+	for _, obj := range olmV1Objs {
+		if err := AddToFrameworkScheme(operatorsv1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("TEST SETUP: failed to add OLM v1 resource scheme to framework: %v", err)
+		}
+	}
+
+	// OLM objects - operatorsv1alpha1
+	olmV1Alpha1Objs := [1]dynclient.ObjectList{
+		&operatorsv1alpha1.SubscriptionList{},
+	}
+	for _, obj := range olmV1Alpha1Objs {
+		if err := AddToFrameworkScheme(operatorsv1alpha1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("TEST SETUP: failed to add OLM v1alpha1 resource scheme to framework: %v", err)
+		}
 	}
 	return nil
 }
