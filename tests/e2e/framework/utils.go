@@ -613,3 +613,22 @@ func getTestMetricsCMD(namespace string) string {
 func GetPoolNodeRoleSelector() map[string]string {
 	return utils.GetNodeRoleSelector(TestPoolName)
 }
+
+// TriggerRescan triggers a rescan of a ComplianceSuite by adding the rescan annotation
+func (f *Framework) TriggerRescan(namespace, suiteName string) error {
+	var suite compv1alpha1.ComplianceSuite
+	err := f.Client.Get(context.Background(), types.NamespacedName{
+		Name:      suiteName,
+		Namespace: namespace,
+	}, &suite)
+	if err != nil {
+		return err
+	}
+
+	if suite.Annotations == nil {
+		suite.Annotations = make(map[string]string)
+	}
+	suite.Annotations["compliance.openshift.io/rescan"] = ""
+
+	return f.Client.Update(context.Background(), &suite)
+}
