@@ -818,6 +818,8 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		})
 	if createErr != nil {
 		return fmt.Errorf("failed to create Machine Config Pool %s: %w", n, createErr)
+		//log.Printf("continuing without invalid MachineConfigPool (cluster may have ValidatingAdmissionPolicy)")
+
 	}
 	return nil
 }

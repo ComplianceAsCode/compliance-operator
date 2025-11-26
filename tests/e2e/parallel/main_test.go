@@ -969,6 +969,57 @@ func TestScanProducesRemediations(t *testing.T) {
 			t.Fatal("expected all remediations are unapplied when scan finishes")
 		}
 	}
+
+	// Verify ComplianceCheckResult labels are correctly set
+	// Get all checks from the suite to verify label functionality
+	checkList := &compv1alpha1.ComplianceCheckResultList{}
+	err = f.Client.List(context.TODO(), checkList, inNs, withLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(checkList.Items) == 0 {
+		t.Fatal("expected at least one check result")
+	}
+
+	// Use the first check to verify labels are working correctly
+	firstCheck := checkList.Items[0]
+
+	// Verify suite label (this test creates a suite via ScanSettingBinding)
+	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.SuiteLabel, bindingName, firstCheck.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify scan name label
+	scanNameLabel := firstCheck.Labels[compv1alpha1.ComplianceScanLabel]
+	if scanNameLabel == "" {
+		t.Fatalf("check %s is missing scan name label", firstCheck.Name)
+	}
+	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.ComplianceScanLabel, scanNameLabel, firstCheck.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify severity label (get actual severity from check)
+	severityLabel := firstCheck.Labels[compv1alpha1.ComplianceCheckResultSeverityLabel]
+	if severityLabel == "" {
+		t.Fatalf("check %s is missing severity label", firstCheck.Name)
+	}
+	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.ComplianceCheckResultSeverityLabel, severityLabel, firstCheck.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify status label (get actual status from check)
+	statusLabel := firstCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel]
+	if statusLabel == "" {
+		t.Fatalf("check %s is missing status label", firstCheck.Name)
+	}
+	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.ComplianceCheckResultStatusLabel, statusLabel, firstCheck.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestSingleScanWithStorageSucceeds(t *testing.T) {
