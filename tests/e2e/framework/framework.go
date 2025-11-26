@@ -64,26 +64,34 @@ type Framework struct {
 
 	restMapper *restmapper.DeferredDiscoveryRESTMapper
 
-	projectRoot       string
-	globalManPath     string
-	localOperatorArgs string
-	kubeconfigPath    string
-	testType          string
-	schemeMutex       sync.Mutex
-	LocalOperator     bool
-	cleanupOnError    bool
+	projectRoot        string
+	globalManPath      string
+	localOperatorArgs  string
+	kubeconfigPath     string
+	testType           string
+	schemeMutex        sync.Mutex
+	LocalOperator      bool
+	cleanupOnError     bool
+	installMethod      string
+	olmChannel         string
+	olmSource          string
+	olmSourceNamespace string
 }
 
 type frameworkOpts struct {
-	projectRoot       string
-	kubeconfigPath    string
-	globalManPath     string
-	namespacedManPath string
-	localOperatorArgs string
-	testType          string
-	isLocalOperator   bool
-	cleanupOnError    bool
-	platform          string
+	projectRoot        string
+	kubeconfigPath     string
+	globalManPath      string
+	namespacedManPath  string
+	localOperatorArgs  string
+	testType           string
+	isLocalOperator    bool
+	cleanupOnError     bool
+	platform           string
+	installMethod      string
+	olmChannel         string
+	olmSource          string
+	olmSourceNamespace string
 }
 
 const (
@@ -93,15 +101,24 @@ const (
 )
 
 const (
-	ProjRootFlag          = "root"
-	KubeConfigFlag        = "kubeconfig"
-	NamespacedManPathFlag = "namespacedMan"
-	GlobalManPathFlag     = "globalMan"
-	LocalOperatorFlag     = "localOperator"
-	LocalOperatorArgs     = "localOperatorArgs"
-	CleanupOnErrorFlag    = "cleanupOnError"
-	TestTypeFlag          = "testType"
-	PlatformFlag          = "platform"
+	InstallMethodManifest     = "manifest"
+	InstallMethodSubscription = "subscription"
+)
+
+const (
+	ProjRootFlag           = "root"
+	KubeConfigFlag         = "kubeconfig"
+	NamespacedManPathFlag  = "namespacedMan"
+	GlobalManPathFlag      = "globalMan"
+	LocalOperatorFlag      = "localOperator"
+	LocalOperatorArgs      = "localOperatorArgs"
+	CleanupOnErrorFlag     = "cleanupOnError"
+	TestTypeFlag           = "testType"
+	PlatformFlag           = "platform"
+	InstallMethodFlag      = "installMethod"
+	OLMChannelFlag         = "olmChannel"
+	OLMSourceFlag          = "olmSource"
+	OLMSourceNamespaceFlag = "olmSourceNamespace"
 
 	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
 	TestWatchNamespaceEnv    = "TEST_WATCH_NAMESPACE"
@@ -124,6 +141,14 @@ func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {
 		"Defines the type of tests to run. (Options: all, serial, parallel)")
 	flagset.StringVar(&opts.platform, PlatformFlag, "openshift",
 		"The type of deployment hosting the tests. Options include \"openshift\" and \"rosa\".")
+	flagset.StringVar(&opts.installMethod, InstallMethodFlag, InstallMethodManifest,
+		"Method to install the compliance operator. Options: \"manifest\" (default) or \"subscription\" (OLM-based)")
+	flagset.StringVar(&opts.olmChannel, OLMChannelFlag, "stable",
+		"OLM subscription channel (only used when installMethod is \"subscription\")")
+	flagset.StringVar(&opts.olmSource, OLMSourceFlag, "redhat-operators",
+		"OLM catalog source (only used when installMethod is \"subscription\")")
+	flagset.StringVar(&opts.olmSourceNamespace, OLMSourceNamespaceFlag, "openshift-marketplace",
+		"OLM catalog source namespace (only used when installMethod is \"subscription\")")
 }
 
 func newFramework(opts *frameworkOpts) (*Framework, error) {
@@ -171,13 +196,17 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 		Platform:          opts.platform,
 		LocalOperator:     opts.isLocalOperator,
 
-		projectRoot:       opts.projectRoot,
-		globalManPath:     opts.globalManPath,
-		localOperatorArgs: opts.localOperatorArgs,
-		kubeconfigPath:    opts.kubeconfigPath,
-		restMapper:        restMapper,
-		cleanupOnError:    opts.cleanupOnError,
-		testType:          opts.testType,
+		projectRoot:        opts.projectRoot,
+		globalManPath:      opts.globalManPath,
+		localOperatorArgs:  opts.localOperatorArgs,
+		kubeconfigPath:     opts.kubeconfigPath,
+		restMapper:         restMapper,
+		cleanupOnError:     opts.cleanupOnError,
+		testType:           opts.testType,
+		installMethod:      opts.installMethod,
+		olmChannel:         opts.olmChannel,
+		olmSource:          opts.olmSource,
+		olmSourceNamespace: opts.olmSourceNamespace,
 	}
 	return framework, nil
 }
