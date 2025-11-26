@@ -63,26 +63,48 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("unable to create or use namespace %s for testing: %w", f.OperatorNamespace, err)
 	}
 
-	log.Printf("creating cluster resources in %s", f.globalManPath)
-	err = f.createFromYAMLFile(&f.globalManPath)
-	if err != nil {
-		return fmt.Errorf("failed to setup test resources: %w", err)
+	// Choose installation method - install CRDs first before registering schemes
+	switch f.installMethod {
+	case InstallMethodSubscription:
+		// Register OLM schemes first so we can create OperatorGroup and Subscription
+		log.Printf("Registering OLM schemes for subscription-based installation")
+		err = f.registerOLMSchemes()
+		if err != nil {
+			return fmt.Errorf("failed to register OLM schemes: %w", err)
+		}
+
+		log.Printf("Installing compliance operator via OLM Subscription")
+		err = f.installViaSubscription(f.olmChannel, f.olmSource, f.olmSourceNamespace)
+		if err != nil {
+			return fmt.Errorf("failed to install via subscription: %w", err)
+		}
+	case InstallMethodManifest:
+		fallthrough
+	default:
+		log.Printf("Installing compliance operator via YAML manifests")
+		log.Printf("creating cluster resources in %s", f.globalManPath)
+		err = f.createFromYAMLFile(&f.globalManPath)
+		if err != nil {
+			return fmt.Errorf("failed to setup test resources: %w", err)
+		}
+
+		err = f.replaceNamespaceFromManifest()
+		if err != nil {
+			return err
+		}
+
+		log.Printf("creating namespaced resources in %s", *f.NamespacedManPath)
+		err = f.createFromYAMLFile(f.NamespacedManPath)
+		if err != nil {
+			return fmt.Errorf("failed to setup test resources: %w", err)
+		}
 	}
 
+	// Register all resource schemes AFTER CRDs are installed
+	log.Printf("registering resource schemes with framework")
 	err = f.addFrameworks()
 	if err != nil {
 		return err
-	}
-
-	err = f.replaceNamespaceFromManifest()
-	if err != nil {
-		return err
-	}
-
-	log.Printf("creating namespaced resources in %s", *f.NamespacedManPath)
-	err = f.createFromYAMLFile(f.NamespacedManPath)
-	if err != nil {
-		return fmt.Errorf("failed to setup test resources: %w", err)
 	}
 
 	err = f.initializeMetricsTestResources()
@@ -186,16 +208,23 @@ func (f *Framework) TearDown() error {
 	// resources to get cleaned up before others. We don't want that to happen with
 	// cluster resources like CRDs, because it will orphan custom resource instances
 	// that haven't been cleaned up, yet.
-	log.Printf("cleaning up namespaced resources in %s\n", f.OperatorNamespace)
-	err = f.cleanUpFromYAMLFile(f.NamespacedManPath)
-	if err != nil {
-		return err
-	}
 
-	log.Println("cleaning up cluster resources")
-	err = f.cleanUpFromYAMLFile(&f.globalManPath)
-	if err != nil {
-		return err
+	// Only clean up manifests if we installed via manifests
+	// OLM-based installations will be cleaned up by deleting the namespace
+	if f.installMethod == InstallMethodManifest {
+		log.Printf("cleaning up namespaced resources in %s\n", f.OperatorNamespace)
+		err = f.cleanUpFromYAMLFile(f.NamespacedManPath)
+		if err != nil {
+			return err
+		}
+
+		log.Println("cleaning up cluster resources")
+		err = f.cleanUpFromYAMLFile(&f.globalManPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Printf("Skipping manifest cleanup (installation method: %s)\n", f.installMethod)
 	}
 
 	log.Printf("cleaning up namespace %s\n", f.OperatorNamespace)
