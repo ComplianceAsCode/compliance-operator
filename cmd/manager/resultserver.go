@@ -32,10 +32,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 
 	utils "github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
@@ -171,6 +170,14 @@ func server(c *resultServerConfig) {
 
 	rotateResultDirectories(c.BasePath, c.Rotation)
 
+	cfg, err := config.GetConfig()
+	if err != nil {
+		cmdLog.Error(err, "Failed to get Kubernetes config")
+		os.Exit(1)
+	}
+
+	ctx := context.TODO()
+
 	caCert, err := os.ReadFile(c.CA)
 	if err != nil {
 		cmdLog.Error(err, "Error reading CA file")
@@ -179,12 +186,10 @@ func server(c *resultServerConfig) {
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		NextProtos: []string{"http/1.1"},
-	}
-	// Configures TLS 1.2
-	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	// Get TLS configuration from OpenShift APIServer cluster-wide policy
+	// Falls back to secure defaults (TLS 1.2) if APIServer config is unavailable
+	tlsConfig := utils.GetAPIServerTLSConfigOrDefault(ctx, cfg)
+	tlsConfig.NextProtos = []string{"http/1.1"}
 	tlsConfig.ClientCAs = caCertPool
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.BuildNameToCertificate()
