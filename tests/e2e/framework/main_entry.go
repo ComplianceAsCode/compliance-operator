@@ -123,6 +123,7 @@ func (f *Framework) SetUp() error {
 	err = f.createInvalidMachineConfigPool("e2e-invalid")
 	if err != nil {
 		return fmt.Errorf("failed to create Machine Config Pool %s: %w", "e2e-invalid", err)
+		//log.Printf("did not find machineconfig e2e-invalid, but still proceeding")
 	}
 
 	return nil
@@ -203,5 +204,16 @@ func (f *Framework) TearDown() error {
 	if err != nil {
 		return fmt.Errorf("failed to cleanup namespace %s: %w", f.OperatorNamespace, err)
 	}
+
+	// Verify namespace deletion completes successfully (OCP-54055)
+	// This ensures that all resources, including those with finalizers, are properly cleaned up
+	// and that the operator can be deleted without resources getting stuck in terminating state
+	log.Printf("========== OCP-54055: Verifying namespace %s deletion completes successfully ==========\n", f.OperatorNamespace)
+	err = f.waitForNamespaceDeletion(f.OperatorNamespace, time.Second*5, time.Minute*5)
+	if err != nil {
+		return fmt.Errorf("namespace %s deletion did not complete: %w", f.OperatorNamespace, err)
+	}
+	log.Printf("========== OCP-54055: Namespace %s successfully deleted - verification PASSED ==========\n", f.OperatorNamespace)
+
 	return nil
 }
