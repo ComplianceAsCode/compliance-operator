@@ -5211,3 +5211,20 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestComplianceOperatorPassesDAST verifies that the compliance operator
+// passes Dynamic Application Security Testing (DAST) using RapidAST
+// This test corresponds to OCP-71325
+func TestComplianceOperatorPassesDAST(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Run RapidAST scan using Kubernetes Job
+	err := framework.RunRapidASTScan(f, f.OperatorNamespace)
+	if err != nil {
+		t.Fatalf("RapidAST scan failed: %s", err)
+	}
+
+	t.Log("Compliance operator passed DAST scan")
+}
+
