@@ -157,10 +157,6 @@
             <enabled>true</enabled>
             <level>DEFAULT</level>
         </p90021>
-        <p90022>
-            <enabled>false</enabled>
-            <level>OFF</level>
-        </p90022>
         <p90023>
             <enabled>true</enabled>
             <level>DEFAULT</level>
