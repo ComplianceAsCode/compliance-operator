@@ -5249,3 +5249,27 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestComplianceOperatorPassesDAST verifies that the compliance operator
+// passes Dynamic Application Security Testing (DAST) using RapidAST
+func TestComplianceOperatorPassesDAST(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Skip test if cluster nodes are not amd64 architecture
+	// The RapidAST image only supports amd64
+	hasAMD64, err := f.ClusterHasArchitecture("amd64")
+	if err != nil {
+		t.Fatalf("Failed to check cluster architecture: %s", err)
+	}
+	if !hasAMD64 {
+		t.Skip("Skipping DAST test: RapidAST image only supports amd64, no amd64 nodes found in cluster")
+	}
+
+	// Run RapidAST scan using Kubernetes Job
+	err = framework.RunRapidASTScan(f, f.OperatorNamespace)
+	if err != nil {
+		t.Fatalf("RapidAST scan failed: %s", err)
+	}
+	t.Log("Compliance operator passed DAST scan")
+}
