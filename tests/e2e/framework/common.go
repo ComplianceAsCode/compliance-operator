@@ -800,6 +800,22 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
+			// Add minimal selectors to pass ValidatingAdmissionPolicy
+			// This pool is still "invalid" for testing as no nodes match this selector
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"node-role.kubernetes.io/e2e-invalid": "",
+				},
+			},
+			MachineConfigSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "machineconfiguration.openshift.io/role",
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"worker"},
+					},
+				},
+			},
 		},
 	}
 
@@ -1628,6 +1644,27 @@ func (f *Framework) GetNodesWithSelector(labelselector map[string]string) ([]cor
 		return nodes.Items, fmt.Errorf("couldn't list nodes with selector %s: %w", labelselector, listErr)
 	}
 	return nodes.Items, nil
+}
+
+// ClusterHasArchitecture checks if the cluster has at least one node with the specified architecture
+func (f *Framework) ClusterHasArchitecture(arch string) (bool, error) {
+	var nodes core.NodeList
+	listErr := backoff.Retry(
+		func() error {
+			return f.Client.List(context.TODO(), &nodes)
+		},
+		defaultBackoff)
+	if listErr != nil {
+		return false, fmt.Errorf("couldn't list nodes: %w", listErr)
+	}
+
+	for _, node := range nodes.Items {
+		if node.Status.NodeInfo.Architecture == arch {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // GetConfigMapsFromScan lists the configmaps from the specified openscap scan instance
