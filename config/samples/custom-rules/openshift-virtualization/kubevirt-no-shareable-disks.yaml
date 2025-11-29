@@ -1,0 +1,35 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: kubevirt-no-shareable-disks
+  namespace: openshift-compliance
+spec:
+  title: "KubeVirt Must Not Use Shareable Disks"
+  id: kubevirt_no_shareable_disks
+  description: |-
+    Sharable disks are shared between VMs, and they can be used only if a filesystem
+    installed on top of it is a cluster-file system or the application using the
+    device is distributed and cloud aware. Their wrong usage might cause data corruption.
+
+    Sharing system resources increases the risk of unauthorized access to data,
+    manipulation of data flow restrictions, and could lead to corruption and data loss.
+  failureReason: |-
+    One or more virtual machines have disks with the 'shareable' flag set to 'true'.
+    This configuration allows disks to be shared between VMs, which can lead to data
+    corruption and security risks.
+  severity: Medium
+  checkType: Platform
+  scannerType: CEL
+  inputs:
+    - name: vmList
+      kubernetesInputSpec:
+        apiVersion: kubevirt.io/v1
+        resource: virtualmachines
+  expression: |
+    vmList.items.all(vm,
+        !has(vm.spec.template.spec.domain.devices.disks) ||
+        vm.spec.template.spec.domain.devices.disks.all(disk,
+            !has(disk.shareable) ||
+            disk.shareable != true
+        )
+    )
