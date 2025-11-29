@@ -1,15 +1,15 @@
 module github.com/ComplianceAsCode/compliance-operator
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250925092238-0b432985772e
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.36.2
-	k8s.io/apimachinery v0.32.3
-	k8s.io/client-go v0.32.1
-	open-cluster-management.io/api v0.15.0
+	k8s.io/apimachinery v0.33.1
+	k8s.io/client-go v0.33.1
+	open-cluster-management.io/api v1.1.0
 	sigs.k8s.io/controller-runtime v0.20.2
 )
 
@@ -53,7 +53,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
@@ -118,7 +118,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.79.2
 	github.com/prometheus-operator/prometheus-operator/pkg/client v0.79.2
-	github.com/prometheus/client_golang v1.20.5
+	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -146,7 +146,7 @@ require (
 	k8s.io/api v0.33.2
 	k8s.io/apiextensions-apiserver v0.32.1
 	k8s.io/apiserver v0.32.1
-	k8s.io/component-base v0.32.1 // indirect
+	k8s.io/component-base v0.33.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	k8s.io/pod-security-admission v0.32.1
