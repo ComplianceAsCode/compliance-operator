@@ -35,10 +35,10 @@ import (
 
 	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/dsnet/compress/bzip2"
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -297,11 +297,11 @@ func readWarningsFile(filename string) string {
 	return strings.Trim(string(contents), "\n")
 }
 
-func uploadToResultServer(arfContents *resultFileContents, scapresultsconf *scapresultsConfig) error {
+func uploadToResultServer(ctx context.Context, cfg *rest.Config, arfContents *resultFileContents, scapresultsconf *scapresultsConfig) error {
 	return backoff.Retry(func() error {
 		url := scapresultsconf.ResultServerURI
 		cmdLog.Info("Trying to upload to resultserver", "url", url)
-		transport, err := getMutualHttpsTransport(scapresultsconf)
+		transport, err := getMutualHttpsTransport(ctx, cfg, scapresultsconf)
 		if err != nil {
 			cmdLog.Error(err, "Failed to get https transport")
 			return err
@@ -371,7 +371,7 @@ func uploadErrorConfigMap(errorMsg *resultFileContents, exitcode string,
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 }
 
-func handleCompleteSCAPResults(exitcode string, scapresultsconf *scapresultsConfig, client *complianceCrClient) {
+func handleCompleteSCAPResults(ctx context.Context, cfg *rest.Config, exitcode string, scapresultsconf *scapresultsConfig, client *complianceCrClient) {
 	xccdfContents, err := readResultsFile(scapresultsconf.XccdfFile, scapresultsconf.Timeout)
 	if err != nil {
 		cmdLog.Error(err, "Failed to read XCCDF file")
@@ -393,7 +393,7 @@ func handleCompleteSCAPResults(exitcode string, scapresultsconf *scapresultsConf
 		}
 		defer arfContents.close()
 		go func() {
-			serverUploadErr := uploadToResultServer(arfContents, scapresultsconf)
+			serverUploadErr := uploadToResultServer(ctx, cfg, arfContents, scapresultsconf)
 			if serverUploadErr != nil {
 				cmdLog.Error(serverUploadErr, "Failed to upload results to server")
 				os.Exit(1)
@@ -443,7 +443,7 @@ func getOscapExitCode(scapresultsconf *scapresultsConfig) string {
 	return strings.Trim(string(exitcode), "\n")
 }
 
-func getMutualHttpsTransport(c *scapresultsConfig) (*http.Transport, error) {
+func getMutualHttpsTransport(ctx context.Context, cfg *rest.Config, c *scapresultsConfig) (*http.Transport, error) {
 	cert, err := tls.LoadX509KeyPair(c.Cert, c.Key)
 	if err != nil {
 		return nil, err
@@ -455,11 +455,9 @@ func getMutualHttpsTransport(c *scapresultsConfig) (*http.Transport, error) {
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(ca)
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-	}
-	// Configures TLS 1.2
-	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	// Get TLS configuration from OpenShift APIServer cluster-wide policy
+	// Falls back to secure defaults (TLS 1.2) if APIServer config is unavailable
+	tlsConfig := utils.GetAPIServerTLSConfigOrDefault(ctx, cfg)
 	tlsConfig.RootCAs = pool
 	tlsConfig.Certificates = []tls.Certificate{cert}
 
@@ -490,6 +488,8 @@ func resultCollectorMain(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	ctx := context.TODO()
+
 	exitcode := getOscapExitCode(scapresultsconf)
 	cmdLog.Info("Got exit-code from file", "exit-code", exitcode)
 
@@ -497,5 +497,5 @@ func resultCollectorMain(cmd *cobra.Command, args []string) {
 		handleErrorInOscapRun(exitcode, scapresultsconf, crclient)
 		return
 	}
-	handleCompleteSCAPResults(exitcode, scapresultsconf, crclient)
+	handleCompleteSCAPResults(ctx, cfg, exitcode, scapresultsconf, crclient)
 }
