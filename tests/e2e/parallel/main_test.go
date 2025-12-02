@@ -5212,8 +5212,7 @@ func TestRuleVariableAnnotation(t *testing.T) {
 	}
 }
 
-// TestTimeoutDisabledWithZeroValue verifies that setting timeout to "0s" disables the timeout functionality
-// Ported from OCP-60342: Check the timeout will be disabled when timeout was set to 0s
+// Verifies that setting timeout to "0s" disables the timeout functionality
 func TestTimeoutDisabledWithZeroValue(t *testing.T) {
 	t.Parallel()
 	f := framework.Global

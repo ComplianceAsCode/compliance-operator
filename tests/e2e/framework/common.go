@@ -818,7 +818,6 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		})
 	if createErr != nil {
 		return fmt.Errorf("failed to create Machine Config Pool %s: %w", n, createErr)
-		//log.Printf("did not find machineconfig e2e-invalid, but still proceeding")
 	}
 	return nil
 }
@@ -832,13 +831,11 @@ func (f *Framework) cleanUpMachineConfigPool(n string) error {
 	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: n}, p)
 	if err != nil {
 		return fmt.Errorf("failed to get Machine Config Pool %s for cleanup: %w", n, err)
-
 	}
 	log.Printf("cleaning up Machine Config Pool %s", n)
 	err = f.Client.Delete(context.TODO(), p)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup Machine Config Pool %s: %w", n, err)
-
 	}
 	return nil
 }
