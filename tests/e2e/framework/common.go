@@ -2888,8 +2888,6 @@ func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 }
 
 // waitForNamespaceDeletion waits until a namespace is fully deleted from the cluster
-// This is used to verify that operator cleanup completes successfully without resources
-// getting stuck in terminating state due to finalizers (OCP-54055)
 func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, timeout time.Duration) error {
 	err := wait.Poll(retryInterval, timeout, func() (bool, error) {
 		_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
@@ -2898,11 +2896,9 @@ func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, ti
 			return true, nil
 		}
 		if err != nil {
-			// Some other error occurred, retry
 			log.Printf("Error checking namespace %s deletion status: %v, retrying...", namespace, err)
 			return false, nil
 		}
-		// Namespace still exists, keep waiting
 		log.Printf("Waiting for namespace %s to be fully deleted...", namespace)
 		return false, nil
 	})
@@ -2910,5 +2906,6 @@ func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, ti
 	if err != nil {
 		return fmt.Errorf("namespace %s was not deleted within timeout: %w", namespace, err)
 	}
+	log.Printf("Namespace %s successfully deleted and cleaned up", namespace)
 	return nil
 }

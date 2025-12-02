@@ -205,15 +205,15 @@ func (f *Framework) TearDown() error {
 		return fmt.Errorf("failed to cleanup namespace %s: %w", f.OperatorNamespace, err)
 	}
 
-	// Verify namespace deletion completes successfully (OCP-54055)
+	// Verify namespace deletion completes successfully
 	// This ensures that all resources, including those with finalizers, are properly cleaned up
 	// and that the operator can be deleted without resources getting stuck in terminating state
-	log.Printf("========== OCP-54055: Verifying namespace %s deletion completes successfully ==========\n", f.OperatorNamespace)
+	log.Printf("Verifying namespace %s deletion \n", f.OperatorNamespace)
 	err = f.waitForNamespaceDeletion(f.OperatorNamespace, time.Second*5, time.Minute*5)
 	if err != nil {
 		return fmt.Errorf("namespace %s deletion did not complete: %w", f.OperatorNamespace, err)
 	}
-	log.Printf("========== OCP-54055: Namespace %s successfully deleted - verification PASSED ==========\n", f.OperatorNamespace)
+	log.Printf("Namespace %s successfully deleted\n", f.OperatorNamespace)
 
 	return nil
 }
