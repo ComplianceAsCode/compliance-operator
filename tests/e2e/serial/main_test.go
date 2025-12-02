@@ -2202,7 +2202,7 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 //							NodeSelector: workerNodesLabel,
 //							ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 //								Debug: true,
-//			},
+//							},
 //						},
 //						Name: scanName,
 //					},

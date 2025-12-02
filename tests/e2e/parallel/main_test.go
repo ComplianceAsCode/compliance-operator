@@ -896,7 +896,7 @@ func TestScanTailoredProfileHasDuplicateVariables(t *testing.T) {
 
 }
 
-func TestScanProducesRemediations(t *testing.T) {
+func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	bindingName := framework.GetObjNameFromTest(t)
@@ -911,8 +911,8 @@ func TestScanProducesRemediations(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
-			Title:       "TestScanProducesRemediations",
-			Description: "TestScanProducesRemediations",
+			Title:       "TestScanProducesRemediationsAndLabels",
+			Description: "TestScanProducesRemediationsAndLabels",
 			Extends:     "ocp4-moderate",
 		},
 	}
@@ -985,40 +985,25 @@ func TestScanProducesRemediations(t *testing.T) {
 	// Use the first check to verify labels are working correctly
 	firstCheck := checkList.Items[0]
 
-	// Verify suite label (this test creates a suite via ScanSettingBinding)
-	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.SuiteLabel, bindingName, firstCheck.Name)
-	if err != nil {
-		t.Fatal(err)
+	// Verify all required labels are present and can be queried
+	labelsToVerify := []struct {
+		labelKey   string
+		labelValue string
+	}{
+		{compv1alpha1.SuiteLabel, bindingName},
+		{compv1alpha1.ComplianceScanLabel, firstCheck.Labels[compv1alpha1.ComplianceScanLabel]},
+		{compv1alpha1.ComplianceCheckResultSeverityLabel, firstCheck.Labels[compv1alpha1.ComplianceCheckResultSeverityLabel]},
+		{compv1alpha1.ComplianceCheckResultStatusLabel, firstCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel]},
 	}
 
-	// Verify scan name label
-	scanNameLabel := firstCheck.Labels[compv1alpha1.ComplianceScanLabel]
-	if scanNameLabel == "" {
-		t.Fatalf("check %s is missing scan name label", firstCheck.Name)
-	}
-	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.ComplianceScanLabel, scanNameLabel, firstCheck.Name)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify severity label (get actual severity from check)
-	severityLabel := firstCheck.Labels[compv1alpha1.ComplianceCheckResultSeverityLabel]
-	if severityLabel == "" {
-		t.Fatalf("check %s is missing severity label", firstCheck.Name)
-	}
-	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.ComplianceCheckResultSeverityLabel, severityLabel, firstCheck.Name)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify status label (get actual status from check)
-	statusLabel := firstCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel]
-	if statusLabel == "" {
-		t.Fatalf("check %s is missing status label", firstCheck.Name)
-	}
-	err = f.AssertCheckResultByLabel(f.OperatorNamespace, compv1alpha1.ComplianceCheckResultStatusLabel, statusLabel, firstCheck.Name)
-	if err != nil {
-		t.Fatal(err)
+	for _, label := range labelsToVerify {
+		if label.labelValue == "" {
+			t.Fatalf("check %s is missing label %s", firstCheck.Name, label.labelKey)
+		}
+		err = f.AssertCheckResultByLabel(f.OperatorNamespace, label.labelKey, label.labelValue, firstCheck.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
