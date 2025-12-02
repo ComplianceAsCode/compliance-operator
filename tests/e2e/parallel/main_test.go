@@ -5249,3 +5249,79 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestScanErrorMetrics tests that metrics are reported when a scan encounters an error
+func TestScanErrorMetrics(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	suiteName := framework.GetObjNameFromTest(t)
+	scanName := fmt.Sprintf("%s-worker-scan", suiteName)
+
+	// Create a ComplianceSuite with invalid storage size to trigger an error
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: scanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_coreos-ncp",
+						Content:      "ssg-rhcos4-ds.xml",
+						ScanType:     compv1alpha1.ScanTypeNode,
+						NodeSelector: map[string]string{
+							"node-role.kubernetes.io/worker": "",
+						},
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Size: "1B", // Invalid size that will cause an error
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatalf("failed to create ComplianceSuite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	// Wait for the scan to complete with ERROR status
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultError)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the suite result is ERROR
+	suite := &compv1alpha1.ComplianceSuite{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: suiteName, Namespace: f.OperatorNamespace}, suite)
+	if err != nil {
+		t.Fatalf("failed to get ComplianceSuite: %s", err)
+	}
+
+	if suite.Status.Result != compv1alpha1.ResultError {
+		t.Fatalf("expected suite result to be ERROR, got %s", suite.Status.Result)
+	}
+
+	// Check for metrics that report the error state
+	// HELP compliance_operator_compliance_state A gauge for the compliance state of a ComplianceSuite.
+	// Set to 0 when COMPLIANT, 1 when NON-COMPLIANT, 2 when INCONSISTENT, and 3 when ERROR
+	metricsSet := map[string]int{
+		fmt.Sprintf("compliance_operator_compliance_state{name=\"%s\"}", suiteName): 3,
+	}
+
+	err = framework.AssertEachMetric(f.OperatorNamespace, metricsSet)
+	if err != nil {
+		t.Fatalf("failed to assert metrics for error scan: %s", err)
+	}
+}
