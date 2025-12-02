@@ -1662,6 +1662,31 @@ func (f *Framework) GetPodsForScan(scanName string) ([]core.Pod, error) {
 	return pods.Items, nil
 }
 
+// Helper function to verify pod count matches node count
+func (f *Framework) VerifyPodCountMatchesNodeCount(scanName, namespace string, nodeSelector map[string]string) error {
+	pods, err := f.GetPodsForScan(scanName)
+	if err != nil {
+		return fmt.Errorf("failed to get pods for scan %s: %w", scanName, err)
+	}
+
+	nodeScanPods := []core.Pod{}
+	for _, pod := range pods {
+		if _, hasTargetNode := pod.Labels["targetNode"]; hasTargetNode {
+			nodeScanPods = append(nodeScanPods, pod)
+		}
+	}
+
+	nodes, err := f.GetNodesWithSelector(nodeSelector)
+	if err != nil {
+		return fmt.Errorf("failed to get nodes with selector: %w", err)
+	}
+	
+	if len(nodeScanPods) != len(nodes) {
+		return fmt.Errorf("pod count (%d) does not match node count (%d) for scan %s", len(nodeScanPods), len(nodes), scanName)
+	}
+	return nil
+}
+
 // WaitForRemediationState will poll until the complianceRemediation that we're lookingfor gets applied, or until
 // a timeout is reached.
 func (f *Framework) WaitForRemediationState(name, namespace string, state compv1alpha1.RemediationApplicationState) error {

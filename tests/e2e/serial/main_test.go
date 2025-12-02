@@ -620,6 +620,62 @@ func TestTolerations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Test tolerations with TolerationOpEqual operator on all worker nodes
+	scanNameEquals := framework.GetObjNameFromTest(t) + "-equals"
+	scan := &compv1alpha1.ComplianceScan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanNameEquals,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceScanSpec{
+			ContentImage: contentImagePath,
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			Content:      framework.RhcosContentFile,
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+			},
+			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+				Debug: true,
+				ScanTolerations: []corev1.Toleration{
+					{
+						Key:      taintKey,
+						Value:    taintVal,
+						Operator: corev1.TolerationOpEqual,
+						Effect:   corev1.TaintEffectNoSchedule,
+					},
+				},
+			},
+		},
+	}
+
+	if err = f.Client.Create(context.TODO(), scan, nil); err != nil {
+		t.Fatalf("failed to create scan %s: %s", scanNameEquals, err)
+	}
+	defer f.Client.Delete(context.TODO(), scan)
+
+	err = f.WaitForScanStatus(f.OperatorNamespace, scanNameEquals, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.AssertScanIsCompliant(scanNameEquals, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exitCode, _, err := f.GetScanExitCodeAndErrorMsg(scanNameEquals, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exitCode != "0" {
+		t.Fatalf("Expected ConfigMap exit-code to be '0', but got: '%s'", exitCode)
+	}
+
+	if err := f.VerifyPodCountMatchesNodeCount(scanNameEquals, f.OperatorNamespace, map[string]string{"node-role.kubernetes.io/worker": ""}); err != nil {
+		t.Fatalf("Pod count does not match node count for scan %s: %s", scanNameEquals, err)
+	}
 }
 
 func TestAutoRemediate(t *testing.T) {
