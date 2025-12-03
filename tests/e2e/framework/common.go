@@ -874,22 +874,6 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
-			// Add minimal selectors to pass ValidatingAdmissionPolicy
-			// This pool is still "invalid" for testing as no nodes match this selector
-			NodeSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"node-role.kubernetes.io/e2e-invalid": "",
-				},
-			},
-			MachineConfigSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      "machineconfiguration.openshift.io/role",
-						Operator: metav1.LabelSelectorOpIn,
-						Values:   []string{"worker"},
-					},
-				},
-			},
 		},
 	}
 
