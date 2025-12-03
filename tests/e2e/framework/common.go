@@ -1647,6 +1647,45 @@ func (f *Framework) GetConfigMapsFromScan(scaninstance *compv1alpha1.ComplianceS
 	return configmaps.Items, nil
 }
 
+// GetScanExitCodeAndErrorMsg retrieves the exit code and error message from a scan's ConfigMaps
+// Returns exit code as a string, error message as a string, and an error if any occurred
+// If no ConfigMaps exist or if exit-code/error-msg are not found, returns empty strings
+func (f *Framework) GetScanExitCodeAndErrorMsg(scanName, namespace string) (string, string, error) {
+	// Get the scan
+	scan := &compv1alpha1.ComplianceScan{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, scan)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get scan %s: %w", scanName, err)
+	}
+
+	// Get ConfigMaps from the scan
+	configMaps, err := f.GetConfigMapsFromScan(scan)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get ConfigMaps from scan %s: %w", scanName, err)
+	}
+
+	var exitCode string
+	var errorMsg string
+
+	// Look for exit-code in ConfigMaps
+	for _, cm := range configMaps {
+		if code, ok := cm.Data["exit-code"]; ok {
+			exitCode = code
+			break
+		}
+	}
+
+	// Look for error-msg in ConfigMaps
+	for _, cm := range configMaps {
+		if msg, ok := cm.Data["error-msg"]; ok {
+			errorMsg = msg
+			break
+		}
+	}
+
+	return exitCode, errorMsg, nil
+}
+
 func (f *Framework) GetPodsForScan(scanName string) ([]core.Pod, error) {
 	selectPods := map[string]string{
 		compv1alpha1.ComplianceScanLabel: scanName,
