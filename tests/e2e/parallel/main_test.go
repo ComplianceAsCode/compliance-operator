@@ -986,21 +986,19 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	firstCheck := checkList.Items[0]
 
 	// Verify all required labels are present and can be queried
-	labelsToVerify := []struct {
-		labelKey   string
-		labelValue string
-	}{
-		{compv1alpha1.SuiteLabel, bindingName},
-		{compv1alpha1.ComplianceScanLabel, firstCheck.Labels[compv1alpha1.ComplianceScanLabel]},
-		{compv1alpha1.ComplianceCheckResultSeverityLabel, firstCheck.Labels[compv1alpha1.ComplianceCheckResultSeverityLabel]},
-		{compv1alpha1.ComplianceCheckResultStatusLabel, firstCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel]},
+	labelsToVerify := map[string]string{
+		compv1alpha1.SuiteLabel:                         bindingName,
+		compv1alpha1.ComplianceScanLabel:                firstCheck.Labels[compv1alpha1.ComplianceScanLabel],
+		compv1alpha1.ComplianceCheckResultSeverityLabel: firstCheck.Labels[compv1alpha1.ComplianceCheckResultSeverityLabel],
+		compv1alpha1.ComplianceCheckResultStatusLabel:   firstCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel],
 	}
 
-	for _, label := range labelsToVerify {
-		if label.labelValue == "" {
-			t.Fatalf("check %s is missing label %s", firstCheck.Name, label.labelKey)
+	for label, value := range labelsToVerify {
+		if value == "" {
+			t.Fatalf("check %s is missing label %s", firstCheck.Name, label)
 		}
-		err = f.AssertCheckResultByLabel(f.OperatorNamespace, label.labelKey, label.labelValue, firstCheck.Name)
+
+		err = f.AssertCheckResultByLabel(f.OperatorNamespace, label, value, firstCheck.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
