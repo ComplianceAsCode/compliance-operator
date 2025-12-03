@@ -4816,6 +4816,111 @@ func TestManualRulesTailoredProfile(t *testing.T) {
 	if len(remList.Items) != 0 {
 		t.Fatal("expected no remediation")
 	}
+
+	// Create a TailoredProfile with the same rule as EnableRules (not ManualRules)
+	regularTPName := "enabled-rules-test-node"
+	regularWorkerScanName := fmt.Sprintf("%s-worker", regularTPName)
+	regularTP := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      regularTPName,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "enabled-rules-test",
+			Description: "A test tailored profile to test regular rules (non-manual)",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      prefixName(pbName, requiredRule),
+					Rationale: "To verify non-manual behavior",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), regularTP, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), regularTP)
+
+	regularSSB := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      regularTPName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     regularTPName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), regularSSB, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), regularSSB)
+
+	// Wait for the regular scan to complete
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, regularTPName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that in the regular TailoredProfile (EnableRules), the rule shows PASS or FAIL (not MANUAL)
+	regularCheckName := fmt.Sprintf("%s-kubelet-eviction-thresholds-set-soft-imagefs-available", regularWorkerScanName)
+	actualRegularCheck := &compv1alpha1.ComplianceCheckResult{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      regularCheckName,
+		Namespace: f.OperatorNamespace,
+	}, actualRegularCheck)
+	if err != nil {
+		t.Fatalf("Failed to get check result for regular profile: %v", err)
+	}
+
+	// The status should NOT be MANUAL
+	if actualRegularCheck.Status == compv1alpha1.CheckResultManual {
+		t.Fatalf("Expected check result status to be PASS or FAIL for regular TailoredProfile, but got MANUAL")
+	}
+
+	// Verify the status is FAIL
+	if actualRegularCheck.Status != compv1alpha1.CheckResultFail {
+		t.Fatalf("Expected check result status to be PASS or FAIL for regular TailoredProfile, but got %s", actualRegularCheck.Status)
+	}
+
+	// Also verify that a remediation may exist for the regular rule (unlike manual rules)
+	regularRemList := &compv1alpha1.ComplianceRemediationList{}
+	regularWithLabel := client.MatchingLabels{
+		compv1alpha1.ComplianceScanLabel: regularWorkerScanName,
+	}
+	err = f.Client.List(context.TODO(), regularRemList, inNs, regularWithLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// For regular rules, remediations should be created (if the check fails)
+	// This is the key difference from manual rules which should never create remediations
+	expectedRemediationName := fmt.Sprintf("%s-kubelet-eviction-thresholds-set-soft-imagefs-available", regularWorkerScanName)
+	foundRemediation := false
+	for _, rem := range regularRemList.Items {
+		if rem.Name == expectedRemediationName {
+			foundRemediation = true
+			break
+		}
+	}
+	if !foundRemediation {
+		t.Logf("Warning: Expected remediation %s for failed check in regular profile, but none found", expectedRemediationName)
+	}
 }
 
 func TestHideRule(t *testing.T) {
