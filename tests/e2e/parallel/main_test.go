@@ -5309,7 +5309,6 @@ func TestRuleVariableAnnotation(t *testing.T) {
 	}
 }
 
-// TestScanWithCustomStorageClass tests OCP-34928
 // Verifies that access modes and Storage class are configurable through ComplianceSuite and ComplianceScan
 func TestScanWithCustomStorageClass(t *testing.T) {
 	t.Parallel()
@@ -5329,7 +5328,7 @@ func TestScanWithCustomStorageClass(t *testing.T) {
 	customStorageClass := f.CreateCustomStorageClass(storageClassName, defaultProvisioner)
 	err = f.Client.Create(context.TODO(), customStorageClass, nil)
 	if err != nil {
-		t.Fatalf("failed to create custom storage class: %s", err)
+		t.Fatalf("failed to create custom storage class %s: %s", storageClassName, err)
 	}
 	defer f.Client.Delete(context.TODO(), customStorageClass)
 
