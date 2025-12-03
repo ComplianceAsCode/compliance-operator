@@ -1630,6 +1630,27 @@ func (f *Framework) GetNodesWithSelector(labelselector map[string]string) ([]cor
 	return nodes.Items, nil
 }
 
+// ClusterHasArchitecture checks if the cluster has at least one node with the specified architecture
+func (f *Framework) ClusterHasArchitecture(arch string) (bool, error) {
+	var nodes core.NodeList
+	listErr := backoff.Retry(
+		func() error {
+			return f.Client.List(context.TODO(), &nodes)
+		},
+		defaultBackoff)
+	if listErr != nil {
+		return false, fmt.Errorf("couldn't list nodes: %w", listErr)
+	}
+
+	for _, node := range nodes.Items {
+		if node.Status.NodeInfo.Architecture == arch {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // GetConfigMapsFromScan lists the configmaps from the specified openscap scan instance
 func (f *Framework) GetConfigMapsFromScan(scaninstance *compv1alpha1.ComplianceScan) ([]core.ConfigMap, error) {
 	var configmaps core.ConfigMapList
