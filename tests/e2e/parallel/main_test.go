@@ -969,6 +969,27 @@ func TestScanProducesRemediations(t *testing.T) {
 			t.Fatal("expected all remediations are unapplied when scan finishes")
 		}
 	}
+
+	podList := &corev1.PodList{}
+	err = f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		"workload": "scanner",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedSuffix := "-api-checks-pod"
+	found := false
+	for _, pod := range podList.Items {
+		if strings.HasSuffix(pod.Name, expectedSuffix) {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("Pod with suffix %s was not found", expectedSuffix)
+	} 
 }
 
 func TestSingleScanWithStorageSucceeds(t *testing.T) {
