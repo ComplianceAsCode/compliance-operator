@@ -172,27 +172,27 @@ arches:
     name: procps-ng
     evr: 3.3.17-14.el9
     sourcerpm: procps-ng-3.3.17-14.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/s/systemd-252-55.el9_7.2.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/s/systemd-252-55.el9_7.7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 4161351
-    checksum: sha256:99a062e913b5781c11bcd30a1f74cedd18a23f63355c03c70224afc58f0f1365
+    size: 4164980
+    checksum: sha256:0e4586403987336152fb2a41a5a34c1c2cefd113a771aa3c4892ff0ab2884213
     name: systemd
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/s/systemd-pam-252-55.el9_7.2.aarch64.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/s/systemd-pam-252-55.el9_7.7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 278117
-    checksum: sha256:d840edfb25445e036f1d03ca9e075b89c305201f1e2d50fb3e11fe7d25403125
+    size: 278843
+    checksum: sha256:070626cdc2574c6897a5b3417e1426a2227f9a852b5d6de4a3da718f8183a457
     name: systemd-pam
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.2.noarch.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.7.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 71499
-    checksum: sha256:b161332f408a2e0100558deb2d8ecfc3f829a126c83b9d0a02e4b7887ffac2fd
+    size: 72275
+    checksum: sha256:dd54f47d3773db296cdff65dbc1fc423416a7d1bed7447a11c715a2017ae8760
     name: systemd-rpm-macros
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/u/util-linux-2.37.4-21.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 2391248
@@ -316,12 +316,12 @@ arches:
     checksum: sha256:acfd5c270ba5724a0f5f2a84cc47ee222d6a03095421fddbf6932375ec7d67f0
     name: procps-ng
     evr: 3.3.17-14.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.7.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
-    size: 44869424
-    checksum: sha256:8b9e2822d07a18533d56f0e89f191f137d52281a5090a25af2c7bdee2c2e6cb6
+    size: 44902530
+    checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
-    evr: 252-55.el9_7.2
+    evr: 252-55.el9_7.7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
     size: 6281028
@@ -506,27 +506,27 @@ arches:
     name: procps-ng
     evr: 3.3.17-14.el9
     sourcerpm: procps-ng-3.3.17-14.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/s/systemd-252-55.el9_7.2.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/s/systemd-252-55.el9_7.7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 4442834
-    checksum: sha256:f2e21ffae3bf9742ef08a1e42c2ff6659fc107550375d0f92a0c8c569314c983
+    size: 4444738
+    checksum: sha256:1fda3330e62c7f2b5be7326201a2ad90ab36c09a3acec73b9a7627b84c2b99e7
     name: systemd
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/s/systemd-pam-252-55.el9_7.2.ppc64le.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/s/systemd-pam-252-55.el9_7.7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 306357
-    checksum: sha256:c630327e1651b3252ec48b065de061bc414b941db3bf33cc30bbd34d5af4e557
+    size: 307132
+    checksum: sha256:cf8ab8808c43fb65312f8b3399853c89d3792c4bd38ed46cb323bb738d93962b
     name: systemd-pam
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.2.noarch.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.7.noarch.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 71499
-    checksum: sha256:b161332f408a2e0100558deb2d8ecfc3f829a126c83b9d0a02e4b7887ffac2fd
+    size: 72275
+    checksum: sha256:dd54f47d3773db296cdff65dbc1fc423416a7d1bed7447a11c715a2017ae8760
     name: systemd-rpm-macros
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/u/util-linux-2.37.4-21.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
     size: 2428895
@@ -656,12 +656,12 @@ arches:
     checksum: sha256:acfd5c270ba5724a0f5f2a84cc47ee222d6a03095421fddbf6932375ec7d67f0
     name: procps-ng
     evr: 3.3.17-14.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.7.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 44869424
-    checksum: sha256:8b9e2822d07a18533d56f0e89f191f137d52281a5090a25af2c7bdee2c2e6cb6
+    size: 44902530
+    checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
-    evr: 252-55.el9_7.2
+    evr: 252-55.el9_7.7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
     size: 6281028
@@ -839,27 +839,27 @@ arches:
     name: procps-ng
     evr: 3.3.17-14.el9
     sourcerpm: procps-ng-3.3.17-14.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/s/systemd-252-55.el9_7.2.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/s/systemd-252-55.el9_7.7.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 4169717
-    checksum: sha256:e516decf8f7095ea98ca0e622fea0e031850f8f081366c6eb1c5449355b244d4
+    size: 4173009
+    checksum: sha256:22791ac0604ea333179cd6feadb9100acc8e5899df970717149930936c7d0952
     name: systemd
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/s/systemd-pam-252-55.el9_7.2.s390x.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/s/systemd-pam-252-55.el9_7.7.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 278009
-    checksum: sha256:b20b6072cd3adee330d09609332c5cdbe7b832b1b0b0d8246821705b422fb39c
+    size: 278769
+    checksum: sha256:1195529d43e82ecd8790fffd09e2574a4c0be7826396866b85909d2f33e340e5
     name: systemd-pam
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.2.noarch.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.7.noarch.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 71499
-    checksum: sha256:b161332f408a2e0100558deb2d8ecfc3f829a126c83b9d0a02e4b7887ffac2fd
+    size: 72275
+    checksum: sha256:dd54f47d3773db296cdff65dbc1fc423416a7d1bed7447a11c715a2017ae8760
     name: systemd-rpm-macros
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/u/util-linux-2.37.4-21.el9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
     size: 2336453
@@ -983,12 +983,12 @@ arches:
     checksum: sha256:acfd5c270ba5724a0f5f2a84cc47ee222d6a03095421fddbf6932375ec7d67f0
     name: procps-ng
     evr: 3.3.17-14.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.7.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 44869424
-    checksum: sha256:8b9e2822d07a18533d56f0e89f191f137d52281a5090a25af2c7bdee2c2e6cb6
+    size: 44902530
+    checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
-    evr: 252-55.el9_7.2
+    evr: 252-55.el9_7.7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
     size: 6281028
@@ -1166,27 +1166,27 @@ arches:
     name: procps-ng
     evr: 3.3.17-14.el9
     sourcerpm: procps-ng-3.3.17-14.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/s/systemd-252-55.el9_7.2.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/s/systemd-252-55.el9_7.7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 4409828
-    checksum: sha256:d3f90df6226e5f6a1ee181dad9a896bf7b7e2aa707e78bcd9abe42da4c82344e
+    size: 4410717
+    checksum: sha256:19ea80e6fec0f3a3b1679da5b9051cca50e776c3d4213dc660cc212d668786f7
     name: systemd
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/s/systemd-pam-252-55.el9_7.2.x86_64.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/s/systemd-pam-252-55.el9_7.7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 288667
-    checksum: sha256:a56d77ce186092e6b3c9f03b78d019945bfd8c1baed289486903e2424058f238
+    size: 289346
+    checksum: sha256:fda74e652f6bc88ef357df96711ad71d98069ca0355c3cfe24b14fbe54257b24
     name: systemd-pam
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.2.noarch.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/s/systemd-rpm-macros-252-55.el9_7.7.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 71499
-    checksum: sha256:b161332f408a2e0100558deb2d8ecfc3f829a126c83b9d0a02e4b7887ffac2fd
+    size: 72275
+    checksum: sha256:dd54f47d3773db296cdff65dbc1fc423416a7d1bed7447a11c715a2017ae8760
     name: systemd-rpm-macros
-    evr: 252-55.el9_7.2
-    sourcerpm: systemd-252-55.el9_7.2.src.rpm
+    evr: 252-55.el9_7.7
+    sourcerpm: systemd-252-55.el9_7.7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/u/util-linux-2.37.4-21.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 2395065
@@ -1310,12 +1310,12 @@ arches:
     checksum: sha256:acfd5c270ba5724a0f5f2a84cc47ee222d6a03095421fddbf6932375ec7d67f0
     name: procps-ng
     evr: 3.3.17-14.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/s/systemd-252-55.el9_7.7.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 44869424
-    checksum: sha256:8b9e2822d07a18533d56f0e89f191f137d52281a5090a25af2c7bdee2c2e6cb6
+    size: 44902530
+    checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
-    evr: 252-55.el9_7.2
+    evr: 252-55.el9_7.7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
     size: 6281028
