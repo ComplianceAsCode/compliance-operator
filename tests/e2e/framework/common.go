@@ -576,7 +576,7 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 		if pb.Status.DataStreamStatus == status {
 			return true, nil
 		}
-		log.Printf("waiting ProfileBundle %s to become %s (%s)\n", name, status, pb.Status.DataStreamStatus)
+		log.Printf("waiting for ProfileBundle %s to become %s (%s)\n", name, status, pb.Status.DataStreamStatus)
 		return false, nil
 	})
 	if timeouterr != nil {
