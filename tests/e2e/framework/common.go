@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -152,25 +153,43 @@ func (f *Framework) PrintROSADebugInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to list pods: %v", err)
 	}
+
+	artifactsDir := os.Getenv("ARTIFACT_DIR")
+
 	for _, pod := range podList.Items {
 		// find pod named contains compliance-operator substring
 		if strings.Contains(pod.Name, "compliance-operator") {
-			log.Printf("Pod: %s", pod.Name)
-			log.Printf("Pod.Status: %v", pod.Status)
-			// print out logs for compliance-operator pod
+			t.Logf("Pod: %s, Status: %v", pod.Name, pod.Status.Phase)
+
 			req := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
-			log.Printf("Request: %v", req)
 			reader, err := req.Stream(context.Background())
 			if err != nil {
-				t.Fatalf("Failed to get logs: %v", err)
+				t.Logf("Warning: Failed to get logs for pod %s: %v", pod.Name, err)
+				continue
 			}
-			buf := make([]byte, 1024)
+
+			var logBuf strings.Builder
+			buf := make([]byte, 4096)
 			for {
 				n, err := reader.Read(buf)
+				if n > 0 {
+					logBuf.Write(buf[:n])
+				}
 				if err != nil {
 					break
 				}
-				log.Printf("Logs: %s", string(buf[:n]))
+			}
+			reader.Close()
+
+			if artifactsDir != "" {
+				logPath := path.Join(artifactsDir, fmt.Sprintf("rosa_debug_%s.log", pod.Name))
+				if err := os.WriteFile(logPath, []byte(logBuf.String()), 0644); err != nil {
+					t.Logf("Warning: Failed to write logs to %s: %v", logPath, err)
+				} else {
+					t.Logf("Pod logs written to %s (%d bytes)", logPath, logBuf.Len())
+				}
+			} else {
+				t.Logf("Pod %s logs: %d bytes (set ARTIFACT_DIR to save to file)", pod.Name, logBuf.Len())
 			}
 		}
 	}
