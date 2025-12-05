@@ -5250,8 +5250,8 @@ func TestRuleVariableAnnotation(t *testing.T) {
 	}
 }
 
-// TestScanErrorMetrics tests that metrics are reported when a scan encounters an error
-func TestScanErrorMetrics(t *testing.T) {
+// TestScanWithInvalidStorageSizeReportsMetrics tests that metrics are reported when a scan with a invlid storage size
+func TestScanWithInvalidStorageSizeReportsMetrics(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
@@ -5320,8 +5320,21 @@ func TestScanErrorMetrics(t *testing.T) {
 		fmt.Sprintf("compliance_operator_compliance_state{name=\"%s\"}", suiteName): 3,
 	}
 
-	err = framework.AssertEachMetric(f.OperatorNamespace, metricsSet)
-	if err != nil {
-		t.Fatalf("failed to assert metrics for error scan: %s", err)
+	// Retry metrics assertion as metrics may not be immediately available
+	var metErr error
+	retryErr := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		metErr = framework.AssertEachMetric(f.OperatorNamespace, metricsSet)
+		if metErr != nil {
+			// Retry on failure - metrics might not be available yet
+			return false, nil
+		}
+		return true, nil
+	})
+
+	if retryErr != nil {
+		if metErr != nil {
+			t.Fatalf("failed to assert metrics for error scan after retries: %s (last error: %s)", retryErr, metErr)
+		}
+		t.Fatalf("failed to assert metrics for error scan: %s", retryErr)
 	}
 }
