@@ -901,7 +901,6 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	f := framework.Global
 	bindingName := framework.GetObjNameFromTest(t)
 	tpName := framework.GetObjNameFromTest(t)
-
 	// When using a profile directly, the profile name gets re-used
 	// in the scan. By using a tailored profile we ensure that
 	// the scan is unique and we get no clashes.
@@ -916,7 +915,6 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 			Extends:     "ocp4-moderate",
 		},
 	}
-
 	createTPErr := f.Client.Create(context.TODO(), tp, nil)
 	if createTPErr != nil {
 		t.Fatal(createTPErr)
@@ -949,7 +947,6 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
 	}
-
 	// Since the scan was not compliant, there should be some remediations and none
 	// of them should be an error
 	inNs := client.InNamespace(f.OperatorNamespace)
@@ -960,7 +957,6 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if len(remList.Items) == 0 {
 		t.Fatal("expected at least one remediation")
 	}
@@ -969,7 +965,6 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 			t.Fatal("expected all remediations are unapplied when scan finishes")
 		}
 	}
-
 	// Verify ComplianceCheckResult labels are correctly set
 	// Get all checks from the suite to verify label functionality
 	checkList := &compv1alpha1.ComplianceCheckResultList{}
@@ -977,14 +972,11 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if len(checkList.Items) == 0 {
 		t.Fatal("expected at least one check result")
 	}
-
 	// Use the first check to verify labels are working correctly
 	firstCheck := checkList.Items[0]
-
 	// Verify all required labels are present and can be queried
 	labelsToVerify := map[string]string{
 		compv1alpha1.SuiteLabel:                         bindingName,
@@ -992,12 +984,10 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 		compv1alpha1.ComplianceCheckResultSeverityLabel: firstCheck.Labels[compv1alpha1.ComplianceCheckResultSeverityLabel],
 		compv1alpha1.ComplianceCheckResultStatusLabel:   firstCheck.Labels[compv1alpha1.ComplianceCheckResultStatusLabel],
 	}
-
 	for label, value := range labelsToVerify {
 		if value == "" {
 			t.Fatalf("check %s is missing label %s", firstCheck.Name, label)
 		}
-
 		err = f.AssertCheckResultByLabel(f.OperatorNamespace, label, value, firstCheck.Name)
 		if err != nil {
 			t.Fatal(err)
