@@ -2375,12 +2375,6 @@ func TestScheduledSuiteUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify suitererunner resource limits and requests through Jobs
-	err = f.AssertSuiteRerunnerResourcesInJobs(f.OperatorNamespace, suiteName, "50m", "100Mi", "10m", "20Mi")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// Get new reference of suite
 	foundSuite := &compv1alpha1.ComplianceSuite{}
 	key := types.NamespacedName{Name: testSuite.Name, Namespace: testSuite.Namespace}
@@ -2397,6 +2391,24 @@ func TestScheduledSuiteUpdate(t *testing.T) {
 	}
 
 	if err = f.WaitForCronJobWithSchedule(f.OperatorNamespace, suiteName, updatedSchedule); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for one re-scan
+	err = f.WaitForReScanStatus(f.OperatorNamespace, workerScanName, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify suitererunner resource limits and requests through Jobs
+	err = f.AssertSuiteRerunnerResourcesInJobs(f.OperatorNamespace, suiteName, "50m", "100Mi", "10m", "20Mi")
+	if err != nil {
 		t.Fatal(err)
 	}
 
