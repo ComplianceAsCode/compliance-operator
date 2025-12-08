@@ -2375,6 +2375,12 @@ func TestScheduledSuiteUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Verify suitererunner resource limits and requests through Jobs
+	err = f.AssertSuiteRerunnerResourcesInJobs(f.OperatorNamespace, suiteName, "50m", "100Mi", "10m", "20Mi")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Get new reference of suite
 	foundSuite := &compv1alpha1.ComplianceSuite{}
 	key := types.NamespacedName{Name: testSuite.Name, Namespace: testSuite.Namespace}

@@ -2886,3 +2886,56 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
 }
+
+// AssertSuiteRerunnerResourcesInJobs verifies the suitererunner resource limits and requests through Jobs
+func (f *Framework) AssertSuiteRerunnerResourcesInJobs(namespace, suiteName, cpuLimit, memLimit, cpuRequest, memRequest string) error {
+	jobList := &batchv1.JobList{}
+	labelSelector := labels.SelectorFromSet(map[string]string{
+		"compliance.openshift.io/suite": suiteName,
+		"workload":                      "suitererunner",
+	})
+	listOpts := &client.ListOptions{
+		LabelSelector: labelSelector,
+		Namespace:     namespace,
+	}
+
+	err := f.Client.List(context.TODO(), jobList, listOpts)
+	if err != nil {
+		return fmt.Errorf("failed to list jobs for suite %s: %w", suiteName, err)
+	}
+
+	if len(jobList.Items) == 0 {
+		return fmt.Errorf("no suitererunner jobs found for suite %s", suiteName)
+	}
+
+	// Check the first job's container resources
+	job := jobList.Items[0]
+	if len(job.Spec.Template.Spec.Containers) == 0 {
+		return fmt.Errorf("job %s has no containers", job.Name)
+	}
+
+	container := job.Spec.Template.Spec.Containers[0]
+
+	// Verify CPU limit
+	if container.Resources.Limits.Cpu().String() != cpuLimit {
+		return fmt.Errorf("expected CPU limit %s, got %s in job %s", cpuLimit, container.Resources.Limits.Cpu().String(), job.Name)
+	}
+
+	// Verify Memory limit
+	if container.Resources.Limits.Memory().String() != memLimit {
+		return fmt.Errorf("expected Memory limit %s, got %s in job %s", memLimit, container.Resources.Limits.Memory().String(), job.Name)
+	}
+
+	// Verify CPU request
+	if container.Resources.Requests.Cpu().String() != cpuRequest {
+		return fmt.Errorf("expected CPU request %s, got %s in job %s", cpuRequest, container.Resources.Requests.Cpu().String(), job.Name)
+	}
+
+	// Verify Memory request
+	if container.Resources.Requests.Memory().String() != memRequest {
+		return fmt.Errorf("expected Memory request %s, got %s in job %s", memRequest, container.Resources.Requests.Memory().String(), job.Name)
+	}
+
+	log.Printf("Suite rerunner job %s has correct resource limits and requests", job.Name)
+	return nil
+}
