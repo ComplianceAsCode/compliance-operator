@@ -46,7 +46,7 @@ type ParserConfig struct {
 
 func LogAndReturnError(errormsg string) error {
 	log.Info(errormsg)
-	return fmt.Errorf(errormsg)
+	return fmt.Errorf("%s", errormsg)
 }
 
 func GetPrefixedName(pbName, objName string) string {

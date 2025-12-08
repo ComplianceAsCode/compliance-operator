@@ -210,7 +210,7 @@ func parseResultRemediations(client runtimeclient.Client, scheme *runtime.Scheme
 	err := client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, scan)
 	if err != nil {
 		errStr := "ErrorGettingTailoredProfileScan." + err.Error() + "\n"
-		return nil, nodeName, fmt.Errorf(errStr)
+		return nil, nodeName, fmt.Errorf("%s", errStr)
 	}
 	// scan has tailored profile CM
 	if scan.Spec.TailoringConfigMap != nil {
