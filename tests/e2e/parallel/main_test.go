@@ -5224,7 +5224,7 @@ func TestScanWithCustomStorageClass(t *testing.T) {
 	// Get the default storage class provisioner for our custom storage class
 	defaultProvisioner, err := f.GetDefaultStorageClassProvisioner()
 	if err != nil {
-		t.Fatalf("failed to get default storage class provisioner: %s", err)
+		t.Skipf("skipping test: no default storage class provisioner available: %s", err)
 	}
 
 	// Create custom StorageClass named "gold"
