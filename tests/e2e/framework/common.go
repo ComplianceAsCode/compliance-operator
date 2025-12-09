@@ -2052,30 +2052,6 @@ func (f *Framework) AssertHasCheck(suiteName, scanName string, check compv1alpha
 
 	return nil
 }
-
-// AssertCheckResultByLabel verifies that a ComplianceCheckResult with the expected name exists
-// when filtering by a specific label selector
-func (f *Framework) AssertCheckResultByLabel(namespace, labelKey, labelValue, expectedCheckName string) error {
-	var checkList compv1alpha1.ComplianceCheckResultList
-	checkListOpts := client.MatchingLabels{
-		labelKey: labelValue,
-	}
-	listOpts := client.InNamespace(namespace)
-
-	if err := f.Client.List(context.TODO(), &checkList, &checkListOpts, &listOpts); err != nil {
-		return fmt.Errorf("failed to list ComplianceCheckResults with label %s=%s: %w", labelKey, labelValue, err)
-	}
-
-	// Check if the expected check name is in the list
-	for _, check := range checkList.Items {
-		if check.Name == expectedCheckName {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("ComplianceCheckResult %s not found in list filtered by label %s=%s", expectedCheckName, labelKey, labelValue)
-}
-
 func (f *Framework) AssertHasRemediations(suiteName, scanName, roleLabel string, remNameList []string) error {
 	var scanSuiteMapNames = make(map[string]bool)
 	var scanSuiteRemediations []compv1alpha1.ComplianceRemediation
