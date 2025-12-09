@@ -901,6 +901,7 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	f := framework.Global
 	bindingName := framework.GetObjNameFromTest(t)
 	tpName := framework.GetObjNameFromTest(t)
+
 	// When using a profile directly, the profile name gets re-used
 	// in the scan. By using a tailored profile we ensure that
 	// the scan is unique and we get no clashes.
@@ -915,6 +916,7 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 			Extends:     "ocp4-moderate",
 		},
 	}
+
 	createTPErr := f.Client.Create(context.TODO(), tp, nil)
 	if createTPErr != nil {
 		t.Fatal(createTPErr)
@@ -947,6 +949,7 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
 	}
+
 	// Since the scan was not compliant, there should be some remediations and none
 	// of them should be an error
 	inNs := client.InNamespace(f.OperatorNamespace)
@@ -957,6 +960,7 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(remList.Items) == 0 {
 		t.Fatal("expected at least one remediation")
 	}
