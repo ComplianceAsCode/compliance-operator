@@ -5249,3 +5249,124 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestDefaultProfileBundlesAndProfiles tests that the compliance operator creates default
+// ProfileBundles and Profiles based on the cluster architecture
+func TestDefaultProfileBundlesAndProfiles(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Check default profilebundles name and status
+	t.Log("Checking default ProfileBundles...")
+
+	// ocp4 ProfileBundle should always exist
+	err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid)
+	if err != nil {
+		t.Fatalf("ocp4 ProfileBundle does not exist or is not valid: %v", err)
+	}
+	t.Log("ocp4 ProfileBundle is valid")
+
+	// Get architecture from the first node's labels
+	nodes, err := f.GetNodesWithSelector(map[string]string{})
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to get cluster nodes: %v", err)
+	}
+	arch := nodes[0].Labels["kubernetes.io/arch"]
+	t.Logf("Detected cluster architecture: %s", arch)
+
+	// Get cluster architecture by querying nodes
+	// rhcos4 ProfileBundle should exist for AMD64, ARM64, and MULTI architectures
+	// For S390X, rhcos4 is not supported
+	switch arch {
+	case "amd64", "arm64", "ppc64le", "multi":
+		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
+		if err != nil {
+			t.Fatalf("rhcos4 ProfileBundle does not exist or is not valid: %v", err)
+		}
+		t.Log("rhcos4 ProfileBundle is valid")
+	case "s390x":
+		t.Logf("rhcos4 ProfileBundle is not expected for architecture: %s", arch)
+	default:
+		t.Logf("Unknown architecture %s, assuming rhcos4 should exist", arch)
+		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
+		if err != nil {
+			t.Logf("Warning: rhcos4 ProfileBundle does not exist for unknown architecture %s", arch)
+		}
+	}
+
+	// Define expected profiles for each architecture
+	profilesByArch := map[string][]string{
+		"amd64": {
+			"ocp4-bsi",
+			"ocp4-bsi-node ",
+			"ocp4-cis",
+			"ocp4-cis-node",
+			"ocp4-e8",
+			"ocp4-high",
+			"ocp4-high-node",
+			"ocp4-moderate",
+			"ocp4-moderate-node",
+			"ocp4-nerc-cip",
+			"ocp4-nerc-cip-node",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-node",
+			"ocp4-stig",
+			"ocp4-stig-node",
+			"rhcos4-bsi",
+			"rhcos4-e8",
+			"rhcos4-high",
+			"rhcos4-moderate",
+			"rhcos4-stig",
+		},
+		"arm64": {
+			"ocp4-cis",
+			"ocp4-cis-node",
+			"ocp4-moderate",
+			"ocp4-moderate-node",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-node",
+			"rhcos4-moderate",
+		},
+		"s390x": {
+			"ocp4-cis",
+			"ocp4-cis-node",
+			"ocp4-moderate",
+			"ocp4-moderate-node",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-node",
+		},
+		"ppc64le": {
+			"ocp4-cis",
+			"ocp4-cis-node",
+			"ocp4-moderate",
+			"ocp4-moderate-node",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-node",
+			"rhcos4-moderate",
+		},
+	}
+
+	expectedProfiles, ok := profilesByArch[arch]
+	if !ok {
+		t.Logf("No expected profile list defined for architecture: %s, checking common profiles only", arch)
+		// Check at least the common profiles that should exist on all architectures
+		expectedProfiles = []string{
+			"ocp4-cis",
+			"ocp4-moderate",
+		}
+	}
+
+	// Verify each expected profile exists
+	for _, profileName := range expectedProfiles {
+		err, found := f.DoesObjectExist("Profile", f.OperatorNamespace, profileName)
+		if err != nil {
+			t.Fatalf("Error checking if profile %s exists: %v", profileName, err)
+		}
+		if !found {
+			t.Fatalf("Expected profile %s not found for architecture %s", profileName, arch)
+		}
+		t.Logf("Profile %s exists", profileName)
+	}
+
+	t.Logf("All expected default ProfileBundles and Profiles verified successfully for architecture %s", arch)
+}
