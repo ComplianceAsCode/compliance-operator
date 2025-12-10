@@ -3807,6 +3807,12 @@ func TestScanSettingBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	rhcos4moderateprofile := &compv1alpha1.Profile{}
+	moderateKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcosPb.Name + "-moderate"}
+	if err := f.Client.Get(context.TODO(), moderateKey, rhcos4moderateprofile); err != nil {
+		t.Fatal(err)
+	}
+
 	scanSettingName := objName + "-setting"
 	scanSetting := compv1alpha1.ScanSetting{
 		ObjectMeta: metav1.ObjectMeta{
@@ -3840,6 +3846,11 @@ func TestScanSettingBinding(t *testing.T) {
 			// TODO: test also OCP profile when it works completely
 			{
 				Name:     rhcos4e8profile.Name,
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     rhcos4moderateprofile.Name,
 				Kind:     "Profile",
 				APIGroup: "compliance.openshift.io/v1alpha1",
 			},
@@ -3880,6 +3891,26 @@ func TestScanSettingBinding(t *testing.T) {
 
 	if workerScan.Spec.Debug != true {
 		log.Println("Expected that the settings set debug to true in workers scan")
+	}
+
+	moderateMasterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-master"}
+	moderateMasterScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), moderateMasterScanKey, moderateMasterScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if moderateMasterScan.Spec.Debug != true {
+		log.Println("Expected that the settings set debug to true in moderate master scan")
+	}
+
+	moderateWorkerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-worker"}
+	moderateWorkerScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), moderateWorkerScanKey, moderateWorkerScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if moderateWorkerScan.Spec.Debug != true {
+		log.Println("Expected that the settings set debug to true in moderate worker scan")
 	}
 
 	podList := &corev1.PodList{}
