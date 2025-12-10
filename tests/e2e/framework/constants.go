@@ -4,6 +4,7 @@ import "time"
 
 const (
 	RetryInterval                 = time.Second * 5
+	ShortRetryInterval            = time.Second * 2
 	Timeout                       = time.Minute * 30
 	TestPoolName                  = "e2e"
 	maxRetries                    = 5
