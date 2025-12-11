@@ -2205,15 +2205,10 @@ func TestMustGatherImageWorksAsExpected(t *testing.T) {
 
 	// Wait for the ComplianceSuite scans to complete
 	log.Printf("Waiting for ComplianceSuite scans to complete...")
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent)
 	if err != nil {
-		// If it's not NON-COMPLIANT, it might be INCONSISTENT - both are acceptable
-		err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultInconsistent)
-		if err != nil {
-			t.Fatalf("Scan did not complete successfully: %v", err)
-		}
+		t.Fatalf("Scan did not complete successfully: %v", err)
 	}
-
 	log.Printf("ComplianceSuite scans completed")
 
 	// Verify that compliance resources exist before running must-gather
@@ -2427,7 +2422,7 @@ func verifyMustGatherContents(mustGatherDir string, t *testing.T) int {
 		}
 	}
 
-	// Check for compliance CRD directories (at least one should exist)
+	// Check for compliance CRD directories (all should exist since we're using a ScanSettingBinding)
 	// Note: These are created by the gather script at lines 8-20 of gather_compliance
 	// They are only present if there are actual CRD instances in the namespace
 	complianceCRDs := []string{
@@ -2436,60 +2431,85 @@ func verifyMustGatherContents(mustGatherDir string, t *testing.T) int {
 		"compliancecheckresults.compliance.openshift.io",
 	}
 
-	foundCRD := false
-	for _, crd := range complianceCRDs {
-		crdPath := fmt.Sprintf("%s/%s", complianceNamespaceDir, crd)
-		if _, err := os.Stat(crdPath); err == nil {
-			log.Printf("Found CRD directory: %s", crd)
-			foundCRD = true
-		} else {
-			log.Printf("CRD directory not found: %s", crd)
-		}
-	}
+	// Search for CRD directories in multiple locations
+	// The gather script may place them in different directories depending on the environment
+	foundCRDs := searchCRDDirectories(complianceCRDs, complianceNamespaceDir, timestampDir)
 
-	if !foundCRD {
-		// Check if there are CRD directories at the parent level (timestampDir)
-		// The gather script collects CRDs across all namespaces at lines 8-20
-		log.Printf("Checking for CRD directories at the parent level...")
+	// Log results
+	if len(foundCRDs) < len(complianceCRDs) {
+		missingCRDs := []string{}
 		for _, crd := range complianceCRDs {
-			crdPath := fmt.Sprintf("%s/%s", timestampDir, crd)
-			if _, err := os.Stat(crdPath); err == nil {
-				log.Printf("Found CRD directory at parent level: %s", crd)
-				foundCRD = true
+			if !foundCRDs[crd] {
+				missingCRDs = append(missingCRDs, crd)
 			}
 		}
+		t.Logf("WARNING: Not all compliance CRD directories found. Missing: %v", missingCRDs)
+		t.Logf("Found: %d/%d CRD directories", len(foundCRDs), len(complianceCRDs))
+		t.Logf("This may indicate the gather script failed to collect CRD data - check gather.logs")
+		log.Printf("WARNING: Missing CRD directories %v, but core must-gather data was collected successfully", missingCRDs)
 	}
 
-	if !foundCRD {
-		// Check in other namespace directories (e.g., test namespace osdk-e2e-*)
-		// Scans may be created in the test namespace, not openshift-compliance
-		log.Printf("Checking for CRD directories in other namespace directories...")
-		timestampEntries, err := os.ReadDir(timestampDir)
-		if err == nil {
-			for _, entry := range timestampEntries {
-				if entry.IsDir() && entry.Name() != "openshift-compliance" && entry.Name() != "gather.logs" {
-					for _, crd := range complianceCRDs {
-						crdPath := fmt.Sprintf("%s/%s/%s", timestampDir, entry.Name(), crd)
-						if _, err := os.Stat(crdPath); err == nil {
-							log.Printf("Found CRD directory in %s: %s", entry.Name(), crd)
-							foundCRD = true
+	return failureCount
+}
+
+// searchCRDDirectories searches for CRD directories in multiple locations and returns a map of found CRDs.
+// It searches in order: compliance namespace dir, parent timestamp dir, other namespace dirs.
+// Returns early once all CRDs are found to optimize performance.
+func searchCRDDirectories(crdNames []string, complianceNamespaceDir, timestampDir string) map[string]bool {
+	foundCRDs := make(map[string]bool)
+	searchLocations := []struct {
+		name        string
+		getPathFunc func(string) []string
+	}{
+		{
+			name: "compliance namespace directory",
+			getPathFunc: func(crd string) []string {
+				return []string{fmt.Sprintf("%s/%s", complianceNamespaceDir, crd)}
+			},
+		},
+		{
+			name: "parent timestamp directory",
+			getPathFunc: func(crd string) []string {
+				return []string{fmt.Sprintf("%s/%s", timestampDir, crd)}
+			},
+		},
+		{
+			name: "other namespace directories",
+			getPathFunc: func(crd string) []string {
+				var paths []string
+				if entries, err := os.ReadDir(timestampDir); err == nil {
+					for _, entry := range entries {
+						if entry.IsDir() && entry.Name() != "openshift-compliance" && entry.Name() != "gather.logs" {
+							paths = append(paths, fmt.Sprintf("%s/%s/%s", timestampDir, entry.Name(), crd))
 						}
 					}
+				}
+				return paths
+			},
+		},
+	}
+
+	for _, location := range searchLocations {
+		if len(foundCRDs) == len(crdNames) {
+			break // All CRDs found, no need to continue searching
+		}
+
+		for _, crd := range crdNames {
+			if foundCRDs[crd] {
+				continue // Already found this CRD
+			}
+
+			for _, path := range location.getPathFunc(crd) {
+				if _, err := os.Stat(path); err == nil {
+					log.Printf("Found CRD directory in %s: %s", location.name, crd)
+					foundCRDs[crd] = true
+					break
 				}
 			}
 		}
 	}
 
-	if !foundCRD {
-		// CRD directories are created by gather_compliance script at lines 8-20
-		// They may not exist if the script encounters errors or if CRDs are not found
-		// This is a warning but not a failure since core must-gather functionality works
-		t.Logf("WARNING: No compliance CRD directories found in any namespace")
-		t.Logf("This may indicate the gather script failed to collect CRD data - check gather.logs")
-		log.Printf("WARNING: No compliance CRD directories found, but core must-gather data was collected successfully")
-	}
-
-	return failureCount
+	return foundCRDs
 }
 
 //testExecution{
