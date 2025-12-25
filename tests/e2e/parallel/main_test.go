@@ -5249,3 +5249,130 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestMultipleProfileBundlesWithTailoredProfiles tests that the profileparser can handle
+// multiple ProfileBundles being added concurrently without affecting existing default ProfileBundles.
+func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
+	f := framework.Global
+	var (
+		pb1Image = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_baseline")
+		pb2Image = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
+	)
+
+	// Create first ProfileBundle
+	pb1Name := framework.GetObjNameFromTest(t) + "-pb1"
+	pb1, err := f.CreateProfileBundle(pb1Name, pb1Image, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), pb1)
+
+	// Wait for first ProfileBundle to become valid
+	if err := f.WaitForProfileBundleStatus(pb1Name, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that default ProfileBundles remain valid after first custom bundle creation
+	if err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create TailoredProfile extending from first ProfileBundle
+	tp1Name := framework.GetObjNameFromTest(t) + "-tp1"
+	tp1 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tp1Name,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Test Multiple ProfileBundles - TP1",
+			Description: "TailoredProfile extending from first custom ProfileBundle",
+			Extends:     pb1Name + "-moderate",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb1Name + "-account-disable-post-pw-expiration",
+					Rationale: "Test enabling rule from custom ProfileBundle",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb1Name + "-account-unique-name",
+					Rationale: "Test disabling rule from custom ProfileBundle",
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp1, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp1)
+
+	// Wait for first TailoredProfile to become ready
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp1Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create second ProfileBundle with different content image
+	pb2Name := framework.GetObjNameFromTest(t) + "-pb2"
+	pb2, err := f.CreateProfileBundle(pb2Name, pb2Image, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), pb2)
+
+	// Wait for second ProfileBundle to become valid
+	if err := f.WaitForProfileBundleStatus(pb2Name, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that default ProfileBundles still remain valid after second custom bundle creation
+	if err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create second TailoredProfile extending from second ProfileBundle
+	tp2Name := framework.GetObjNameFromTest(t) + "-tp2"
+	tp2 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tp2Name,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Test Multiple ProfileBundles - TP2",
+			Description: "TailoredProfile extending from second custom ProfileBundle",
+			Extends:     pb2Name + "-moderate",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb2Name + "-wireless-disable-in-bios",
+					Rationale: "Test enabling rule from second custom ProfileBundle",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb2Name + "-account-unique-name",
+					Rationale: "Test disabling rule from second custom ProfileBundle",
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp2, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp2)
+
+	// Wait for second TailoredProfile to become ready
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp2Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+
+	// Final verification: ensure first TailoredProfile is still ready
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp1Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+}
