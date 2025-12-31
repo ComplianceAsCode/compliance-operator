@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,6 +22,7 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +35,7 @@ import (
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -120,6 +124,158 @@ func (f *Framework) cleanUpFromYAMLFile(p *string) error {
 		}
 	}
 	return nil
+}
+
+// CollectMustGather collects must-gather data from the cluster for debugging test failures.
+// It attempts to determine the must-gather image from the CSV and runs oc adm must-gather.
+// If the CSV cannot be found or the must-gather image is not available, it falls back to
+// using a default image or skips collection.
+// The output is saved to ARTIFACT_DIR if set, otherwise to the current directory.
+func (f *Framework) CollectMustGather(testName string) {
+	timestamp := time.Now().Format("20060102-150405")
+	outputDirName := fmt.Sprintf("must-gather-%s-%s", testName, timestamp)
+
+	// Use ARTIFACT_DIR if set (for CI), otherwise use current directory
+	baseDir := os.Getenv("ARTIFACT_DIR")
+	var outputDir string
+	if baseDir != "" {
+		outputDir = filepath.Join(baseDir, outputDirName)
+		log.Printf("Collecting must-gather data to artifact directory: %s\n", outputDir)
+	} else {
+		outputDir = outputDirName
+		log.Printf("Collecting must-gather data to current directory: %s\n", outputDir)
+	}
+
+	// Try to get the must-gather image from the CSV
+	mustGatherImage := ""
+
+	// List all CSVs in the operator namespace
+	csvList := &unstructured.UnstructuredList{}
+	csvList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v1alpha1",
+		Kind:    "ClusterServiceVersionList",
+	})
+
+	if err := f.Client.List(context.TODO(), csvList, client.InNamespace(f.OperatorNamespace)); err != nil {
+		log.Printf("Warning: Failed to list CSVs: %v\n", err)
+	} else {
+		// Find the compliance-operator CSV
+		for _, csv := range csvList.Items {
+			if strings.Contains(csv.GetName(), "compliance-operator") {
+				// Extract must-gather image from relatedImages
+				relatedImages, found, err := unstructured.NestedSlice(csv.Object, "spec", "relatedImages")
+				if err == nil && found {
+					for _, img := range relatedImages {
+						imgMap, ok := img.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						name, _, _ := unstructured.NestedString(imgMap, "name")
+						if name == "must-gather" {
+							image, _, _ := unstructured.NestedString(imgMap, "image")
+							mustGatherImage = image
+							break
+						}
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// If we couldn't find the image from CSV, use the default
+	if mustGatherImage == "" {
+		mustGatherImage = "ghcr.io/complianceascode/must-gather-ocp:latest"
+		log.Printf("Using default must-gather image: %s\n", mustGatherImage)
+	} else {
+		log.Printf("Using must-gather image from CSV: %s\n", mustGatherImage)
+	}
+
+	// First, collect operator logs directly from the operator namespace
+	// This is critical for osdk-e2e namespaces which may not be included in must-gather
+	log.Printf("Collecting operator logs from namespace: %s\n", f.OperatorNamespace)
+	f.CollectOperatorLogs(outputDir)
+
+	// Run oc adm must-gather
+	log.Printf("Running: oc adm must-gather --image=%s --dest-dir=%s\n", mustGatherImage, outputDir)
+
+	cmd := exec.Command("oc", "adm", "must-gather", fmt.Sprintf("--image=%s", mustGatherImage), fmt.Sprintf("--dest-dir=%s", outputDir))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("Warning: Failed to collect must-gather data: %v\n", err)
+		log.Printf("Must-gather data was not collected, but test will continue\n")
+	} else {
+		log.Printf("Successfully collected must-gather data to %s\n", outputDir)
+		log.Printf("You can find the must-gather archive in the current directory\n")
+	}
+}
+
+// CollectOperatorLogs collects logs and debug information from the operator namespace.
+// This is especially important for osdk-e2e test namespaces that may not be included in must-gather.
+// Uses 'oc adm inspect' to collect comprehensive debugging information and creates a tarball.
+func (f *Framework) CollectOperatorLogs(outputDir string) {
+	log.Printf("Collecting logs from operator namespace: %s\n", f.OperatorNamespace)
+
+	// Create a temporary directory for oc adm inspect output
+	tempDir, err := os.MkdirTemp("", "operator-inspect-*")
+	if err != nil {
+		log.Printf("Warning: Failed to create temp directory: %v\n", err)
+		return
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Run oc adm inspect to collect namespace data
+	log.Printf("Running: oc adm inspect namespace/%s --dest-dir=%s\n", f.OperatorNamespace, tempDir)
+	inspectCmd := exec.Command("oc", "adm", "inspect", fmt.Sprintf("namespace/%s", f.OperatorNamespace), fmt.Sprintf("--dest-dir=%s", tempDir))
+	inspectCmd.Stdout = os.Stdout
+	inspectCmd.Stderr = os.Stderr
+
+	if err := inspectCmd.Run(); err != nil {
+		log.Printf("Warning: Failed to run oc adm inspect: %v\n", err)
+		return
+	}
+
+	log.Printf("Successfully collected operator namespace data with oc adm inspect\n")
+
+	// Determine the output location for the tarball
+	var tarballPath string
+	artifactDir := os.Getenv("ARTIFACT_DIR")
+	if artifactDir != "" {
+		// Use ARTIFACT_DIR if set (CI environment)
+		if err := os.MkdirAll(artifactDir, 0755); err != nil {
+			log.Printf("Warning: Failed to create artifact directory %s: %v\n", artifactDir, err)
+			return
+		}
+		timestamp := time.Now().Format("20060102-150405")
+		tarballPath = filepath.Join(artifactDir, fmt.Sprintf("operator-logs-%s-%s.tar.gz", f.OperatorNamespace, timestamp))
+	} else {
+		// Fall back to the provided output directory
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
+			log.Printf("Warning: Failed to create output directory %s: %v\n", outputDir, err)
+			return
+		}
+		timestamp := time.Now().Format("20060102-150405")
+		tarballPath = filepath.Join(outputDir, fmt.Sprintf("operator-logs-%s-%s.tar.gz", f.OperatorNamespace, timestamp))
+	}
+
+	// Create tarball of the collected data
+	log.Printf("Creating tarball: %s\n", tarballPath)
+	tarCmd := exec.Command("tar", "-czf", tarballPath, "-C", tempDir, ".")
+	if tarOutput, err := tarCmd.CombinedOutput(); err != nil {
+		log.Printf("Warning: Failed to create tarball: %v\nOutput: %s\n", err, string(tarOutput))
+		return
+	}
+
+	// Get tarball size
+	fileInfo, err := os.Stat(tarballPath)
+	if err != nil {
+		log.Printf("Successfully created operator logs tarball at: %s\n", tarballPath)
+	} else {
+		log.Printf("Successfully created operator logs tarball at: %s (size: %d bytes)\n", tarballPath, fileInfo.Size())
+	}
 }
 
 func (f *Framework) PrintROSADebugInfo(t *testing.T) {
@@ -334,6 +490,16 @@ func (f *Framework) addFrameworks() error {
 	for _, obj := range scObjs {
 		if err := AddToFrameworkScheme(schedulingv1.AddToScheme, obj); err != nil {
 			return fmt.Errorf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+		}
+	}
+
+	// ValidatingAdmissionPolicy objects
+	vapObjs := [1]dynclient.ObjectList{
+		&admissionregistrationv1.ValidatingAdmissionPolicyList{},
+	}
+	for _, obj := range vapObjs {
+		if err := AddToFrameworkScheme(admissionregistrationv1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("failed to add admissionregistration resource scheme to framework: %v", err)
 		}
 	}
 
@@ -580,7 +746,27 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 		return false, nil
 	})
 	if timeouterr != nil {
-		return fmt.Errorf("ProfileBundle %s failed to reach state %s", name, status)
+		// Log basic information about the failure
+		log.Printf("ProfileBundle %s failed to reach state %s\n", name, status)
+		log.Printf("Current status: %s\n", pb.Status.DataStreamStatus)
+		log.Printf("ContentImage: %s\n", pb.Spec.ContentImage)
+		log.Printf("ContentFile: %s\n", pb.Spec.ContentFile)
+
+		if pb.Status.ErrorMessage != "" {
+			log.Printf("ErrorMessage: %s\n", pb.Status.ErrorMessage)
+		}
+
+		// Collect must-gather data for comprehensive debugging
+		log.Printf("Collecting must-gather data for detailed debugging information...\n")
+		f.CollectMustGather(fmt.Sprintf("ProfileBundle-%s", name))
+
+		// Include error details in the returned error
+		errMsg := fmt.Sprintf("ProfileBundle %s failed to reach state %s (current: %s)",
+			name, status, pb.Status.DataStreamStatus)
+		if pb.Status.ErrorMessage != "" {
+			errMsg += fmt.Sprintf(", error: %s", pb.Status.ErrorMessage)
+		}
+		return fmt.Errorf("%s", errMsg)
 	}
 	log.Printf("ProfileBundle ready (%s)\n", pb.Status.DataStreamStatus)
 	return nil
@@ -791,16 +977,60 @@ func (f *Framework) createMachineConfigPool(n string) error {
 	return nil
 }
 
+// validatingAdmissionPolicyExists checks if a ValidatingAdmissionPolicy with the given name exists
+func (f *Framework) validatingAdmissionPolicyExists(name string) (bool, error) {
+	vap := &admissionregistrationv1.ValidatingAdmissionPolicy{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name}, vap)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (f *Framework) createInvalidMachineConfigPool(n string) error {
 	if f.Platform == "rosa" {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
+
+	// Check if ValidatingAdmissionPolicy exists
+	vapExists, err := f.validatingAdmissionPolicyExists("custom-machine-config-pool-selector")
+	if err != nil {
+		return fmt.Errorf("failed to check ValidatingAdmissionPolicy: %w", err)
+	}
+
 	p := &mcfgv1.MachineConfigPool{
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
 		},
+	}
+
+	// Only add selectors if ValidatingAdmissionPolicy exists
+	// This ensures backward compatibility with older clusters
+	if vapExists {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' exists, adding minimal selectors to MachineConfigPool %s\n", n)
+		// Add minimal selectors to pass ValidatingAdmissionPolicy
+		// This pool is still "invalid" for testing as no nodes match this selector
+		p.Spec.NodeSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"node-role.kubernetes.io/e2e-invalid": "",
+			},
+		}
+		p.Spec.MachineConfigSelector = &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "machineconfiguration.openshift.io/role",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"worker"},
+				},
+			},
+		}
+	} else {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' not found, creating MachineConfigPool %s without selectors (legacy mode)\n", n)
 	}
 
 	createErr := backoff.RetryNotify(
@@ -2944,4 +3174,9 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
+}
+
+// int64Ptr returns a pointer to an int64 value
+func int64Ptr(i int64) *int64 {
+	return &i
 }
