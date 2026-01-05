@@ -8,7 +8,7 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "release-1.8" && ( ".tekton/compliance-operator-release-1-8-*.yaml".pathChanged() || "images/operator/***".pathChanged() || "main.go".pathChanged() || "tools.go".pathChanged() || "pkg/**/*.go".pathChanged() || "cmd/**/*.go".pathChanged() || "version/***".pathChanged() || "config/***".pathChanged() || "*Makefile*".pathChanged() || "vendor/***".pathChanged() || "tests/***".pathChanged() || "LICENSE".pathChanged() )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "release-1.8" && ( ".tekton/compliance-operator-release-1-8-*.yaml".pathChanged() || "images/operator/***".pathChanged() || "main.go".pathChanged() || "tools.go".pathChanged() || "images/operator/Dockerfile".pathChanged() || "build/bin/*".pathChanged() || "pkg/**/*.go".pathChanged() || "cmd/**/*.go".pathChanged() || "version/***".pathChanged() || "config/***".pathChanged() || "*Makefile*".pathChanged() || "vendor/***".pathChanged() || "tests/***".pathChanged() || "LICENSE".pathChanged() )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: compliance-operator-release-1-8
