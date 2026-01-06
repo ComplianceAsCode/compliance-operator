@@ -2,7 +2,7 @@
   "extends": [
     "config:recommended"
   ],
-  "prConcurrentLimit": 30,
+  "prConcurrentLimit": 15,
   "labels": [
     "ok-to-test",
     "px-approved",
@@ -12,11 +12,13 @@
   "schedule": [
     "every weekend"
   ],
-  "packageRules": [
-    {
-      "matchManagers": ["gomod"],
-      "matchBaseBranches": ["/^release-.*/"],
-      "enabled": false
-    }
-  ]
+  "gomod": {
+    "packageRules": [
+      {
+        "matchManagers": ["gomod"],
+        "matchBaseBranches": ["/^release-.*/"],
+        "enabled": false
+      }
+    ]
+  }
 }

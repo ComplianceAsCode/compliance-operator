@@ -63,26 +63,48 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("unable to create or use namespace %s for testing: %w", f.OperatorNamespace, err)
 	}
 
-	log.Printf("creating cluster resources in %s", f.globalManPath)
-	err = f.createFromYAMLFile(&f.globalManPath)
-	if err != nil {
-		return fmt.Errorf("failed to setup test resources: %w", err)
+	// Choose installation method - install CRDs first before registering schemes
+	switch f.installMethod {
+	case InstallMethodSubscription:
+		// Register OLM schemes first so we can create OperatorGroup and Subscription
+		log.Printf("Registering OLM schemes for subscription-based installation")
+		err = f.registerOLMSchemes()
+		if err != nil {
+			return fmt.Errorf("failed to register OLM schemes: %w", err)
+		}
+
+		log.Printf("Installing compliance operator via OLM Subscription")
+		err = f.installViaSubscription(f.olmChannel, f.olmSource, f.olmSourceNamespace)
+		if err != nil {
+			return fmt.Errorf("failed to install via subscription: %w", err)
+		}
+	case InstallMethodManifest:
+		fallthrough
+	default:
+		log.Printf("Installing compliance operator via YAML manifests")
+		log.Printf("creating cluster resources in %s", f.globalManPath)
+		err = f.createFromYAMLFile(&f.globalManPath)
+		if err != nil {
+			return fmt.Errorf("failed to setup test resources: %w", err)
+		}
+
+		err = f.replaceNamespaceFromManifest()
+		if err != nil {
+			return err
+		}
+
+		log.Printf("creating namespaced resources in %s", *f.NamespacedManPath)
+		err = f.createFromYAMLFile(f.NamespacedManPath)
+		if err != nil {
+			return fmt.Errorf("failed to setup test resources: %w", err)
+		}
 	}
 
+	// Register all resource schemes AFTER CRDs are installed
+	log.Printf("registering resource schemes with framework")
 	err = f.addFrameworks()
 	if err != nil {
 		return err
-	}
-
-	err = f.replaceNamespaceFromManifest()
-	if err != nil {
-		return err
-	}
-
-	log.Printf("creating namespaced resources in %s", *f.NamespacedManPath)
-	err = f.createFromYAMLFile(f.NamespacedManPath)
-	if err != nil {
-		return fmt.Errorf("failed to setup test resources: %w", err)
 	}
 
 	err = f.initializeMetricsTestResources()

@@ -1147,6 +1147,19 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 					Rationale: "Test for platform profile tailoring",
 				},
 			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "rhcos4-audit-rules-dac-modification-chmod",
+					Rationale: "Disable rule for testing",
+				},
+			},
+			SetValues: []compv1alpha1.VariableValueSpec{
+				{
+					Name:      "rhcos4-var-selinux-state",
+					Rationale: "Set variable value for testing",
+					Value:     "permissive",
+				},
+			},
 		},
 	}
 	err := f.Client.Create(context.TODO(), tp, nil)
@@ -1158,6 +1171,31 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Verify the tailored profile details through ConfigMap
+	tpConfigMapName := fmt.Sprintf("%s-tp", tpName)
+	tpConfigMap := &corev1.ConfigMap{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      tpConfigMapName,
+		Namespace: f.OperatorNamespace,
+	}, tpConfigMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tailoringData, ok := tpConfigMap.Data["tailoring.xml"]
+	if !ok {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"\"xccdf_org.ssgproject.content_rule_no_netrc_files\" selected=\"true\"",
+		"\"xccdf_org.ssgproject.content_rule_audit_rules_dac_modification_chmod\" selected=\"false\"",
+		"\"xccdf_org.ssgproject.content_value_var_selinux_state\">permissive",
+	} {
+		if !strings.Contains(tailoringData, expected) {
+			t.Fatal(err)
+		}
 	}
 
 	suiteName := framework.GetObjNameFromTest(t)
