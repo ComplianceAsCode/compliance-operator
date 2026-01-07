@@ -78,6 +78,13 @@ func (f *Framework) SetUp() error {
 		if err != nil {
 			return fmt.Errorf("failed to install via subscription: %w", err)
 		}
+
+		// Wait for CRDs to be installed by OLM before registering schemes
+		log.Printf("Waiting for compliance operator CRDs to be installed by OLM")
+		err = f.waitForCRDs()
+		if err != nil {
+			return fmt.Errorf("failed waiting for CRDs to be installed: %w", err)
+		}
 	case InstallMethodManifest:
 		fallthrough
 	default:
