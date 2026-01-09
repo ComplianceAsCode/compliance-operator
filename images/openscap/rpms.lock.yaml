@@ -11,20 +11,20 @@ arches:
     name: libxslt
     evr: 1.1.34-13.el9_6
     sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/o/openscap-1.3.12-1.el9_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2119810
-    checksum: sha256:d40769638f1247d1dcbf6c63b1633d84a5488102a68e9083a72420b2d2cf956a
+    size: 2118389
+    checksum: sha256:8e1c4f093b0fb79481d874ddf1630e325308b641c9dd0992382990a836068abb
     name: openscap
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/o/openscap-scanner-1.3.12-1.el9_6.aarch64.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/o/openscap-scanner-1.3.13-1.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 59655
-    checksum: sha256:e5c2d50ef4aadc24a7a4c32fef4e8ea1688e121b7b0ff5e0dcbbc7f564456187
+    size: 58599
+    checksum: sha256:087b1c69daba9756217a681597986ad52272f63024eaddc310e50b5fad586d85
     name: openscap-scanner
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/x/xmlsec1-1.2.29-13.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 186448
@@ -214,12 +214,12 @@ arches:
     checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
     name: libxslt
     evr: 1.1.34-13.el9_6
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/source/SRPMS/Packages/o/openscap-1.3.12-1.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-aarch64-appstream-source-rpms
-    size: 13991010
-    checksum: sha256:6a7e719573479dce451124ee1ec6075822032bf48a24380719bafdf00ead918b
+    size: 14017583
+    checksum: sha256:c2a52d88b8aad4c7b7ce42ccd777e16e6a0248579f4a51d712f463e2ed84de49
     name: openscap
-    evr: 1:1.3.12-1.el9_6
+    evr: 1:1.3.13-1.el9_7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/source/SRPMS/Packages/x/xmlsec1-1.2.29-13.el9.src.rpm
     repoid: rhel-9-for-aarch64-appstream-source-rpms
     size: 2000140
@@ -338,20 +338,20 @@ arches:
     name: libxslt
     evr: 1.1.34-13.el9_6
     sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/o/openscap-1.3.12-1.el9_6.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
-    size: 2209713
-    checksum: sha256:f619769f48272a5b82b76e32cc4c126d0044782ecf138899808d24f7bb8c2f7c
+    size: 2208728
+    checksum: sha256:3c14d54fbea543eabc478bbda0ac19fa876c85fd97c57294bf0e1d21b2cca8af
     name: openscap
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/o/openscap-scanner-1.3.12-1.el9_6.ppc64le.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/o/openscap-scanner-1.3.13-1.el9_7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
-    size: 62371
-    checksum: sha256:2f30238ec243ca469eb8e323047b1198bded89bc12f38810fda0c3608e17f2a8
+    size: 61354
+    checksum: sha256:781a5d5a0d0c2f113334963806f9f9ac83f6ea3b2396b1e53774252f5d05acb9
     name: openscap-scanner
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/x/xmlsec1-1.2.29-13.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
     size: 194901
@@ -548,12 +548,12 @@ arches:
     checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
     name: libxslt
     evr: 1.1.34-13.el9_6
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/o/openscap-1.3.12-1.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-ppc64le-appstream-source-rpms
-    size: 13991010
-    checksum: sha256:6a7e719573479dce451124ee1ec6075822032bf48a24380719bafdf00ead918b
+    size: 14017583
+    checksum: sha256:c2a52d88b8aad4c7b7ce42ccd777e16e6a0248579f4a51d712f463e2ed84de49
     name: openscap
-    evr: 1:1.3.12-1.el9_6
+    evr: 1:1.3.13-1.el9_7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/x/xmlsec1-1.2.29-13.el9.src.rpm
     repoid: rhel-9-for-ppc64le-appstream-source-rpms
     size: 2000140
@@ -678,20 +678,20 @@ arches:
     name: libxslt
     evr: 1.1.34-13.el9_6
     sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/o/openscap-1.3.12-1.el9_6.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
-    size: 2115207
-    checksum: sha256:ef62e2098c178a939c933cc9f9ba139fa0c4e457f4e4b5c773f594f7130564e4
+    size: 2115966
+    checksum: sha256:05f51d1c239e660e19713dbabae7aab811bb555272b7e5bc86b3503277b4602e
     name: openscap
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/o/openscap-scanner-1.3.12-1.el9_6.s390x.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/o/openscap-scanner-1.3.13-1.el9_7.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
-    size: 58253
-    checksum: sha256:230f5f44609e49f1d398fed14ebde1877e9ea10804d2287483aff2262f00f63a
+    size: 57185
+    checksum: sha256:ad84afdf0f966c40e4939a8c39575558965c47eb18d780a288e7d26edf048806
     name: openscap-scanner
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/x/xmlsec1-1.2.29-13.el9.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
     size: 182822
@@ -881,12 +881,12 @@ arches:
     checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
     name: libxslt
     evr: 1.1.34-13.el9_6
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/o/openscap-1.3.12-1.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-s390x-appstream-source-rpms
-    size: 13991010
-    checksum: sha256:6a7e719573479dce451124ee1ec6075822032bf48a24380719bafdf00ead918b
+    size: 14017583
+    checksum: sha256:c2a52d88b8aad4c7b7ce42ccd777e16e6a0248579f4a51d712f463e2ed84de49
     name: openscap
-    evr: 1:1.3.12-1.el9_6
+    evr: 1:1.3.13-1.el9_7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/x/xmlsec1-1.2.29-13.el9.src.rpm
     repoid: rhel-9-for-s390x-appstream-source-rpms
     size: 2000140
@@ -1005,20 +1005,20 @@ arches:
     name: libxslt
     evr: 1.1.34-13.el9_6
     sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/o/openscap-1.3.12-1.el9_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 2145630
-    checksum: sha256:048b50764682655759c3765e5b5faabcf178a9e119e74350fd8eb33f333545ac
+    size: 2147593
+    checksum: sha256:d64df72174b8d92e373ba11ae266cde687153e485db9f333276ac33d2218b9e1
     name: openscap
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/o/openscap-scanner-1.3.12-1.el9_6.x86_64.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/o/openscap-scanner-1.3.13-1.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 59954
-    checksum: sha256:659c44dc51b62e6d347c7c91f0bdead5f041519e790c19e7638c993bf3123dff
+    size: 58911
+    checksum: sha256:c1b8d19ada54ce1f782e9db07613585c7c98b191d6bcfae9ffb8af397749e33f
     name: openscap-scanner
-    evr: 1:1.3.12-1.el9_6
-    sourcerpm: openscap-1.3.12-1.el9_6.src.rpm
+    evr: 1:1.3.13-1.el9_7
+    sourcerpm: openscap-1.3.13-1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/x/xmlsec1-1.2.29-13.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 196578
@@ -1208,12 +1208,12 @@ arches:
     checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
     name: libxslt
     evr: 1.1.34-13.el9_6
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/o/openscap-1.3.12-1.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-x86_64-appstream-source-rpms
-    size: 13991010
-    checksum: sha256:6a7e719573479dce451124ee1ec6075822032bf48a24380719bafdf00ead918b
+    size: 14017583
+    checksum: sha256:c2a52d88b8aad4c7b7ce42ccd777e16e6a0248579f4a51d712f463e2ed84de49
     name: openscap
-    evr: 1:1.3.12-1.el9_6
+    evr: 1:1.3.13-1.el9_7
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/x/xmlsec1-1.2.29-13.el9.src.rpm
     repoid: rhel-9-for-x86_64-appstream-source-rpms
     size: 2000140
