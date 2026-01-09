@@ -122,6 +122,26 @@ func TestProfileModification(t *testing.T) {
 		t.Fatalf("failed to find rule %s in profile %s", unlinkedRule, profileName)
 	}
 
+	tpName1 := fmt.Sprintf("%s-tp-before-update", pbName)
+	tp1 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName1,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestProfileModification Before Update",
+			Description: "TailoredProfile created before ProfileBundle update",
+			Extends:     profileName,
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp1, nil); err != nil {
+		t.Fatalf("failed to create TailoredProfile %s: %s", tpName1, err)
+	}
+	defer f.Client.Delete(context.TODO(), tp1)
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName1, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+
 	// update the image with a new hash
 	modPb := origPb.DeepCopy()
 	if err := f.Client.Get(context.TODO(), types.NamespacedName{Namespace: modPb.Namespace, Name: modPb.Name}, modPb); err != nil {
@@ -158,6 +178,26 @@ func TestProfileModification(t *testing.T) {
 	framework.IsRuleInProfile(unlinkedRuleName, profilePostUpdate)
 	if found {
 		t.Fatalf("rule %s unexpectedly found", unlinkedRuleName)
+	}
+
+	tpName2 := fmt.Sprintf("%s-tp-after-update", pbName)
+	tp2 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName2,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestProfileModification After Update",
+			Description: "TailoredProfile created after ProfileBundle update",
+			Extends:     profileName,
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp2, nil); err != nil {
+		t.Fatalf("failed to create TailoredProfile %s: %s", tpName2, err)
+	}
+	defer f.Client.Delete(context.TODO(), tp2)
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName2, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
 	}
 }
 
