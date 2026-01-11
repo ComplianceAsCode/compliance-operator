@@ -15,7 +15,7 @@ LABEL \
         io.openshift.maintainer.product="OpenShift Container Platform" \
         io.openshift.maintainer.component="Compliance Operator" \
         run="podman run --privileged -v /:/host  -eHOSTROOT=/host -ePROFILE=xccdf_org.ssgproject.content_profile_coreos-fedramp -eCONTENT=ssg-rhcos4-ds.xml -eREPORT_DIR=/reports -eRULE=xccdf_org.ssgproject.content_rule_selinux_state" \
-        version=1.7.1
+        version=1.8.1
 
 RUN microdnf -y update glibc
 RUN microdnf -y install openscap openscap-scanner
