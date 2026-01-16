@@ -2886,3 +2886,40 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
 }
+
+// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result 
+func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.Node, configMaps []core.ConfigMap) error {
+	for _, node := range nodes {
+		nodeName := node.Name
+		var foundCM *core.ConfigMap
+		var results string
+		for i := range configMaps {
+			cm := &configMaps[i]
+			cmResults, ok := cm.Data["results"]
+			if !ok {
+				continue
+			}
+			targetPattern := fmt.Sprintf(`<target>\s*%s\s*</target>`, regexp.QuoteMeta(nodeName))
+			matched, err := regexp.MatchString(targetPattern, cmResults)
+			if err == nil && matched {
+				foundCM = cm
+				results = cmResults
+				break
+			}
+		}
+
+		if foundCM == nil {
+			return fmt.Errorf("no ConfigMap found containing nodeName '%s' in <target> tag", nodeName)
+		}
+
+		identifierPattern := fmt.Sprintf(`<fact\s+name="urn:xccdf:fact:identifier"[^>]*>\s*%s\s*</fact>`, regexp.QuoteMeta(nodeName))
+		matched, err := regexp.MatchString(identifierPattern, results)
+		if err != nil {
+			return fmt.Errorf("error matching identifier pattern in ConfigMap %s/%s: %w", foundCM.Namespace, foundCM.Name, err)
+		}
+		if !matched {
+			return fmt.Errorf("nodeName '%s' not found in <fact name=\"urn:xccdf:fact:identifier\"> tag in ConfigMap %s/%s", nodeName, foundCM.Namespace, foundCM.Name)
+		}
+	}
+	return nil
+}	

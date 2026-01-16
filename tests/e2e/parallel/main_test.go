@@ -1349,6 +1349,12 @@ func TestScanWithNodeSelectorFiltersCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = f.AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes, configmaps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if len(nodes) != len(configmaps) {
 		t.Fatalf("The number of reports doesn't match the number of selected nodes: %d reports / %d nodes", len(configmaps), len(nodes))
 	}
