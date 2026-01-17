@@ -927,8 +927,8 @@ github.com/securego/gosec/v2/report/sonar
 github.com/securego/gosec/v2/report/text
 github.com/securego/gosec/v2/report/yaml
 github.com/securego/gosec/v2/rules
-# github.com/sirupsen/logrus v1.9.3
-## explicit; go 1.13
+# github.com/sirupsen/logrus v1.9.4
+## explicit; go 1.17
 github.com/sirupsen/logrus
 # github.com/spf13/cobra v1.8.1
 ## explicit; go 1.15
