@@ -350,6 +350,7 @@ func TestScanHasProfileGUID(t *testing.T) {
 	tpName := "test-scan-have-profile-guid-tp"
 	// This is the profileGUID for the redhat_openshift_container_platform_4.1 product and xccdf_org.ssgproject.content_profile_moderate profile
 	const profileGUIDOCPModerate = "d625badc-92a1-5438-afd7-19526c26b03c"
+	const profileGUIDOCPModerateNode = "ef297cbd-f5a0-5c0c-baab-edeebb761e27"
 	const profileGUIDTP = "04a11c78-7c77-545e-8341-f1b7b743bcb8"
 	const profileGUIDRHCOSModerate = "eceb9af0-17d4-5c59-9b17-07cfd22a3ba1"
 	const profileGUIDOCPCIS = "a230315d-3e4a-5b58-b00f-f96f1553e036"
@@ -358,6 +359,12 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = f.AssertProfileGUIDMatches("ocp4-moderate-node", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = f.AssertProfileGUIDMatches("rhcos4-moderate", f.OperatorNamespace, profileGUIDRHCOSModerate)
 	if err != nil {
 		t.Fatal(err)
@@ -366,6 +373,12 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// check the GUID is present for all the profiles
+	err = f.AssertAllProfilesHaveGUID(f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tpName,
@@ -405,6 +418,11 @@ func TestScanHasProfileGUID(t *testing.T) {
 				APIGroup: "compliance.openshift.io/v1alpha1",
 			},
 			{
+				Name:     "ocp4-moderate-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
 				Name:     "rhcos4-moderate",
 				Kind:     "Profile",
 				APIGroup: "compliance.openshift.io/v1alpha1",
@@ -421,13 +439,33 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+	// Cleanup: Delete ScanSettingBinding first, then wait for ComplianceSuite to be cascade-deleted
+	// This ensures proper cleanup before the next test runs
+	defer func() {
+		// Delete the binding first - this will cascade delete the ComplianceSuite
+		if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
+			t.Logf("Failed to delete ScanSettingBinding: %v", err)
+			return
+		}
+		// Now wait for the suite to be deleted (it's owned by the binding)
+		if err := f.WaitForComplianceSuiteDeletion(bindingName, f.OperatorNamespace); err != nil {
+			t.Logf("ComplianceSuite cleanup warning: %v", err)
+		}
+	}()
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
 	}
 
 	// check if the profileGUID is correct in the scan's label
 	err = f.AssertScanGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-worker", f.OperatorNamespace, profileGUIDOCPModerateNode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +486,31 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	// Check if the profileGUID is correct in the ccr's label
+	err = f.AssertResultsGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-worker", f.OperatorNamespace, profileGUIDOCPModerateNode	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-worker", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-master", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-cis", f.OperatorNamespace, profileGUIDOCPCIS)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMixProductScan(t *testing.T) {

@@ -1464,6 +1464,52 @@ func (f *Framework) AssertProfileGUIDMatches(name, namespace, expectedGUID strin
 	return nil
 }
 
+// AssertAllProfilesHaveGUID checks that all profiles in the namespace have the profile-guid label
+func (f *Framework) AssertAllProfilesHaveGUID(namespace string) error {
+	profileList := &compv1alpha1.ProfileList{}
+	lo := &client.ListOptions{
+		Namespace: namespace,
+	}
+	err := f.Client.List(context.TODO(), profileList, lo)
+	if err != nil {
+		return fmt.Errorf("failed to list profiles: %w", err)
+	}
+	for _, profile := range profileList.Items {
+		guid, exists := profile.Labels[compv1alpha1.ProfileGuidLabel]
+		if !exists {
+			return fmt.Errorf("Profile %s does not have label %s", profile.Name, compv1alpha1.ProfileGuidLabel)
+		}
+		if guid == "" {
+			return fmt.Errorf("Profile %s has empty %s label", profile.Name, compv1alpha1.ProfileGuidLabel)
+		}
+	}
+	return nil
+}
+
+// AssertResultsGUIDMatches checks if the first ComplianceCheckResult for a scan has the expected GUID
+func (f *Framework) AssertResultsGUIDMatches(scanName, namespace, expectedGUID string) error {
+	ccrList := &compv1alpha1.ComplianceCheckResultList{}
+	defer f.logContainerOutput(namespace, scanName)
+	lo := &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(map[string]string{
+			compv1alpha1.ComplianceScanLabel: scanName,
+		}),
+		Namespace: namespace,
+	}
+	err := f.Client.List(context.TODO(), ccrList, lo)
+	if err != nil {
+		return err
+	}
+	if len(ccrList.Items) == 0 {
+		return fmt.Errorf("no ComplianceCheckResults found for scan %s in namespace %s", scanName, namespace)
+	}
+	ccr := &ccrList.Items[0]
+	if ccr.Labels[compv1alpha1.ProfileGuidLabel] != expectedGUID {
+		return fmt.Errorf("Expected GUID %s for ComplianceCheckResult %s (scan %s), got %s", expectedGUID, ccr.Name, scanName, ccr.Labels[compv1alpha1.ProfileGuidLabel])
+	}
+	return nil
+}
+
 func (f *Framework) AssertScanIsNonCompliant(name, namespace string) error {
 	cs := &compv1alpha1.ComplianceScan{}
 	defer f.logContainerOutput(namespace, name)
@@ -1570,6 +1616,29 @@ func (f *Framework) AssertComplianceSuiteDoesNotExist(name, namespace string) er
 		return err
 	}
 	return fmt.Errorf("Failed to assert ComplianceSuite %s does not exist.", name)
+}
+
+// WaitForComplianceSuiteDeletion waits for a ComplianceSuite to be deleted.
+// This is useful for cleanup after deleting a ScanSettingBinding, as the suite
+// should be cascade-deleted. Returns nil when the suite is deleted, or an error
+// if the timeout is reached.
+func (f *Framework) WaitForComplianceSuiteDeletion(name, namespace string) error {
+	suiteKey := types.NamespacedName{Name: name, Namespace: namespace}
+	suite := &compv1alpha1.ComplianceSuite{}
+	err := wait.Poll(RetryInterval, 30*time.Second, func() (bool, error) {
+		err := f.Client.Get(context.TODO(), suiteKey, suite)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("ComplianceSuite %s may not have been fully cleaned up: %w", name, err)
+	}
+	return nil
 }
 
 func (f *Framework) AssertScanSettingBindingConditionIsReady(name string, namespace string) error {
