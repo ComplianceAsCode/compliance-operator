@@ -2369,6 +2369,56 @@ func (f *Framework) WaitForNodesToBeReady() error {
 	return nil
 }
 
+// WaitForClusterOperatorsToBeReady waits until all cluster operators are healthy.
+// A healthy cluster operator should have Available=True, Degraded=False, and Progressing=False.
+func (f *Framework) WaitForClusterOperatorsToBeReady() error {
+	log.Printf("Waiting for all cluster operators to be ready...")
+	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		var clusterOperators configv1.ClusterOperatorList
+		err := f.Client.List(context.TODO(), &clusterOperators, &dynclient.ListOptions{})
+		if err != nil {
+			log.Printf("Error listing cluster operators: %s", err)
+			return false, nil
+		}
+
+		var unhealthyOperators []string
+		for _, co := range clusterOperators.Items {
+			available := false
+			degraded := false
+			progressing := false
+
+			for _, condition := range co.Status.Conditions {
+				switch condition.Type {
+				case configv1.OperatorAvailable:
+					available = condition.Status == configv1.ConditionTrue
+				case configv1.OperatorDegraded:
+					degraded = condition.Status == configv1.ConditionTrue
+				case configv1.OperatorProgressing:
+					progressing = condition.Status == configv1.ConditionTrue
+				}
+			}
+
+			if !available || degraded || progressing {
+				unhealthyOperators = append(unhealthyOperators, fmt.Sprintf("%s (Available=%v, Degraded=%v, Progressing=%v)",
+					co.Name, available, degraded, progressing))
+			}
+		}
+
+		if len(unhealthyOperators) > 0 {
+			log.Printf("Cluster operators not ready yet: %v", unhealthyOperators)
+			return false, nil
+		}
+
+		log.Printf("All cluster operators are ready")
+		return true, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed waiting for cluster operators to be ready: %s", err)
+	}
+	return nil
+}
+
 func (f *Framework) ReRunScan(scanName, namespace string) error {
 	scanKey := types.NamespacedName{Name: scanName, Namespace: namespace}
 	err := backoff.Retry(func() error {
