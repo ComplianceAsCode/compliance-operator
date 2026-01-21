@@ -2219,3 +2219,89 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 //		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
 //	},
 //},
+
+func TestTokenRulesPassOauthClientsConfigurable(t *testing.T) {
+	f := framework.Global
+	suiteName := framework.GetObjNameFromTest(t)
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "oauthRules",
+			Description: "oauthRules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-oauth-or-oauthclient-token-maxage",
+					Rationale: "To be tested",
+				},
+				{
+					Name:      "ocp4-oauth-or-oauthclient-inactivity-timeout",
+					Rationale: "To be tested",
+				},
+			},
+			SetValues: []compv1alpha1.VariableValueSpec{
+				{
+					Name:      "ocp4-var-oauth-token-maxage",
+					Value:     "28800",
+					Rationale: "Set token max age to 28800 seconds",
+				},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     suiteName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err := f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for initial scan to complete and verify non-compliant
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	// Patch all oauthclients to make them compliant
+	if err := f.PatchAllOAuthClients(28800, 600); err != nil {
+		t.Fatalf("failed to patch oauthclients: %s", err)
+	}
+
+	// Re-run the suite
+	if err := f.RescanSuite(suiteName, f.OperatorNamespace); err != nil {
+		t.Fatalf("failed to rescan suite: %s", err)
+	}
+
+	// Wait for scans to restart
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseRunning, compv1alpha1.ResultNotAvailable); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for scans to complete and verify compliant
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err != nil {
+		t.Fatal(err)
+	}
+}
