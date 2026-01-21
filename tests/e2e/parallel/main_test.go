@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -5300,4 +5301,110 @@ func TestRuleVariableAnnotation(t *testing.T) {
 			t.Logf("Rule %s correctly has variable annotation: %s", tc.ruleName, tc.expectedVariable)
 		})
 	}
+}
+
+// TestCSVInfrastructureFeaturesAnnotation tests that the Compliance Operator CSV
+// has the proper infrastructure features annotation for disconnected environments.
+// This test verifies support for disconnected, FIPS, and proxy-aware configurations.
+// Ported from downstream test case OCP-40280
+//
+// NOTE: This test requires the operator to be installed via OLM.
+// To run this test, ensure the test suite is started with the following flags:
+//   -installMethod=subscription
+//   -olmChannel=<channel>       (e.g., "stable", "alpha")
+//   -olmSource=<source>          (e.g., "redhat-operators", "compliance-operator")
+//   -olmSourceNamespace=<ns>     (e.g., "openshift-marketplace")
+func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Verify OLM is available on the cluster
+	olmAvailable := isOLMAvailable(t, f)
+	if !olmAvailable {
+		t.Skip("OLM is not available on this cluster - test requires OLM")
+	}
+
+	// Get the compliance-operator CSV
+	csv := getComplianceOperatorCSV(t, f)
+	if csv == nil {
+		t.Fatal("Compliance operator CSV not found. This test requires the operator to be installed via OLM. " +
+			"Please run the test suite with -installMethod=subscription flag.")
+	}
+
+	// Verify the CSV has the required infrastructure-features annotation
+	verifyInfrastructureFeaturesAnnotation(t, csv)
+}
+
+// isOLMAvailable checks if OLM is installed on the cluster
+func isOLMAvailable(t *testing.T, f *framework.Framework) bool {
+	csvList := &unstructured.UnstructuredList{}
+	csvList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v1alpha1",
+		Kind:    "ClusterServiceVersionList",
+	})
+
+	err := f.Client.List(context.TODO(), csvList)
+	if err != nil {
+		t.Logf("OLM not available: %v", err)
+		return false
+	}
+
+	t.Log("OLM is available on the cluster")
+	return true
+}
+
+// getComplianceOperatorCSV retrieves the compliance-operator CSV from the operator namespace
+func getComplianceOperatorCSV(t *testing.T, f *framework.Framework) *unstructured.Unstructured {
+	csvList := &unstructured.UnstructuredList{}
+	csvList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v1alpha1",
+		Kind:    "ClusterServiceVersionList",
+	})
+
+	listOpts := &client.ListOptions{
+		Namespace: f.OperatorNamespace,
+	}
+
+	err := f.Client.List(context.TODO(), csvList, listOpts)
+	if err != nil {
+		t.Logf("Failed to list CSVs in namespace %s: %v", f.OperatorNamespace, err)
+		return nil
+	}
+
+	if len(csvList.Items) == 0 {
+		t.Logf("No CSVs found in namespace %s", f.OperatorNamespace)
+		return nil
+	}
+
+	// Find the compliance-operator CSV
+	for i := range csvList.Items {
+		name := csvList.Items[i].GetName()
+		// CSV names typically start with "compliance-operator"
+		if len(name) >= 19 && name[:19] == "compliance-operator" {
+			t.Logf("Found compliance-operator CSV: %s", name)
+			return &csvList.Items[i]
+		}
+	}
+
+	t.Log("No compliance-operator CSV found in namespace")
+	return nil
+}
+
+// verifyInfrastructureFeaturesAnnotation verifies the CSV has the correct infrastructure-features annotation
+func verifyInfrastructureFeaturesAnnotation(t *testing.T, csv *unstructured.Unstructured) {
+	annotations := csv.GetAnnotations()
+	infraFeatures, exists := annotations["operators.openshift.io/infrastructure-features"]
+	if !exists {
+		t.Fatal("CSV is missing operators.openshift.io/infrastructure-features annotation")
+	}
+
+	// The annotation should contain ["disconnected", "fips", "proxy-aware"]
+	expectedFeatures := `["disconnected", "fips", "proxy-aware"]`
+	if infraFeatures != expectedFeatures {
+		t.Fatalf("Expected infrastructure-features to be %s, but got: %s", expectedFeatures, infraFeatures)
+	}
+
+	t.Logf("CSV %s correctly has infrastructure-features annotation: %s", csv.GetName(), infraFeatures)
 }
