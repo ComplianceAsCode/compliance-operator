@@ -5301,3 +5301,186 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestCISProfileVersionConsistency verifies that versioned (e.g., ocp4-cis-1-7) and
+// non-versioned (e.g., ocp4-cis) CIS profiles produce identical compliance scan results.
+func TestCISProfileVersionConsistency(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	t.Log("Testing CIS profile version consistency between ocp4-cis and ocp4-cis-1-7")
+
+	// Profile configurations for the test
+	type profileSet struct {
+		name            string
+		platformProfile string
+		nodeProfile     string
+	}
+
+	baseProfiles := profileSet{
+		name:            "base",
+		platformProfile: "ocp4-cis",
+		nodeProfile:     "ocp4-cis-node",
+	}
+
+	versionedProfiles := profileSet{
+		name:            "versioned",
+		platformProfile: "ocp4-cis-1-7",
+		nodeProfile:     "ocp4-cis-node-1-7",
+	}
+
+	// Helper to create ScanSettingBinding
+	createBinding := func(profiles profileSet) (*compv1alpha1.ScanSettingBinding, error) {
+		bindingName := framework.GetObjNameFromTest(t) + "-" + profiles.name
+		binding := &compv1alpha1.ScanSettingBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      bindingName,
+				Namespace: f.OperatorNamespace,
+			},
+			Profiles: []compv1alpha1.NamedObjectReference{
+				{
+					Name:     profiles.platformProfile,
+					Kind:     "Profile",
+					APIGroup: "compliance.openshift.io/v1alpha1",
+				},
+				{
+					Name:     profiles.nodeProfile,
+					Kind:     "Profile",
+					APIGroup: "compliance.openshift.io/v1alpha1",
+				},
+			},
+		}
+
+		if err := f.Client.Create(context.TODO(), binding, nil); err != nil {
+			return nil, fmt.Errorf("failed to create %s ScanSettingBinding: %w", profiles.name, err)
+		}
+		t.Logf("Created ScanSettingBinding %s with profiles: %s, %s",
+			bindingName, profiles.platformProfile, profiles.nodeProfile)
+		return binding, nil
+	}
+
+	// Helper to wait for suite completion with DONE phase
+	waitForSuiteCompletion := func(suiteName, description string) error {
+		t.Logf("Waiting for %s ComplianceSuite to complete...", description)
+
+		// Try NON-COMPLIANT first
+		err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+		if err != nil {
+			// If not NON-COMPLIANT, try INCONSISTENT
+			errInconsistent := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultInconsistent)
+			if errInconsistent != nil {
+				return fmt.Errorf("%s suite not in expected state (tried NON-COMPLIANT and INCONSISTENT): %w", description, err)
+			}
+		}
+		t.Logf("%s ComplianceSuite completed", description)
+		return nil
+	}
+
+	// Helper to match scans by node role (master/worker) or platform type
+	findMatchingScan := func(scanName string, scanCounts map[string]int) (string, int, bool) {
+		isMaster := strings.Contains(scanName, "master")
+		isWorker := strings.Contains(scanName, "worker")
+		isPlatform := !isMaster && !isWorker
+
+		for candidateName, count := range scanCounts {
+			candidateIsMaster := strings.Contains(candidateName, "master")
+			candidateIsWorker := strings.Contains(candidateName, "worker")
+			candidateIsPlatform := !candidateIsMaster && !candidateIsWorker
+
+			// Match by role: master with master, worker with worker, platform with platform
+			if (isMaster && candidateIsMaster) ||
+				(isWorker && candidateIsWorker) ||
+				(isPlatform && candidateIsPlatform) {
+				return candidateName, count, true
+			}
+		}
+		return "", 0, false
+	}
+
+	// Create bindings for both profile sets
+	baseBinding, err := createBinding(baseProfiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), baseBinding)
+
+	versionedBinding, err := createBinding(versionedProfiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), versionedBinding)
+
+	// Wait for both suites to complete
+	if err := waitForSuiteCompletion(baseBinding.Name, "base"); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForSuiteCompletion(versionedBinding.Name, "versioned"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fetch completed suites
+	baseSuite := &compv1alpha1.ComplianceSuite{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Namespace: f.OperatorNamespace,
+		Name:      baseBinding.Name,
+	}, baseSuite); err != nil {
+		t.Fatalf("failed to retrieve base ComplianceSuite: %s", err)
+	}
+
+	versionedSuite := &compv1alpha1.ComplianceSuite{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Namespace: f.OperatorNamespace,
+		Name:      versionedBinding.Name,
+	}, versionedSuite); err != nil {
+		t.Fatalf("failed to retrieve versioned ComplianceSuite: %s", err)
+	}
+
+	t.Logf("Base suite status: phase=%s, result=%s", baseSuite.Status.Phase, baseSuite.Status.Result)
+	t.Logf("Versioned suite status: phase=%s, result=%s", versionedSuite.Status.Phase, versionedSuite.Status.Result)
+
+	// Collect and compare scan counts
+	t.Log("Collecting check counts from all scans...")
+	baseCounts, err := f.CollectScanCounts(t, baseSuite, "base")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	versionedCounts, err := f.CollectScanCounts(t, versionedSuite, "versioned")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Compare scans and their results
+	t.Log("Comparing scan results between base and versioned profiles...")
+	matchedPairs := 0
+
+	for versionedScanName, versionedCount := range versionedCounts {
+		baseScanName, baseCount, found := findMatchingScan(versionedScanName, baseCounts)
+
+		if !found {
+			t.Errorf("No matching base scan found for versioned scan: %s", versionedScanName)
+			continue
+		}
+
+		// Verify rule counts match
+		if versionedCount != baseCount {
+			t.Fatalf("Rule count mismatch: %s has %d rules, %s has %d rules",
+				versionedScanName, versionedCount, baseScanName, baseCount)
+		}
+		t.Logf("✓ Rule counts match for %s ↔ %s: %d rules",
+			versionedScanName, baseScanName, versionedCount)
+
+		// Verify check results match
+		if err := f.CompareCheckResults(t, f.OperatorNamespace, versionedScanName, baseScanName); err != nil {
+			t.Fatalf("Check results differ between %s and %s: %s",
+				versionedScanName, baseScanName, err)
+		}
+		t.Logf("✓ All check results match for %s ↔ %s", versionedScanName, baseScanName)
+
+		matchedPairs++
+	}
+
+	// Summary
+	t.Logf("Successfully verified %d scan pairs between base and versioned CIS profiles", matchedPairs)
+	t.Log("✓ CIS profile versions produce consistent results")
+}

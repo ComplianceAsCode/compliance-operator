@@ -2945,3 +2945,111 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
 }
+
+// GetScanCheckCount returns the check count from a scan's annotation
+func (f *Framework) GetScanCheckCount(namespace, scanName string) (int, error) {
+	scan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Namespace: namespace,
+		Name:      scanName,
+	}, scan); err != nil {
+		return 0, err
+	}
+	checkCount, ok := scan.Annotations[compv1alpha1.ComplianceCheckCountAnnotation]
+	if !ok {
+		return 0, fmt.Errorf("scan %s missing check count annotation", scanName)
+	}
+	return strconv.Atoi(checkCount)
+}
+
+// CollectScanCounts collects check counts for all scans in a ComplianceSuite
+func (f *Framework) CollectScanCounts(t *testing.T, suite *compv1alpha1.ComplianceSuite, description string) (map[string]int, error) {
+	counts := make(map[string]int)
+	for _, scanStatus := range suite.Status.ScanStatuses {
+		// Verify scan has valid check counts
+		if err := f.AssertScanHasTotalCheckCounts(f.OperatorNamespace, scanStatus.Name); err != nil {
+			return nil, fmt.Errorf("failed check count validation for %s scan %s: %s", description, scanStatus.Name, err)
+		}
+		count, err := f.GetScanCheckCount(f.OperatorNamespace, scanStatus.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get check count for %s scan %s: %s", description, scanStatus.Name, err)
+		}
+		counts[scanStatus.Name] = count
+		t.Logf("%s scan %s: %d rules", description, scanStatus.Name, count)
+	}
+	return counts, nil
+}
+
+// GetCheckResultsForScan retrieves all ComplianceCheckResults for a specific scan
+func (f *Framework) GetCheckResultsForScan(namespace, scanName string) (map[string]compv1alpha1.ComplianceCheckStatus, error) {
+	var checkList compv1alpha1.ComplianceCheckResultList
+	checkListOpts := client.MatchingLabels{
+		compv1alpha1.ComplianceScanLabel: scanName,
+	}
+	if err := f.Client.List(context.TODO(), &checkList, checkListOpts); err != nil {
+		return nil, err
+	}
+
+	results := make(map[string]compv1alpha1.ComplianceCheckStatus)
+	for _, check := range checkList.Items {
+		// Use the check ID as the key - it's consistent across scans
+		ruleID := check.ID
+		if ruleID == "" {
+			// Fallback to check name if ID is not set
+			ruleID = check.Name
+		}
+		results[ruleID] = check.Status
+	}
+	return results, nil
+}
+
+// CompareCheckResults compares ComplianceCheckResults between two scans
+func (f *Framework) CompareCheckResults(t *testing.T, namespace string, scan1Name, scan2Name string) error {
+	results1, err := f.GetCheckResultsForScan(namespace, scan1Name)
+	if err != nil {
+		return fmt.Errorf("failed to get check results for scan %s: %w", scan1Name, err)
+	}
+
+	results2, err := f.GetCheckResultsForScan(namespace, scan2Name)
+	if err != nil {
+		return fmt.Errorf("failed to get check results for scan %s: %w", scan2Name, err)
+	}
+
+	// Check if the number of results matches
+	if len(results1) != len(results2) {
+		return fmt.Errorf("check result count mismatch: %s has %d checks, %s has %d checks",
+			scan1Name, len(results1), scan2Name, len(results2))
+	}
+
+	// Compare each rule's status
+	var mismatches []string
+	for ruleName, status1 := range results1 {
+		status2, exists := results2[ruleName]
+		if !exists {
+			mismatches = append(mismatches, fmt.Sprintf("rule %s exists in %s but not in %s", ruleName, scan1Name, scan2Name))
+			continue
+		}
+		if status1 != status2 {
+			mismatches = append(mismatches, fmt.Sprintf("rule %s: %s=%s, %s=%s",
+				ruleName, scan1Name, status1, scan2Name, status2))
+		}
+	}
+
+	// Check for rules that exist in results2 but not in results1
+	for ruleName := range results2 {
+		if _, exists := results1[ruleName]; !exists {
+			mismatches = append(mismatches, fmt.Sprintf("rule %s exists in %s but not in %s", ruleName, scan2Name, scan1Name))
+		}
+	}
+
+	if len(mismatches) > 0 {
+		t.Logf("Found %d check result mismatches between %s and %s:", len(mismatches), scan1Name, scan2Name)
+		for _, mismatch := range mismatches {
+			t.Logf("  - %s", mismatch)
+		}
+		return fmt.Errorf("found %d check result mismatches", len(mismatches))
+	}
+
+	t.Logf("All %d check results match between %s and %s", len(results1), scan1Name, scan2Name)
+	return nil
+}
