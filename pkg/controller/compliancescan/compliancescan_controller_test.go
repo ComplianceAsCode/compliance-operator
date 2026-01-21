@@ -337,6 +337,54 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			Expect(compliancescaninstance.Status.Result).To(Equal(compv1alpha1.ResultNotAvailable))
 		})
 
+		It("should remove annotations when performing a rescan", func() {
+			compliancescaninstance.Annotations = make(map[string]string)
+			compliancescaninstance.Annotations[compv1alpha1.ComplianceScanRescanAnnotation] = ""
+			if err := reconciler.Client.Update(context.TODO(), compliancescaninstance); err != nil {
+				s := fmt.Sprintf("failed to set %s annotation on %s", compv1alpha1.ComplianceScanRescanAnnotation, compliancescaninstance.Name)
+				Fail(s)
+			}
+
+			result, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+			Expect(result).NotTo(BeNil())
+			Expect(err).To(BeNil())
+
+			actual := &compv1alpha1.ComplianceScan{}
+			key := types.NamespacedName{
+				Name:      compliancescaninstance.Name,
+				Namespace: compliancescaninstance.Namespace,
+			}
+			if err = reconciler.Client.Get(context.TODO(), key, actual); err != nil {
+				s := fmt.Sprintf("failed to get ComplianceScan %s", compliancescaninstance.Name)
+				Fail(s)
+			}
+			Expect(actual.Annotations).To(BeNil())
+		})
+
+		It("should remove annotations when performing a rescan due to timeout", func() {
+			compliancescaninstance.Annotations = make(map[string]string)
+			compliancescaninstance.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation] = ""
+			if err := reconciler.Client.Update(context.TODO(), compliancescaninstance); err != nil {
+				s := fmt.Sprintf("failed to set %s annotation on %s", compv1alpha1.ComplianceScanTimeoutAnnotation, compliancescaninstance.Name)
+				Fail(s)
+			}
+
+			result, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+			Expect(result).NotTo(BeNil())
+			Expect(err).To(BeNil())
+
+			actual := &compv1alpha1.ComplianceScan{}
+			key := types.NamespacedName{
+				Name:      compliancescaninstance.Name,
+				Namespace: compliancescaninstance.Namespace,
+			}
+			if err = reconciler.Client.Get(context.TODO(), key, actual); err != nil {
+				s := fmt.Sprintf("failed to get ComplianceScan %s", compliancescaninstance.Name)
+				Fail(s)
+			}
+			Expect(actual.Annotations).To(BeNil())
+		})
+
 		Context("With correct custom RawResultStorage.Size", func() {
 			It("should update the compliancescan instance to phase LAUNCHING", func() {
 				compliancescaninstance.Spec.RawResultStorage.Size = "2Gi"
