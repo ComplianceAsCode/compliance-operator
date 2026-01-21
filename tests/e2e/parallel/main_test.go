@@ -99,9 +99,7 @@ func TestProfileModification(t *testing.T) {
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
 	}
-	if err := f.AssertMustHaveParsedProfiles(pbName, string(compv1alpha1.ScanTypeNode), "redhat_enterprise_linux_coreos_4"); err != nil {
-		t.Fatalf("failed checking profiles in ProfileBundle: %s", err)
-	}
+	f.AssertMustHaveParsedProfiles(t, pbName, string(compv1alpha1.ScanTypeNode), "redhat_enterprise_linux_coreos_4")
 
 	// Check that the rule we removed exists in the original profile
 	removedRuleName := prefixName(pbName, removedRule)
@@ -197,9 +195,7 @@ func TestProfileISTagUpdate(t *testing.T) {
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
 	}
-	if err := f.AssertMustHaveParsedProfiles(pbName, string(compv1alpha1.ScanTypeNode), "redhat_enterprise_linux_coreos_4"); err != nil {
-		t.Fatalf("failed checking profiles in ProfileBundle: %s", err)
-	}
+	f.AssertMustHaveParsedProfiles(t, pbName, string(compv1alpha1.ScanTypeNode), "redhat_enterprise_linux_coreos_4")
 
 	// Check that the rule we removed exists in the original profile
 	removedRuleName := prefixName(pbName, removedRule)
@@ -297,9 +293,7 @@ func TestProfileISTagOtherNs(t *testing.T) {
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatalf("failed waiting for ProfileBundle to parse: %s", err)
 	}
-	if err := f.AssertMustHaveParsedProfiles(pbName, string(compv1alpha1.ScanTypeNode), "redhat_enterprise_linux_coreos_4"); err != nil {
-		t.Fatalf("failed to assert profiles in ProfileBundle %s: %s", pbName, err)
-	}
+	f.AssertMustHaveParsedProfiles(t, pbName, string(compv1alpha1.ScanTypeNode), "redhat_enterprise_linux_coreos_4")
 
 	// Check that the rule we removed exists in the original profile
 	removedRuleName := prefixName(pbName, removedRule)
