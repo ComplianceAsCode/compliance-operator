@@ -5274,24 +5274,19 @@ func TestDefaultProfileBundlesAndProfiles(t *testing.T) {
 	arch := nodes[0].Labels["kubernetes.io/arch"]
 	t.Logf("Detected cluster architecture: %s", arch)
 
-	// Get cluster architecture by querying nodes
-	// rhcos4 ProfileBundle should exist for AMD64, ARM64, and MULTI architectures
+	// rhcos4 ProfileBundle should exist for AMD64, ARM64, PPC64LE, and MULTI architectures
 	// For S390X, rhcos4 is not supported
 	switch arch {
 	case "amd64", "arm64", "ppc64le", "multi":
 		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
 		if err != nil {
-			t.Fatalf("rhcos4 ProfileBundle does not exist or is not valid: %v", err)
+			t.Fatalf("rhcos4 ProfileBundle does not exist or is not valid for architecture %s: %v", arch, err)
 		}
 		t.Log("rhcos4 ProfileBundle is valid")
 	case "s390x":
 		t.Logf("rhcos4 ProfileBundle is not expected for architecture: %s", arch)
 	default:
-		t.Logf("Unknown architecture %s, assuming rhcos4 should exist", arch)
-		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
-		if err != nil {
-			t.Logf("Warning: rhcos4 ProfileBundle does not exist for unknown architecture %s", arch)
-		}
+		t.Fatalf("Unknown architecture: %s. Cannot determine expected ProfileBundles and Profiles.", arch)
 	}
 
 	// Define expected profiles for each architecture
@@ -5392,28 +5387,52 @@ func TestDefaultProfileBundlesAndProfiles(t *testing.T) {
 			"rhcos4-moderate",
 			"rhcos4-moderate-rev-4",
 		},
+		"multi": {
+			"ocp4-cis",
+			"ocp4-cis-1-7",
+			"ocp4-cis-node",
+			"ocp4-cis-node-1-7",
+			"ocp4-moderate",
+			"ocp4-moderate-rev-4",
+			"ocp4-moderate-node",
+			"ocp4-moderate-node-rev-4",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-3-2",
+			"ocp4-pci-dss-4-0",
+			"ocp4-pci-dss-node",
+			"ocp4-pci-dss-node-3-2",
+			"ocp4-pci-dss-node-4-0",
+			"rhcos4-moderate",
+			"rhcos4-moderate-rev-4",
+		},
 	}
 
 	expectedProfiles, ok := profilesByArch[arch]
 	if !ok {
-		t.Logf("No expected profile list defined for architecture: %s, checking common profiles only", arch)
-		// Check at least the common profiles that should exist on all architectures
-		expectedProfiles = []string{
-			"ocp4-cis",
-			"ocp4-cis-1-7",
-			"ocp4-moderate",
-			"ocp4-moderate-rev-4",
-		}
+		t.Fatalf("No expected profile list defined for architecture: %s", arch)
 	}
 
-	// Verify each expected profile exists
+	// Verify each expected profile exists with retry
 	for _, profileName := range expectedProfiles {
-		err, found := f.DoesObjectExist("Profile", f.OperatorNamespace, profileName)
-		if err != nil {
-			t.Fatalf("Error checking if profile %s exists: %v", profileName, err)
-		}
-		if !found {
-			t.Fatalf("Expected profile %s not found for architecture %s", profileName, arch)
+		var lastErr error
+		timeoutErr := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+			lastErr, found := f.DoesObjectExist("Profile", f.OperatorNamespace, profileName)
+			if lastErr != nil {
+				log.Printf("Error checking if profile %s exists: %v", profileName, lastErr)
+				return false, nil
+			}
+			if !found {
+				log.Printf("Waiting for profile %s to be created", profileName)
+				return false, nil
+			}
+			return true, nil
+		})
+
+		if timeoutErr != nil {
+			if lastErr != nil {
+				t.Fatalf("Error checking if profile %s exists: %v", profileName, lastErr)
+			}
+			t.Fatalf("Timeout waiting for profile %s to be created for architecture %s", profileName, arch)
 		}
 		t.Logf("Profile %s exists", profileName)
 	}
