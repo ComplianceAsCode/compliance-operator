@@ -126,93 +126,6 @@ func (f *Framework) cleanUpFromYAMLFile(p *string) error {
 	return nil
 }
 
-// CollectMustGather collects must-gather data from the cluster for debugging test failures.
-// It attempts to determine the must-gather image from the CSV and runs oc adm must-gather.
-// If the CSV cannot be found or the must-gather image is not available, it falls back to
-// using a default image or skips collection.
-// The output is saved to ARTIFACT_DIR if set, otherwise to the current directory.
-func (f *Framework) CollectMustGather(testName string) {
-	timestamp := time.Now().Format("20060102-150405")
-	outputDirName := fmt.Sprintf("must-gather-%s-%s", testName, timestamp)
-
-	// Use ARTIFACT_DIR if set (for CI), otherwise use current directory
-	baseDir := os.Getenv("ARTIFACT_DIR")
-	var outputDir string
-	if baseDir != "" {
-		outputDir = filepath.Join(baseDir, outputDirName)
-		log.Printf("Collecting must-gather data to artifact directory: %s\n", outputDir)
-	} else {
-		outputDir = outputDirName
-		log.Printf("Collecting must-gather data to current directory: %s\n", outputDir)
-	}
-
-	// Try to get the must-gather image from the CSV
-	mustGatherImage := ""
-
-	// List all CSVs in the operator namespace
-	csvList := &unstructured.UnstructuredList{}
-	csvList.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "operators.coreos.com",
-		Version: "v1alpha1",
-		Kind:    "ClusterServiceVersionList",
-	})
-
-	if err := f.Client.List(context.TODO(), csvList, client.InNamespace(f.OperatorNamespace)); err != nil {
-		log.Printf("Warning: Failed to list CSVs: %v\n", err)
-	} else {
-		// Find the compliance-operator CSV
-		for _, csv := range csvList.Items {
-			if strings.Contains(csv.GetName(), "compliance-operator") {
-				// Extract must-gather image from relatedImages
-				relatedImages, found, err := unstructured.NestedSlice(csv.Object, "spec", "relatedImages")
-				if err == nil && found {
-					for _, img := range relatedImages {
-						imgMap, ok := img.(map[string]interface{})
-						if !ok {
-							continue
-						}
-						name, _, _ := unstructured.NestedString(imgMap, "name")
-						if name == "must-gather" {
-							image, _, _ := unstructured.NestedString(imgMap, "image")
-							mustGatherImage = image
-							break
-						}
-					}
-				}
-				break
-			}
-		}
-	}
-
-	// If we couldn't find the image from CSV, use the default
-	if mustGatherImage == "" {
-		mustGatherImage = "ghcr.io/complianceascode/must-gather-ocp:latest"
-		log.Printf("Using default must-gather image: %s\n", mustGatherImage)
-	} else {
-		log.Printf("Using must-gather image from CSV: %s\n", mustGatherImage)
-	}
-
-	// First, collect operator logs directly from the operator namespace
-	// This is critical for osdk-e2e namespaces which may not be included in must-gather
-	log.Printf("Collecting operator logs from namespace: %s\n", f.OperatorNamespace)
-	f.CollectOperatorLogs(outputDir)
-
-	// Run oc adm must-gather
-	log.Printf("Running: oc adm must-gather --image=%s --dest-dir=%s\n", mustGatherImage, outputDir)
-
-	cmd := exec.Command("oc", "adm", "must-gather", fmt.Sprintf("--image=%s", mustGatherImage), fmt.Sprintf("--dest-dir=%s", outputDir))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Printf("Warning: Failed to collect must-gather data: %v\n", err)
-		log.Printf("Must-gather data was not collected, but test will continue\n")
-	} else {
-		log.Printf("Successfully collected must-gather data to %s\n", outputDir)
-		log.Printf("You can find the must-gather archive in the current directory\n")
-	}
-}
-
 // CollectOperatorLogs collects logs and debug information from the operator namespace.
 // This is especially important for osdk-e2e test namespaces that may not be included in must-gather.
 // Uses 'oc adm inspect' to collect comprehensive debugging information and creates a tarball.
@@ -745,6 +658,11 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 		log.Printf("waiting ProfileBundle %s to become %s (%s)\n", name, status, pb.Status.DataStreamStatus)
 		return false, nil
 	})
+
+	// Collect operator logs for debugging
+	log.Printf("Collecting operator logs for ProfileBundle %s...\n", name)
+	f.CollectOperatorLogs(fmt.Sprintf("ProfileBundle-%s", name))
+
 	if timeouterr != nil {
 		// Log basic information about the failure
 		log.Printf("ProfileBundle %s failed to reach state %s\n", name, status)
@@ -755,10 +673,6 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 		if pb.Status.ErrorMessage != "" {
 			log.Printf("ErrorMessage: %s\n", pb.Status.ErrorMessage)
 		}
-
-		// Collect must-gather data for comprehensive debugging
-		log.Printf("Collecting must-gather data for detailed debugging information...\n")
-		f.CollectMustGather(fmt.Sprintf("ProfileBundle-%s", name))
 
 		// Include error details in the returned error
 		errMsg := fmt.Sprintf("ProfileBundle %s failed to reach state %s (current: %s)",
