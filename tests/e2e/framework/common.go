@@ -35,7 +35,6 @@ import (
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
