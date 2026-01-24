@@ -83,7 +83,7 @@ func GetInt(n ast.Node) (int64, error) {
 	if node, ok := n.(*ast.BasicLit); ok && node.Kind == token.INT {
 		return strconv.ParseInt(node.Value, 0, 64)
 	}
-	return 0, fmt.Errorf("Unexpected AST node type: %T", n)
+	return 0, fmt.Errorf("unexpected AST node type: %T", n)
 }
 
 // GetFloat will read and return a float value from an ast.BasicLit
@@ -91,7 +91,7 @@ func GetFloat(n ast.Node) (float64, error) {
 	if node, ok := n.(*ast.BasicLit); ok && node.Kind == token.FLOAT {
 		return strconv.ParseFloat(node.Value, 64)
 	}
-	return 0.0, fmt.Errorf("Unexpected AST node type: %T", n)
+	return 0.0, fmt.Errorf("unexpected AST node type: %T", n)
 }
 
 // GetChar will read and return a char value from an ast.BasicLit
@@ -99,7 +99,7 @@ func GetChar(n ast.Node) (byte, error) {
 	if node, ok := n.(*ast.BasicLit); ok && node.Kind == token.CHAR {
 		return node.Value[0], nil
 	}
-	return 0, fmt.Errorf("Unexpected AST node type: %T", n)
+	return 0, fmt.Errorf("unexpected AST node type: %T", n)
 }
 
 // GetStringRecursive will recursively walk down a tree of *ast.BinaryExpr. It will then concat the results, and return.
@@ -142,7 +142,7 @@ func GetString(n ast.Node) (string, error) {
 		return strconv.Unquote(node.Value)
 	}
 
-	return "", fmt.Errorf("Unexpected AST node type: %T", n)
+	return "", fmt.Errorf("unexpected AST node type: %T", n)
 }
 
 // GetCallObject returns the object and call expression and associated
@@ -552,4 +552,25 @@ func parseGoVersion(version string) (int, int, int) {
 	build, _ := strconv.Atoi(parts[3])
 
 	return major, minor, build
+}
+
+// CLIBuildTags converts a list of Go build tags into the corresponding CLI
+// build flag (-tags=form) by trimming whitespace, removing empty entries,
+// and joining them into a comma-separated -tags argument for use with go build
+// commands.
+func CLIBuildTags(buildTags []string) []string {
+	var buildFlags []string
+	if len(buildTags) > 0 {
+		for _, tag := range buildTags {
+			// remove empty entries and surrounding whitespace
+			if t := strings.TrimSpace(tag); t != "" {
+				buildFlags = append(buildFlags, t)
+			}
+		}
+		if len(buildFlags) > 0 {
+			buildFlags = []string{"-tags=" + strings.Join(buildFlags, ",")}
+		}
+	}
+
+	return buildFlags
 }

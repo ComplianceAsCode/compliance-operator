@@ -61,7 +61,7 @@ USAGE:
 
 `
 	// Environment variable for AI API key.
-	aiApiKeyEnv = "GOSEC_AI_API_KEY" // #nosec G101
+	aiAPIKeyEnv = "GOSEC_AI_API_KEY" // #nosec G101
 )
 
 type arrayFlags []string
@@ -154,13 +154,16 @@ var (
 	flagTerse = flag.Bool("terse", false, "Shows only the results and summary")
 
 	// AI platform provider to generate solutions to issues
-	flagAiApiProvider = flag.String("ai-api-provider", "", "AI API provider to generate auto fixes to issues.\nValid options are: gemini")
+	flagAiAPIProvider = flag.String("ai-api-provider", "", autofix.AIProviderFlagHelp)
 
 	// key to implementing AI provider services
-	flagAiApiKey = flag.String("ai-api-key", "", "Key to access the AI API")
+	flagAiAPIKey = flag.String("ai-api-key", "", "Key to access the AI API")
 
-	// endpoint to the AI provider
-	flagAiEndpoint = flag.String("ai-endpoint", "", "Endpoint AI API.\nThis is optional, the default API endpoint will be used when not provided.")
+	// base URL for AI API (optional, for OpenAI-compatible APIs)
+	flagAiBaseURL = flag.String("ai-base-url", "", "Base URL for AI API (e.g., for OpenAI-compatible services)")
+
+	// skip SSL verification for AI API
+	flagAiSkipSSL = flag.Bool("ai-skip-ssl", false, "Skip SSL certificate verification for AI API")
 
 	// exclude the folders from scan
 	flagDirsExclude arrayFlags
@@ -297,11 +300,7 @@ func getPrintedFormat(format string, verbose string) string {
 }
 
 func printReport(format string, color bool, rootPaths []string, reportInfo *gosec.ReportInfo) error {
-	err := report.CreateReport(os.Stdout, format, color, rootPaths, reportInfo)
-	if err != nil {
-		return err
-	}
-	return nil
+	return report.CreateReport(os.Stdout, format, color, rootPaths, reportInfo)
 }
 
 func saveReport(filename, format string, rootPaths []string, reportInfo *gosec.ReportInfo) error {
@@ -310,11 +309,7 @@ func saveReport(filename, format string, rootPaths []string, reportInfo *gosec.R
 		return err
 	}
 	defer outfile.Close() // #nosec G307
-	err = report.CreateReport(outfile, format, false, rootPaths, reportInfo)
-	if err != nil {
-		return err
-	}
-	return nil
+	return report.CreateReport(outfile, format, false, rootPaths, reportInfo)
 }
 
 func convertToScore(value string) (issue.Score, error) {
@@ -504,12 +499,15 @@ func main() {
 	reportInfo := gosec.NewReportInfo(issues, metrics, errors).WithVersion(Version)
 
 	// Call AI request to solve the issues
-	aiApiKey := os.Getenv(aiApiKeyEnv)
-	if aiApiKeyEnv == "" {
-		aiApiKey = *flagAiApiKey
+	aiAPIKey := os.Getenv(aiAPIKeyEnv)
+	if aiAPIKey == "" {
+		aiAPIKey = *flagAiAPIKey
 	}
-	if *flagAiApiProvider != "" && aiApiKey != "" {
-		err := autofix.GenerateSolution(*flagAiApiProvider, aiApiKey, *flagAiEndpoint, issues)
+
+	aiEnabled := *flagAiAPIProvider != ""
+
+	if len(issues) > 0 && aiEnabled {
+		err := autofix.GenerateSolution(*flagAiAPIProvider, aiAPIKey, *flagAiBaseURL, *flagAiSkipSSL, issues)
 		if err != nil {
 			logger.Print(err)
 		}

@@ -138,7 +138,6 @@ directory you can supply `./...` as the input argument.
 - G110: Potential DoS vulnerability via decompression bomb
 - G111: Potential directory traversal
 - G112: Potential slowloris attack
-- G113: Usage of Rat.SetString in math/big with an overflow (CVE-2022-23772)
 - G114: Use of net/http serve function that has no support for setting timeouts
 - G115: Potential integer overflow when converting between integer types
 - G201: SQL query construction using format string
@@ -172,6 +171,7 @@ directory you can supply `./...` as the input argument.
 ### Retired rules
 
 - G105: Audit the use of math/big.Int.Exp - [CVE is fixed](https://github.com/golang/go/issues/15184)
+- G113: Usage of Rat.SetString in math/big with an overflow (CVE-2022-23772). This affected Go <1.16.14 and Go <1.17.7, which are no longer supported by gosec. 
 - G307: Deferring a method which returns an error - causing more inconvenience than fixing a security issue, despite the details from this [blog post](https://www.joeshaw.org/dont-defer-close-on-writable-files/)
 
 ### Selecting rules
@@ -256,17 +256,52 @@ gosec -exclude-generated ./...
 ```
 
 ### Auto fixing vulnerabilities
+
 gosec can suggest fixes based on AI recommendation. It will call an AI API to receive a suggestion for a security finding.
 
 You can enable this feature by providing the following command line arguments:
-- `ai-api-provider`: the name of the AI API provider, currently only `gemini`is supported.
-- `ai-api-key` or set the environment variable `GOSEC_AI_API_KEY`: the key to access the AI API,
-For gemini, you can create an API key following [these instructions](https://ai.google.dev/gemini-api/docs/api-key).
-- `ai-endpoint`: the endpoint of the AI provider, this is optional argument.
 
+- `ai-api-provider`: the name of the AI API provider. Supported providers:
+  - **Gemini**: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` (default)
+  - **Claude**: `claude-sonnet-4-0` (default), `claude-opus-4-0`, `claude-opus-4-1`, `claude-sonnet-3-7`
+  - **OpenAI**: `gpt-4o` (default), `gpt-4o-mini`
+  - **Custom OpenAI-compatible**: Any custom model name (requires `ai-base-url`)
+- `ai-api-key` or set the environment variable `GOSEC_AI_API_KEY`: the key to access the AI API
+  - For Gemini, you can create an API key following [these instructions](https://ai.google.dev/gemini-api/docs/api-key)
+  - For Claude, get your API key from [Anthropic Console](https://console.anthropic.com/)
+  - For OpenAI, get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+- `ai-base-url`: (optional) custom base URL for OpenAI-compatible APIs (e.g., Azure OpenAI, LocalAI, Ollama)
+- `ai-skip-ssl`: (optional) skip SSL certificate verification for AI API (useful for self-signed certificates)
+
+**Examples:**
 
 ```bash
-gosec -ai-api-provider="gemini" -ai-api-key="your_key" ./...
+# Using Gemini
+gosec -ai-api-provider="gemini-2.0-flash" -ai-api-key="your_key" ./...
+
+# Using Claude
+gosec -ai-api-provider="claude-sonnet-4-0" -ai-api-key="your_key" ./...
+
+# Using OpenAI
+gosec -ai-api-provider="gpt-4o" -ai-api-key="your_key" ./...
+
+# Using Azure OpenAI
+gosec -ai-api-provider="gpt-4o" \
+  -ai-api-key="your_azure_key" \
+  -ai-base-url="https://your-resource.openai.azure.com/openai/deployments/your-deployment" \
+  ./...
+
+# Using local Ollama with custom model
+gosec -ai-api-provider="llama3.2" \
+  -ai-base-url="http://localhost:11434/v1" \
+  ./...
+
+# Using self-signed certificate API
+gosec -ai-api-provider="custom-model" \
+  -ai-api-key="your_key" \
+  -ai-base-url="https://internal-api.company.com/v1" \
+  -ai-skip-ssl \
+  ./...
 ```
 
 ### Annotating code
@@ -304,7 +339,13 @@ You could put the description or justification text for the annotation. The
 justification should be after the rule(s) to suppress and start with two or
 more dashes, e.g: `//#nosec G101 G102 -- This is a false positive`
 
-In some cases you may also want to revisit places where `#nosec` annotations
+Alternatively, gosec also supports the `//gosec:disable` directive, which functions similar to `#nosec`:
+
+```go
+//gosec:disable G101 -- This is a false positive
+```
+
+In some cases you may also want to revisit places where `#nosec` or `//gosec:disable` annotations
 have been used. To run the scanner and ignore any `#nosec` annotations you
 can do the following:
 
