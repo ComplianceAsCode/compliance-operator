@@ -203,5 +203,16 @@ func (f *Framework) TearDown() error {
 	if err != nil {
 		return fmt.Errorf("failed to cleanup namespace %s: %w", f.OperatorNamespace, err)
 	}
+
+	// Verify namespace deletion completes successfully
+	// This ensures that all resources, including those with finalizers, are properly cleaned up
+	// and that the operator can be deleted without resources getting stuck in terminating state
+	log.Printf("Verifying namespace %s deletion \n", f.OperatorNamespace)
+	err = f.waitForNamespaceDeletion(f.OperatorNamespace, time.Second*5, time.Minute*5)
+	if err != nil {
+		return fmt.Errorf("namespace %s deletion did not complete: %w", f.OperatorNamespace, err)
+	}
+	log.Printf("Namespace %s successfully deleted\n", f.OperatorNamespace)
+
 	return nil
 }
