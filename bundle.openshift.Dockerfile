@@ -1,5 +1,5 @@
-ARG CO_OLD_VERSION="1.8.0"
-ARG CO_NEW_VERSION="1.8.1"
+ARG CO_OLD_VERSION="1.8.1"
+ARG CO_NEW_VERSION="1.8.2"
 
 FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.23 as builder
 
