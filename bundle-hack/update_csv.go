@@ -24,7 +24,7 @@ var (
 	konfluxOpenscapPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:28c4d746411d4a4dbe4b384cdf12580c4c7eebe9924ab6a36340a32f41842acc"
 
 
-	konfluxMustGatherPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:dac6e2541ab4428fb32afd78d44a9063bd5cf75b123ae6f041007bdf812bfd66"
+	konfluxMustGatherPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:e4a2e3eb5cf845d3bee59555c7d63ab440fd77cb7e42c34a77a66744b03fdc5f"
 )
 
 func readCSV(csvFilename string, csv *map[string]interface{}) {
