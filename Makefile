@@ -391,6 +391,12 @@ update-version-numbers: check-operator-version ## Set skip range and version num
 	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(VERSION)'/" config/manifests/bases/compliance-operator.clusterserviceversion.yaml
 	sed -i "s/\(\"name\": \"compliance-operator.v\).*\"/\1$(VERSION)\"/" catalog/preamble.json
 	sed -i "s/\(\"skipRange\": \">=.*\)<.*\"/\1<$(VERSION)\"/" catalog/preamble.json
+	sed -i 's/^\(ARG CO_OLD_VERSION="\).*/\1$(PREVIOUS_VERSION)"/' bundle.openshift.Dockerfile
+	sed -i 's/^\(ARG CO_NEW_VERSION="\).*/\1$(VERSION)"/' bundle.openshift.Dockerfile
+	sed -i 's/^\([ \t]*version=\).*/\1$(VERSION)/' images/must-gather/Containerfile
+	sed -i 's/^\([ \t]*version=\).*/\1$(VERSION)/' images/openscap/Containerfile
+	sed -i 's/^\([ \t]*version=\).*/\1$(VERSION)/' images/operator/Dockerfile
+	sed -i 's/^\(.*Version = "\).*/\1$(VERSION)"/' version/version.go
 
 .PHONY: namespace
 namespace: ## Create the default namespace for the operator (e.g., openshift-compliance).
