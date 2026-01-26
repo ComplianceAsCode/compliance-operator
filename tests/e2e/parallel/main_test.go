@@ -5301,3 +5301,89 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// Verifies that setting timeout to "0s" disables the timeout functionality
+func TestTimeoutDisabledWithZeroValue(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Create a new ScanSetting with timeout set to 0s (disabled)
+	scanSettingName := framework.GetObjNameFromTest(t) + "-scansetting"
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Timeout:           "0s",
+			MaxRetryOnTimeout: 2,
+		},
+		Roles: []string{"master", "worker"},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
+
+	// Bind the ScanSetting to a Profile
+	bindingName := framework.GetObjNameFromTest(t) + "-binding"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait for the scan to complete successfully
+	// With timeout set to 0s, the scan should not timeout and complete normally
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the scan completed without timeout errors
+	suite := &compv1alpha1.ComplianceSuite{}
+	key := types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that all scans in the suite are in DONE phase (not ERROR from timeout)
+	for _, scanStatus := range suite.Status.ScanStatuses {
+		if scanStatus.Phase != compv1alpha1.PhaseDone {
+			t.Fatalf("expected scan %s to be DONE, but got %s", scanStatus.Name, scanStatus.Phase)
+		}
+		// Ensure the scan didn't fail due to timeout
+		if scanStatus.Result == compv1alpha1.ResultError {
+			t.Fatalf("scan %s resulted in ERROR, expected it to complete successfully with timeout disabled", scanStatus.Name)
+		}
+
+		// Verify the scan does not have the timeout annotation
+		scan := &compv1alpha1.ComplianceScan{}
+		scanKey := types.NamespacedName{Name: scanStatus.Name, Namespace: f.OperatorNamespace}
+		if err := f.Client.Get(context.TODO(), scanKey, scan); err != nil {
+			t.Fatalf("failed to get scan %s: %s", scanStatus.Name, err)
+		}
+		if _, hasTimeout := scan.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; hasTimeout {
+			t.Fatalf("scan %s should not have timeout annotation when timeout is disabled (0s), but it does", scanStatus.Name)
+		}
+	}
+}
