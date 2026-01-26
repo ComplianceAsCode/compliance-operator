@@ -1419,6 +1419,10 @@ func TestProfileBundleDefaultIsKept(t *testing.T) {
 		return true, nil
 	})
 	if lastErr != nil {
+		// Collect operator logs for debugging
+                log.Printf("Collecting operator logs for ProfileBundle ocp4 (PENDING state)...\n")
+                f.CollectOperatorLogs("ProfileBundle-ocp4-pending")
+
 		t.Fatalf("failed waiting for ProfileBundle to update: %s", lastErr)
 	}
 	if timeouterr != nil {

@@ -658,10 +658,6 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 		return false, nil
 	})
 
-	// Collect operator logs for debugging
-	log.Printf("Collecting operator logs for ProfileBundle %s...\n", name)
-	f.CollectOperatorLogs(fmt.Sprintf("ProfileBundle-%s", name))
-
 	if timeouterr != nil {
 		// Log basic information about the failure
 		log.Printf("ProfileBundle %s failed to reach state %s\n", name, status)
