@@ -56,7 +56,6 @@ GIT_OPTS?=
 # We rely on a bash script for this since it's simplier than interating over a
 # list with conditionals in GNU make.
 GIT_REMOTE?=$(shell ./utils/git-remote.sh)
-PREVIOUS_VERSION?=$(shell ./utils/get-current-version.sh)
 
 # Image variables
 # ===============
