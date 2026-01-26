@@ -680,7 +680,21 @@ must-gather-push: must-gather-image
 .PHONY: must-gather
 must-gather: must-gather-image must-gather-push  ## Build and push the must-gather image
 
-##@ Release
+CURRENT_VERSION=$(shell grep "^VERSION?=" version.Makefile | cut -d'=' -f2)
+.PHONY: bump-version
+bump-version:
+ifeq ($(VERSION), $(CURRENT_VERSION))
+	@echo "Nothing to bump, set variable VERSION. e.g:"
+	@echo "make bump-version VERSION=1.9.0"
+else
+	## Current version will be previous version
+	@echo "Bumping version from $(PREVIOUS_VERSION) to $(VERSION)"
+	sed -i '/^\PREVIOUS_VERSION?=.*/d' version.Makefile
+	sed -i 's/^\VERSION?=\(.*\)/PREVIOUS_VERSION?=\1/' version.Makefile
+	echo "VERSION?=$(VERSION)" >> version.Makefile
+
+	$(MAKE) bundle
+endif
 
 .PHONY: package-version-to-tag
 package-version-to-tag: check-operator-version ## Explicitly override $TAG with $VERSION. This is a useful utility for other release targets.
