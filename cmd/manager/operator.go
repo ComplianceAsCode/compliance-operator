@@ -534,28 +534,6 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 		}
 	}
 
-	// Check if the metrics service account token secret exists. If not, create it and trigger a restart.
-	_, err = kClient.CoreV1().Secrets(ns).Get(ctx, complianceOperatorMetricsSecretName, metav1.GetOptions{})
-	if err != nil {
-		if kerr.IsNotFound(err) {
-			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      complianceOperatorMetricsSecretName,
-					Namespace: ns,
-					Annotations: map[string]string{
-						"kubernetes.io/service-account.name": complianceOperatorMetricsSA,
-					},
-				},
-				Type: v1.SecretTypeServiceAccountToken,
-			}
-			if _, createErr := kClient.CoreV1().Secrets(ns).Create(context.TODO(), secret, metav1.CreateOptions{}); createErr != nil && !kerr.IsAlreadyExists(createErr) {
-				return nil, createErr
-			}
-			return nil, errors.New("operator metrics token not found; restarting as the service may have just been created")
-		}
-		return nil, err
-	}
-
 	return returnService, nil
 }
 
@@ -713,15 +691,6 @@ func generateOperatorServiceMonitor(service *v1.Service, namespace string) *moni
 		if serviceMonitor.Spec.Endpoints[i].Port == ctrlMetrics.ControllerMetricsServiceName {
 			serviceMonitor.Spec.Endpoints[i].Path = ctrlMetrics.HandlerPath
 			serviceMonitor.Spec.Endpoints[i].Scheme = "https"
-			serviceMonitor.Spec.Endpoints[i].Authorization = &monitoring.SafeAuthorization{
-				Type: "Bearer",
-				Credentials: &v1.SecretKeySelector{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: complianceOperatorMetricsSecretName,
-					},
-					Key: "token",
-				},
-			}
 			serviceMonitor.Spec.Endpoints[i].TLSConfig = &monitoring.TLSConfig{
 				SafeTLSConfig: monitoring.SafeTLSConfig{
 					ServerName: &m,
