@@ -13,8 +13,10 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -350,6 +352,7 @@ func TestScanHasProfileGUID(t *testing.T) {
 	tpName := "test-scan-have-profile-guid-tp"
 	// This is the profileGUID for the redhat_openshift_container_platform_4.1 product and xccdf_org.ssgproject.content_profile_moderate profile
 	const profileGUIDOCPModerate = "d625badc-92a1-5438-afd7-19526c26b03c"
+	const profileGUIDOCPModerateNode = "ef297cbd-f5a0-5c0c-baab-edeebb761e27"
 	const profileGUIDTP = "04a11c78-7c77-545e-8341-f1b7b743bcb8"
 	const profileGUIDRHCOSModerate = "eceb9af0-17d4-5c59-9b17-07cfd22a3ba1"
 	const profileGUIDOCPCIS = "a230315d-3e4a-5b58-b00f-f96f1553e036"
@@ -358,6 +361,12 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = f.AssertProfileGUIDMatches("ocp4-moderate-node", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = f.AssertProfileGUIDMatches("rhcos4-moderate", f.OperatorNamespace, profileGUIDRHCOSModerate)
 	if err != nil {
 		t.Fatal(err)
@@ -366,6 +375,12 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// check the GUID is present for all the profiles
+	err = f.AssertAllProfilesHaveGUID(f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tpName,
@@ -405,6 +420,11 @@ func TestScanHasProfileGUID(t *testing.T) {
 				APIGroup: "compliance.openshift.io/v1alpha1",
 			},
 			{
+				Name:     "ocp4-moderate-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
 				Name:     "rhcos4-moderate",
 				Kind:     "Profile",
 				APIGroup: "compliance.openshift.io/v1alpha1",
@@ -431,6 +451,14 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-worker", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = f.AssertScanGUIDMatches("rhcos4-moderate-worker", f.OperatorNamespace, profileGUIDRHCOSModerate)
 	if err != nil {
 		t.Fatal(err)
@@ -448,7 +476,31 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	// Check if the profileGUID is correct in the ccr's label
+	err = f.AssertResultsGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-worker", f.OperatorNamespace, profileGUIDOCPModerateNode	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-worker", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-master", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-cis", f.OperatorNamespace, profileGUIDOCPCIS)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMixProductScan(t *testing.T) {
@@ -511,9 +563,66 @@ func TestMixProductScan(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
 
+	// Wait for the ComplianceSuite to be created from the ScanSettingBinding
+	t.Logf("Waiting for ComplianceSuite to be created from ScanSettingBinding %s", bindingName)
+	suiteKey := types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}
+	createdSuite := &compv1alpha1.ComplianceSuite{}
+	err := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		err := f.Client.Get(context.TODO(), suiteKey, createdSuite)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				t.Logf("ComplianceSuite %s not yet created, waiting...", bindingName)
+				return false, nil
+			}
+			return false, err
+		}
+		t.Logf("ComplianceSuite %s created. Phase: %s, Result: %s, ScanStatuses count: %d",
+			bindingName, createdSuite.Status.Phase, createdSuite.Status.Result, len(createdSuite.Status.ScanStatuses))
+		if len(createdSuite.Status.ScanStatuses) > 0 {
+			t.Logf("ScanStatuses in suite:")
+			for _, ss := range createdSuite.Status.ScanStatuses {
+				t.Logf("  - %s: Phase=%s, Result=%s", ss.Name, ss.Phase, ss.Result)
+			}
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("ComplianceSuite %s was not created within timeout: %v", bindingName, err)
+	}
+
+	// Log the suite spec to see what scans should be created
+	t.Logf("ComplianceSuite %s spec has %d scans:", bindingName, len(createdSuite.Spec.Scans))
+	for _, scanWrap := range createdSuite.Spec.Scans {
+		t.Logf("  - %s: Profile=%s, ScanType=%s", scanWrap.Name, scanWrap.Profile, scanWrap.ScanType)
+	}
+
 	// Wait until the scan completes
 	// after the scan is done
+	t.Logf("Waiting for suite %s to reach PhaseDone with ResultNonCompliant", bindingName)
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		// On failure, get the current suite state for debugging
+		currentSuite := &compv1alpha1.ComplianceSuite{}
+		if getErr := f.Client.Get(context.TODO(), suiteKey, currentSuite); getErr == nil {
+			t.Logf("Current suite state at failure:")
+			t.Logf("  Phase: %s", currentSuite.Status.Phase)
+			t.Logf("  Result: %s", currentSuite.Status.Result)
+			t.Logf("  ScanStatuses count: %d", len(currentSuite.Status.ScanStatuses))
+			for _, ss := range currentSuite.Status.ScanStatuses {
+				t.Logf("  - %s: Phase=%s, Result=%s", ss.Name, ss.Phase, ss.Result)
+			}
+			// Check which scans actually exist
+			scanList := &compv1alpha1.ComplianceScanList{}
+			labelSelector, _ := labels.Parse(compv1alpha1.SuiteLabel + "=" + bindingName)
+			if listErr := f.Client.List(context.TODO(), scanList, &client.ListOptions{
+				LabelSelector: labelSelector,
+				Namespace:     f.OperatorNamespace,
+			}); listErr == nil {
+				t.Logf("  Actual ComplianceScan objects found: %d", len(scanList.Items))
+				for _, scan := range scanList.Items {
+					t.Logf("    - %s: Phase=%s, Result=%s", scan.Name, scan.Status.Phase, scan.Status.Result)
+				}
+			}
+		}
 		t.Fatal(err)
 	}
 
