@@ -1664,6 +1664,12 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Check that all cluster operators are healthy
+	err = f.WaitForClusterOperatorsToBeReady()
+	if err != nil {
+		t.Fatalf("failed waiting for cluster operators to be ready after auto-remediation: %s", err)
+	}
+
 	err = f.ReRunScan(scanName, f.OperatorNamespace)
 	if err != nil {
 		t.Fatal(err)
