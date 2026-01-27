@@ -13,6 +13,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -2219,3 +2220,148 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 //		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
 //	},
 //},
+
+func TestStrictNodeScanConfiguration(t *testing.T) {
+	f := framework.Global
+	// Get one worker node
+	workerNodes, err := f.GetNodesWithSelector(map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeName := workerNodes[0].Name
+
+	// Cordon the node (mark as unschedulable)
+	node := &corev1.Node{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: nodeName}, node); err != nil {
+		t.Fatalf("failed to get node %s: %s", nodeName, err)
+	}
+	nodeCopy := node.DeepCopy()
+	nodeCopy.Spec.Unschedulable = true
+	if err := f.Client.Update(context.TODO(), nodeCopy); err != nil {
+		t.Fatalf("failed to cordon node %s: %s", nodeName, err)
+	}
+	defer func() {
+		// Uncordon the node - get fresh copy to avoid conflict errors
+		uncordonNode := &corev1.Node{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: nodeName}, uncordonNode); err != nil {
+			t.Log(err)
+			return
+		}
+		uncordonNode.Spec.Unschedulable = false
+		if err := f.Client.Update(context.TODO(), uncordonNode); err != nil {
+			t.Log(err)
+		}
+	}()
+
+	// Verify node is unschedulable
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: nodeName}, node); err != nil {
+		t.Fatalf("failed to get node %s: %s", nodeName, err)
+	}
+	if !node.Spec.Unschedulable {
+		t.Fatalf("node %s is not marked as unschedulable", nodeName)
+	}
+
+	// Create ScanSetting with strictNodeScan: false
+	scanSettingName := framework.GetObjNameFromTest(t) + "-strict"
+	strictFalse := false
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			StrictNodeScan: &strictFalse,
+			Debug:          false,
+		},
+		Roles: []string{"worker"},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
+
+	// Create ScanSettingBinding
+	bindingName := framework.GetObjNameFromTest(t) + "-binding"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "rhcos4-moderate",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err) 
+	}
+    
+	if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for binding to be deleted
+	timeoutErr := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}, &scanSettingBinding)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, nil
+	})
+	if timeoutErr != nil {
+		t.Fatalf("timed out waiting for ScanSettingBinding to be deleted: %s", timeoutErr)
+	}
+	// Patch ScanSetting to set strictNodeScan: true
+	strictTrue := true
+	scanSettingUpdate := &compv1alpha1.ScanSetting{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanSettingName, Namespace: f.OperatorNamespace}, scanSettingUpdate); err != nil {
+		t.Fatal(err)
+	}
+	scanSettingUpdate.StrictNodeScan = &strictTrue
+	if err := f.Client.Update(context.TODO(), scanSettingUpdate); err != nil {
+		t.Fatalf("failed to update ScanSetting: %s", err)
+	}
+	
+	// Clear metadata to ensure clean recreation of the ssb
+	scanSettingBinding.ObjectMeta = metav1.ObjectMeta{
+		Name:      bindingName,
+		Namespace: f.OperatorNamespace,
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// With strictNodeScan: true and an unschedulable node, the suite should remain PENDING
+	timeoutErr = wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		suite := &compv1alpha1.ComplianceSuite{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}, suite); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return suite.Status.Phase == compv1alpha1.PhasePending, nil
+	})
+	if timeoutErr != nil {
+		t.Fatalf("suite did not remain PENDING with strictNodeScan=true and unschedulable node: %s", timeoutErr)
+	}
+}
