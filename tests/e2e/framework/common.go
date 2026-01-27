@@ -244,7 +244,7 @@ func (f *Framework) createFromYAMLString(y string) error {
 	return nil
 }
 
-func (f *Framework) waitForScanCleanup() error {
+func (f *Framework) WaitForScanCleanup() error {
 	timeouterr := wait.Poll(time.Second*5, time.Minute*2, func() (bool, error) {
 		var scans compv1alpha1.ComplianceScanList
 		f.Client.List(context.TODO(), &scans, &dynclient.ListOptions{})

@@ -139,7 +139,7 @@ func (f *Framework) TearDown() error {
 	// by each individual test either directly or through deferred cleanup. If the test fails
 	// because there are scans that haven't been cleaned up, we could have a bug in the
 	// tests.
-	err := f.waitForScanCleanup()
+	err := f.WaitForScanCleanup()
 	if err != nil {
 		return err
 	}
