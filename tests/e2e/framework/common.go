@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,6 +22,7 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -120,6 +123,71 @@ func (f *Framework) cleanUpFromYAMLFile(p *string) error {
 		}
 	}
 	return nil
+}
+
+// CollectOperatorLogs collects logs and debug information from the operator namespace.
+// This is especially important for osdk-e2e test namespaces that may not be included in must-gather.
+// Uses 'oc adm inspect' to collect comprehensive debugging information and creates a tarball.
+func (f *Framework) CollectOperatorLogs(outputDir string) {
+	log.Printf("Collecting logs from operator namespace: %s\n", f.OperatorNamespace)
+
+	// Create a temporary directory for oc adm inspect output
+	tempDir, err := os.MkdirTemp("", "operator-inspect-*")
+	if err != nil {
+		log.Printf("Warning: Failed to create temp directory: %v\n", err)
+		return
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Run oc adm inspect to collect namespace data
+	log.Printf("Running: oc adm inspect namespace/%s --dest-dir=%s\n", f.OperatorNamespace, tempDir)
+	inspectCmd := exec.Command("oc", "adm", "inspect", fmt.Sprintf("namespace/%s", f.OperatorNamespace), fmt.Sprintf("--dest-dir=%s", tempDir))
+	inspectCmd.Stdout = os.Stdout
+	inspectCmd.Stderr = os.Stderr
+
+	if err := inspectCmd.Run(); err != nil {
+		log.Printf("Warning: Failed to run oc adm inspect: %v\n", err)
+		return
+	}
+
+	log.Printf("Successfully collected operator namespace data with oc adm inspect\n")
+
+	// Determine the output location for the tarball
+	var tarballPath string
+	artifactDir := os.Getenv("ARTIFACT_DIR")
+	if artifactDir != "" {
+		// Use ARTIFACT_DIR if set (CI environment)
+		if err := os.MkdirAll(artifactDir, 0755); err != nil {
+			log.Printf("Warning: Failed to create artifact directory %s: %v\n", artifactDir, err)
+			return
+		}
+		timestamp := time.Now().Format("20060102-150405")
+		tarballPath = filepath.Join(artifactDir, fmt.Sprintf("operator-logs-%s-%s.tar.gz", f.OperatorNamespace, timestamp))
+	} else {
+		// Fall back to the provided output directory
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
+			log.Printf("Warning: Failed to create output directory %s: %v\n", outputDir, err)
+			return
+		}
+		timestamp := time.Now().Format("20060102-150405")
+		tarballPath = filepath.Join(outputDir, fmt.Sprintf("operator-logs-%s-%s.tar.gz", f.OperatorNamespace, timestamp))
+	}
+
+	// Create tarball of the collected data
+	log.Printf("Creating tarball: %s\n", tarballPath)
+	tarCmd := exec.Command("tar", "-czf", tarballPath, "-C", tempDir, ".")
+	if tarOutput, err := tarCmd.CombinedOutput(); err != nil {
+		log.Printf("Warning: Failed to create tarball: %v\nOutput: %s\n", err, string(tarOutput))
+		return
+	}
+
+	// Get tarball size
+	fileInfo, err := os.Stat(tarballPath)
+	if err != nil {
+		log.Printf("Successfully created operator logs tarball at: %s\n", tarballPath)
+	} else {
+		log.Printf("Successfully created operator logs tarball at: %s (size: %d bytes)\n", tarballPath, fileInfo.Size())
+	}
 }
 
 func (f *Framework) PrintROSADebugInfo(t *testing.T) {
@@ -334,6 +402,16 @@ func (f *Framework) addFrameworks() error {
 	for _, obj := range scObjs {
 		if err := AddToFrameworkScheme(schedulingv1.AddToScheme, obj); err != nil {
 			return fmt.Errorf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+		}
+	}
+
+	// ValidatingAdmissionPolicy objects
+	vapObjs := [1]dynclient.ObjectList{
+		&admissionregistrationv1.ValidatingAdmissionPolicyList{},
+	}
+	for _, obj := range vapObjs {
+		if err := AddToFrameworkScheme(admissionregistrationv1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("failed to add admissionregistration resource scheme to framework: %v", err)
 		}
 	}
 
@@ -579,8 +657,25 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 		log.Printf("waiting ProfileBundle %s to become %s (%s)\n", name, status, pb.Status.DataStreamStatus)
 		return false, nil
 	})
+
 	if timeouterr != nil {
-		return fmt.Errorf("ProfileBundle %s failed to reach state %s", name, status)
+		// Log basic information about the failure
+		log.Printf("ProfileBundle %s failed to reach state %s\n", name, status)
+		log.Printf("Current status: %s\n", pb.Status.DataStreamStatus)
+		log.Printf("ContentImage: %s\n", pb.Spec.ContentImage)
+		log.Printf("ContentFile: %s\n", pb.Spec.ContentFile)
+
+		if pb.Status.ErrorMessage != "" {
+			log.Printf("ErrorMessage: %s\n", pb.Status.ErrorMessage)
+		}
+
+		// Include error details in the returned error
+		errMsg := fmt.Sprintf("ProfileBundle %s failed to reach state %s (current: %s)",
+			name, status, pb.Status.DataStreamStatus)
+		if pb.Status.ErrorMessage != "" {
+			errMsg += fmt.Sprintf(", error: %s", pb.Status.ErrorMessage)
+		}
+		return fmt.Errorf("%s", errMsg)
 	}
 	log.Printf("ProfileBundle ready (%s)\n", pb.Status.DataStreamStatus)
 	return nil
@@ -791,16 +886,60 @@ func (f *Framework) createMachineConfigPool(n string) error {
 	return nil
 }
 
+// validatingAdmissionPolicyExists checks if a ValidatingAdmissionPolicy with the given name exists
+func (f *Framework) validatingAdmissionPolicyExists(name string) (bool, error) {
+	vap := &admissionregistrationv1.ValidatingAdmissionPolicy{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name}, vap)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (f *Framework) createInvalidMachineConfigPool(n string) error {
 	if f.Platform == "rosa" {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
+
+	// Check if ValidatingAdmissionPolicy exists
+	vapExists, err := f.validatingAdmissionPolicyExists("custom-machine-config-pool-selector")
+	if err != nil {
+		return fmt.Errorf("failed to check ValidatingAdmissionPolicy: %w", err)
+	}
+
 	p := &mcfgv1.MachineConfigPool{
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
 		},
+	}
+
+	// Only add selectors if ValidatingAdmissionPolicy exists
+	// This ensures backward compatibility with older clusters
+	if vapExists {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' exists, adding minimal selectors to MachineConfigPool %s\n", n)
+		// Add minimal selectors to pass ValidatingAdmissionPolicy
+		// This pool is still "invalid" for testing as no nodes match this selector
+		p.Spec.NodeSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"node-role.kubernetes.io/e2e-invalid": "",
+			},
+		}
+		p.Spec.MachineConfigSelector = &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "machineconfiguration.openshift.io/role",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"worker"},
+				},
+			},
+		}
+	} else {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' not found, creating MachineConfigPool %s without selectors (legacy mode)\n", n)
 	}
 
 	createErr := backoff.RetryNotify(
@@ -2944,4 +3083,9 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
+}
+
+// int64Ptr returns a pointer to an int64 value
+func int64Ptr(i int64) *int64 {
+	return &i
 }
