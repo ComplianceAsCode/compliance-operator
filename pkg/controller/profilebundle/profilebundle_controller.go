@@ -252,17 +252,17 @@ func (r *ReconcileProfileBundle) Reconcile(ctx context.Context, request reconcil
 	// Pod already exists and its init container at least ran - don't requeue
 	reqLogger.Info("Skip reconcile: Workload already up-to-date", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 
-	// If status is PENDING but we're about to skip reconcile, this indicates
-	// a cache staleness race condition (e.g., after operator restart where the ProfileBundle
-	// was updated but we read stale cached data). Force a requeue to re-read from API server.
+	// If status is PENDING but we're about to skip reconcile, this indicates either:
+	// 1. Cache staleness (operator restart where we read stale cached data), OR
+	// 2. Pod is still starting up and hasn't processed the content yet
+	// In both cases, we should requeue to check again later.
 	if instance.Status.DataStreamStatus == compliancev1alpha1.DataStreamPending {
-		// Only requeue if the pod is actually running - if it's still pending/starting,
-		// this is not cache staleness, just a pod that hasn't started yet
+		// If the pod is not running yet, requeue to check again when it starts
 		if relevantPod.Status.Phase != corev1.PodRunning {
-			reqLogger.Info("Workload pod not yet running, skipping requeue",
+			reqLogger.Info("Workload pod not yet running, requeuing to wait for pod to process content",
 				"Pod.Name", relevantPod.Name,
 				"Pod.Phase", relevantPod.Status.Phase)
-			return reconcile.Result{}, nil
+			return reconcile.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
 		}
 
 		reqLogger.Info("ProfileBundle is PENDING but workload appears up-to-date - likely cache staleness, requeuing",
