@@ -5301,3 +5301,193 @@ func TestRuleVariableAnnotation(t *testing.T) {
 		})
 	}
 }
+
+// TestDefaultProfileBundlesAndProfiles tests that the compliance operator creates default
+// ProfileBundles and Profiles based on the cluster architecture
+func TestDefaultProfileBundlesAndProfiles(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Check default profilebundles name and status
+	t.Log("Checking default ProfileBundles...")
+
+	// ocp4 ProfileBundle should always exist
+	err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid)
+	if err != nil {
+		t.Fatalf("ocp4 ProfileBundle does not exist or is not valid: %v", err)
+	}
+	t.Log("ocp4 ProfileBundle is valid")
+
+	// Get architecture from the first node's labels
+	nodes, err := f.GetNodesWithSelector(map[string]string{})
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to get cluster nodes: %v", err)
+	}
+	arch := nodes[0].Labels["kubernetes.io/arch"]
+	t.Logf("Detected cluster architecture: %s", arch)
+
+	// rhcos4 ProfileBundle should exist for AMD64, ARM64, PPC64LE, and MULTI architectures
+	// For S390X, rhcos4 is not supported
+	switch arch {
+	case "amd64", "arm64", "ppc64le", "multi":
+		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
+		if err != nil {
+			t.Fatalf("rhcos4 ProfileBundle does not exist or is not valid for architecture %s: %v", arch, err)
+		}
+		t.Log("rhcos4 ProfileBundle is valid")
+	case "s390x":
+		t.Logf("rhcos4 ProfileBundle is not expected for architecture: %s", arch)
+	default:
+		t.Fatalf("Unknown architecture: %s. Cannot determine expected ProfileBundles and Profiles.", arch)
+	}
+
+	// Define expected profiles for each architecture
+	profilesByArch := map[string][]string{
+		"amd64": {
+			"ocp4-bsi",
+			"ocp4-bsi-2022",
+			"ocp4-bsi-node",
+			"ocp4-bsi-node-2022",
+			"ocp4-cis",
+			"ocp4-cis-1-7",
+			"ocp4-cis-node",
+			"ocp4-cis-node-1-7",
+			"ocp4-e8",
+			"ocp4-high",
+			"ocp4-high-rev-4",
+			"ocp4-high-node",
+			"ocp4-high-node-rev-4",
+			"ocp4-moderate",
+			"ocp4-moderate-rev-4",
+			"ocp4-moderate-node",
+			"ocp4-moderate-node-rev-4",
+			"ocp4-nerc-cip",
+			"ocp4-nerc-cip-node",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-3-2",
+			"ocp4-pci-dss-4-0",
+			"ocp4-pci-dss-node",
+			"ocp4-pci-dss-node-3-2",
+			"ocp4-pci-dss-node-4-0",
+			"ocp4-stig",
+			"ocp4-stig-v2r2",
+			"ocp4-stig-v2r3",
+			"ocp4-stig-node",
+			"ocp4-stig-node-v2r2",
+			"ocp4-stig-node-v2r3",
+			"rhcos4-bsi",
+			"rhcos4-bsi-2022",
+			"rhcos4-e8",
+			"rhcos4-high",
+			"rhcos4-high-rev-4",
+			"rhcos4-moderate",
+			"rhcos4-moderate-rev-4",
+			"rhcos4-nerc-cip",
+			"rhcos4-stig",
+			"rhcos4-stig-v2r2",
+			"rhcos4-stig-v2r3",
+		},
+		"arm64": {
+			"ocp4-cis",
+			"ocp4-cis-1-7",
+			"ocp4-cis-node",
+			"ocp4-cis-node-1-7",
+			"ocp4-moderate",
+			"ocp4-moderate-rev-4",
+			"ocp4-moderate-node",
+			"ocp4-moderate-node-rev-4",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-3-2",
+			"ocp4-pci-dss-4-0",
+			"ocp4-pci-dss-node",
+			"ocp4-pci-dss-node-3-2",
+			"ocp4-pci-dss-node-4-0",
+			"rhcos4-moderate",
+			"rhcos4-moderate-rev-4",
+		},
+		"s390x": {
+			"ocp4-cis",
+			"ocp4-cis-1-7",
+			"ocp4-cis-node",
+			"ocp4-cis-node-1-7",
+			"ocp4-moderate",
+			"ocp4-moderate-rev-4",
+			"ocp4-moderate-node",
+			"ocp4-moderate-node-rev-4",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-3-2",
+			"ocp4-pci-dss-4-0",
+			"ocp4-pci-dss-node",
+			"ocp4-pci-dss-node-3-2",
+			"ocp4-pci-dss-node-4-0",
+		},
+		"ppc64le": {
+			"ocp4-cis",
+			"ocp4-cis-1-7",
+			"ocp4-cis-node",
+			"ocp4-cis-node-1-7",
+			"ocp4-moderate",
+			"ocp4-moderate-rev-4",
+			"ocp4-moderate-node",
+			"ocp4-moderate-node-rev-4",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-3-2",
+			"ocp4-pci-dss-4-0",
+			"ocp4-pci-dss-node",
+			"ocp4-pci-dss-node-3-2",
+			"ocp4-pci-dss-node-4-0",
+			"rhcos4-moderate",
+			"rhcos4-moderate-rev-4",
+		},
+		"multi": {
+			"ocp4-cis",
+			"ocp4-cis-1-7",
+			"ocp4-cis-node",
+			"ocp4-cis-node-1-7",
+			"ocp4-moderate",
+			"ocp4-moderate-rev-4",
+			"ocp4-moderate-node",
+			"ocp4-moderate-node-rev-4",
+			"ocp4-pci-dss",
+			"ocp4-pci-dss-3-2",
+			"ocp4-pci-dss-4-0",
+			"ocp4-pci-dss-node",
+			"ocp4-pci-dss-node-3-2",
+			"ocp4-pci-dss-node-4-0",
+			"rhcos4-moderate",
+			"rhcos4-moderate-rev-4",
+		},
+	}
+
+	expectedProfiles, ok := profilesByArch[arch]
+	if !ok {
+		t.Fatalf("No expected profile list defined for architecture: %s", arch)
+	}
+
+	// Verify each expected profile exists with retry
+	for _, profileName := range expectedProfiles {
+		var lastErr error
+		timeoutErr := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+			lastErr, found := f.DoesObjectExist("Profile", f.OperatorNamespace, profileName)
+			if lastErr != nil {
+				log.Printf("Error checking if profile %s exists: %v", profileName, lastErr)
+				return false, nil
+			}
+			if !found {
+				log.Printf("Waiting for profile %s to be created", profileName)
+				return false, nil
+			}
+			return true, nil
+		})
+
+		if timeoutErr != nil {
+			if lastErr != nil {
+				t.Fatalf("Error checking if profile %s exists: %v", profileName, lastErr)
+			}
+			t.Fatalf("Timeout waiting for profile %s to be created for architecture %s", profileName, arch)
+		}
+		t.Logf("Profile %s exists", profileName)
+	}
+
+	t.Logf("All expected default ProfileBundles and Profiles verified successfully for architecture %s", arch)
+}
