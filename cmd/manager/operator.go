@@ -75,87 +75,18 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-type PlatformType string
-
-const (
-	PlatformOpenShift        PlatformType = "OpenShift"
-	PlatformEKS              PlatformType = "EKS"
-	PlatformROSA             PlatformType = "ROSA"
-	PlatformGeneric          PlatformType = "Generic"
-	PlatformHyperShift       PlatformType = "HyperShift"
-	PlatformOpenShiftOnPower PlatformType = "OpenShiftOnPower"
-	PlatformOpenShiftOnZ     PlatformType = "OpenShiftOnZ"
-	PlatformUnknown          PlatformType = "Unknown"
-)
-
 // Change below variables to serve metrics on different host or port.
 var (
-	setupLog                   = logf.Log.WithName("setup")
-	metricsAddr                string
-	enableLeaderElection       bool
-	probeAddr                  string
-	metricsHost                      = "0.0.0.0"
-	metricsServiceName               = "metrics"
-	metricsPort                int32 = 8383
-	defaultProductsPerPlatform       = map[PlatformType][]string{
-		PlatformOpenShift: {
-			"rhcos4",
-			"ocp4",
-		},
-		PlatformOpenShiftOnPower: {
-			"rhcos4",
-			"ocp4",
-		},
-		PlatformOpenShiftOnZ: {"ocp4"},
-		PlatformEKS: {
-			"eks",
-		},
-		PlatformHyperShift: {
-			"rhcos4",
-			"ocp4",
-		},
-		PlatformROSA: {
-			"rhcos4",
-			"ocp4",
-		},
-	}
-
-	defaultRolesPerPlatform = map[PlatformType][]string{
-		PlatformOpenShift: {
-			"master",
-			"worker",
-		},
-		PlatformOpenShiftOnPower: {
-			"master",
-			"worker",
-		},
-		PlatformOpenShiftOnZ: {
-			"master",
-			"worker",
-		},
-		PlatformGeneric: {
-			compv1alpha1.AllRoles,
-		},
-		PlatformHyperShift: {
-			"worker",
-		},
-		PlatformROSA: {
-			"worker",
-		},
-	}
-
-	defaultAutoRemediationPerPlatform = map[PlatformType]bool{
-		PlatformOpenShift:        true,
-		PlatformOpenShiftOnPower: true,
-		PlatformOpenShiftOnZ:     true,
-		PlatformEKS:              false,
-		PlatformGeneric:          false,
-		PlatformHyperShift:       true,
-		PlatformROSA:             false,
-	}
-	serviceMonitorBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	serviceMonitorTLSCAFile       = "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt"
-	alertName                     = "compliance"
+	setupLog                      = logf.Log.WithName("setup")
+	metricsAddr                   string
+	enableLeaderElection          bool
+	probeAddr                     string
+	metricsHost                         = "0.0.0.0"
+	metricsServiceName                  = "metrics"
+	metricsPort                   int32 = 8383
+	serviceMonitorBearerTokenFile       = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	serviceMonitorTLSCAFile             = "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt"
+	alertName                           = "compliance"
 )
 
 const (
@@ -372,11 +303,11 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Setenv("PLATFORM", pflag)
 	}
 
-	platform := getValidPlatform(pflag)
+	platform := utils.GetValidPlatformFromString(pflag)
 
 	skipMetrics, _ := flags.GetBool("skip-metrics")
 	// We only support these metrics in OpenShift (at the moment)
-	if (platform == PlatformOpenShift || platform == PlatformOpenShiftOnPower || platform == PlatformOpenShiftOnZ) && !skipMetrics {
+	if (platform == utils.PlatformOpenShift || platform == utils.PlatformOpenShiftOnPower || platform == utils.PlatformOpenShiftOnZ) && !skipMetrics {
 		// Add the Metrics Service
 		addMetrics(ctx, cfg, kubeClient, monitoringClient)
 	}
@@ -397,34 +328,6 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "Manager exited non-zero")
 		os.Exit(1)
-	}
-}
-
-func getValidPlatform(p string) PlatformType {
-	arch := goruntime.GOARCH
-	switch {
-	case strings.EqualFold(p, string(PlatformOpenShift)):
-		switch {
-		case strings.EqualFold(arch, "ppc64le"):
-			return PlatformOpenShiftOnPower
-		case strings.EqualFold(arch, "s390x"):
-			return PlatformOpenShiftOnZ
-		default:
-			return PlatformOpenShift
-		}
-	case strings.EqualFold(p, string(PlatformROSA)):
-		return PlatformROSA
-	case strings.EqualFold(p, string(PlatformEKS)):
-		return PlatformEKS
-	case strings.EqualFold(p, string(PlatformHyperShift)):
-		return PlatformHyperShift
-	case strings.EqualFold(p, string(PlatformROSA)):
-		return PlatformROSA
-	case strings.EqualFold(p, string(PlatformGeneric)):
-		return PlatformGeneric
-
-	default:
-		return PlatformUnknown
 	}
 }
 
@@ -590,11 +493,11 @@ func ensureDefaultProfileBundles(
 	ctx context.Context,
 	crclient client.Client,
 	namespaceList []string,
-	platform PlatformType,
+	platform utils.PlatformType,
 ) error {
 	pbimg := utils.GetComponentImage(utils.CONTENT)
 	var lastErr error
-	defaultProducts, isSupported := defaultProductsPerPlatform[platform]
+	defaultProducts, isSupported := utils.GetDefaultProductsForPlatform(platform)
 	if !isSupported {
 		setupLog.Info("No ProfileBundle defaults for unknown product." +
 			" Skipping defaults creation.")
@@ -637,13 +540,13 @@ func ensureDefaultScanSettings(
 	ctx context.Context,
 	crclient client.Client,
 	namespaceList []string,
-	platform PlatformType,
+	platform utils.PlatformType,
 	si utils.CtlplaneSchedulingInfo,
 ) error {
 	var lastErr error
 	for _, ns := range namespaceList {
-		roles := getDefaultRoles(platform)
-		autoRemediationEnabled := defaultAutoRemediationPerPlatform[platform]
+		roles := utils.GetDefaultRolesForPlatform(platform)
+		autoRemediationEnabled := utils.PlatformSupportsAutoRemediation(platform)
 		d := &compv1alpha1.ScanSetting{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      defaultScanSettingsName,
@@ -696,14 +599,6 @@ func ensureDefaultScanSettings(
 		}
 	}
 	return lastErr
-}
-
-func getDefaultRoles(platform PlatformType) []string {
-	roles, hasSpecific := defaultRolesPerPlatform[platform]
-	if hasSpecific {
-		return roles
-	}
-	return defaultRolesPerPlatform[PlatformGeneric]
 }
 
 func generateOperatorServiceMonitor(service *v1.Service, namespace string) *monitoring.ServiceMonitor {

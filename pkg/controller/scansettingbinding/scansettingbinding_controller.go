@@ -356,6 +356,13 @@ func (r *ReconcileScanSettingBinding) applyConstraint(
 			}, "error validating ScanSetting '%s' roles: %w", v1setting.GetName(), valErr)
 	}
 
+	if valErr := r.validateAutoApplyRemediations(&v1setting); valErr != nil {
+		return common.NewRetriableCtrlErrorWithCustomHandler(
+			func() (reconcile.Result, error) {
+				return reconcile.Result{}, nil
+			}, "error validating ScanSetting '%s' autoApplyRemediations: %w", v1setting.GetName(), valErr)
+	}
+
 	// create per-role scans
 	suite.Spec.Scans = r.createScansWithSelector(suite, &v1setting, logger)
 	// apply settings for suite - deep copy to future proof in case there are any slices or so later
@@ -387,6 +394,25 @@ func (r *ReconcileScanSettingBinding) validateRoles(setting *compliancev1alpha1.
 			return fmt.Errorf("role %s is invalid", role)
 		}
 	}
+	return nil
+}
+
+func (r *ReconcileScanSettingBinding) validateAutoApplyRemediations(setting *compliancev1alpha1.ScanSetting) error {
+	// If autoApplyRemediations is not enabled, no validation needed
+	if !setting.AutoApplyRemediations {
+		return nil
+	}
+
+	// Get the current platform
+	platform := utils.GetValidPlatform()
+
+	// Check if auto-remediation is supported on this platform
+	if !utils.PlatformSupportsAutoRemediation(platform) {
+		r.Eventf(setting, corev1.EventTypeWarning, "UnsupportedPlatform",
+			"Auto-apply remediations is not supported on platform %s", platform)
+		return fmt.Errorf("autoApplyRemediations is not supported on platform %s", platform)
+	}
+
 	return nil
 }
 
