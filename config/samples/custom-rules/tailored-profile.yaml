@@ -1,0 +1,15 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: TailoredProfile
+metadata:
+  name: custom-security-checks
+  namespace: openshift-compliance
+spec:
+  description: Custom security checks using CustomRules
+  enableRules:
+    - kind: CustomRule
+      name: pods-must-have-security-context
+      rationale: Security best practice requires pods to run as non-root
+    - kind: CustomRule
+      name: pods-read-only-host-filesystem
+      rationale: Prevent pods from modifying host filesystem to reduce security risks
+  title: Platform and Application Security Checks

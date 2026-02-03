@@ -1,0 +1,27 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: pods-read-only-host-filesystem
+  namespace: openshift-compliance
+spec:
+  description: Ensures all pods have read-only host filesystem
+  failureReason: Pod(s) found with writable host filesystem
+  expression: |
+    pods.items.all(pod,
+      pod.spec.volumes.all(volume,
+        volume.hostPath == null ||
+        (volume.hostPath != null &&
+         volume.hostPath.type == 'Directory' &&
+         volume.hostPath.readOnly == true)
+      )
+    )
+  id: custom_pods_read_only_host_filesystem
+  checkType: Platform
+  inputs:
+    - kubernetesInputSpec:
+        apiVersion: v1
+        resource: pods
+      name: pods
+  scannerType: CEL
+  severity: high
+  title: Pods Must Have Read-Only Host Filesystem

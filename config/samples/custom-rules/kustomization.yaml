@@ -1,0 +1,5 @@
+resources:
+  - pods-must-have-security-context.yaml
+  - pods-read-only-host-filesystem.yaml
+  - tailored-profile.yaml
+  - scan-setting-binding.yaml
