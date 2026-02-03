@@ -20,6 +20,8 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -243,6 +245,101 @@ func (f *Framework) createFromYAMLString(y string) error {
 	return nil
 }
 
+// installViaSubscription installs the compliance operator using OLM Subscription
+func (f *Framework) installViaSubscription(channel, source, sourceNamespace string) error {
+	// Create OperatorGroup
+	operatorGroup := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      f.OperatorNamespace,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{
+			TargetNamespaces: []string{f.OperatorNamespace},
+		},
+	}
+
+	log.Printf("creating OperatorGroup %s in namespace %s", operatorGroup.Name, operatorGroup.Namespace)
+	if err := f.Client.CreateWithoutCleanup(context.TODO(), operatorGroup); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create OperatorGroup: %w", err)
+		}
+		log.Printf("OperatorGroup %s already exists", operatorGroup.Name)
+	}
+
+	// Create Subscription
+	subscription := &operatorsv1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "compliance-operator",
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: &operatorsv1alpha1.SubscriptionSpec{
+			Channel:                channel,
+			InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
+			Package:                "compliance-operator",
+			CatalogSource:          source,
+			CatalogSourceNamespace: sourceNamespace,
+		},
+	}
+
+	log.Printf("creating Subscription %s in namespace %s", subscription.Name, subscription.Namespace)
+	if err := f.Client.CreateWithoutCleanup(context.TODO(), subscription); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create Subscription: %w", err)
+		}
+		log.Printf("Subscription %s already exists", subscription.Name)
+	}
+
+	return nil
+}
+
+// waitForCRDs waits for the compliance operator CRDs to be installed by OLM
+func (f *Framework) waitForCRDs() error {
+	// List of CRDs we need to wait for
+	crdNames := []string{
+		"compliancescans.compliance.openshift.io",
+		"compliancesuites.compliance.openshift.io",
+		"complianceremediations.compliance.openshift.io",
+		"scansettings.compliance.openshift.io",
+		"scansettingbindings.compliance.openshift.io",
+		"tailoredprofiles.compliance.openshift.io",
+		"profiles.compliance.openshift.io",
+		"profilebundles.compliance.openshift.io",
+		"rules.compliance.openshift.io",
+		"variables.compliance.openshift.io",
+		"compliancecheckresults.compliance.openshift.io",
+	}
+
+	timeout := 5 * time.Minute
+	retryInterval := 5 * time.Second
+
+	log.Printf("Waiting for compliance operator CRDs to be created by OLM (timeout: %v)", timeout)
+
+	for _, crdName := range crdNames {
+		err := wait.Poll(retryInterval, timeout, func() (bool, error) {
+			_, err := f.KubeClient.Discovery().RESTClient().Get().
+				AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + crdName).
+				DoRaw(context.TODO())
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					log.Printf("CRD %s not found yet, waiting...", crdName)
+					return false, nil
+				}
+				log.Printf("Error checking CRD %s: %v, retrying...", crdName, err)
+				return false, nil
+			}
+			log.Printf("CRD %s is available", crdName)
+			return true, nil
+		})
+
+		if err != nil {
+			return fmt.Errorf("timeout waiting for CRD %s to be created: %w", crdName, err)
+		}
+	}
+
+	log.Printf("All compliance operator CRDs are available")
+	return nil
+}
+
 func (f *Framework) waitForScanCleanup() error {
 	timeouterr := wait.Poll(time.Second*5, time.Minute*2, func() (bool, error) {
 		var scans compv1alpha1.ComplianceScanList
@@ -260,6 +357,31 @@ func (f *Framework) waitForScanCleanup() error {
 	if timeouterr != nil {
 		return fmt.Errorf("timed out waiting for scans to cleanup: %w", timeouterr)
 
+	}
+	return nil
+}
+
+// registerOLMSchemes registers only OLM resource schemes (OperatorGroup, Subscription)
+// This must be called BEFORE installViaSubscription when using subscription-based installation
+func (f *Framework) registerOLMSchemes() error {
+	// OLM objects - operatorsv1
+	olmV1Objs := [1]dynclient.ObjectList{
+		&operatorsv1.OperatorGroupList{},
+	}
+	for _, obj := range olmV1Objs {
+		if err := AddToFrameworkScheme(operatorsv1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("TEST SETUP: failed to add OLM v1 resource scheme to framework: %v", err)
+		}
+	}
+
+	// OLM objects - operatorsv1alpha1
+	olmV1Alpha1Objs := [1]dynclient.ObjectList{
+		&operatorsv1alpha1.SubscriptionList{},
+	}
+	for _, obj := range olmV1Alpha1Objs {
+		if err := AddToFrameworkScheme(operatorsv1alpha1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("TEST SETUP: failed to add OLM v1alpha1 resource scheme to framework: %v", err)
+		}
 	}
 	return nil
 }
