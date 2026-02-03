@@ -800,6 +800,22 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
+			// Add minimal selectors to pass ValidatingAdmissionPolicy
+			// This pool is still "invalid" for testing as no nodes match this selector
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"node-role.kubernetes.io/e2e-invalid": "",
+				},
+			},
+			MachineConfigSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "machineconfiguration.openshift.io/role",
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"worker"},
+					},
+				},
+			},
 		},
 	}
 
@@ -2944,4 +2960,59 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
+}
+
+// CreateCustomMachineConfigPool creates a MachineConfigPool with the given name and node label selector,
+// and waits for it to be ready. The nodeLabel should be a map with the node role label key.
+func (f *Framework) CreateCustomMachineConfigPool(mcpName string, nodeLabel map[string]string) error {
+	if f.Platform == "rosa" {
+		return fmt.Errorf("MachineConfigPool creation is not supported on %s", f.Platform)
+	}
+
+	mcpLabels := map[string]string{
+		"pools.operator.machineconfiguration.openshift.io/e2e": "",
+	}
+	newPool := &mcfgv1.MachineConfigPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   mcpName,
+			Labels: mcpLabels,
+		},
+		Spec: mcfgv1.MachineConfigPoolSpec{
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: nodeLabel,
+			},
+			MachineConfigSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      mcfgv1.MachineConfigRoleLabelKey,
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"worker", mcpName},
+					},
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), newPool, nil); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create MachineConfigPool %s: %w", mcpName, err)
+		}
+	}
+
+	// Wait for pool to be ready
+	if err := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		pool := &mcfgv1.MachineConfigPool{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: mcpName}, pool); err != nil {
+			return false, err
+		}
+		for _, c := range pool.Status.Conditions {
+			if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == core.ConditionTrue {
+				return true, nil
+			}
+		}
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("failed waiting for MachineConfigPool %s to be ready: %w", mcpName, err)
+	}
+
+	return nil
 }
