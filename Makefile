@@ -602,7 +602,7 @@ endif
 	@$(GO) test -v ./pkg/utils/ -ginkgo.v
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e e2e-parallel e2e-deployment e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+e2e: e2e-set-image prep-e2e e2e-parallel e2e-deployment e2e-test-wait e2e-serial e2e-moderate-profiles## Run full end-to-end tests that exercise content on an operational cluster.
 
 .PHONY: e2e
 e2e-test-wait:
@@ -627,6 +627,7 @@ e2e-tailoring: e2e-set-image prep-e2e ## Run profile tailoring end-to-end tests.
 .PHONY: e2e-tailoring-critical
 e2e-tailoring-critical: e2e-set-image prep-e2e ## Run critical profile tailoring e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
+
 .PHONY: e2e-parsing
 e2e-parsing: e2e-set-image prep-e2e ## Run profile parsing end-to-end tests.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
@@ -635,6 +636,9 @@ e2e-parsing: e2e-set-image prep-e2e ## Run profile parsing end-to-end tests.
 e2e-parsing-critical: e2e-set-image prep-e2e ## Run critical profile parsing e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
 
+.PHONY: e2e-moderate-profiles
+e2e-moderate-profiles: e2e-set-image prep-e2e ## Run profile end-to-end tests.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/moderate_profiles_test $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
 .PHONY: e2e-rosa
