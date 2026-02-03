@@ -122,8 +122,7 @@ func (f *Framework) SetUp() error {
 	}
 	err = f.createInvalidMachineConfigPool("e2e-invalid")
 	if err != nil {
-		//return fmt.Errorf("failed to create Machine Config Pool %s: %w", "e2e-invalid", err)
-		log.Printf("did not find machineconfig e2e-invalid, but still proceeding")
+		return fmt.Errorf("failed to create Machine Config Pool %s: %w", "e2e-invalid", err)
 	}
 
 	return nil
