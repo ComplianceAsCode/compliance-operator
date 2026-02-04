@@ -217,9 +217,9 @@ func TestCISProfiles(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-			AutoApplyRemediations:   true,
-			AutoUpdateRemediations:  true,
-			Schedule:                "0 1 * * *",
+			AutoApplyRemediations:  true,
+			AutoUpdateRemediations: true,
+			Schedule:               "0 1 * * *",
 		},
 		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 			RawResultStorage: compv1alpha1.RawResultStorageSettings{
@@ -407,7 +407,7 @@ func TestCISProfiles(t *testing.T) {
 			isMachineConfig := false
 			if rem.Spec.Current.Object != nil {
 				objKind := rem.Spec.Current.Object.GetObjectKind().GroupVersionKind().Kind
-				isMachineConfig = (objKind == "MachineConfig" || strings.Contains(rem.Name, "kubelet"))
+				isMachineConfig = (objKind == "MachineConfig")
 			}
 
 			if isMachineConfig {
