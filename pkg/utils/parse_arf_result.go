@@ -563,8 +563,29 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 	allValues := xmlquery.Find(resultsDom, "//set-value")
 	valuesList := make(map[string]string)
 
+	// First get values from the results XML
 	for _, codeNode := range allValues {
 		valuesList[strings.TrimPrefix(codeNode.SelectAttr("idref"), valuePrefix)] = codeNode.InnerText()
+	}
+
+	// Then get values from the tailored profile
+	tailoredValues := xmlquery.Find(dsDom, "//xccdf-1.2:Value")
+	for _, variable := range tailoredValues {
+		for _, val := range variable.SelectElements("//xccdf-1.2:value") {
+			if val.SelectAttr("hidden") == "true" {
+				continue
+			}
+			if val.SelectAttr("selector") == "" {
+				continue
+			}
+			if val.SelectAttr("selector") == "" {
+				if strings.HasPrefix(variable.SelectAttr("id"), valuePrefix) {
+					if trimmed, ok := strings.CutPrefix(variable.SelectAttr("id"), valuePrefix); ok {
+						valuesList[trimmed] = val.OutputXML(false)
+					}
+				}
+			}
+		}
 	}
 
 	ruleTable := newRuleHashTable(dsDom)
@@ -613,7 +634,6 @@ func ParseResultsFromContentAndXccdf(scheme *runtime.Scheme, scanName string, na
 		return parsedResults, errors.New(remErrs)
 	}
 	return parsedResults, nil
-
 }
 
 // Returns a new complianceCheckResult if the check data is usable
