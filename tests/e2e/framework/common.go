@@ -1710,7 +1710,7 @@ func (f *Framework) AssertARFReportExistsInPVC(t *testing.T, scanName, namespace
 	pod := &core.Pod{}
 	key := types.NamespacedName{Name: arfFormatCheckerPod.Name, Namespace: namespace}
 	t.Logf("waiting for checker pod %s to complete", arfFormatCheckerPod.Name)
-	timeoutErr := wait.Poll(RetryInterval, time.Minute*2, func() (bool, error) {
+	timeoutErr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
 		if err := f.Client.Get(context.TODO(), key, pod); err != nil {
 			t.Logf("checker pod not yet available: %v", err)
 			return false, nil
