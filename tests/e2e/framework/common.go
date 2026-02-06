@@ -894,6 +894,88 @@ func (f *Framework) restoreNodeLabelsForPool(n string) error {
 	return nil
 }
 
+// WaitForMachineConfigPoolUpdated waits for a MachineConfigPool to complete an update cycle.
+// It first waits for the Updated condition to become False (indicating update/reboot started),
+// then waits for it to become True again (indicating update/reboot completed).
+func (f *Framework) WaitForMachineConfigPoolUpdated(poolName string) error {
+	if f.Platform == "rosa" {
+		log.Printf("Bypassing MachineConfigPool update check on %s", f.Platform)
+		return nil
+	}
+
+	// First, get the initial state
+	pool := mcfgv1.MachineConfigPool{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, &pool)
+	if err != nil {
+		return fmt.Errorf("failed to find Machine Config Pool %s: %w", poolName, err)
+	}
+
+	// Check initial state of MachineConfigPoolUpdated condition
+	initialUpdated := false
+	for _, c := range pool.Status.Conditions {
+		if c.Type == mcfgv1.MachineConfigPoolUpdated {
+			initialUpdated = (c.Status == core.ConditionTrue)
+			break
+		}
+	}
+
+	// If the pool is already updated (True), wait for it to start updating (False)
+	if initialUpdated {
+		log.Printf("Machine Config Pool %s is currently updated. Waiting for update to start...\n", poolName)
+		err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+			pool := mcfgv1.MachineConfigPool{}
+			err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, &pool)
+			if err != nil {
+				log.Printf("failed to find Machine Config Pool %s\n", poolName)
+				return false, err
+			}
+
+			for _, c := range pool.Status.Conditions {
+				if c.Type == mcfgv1.MachineConfigPoolUpdated {
+					if c.Status == core.ConditionFalse {
+						log.Printf("Machine Config Pool %s update started (Updated=False)\n", poolName)
+						return true, nil
+					}
+					break
+				}
+			}
+
+			log.Printf("Machine Config Pool %s still updated, waiting for update to start...\n", poolName)
+			return false, nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed waiting for Machine Config Pool %s to start updating: %w", poolName, err)
+		}
+	} else {
+		log.Printf("Machine Config Pool %s is already updating (Updated=False). Waiting for update to complete...\n", poolName)
+	}
+
+	// Now wait for the update to complete (Updated=True)
+	err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		pool := mcfgv1.MachineConfigPool{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, &pool)
+		if err != nil {
+			log.Printf("failed to find Machine Config Pool %s\n", poolName)
+			return false, err
+		}
+
+		for _, c := range pool.Status.Conditions {
+			if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == core.ConditionTrue {
+				return true, nil
+			}
+		}
+
+		log.Printf("Machine Config Pool %s has not finished updating yet... retrying\n", poolName)
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed waiting for Machine Config Pool %s to be updated: %w", poolName, err)
+	}
+
+	log.Printf("Machine Config Pool %s is updated\n", poolName)
+	return nil
+}
+
 func (f *Framework) getNodesForPool(p *mcfgv1.MachineConfigPool) (core.NodeList, error) {
 	var nodeList core.NodeList
 	opts := &dynclient.ListOptions{
@@ -1045,6 +1127,25 @@ func (f *Framework) WaitForScanSettingBindingStatus(namespace, name string, targ
 	}
 
 	log.Printf("ScanSettingBinding status %s\n", b.Status.Phase)
+	return nil
+}
+
+func (f *Framework) WaitForComplianceSuiteDeletion(name, namespace string) error {
+	suiteKey := types.NamespacedName{Name: name, Namespace: namespace}
+	suite := &compv1alpha1.ComplianceSuite{}
+	err := wait.Poll(RetryInterval, 30*time.Second, func() (bool, error) {
+		err := f.Client.Get(context.TODO(), suiteKey, suite)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("ComplianceSuite %s may not have been fully cleaned up: %w", name, err)
+	}
 	return nil
 }
 

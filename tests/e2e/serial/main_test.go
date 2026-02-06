@@ -1569,47 +1569,32 @@ func TestVariableTemplate(t *testing.T) {
 
 func TestKubeletConfigRemediation(t *testing.T) {
 	f := framework.Global
-	var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "new_kubeletconfig")
-	const requiredRule = "kubelet-enable-streaming-connections"
-	pbName := framework.GetObjNameFromTest(t)
-	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
-
-	ocpPb, err := f.CreateProfileBundle(pbName, baselineImage, framework.OcpContentFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), ocpPb)
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
-
-	// Check that if the rule we are going to test is there
-	requiredRuleName := prefixName(pbName, requiredRule)
-	requiredVersionRuleName := prefixName(pbName, "version-detect-in-ocp")
-	requiredVariableName := prefixName(pbName, "var-streaming-connection-timeouts")
-	suiteName := "kubelet-remediation-test-suite-node"
+	suiteName := framework.GetObjNameFromTest(t) + "-kubelet-remediation"
 
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      suiteName,
 			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: "Node",
+			},
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
 			Title:       "kubelet-remediation-test-node",
 			Description: "A test tailored profile to test kubelet remediation",
 			EnableRules: []compv1alpha1.RuleReferenceSpec{
 				{
-					Name:      requiredRuleName,
+					Name:      "ocp4-kubelet-enable-streaming-connections",
 					Rationale: "To be tested",
 				},
 				{
-					Name:      requiredVersionRuleName,
+					Name:      "ocp4-version-detect-in-ocp",
 					Rationale: "To be tested",
 				},
 			},
 			SetValues: []compv1alpha1.VariableValueSpec{
 				{
-					Name:      requiredVariableName,
+					Name:      "ocp4-var-streaming-connection-timeouts",
 					Rationale: "Value to be set",
 					Value:     "8h0m0s",
 				},
@@ -1641,11 +1626,21 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		},
 	}
 
-	err = f.Client.Create(context.TODO(), ssb, nil)
+	err := f.Client.Create(context.TODO(), ssb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Client.Delete(context.TODO(), ssb)
+	// Cleanup: Delete ScanSettingBinding first, then wait for ComplianceSuite to be cascade-deleted
+	// This ensures proper cleanup before the next test runs
+	defer func() {
+		if err := f.Client.Delete(context.TODO(), ssb); err != nil {
+			t.Logf("Failed to delete ScanSettingBinding: %v", err)
+			return
+		}
+		if err := f.WaitForComplianceSuiteDeletion(suiteName, f.OperatorNamespace); err != nil {
+			t.Logf("ComplianceSuite cleanup warning: %v", err)
+		}
+	}()
 
 	// Ensure that all the scans in the suite have finished and are marked as Done
 	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
@@ -1663,6 +1658,21 @@ func TestKubeletConfigRemediation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Cleanup: Unapply the remediation before test ends to prevent leaving nodes in a modified state
+	// This ensures the cluster is reset after the test completes
+	defer func() {
+		// Finally clean up by removing the remediation and waiting for the nodes to reboot one more time
+		err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, "worker")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = f.WaitForNodesToBeReady()
+		if err != nil {
+			t.Fatalf("failed waiting for nodes to reboot after unapplying MachineConfig: %s", err)
+		}
+	}()
 
 	err = f.ReRunScan(scanName, f.OperatorNamespace)
 	if err != nil {
