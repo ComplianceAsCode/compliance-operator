@@ -1585,7 +1585,7 @@ func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error
 
 	pod := &core.Pod{}
 	key := types.NamespacedName{Name: arfFormatCheckerPod.Name, Namespace: namespace}
-	return wait.Poll(2*time.Second, 10*time.Second, func() (bool, error) {
+	return wait.Poll(RetryInterval, Timeout, func() (bool, error) {
 		if err := f.Client.Get(context.TODO(), key, pod); err != nil {
 			return false, nil
 		}
