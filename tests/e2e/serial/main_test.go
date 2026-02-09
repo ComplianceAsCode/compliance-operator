@@ -623,12 +623,13 @@ func TestTolerations(t *testing.T) {
 }
 
 // TestAutoRemediate tests auto-remediation functionality with multiple rule types.
-// This test covers issues 27967, 33782, 33711, 47346:
-// - 27967: Tests auto-remediation with multiple remediation types simultaneously
-//          (file-based, audit rules, array values - whichever are non-compliant)
-// - 33782: Tests scanning on a subset of nodes (via framework.TestPoolName MachineConfigPool)
-// - 33711: Tests ComplianceRemediation status transitions (Applied → PASS after rescan)
-// - 47346: Tests array value remediations (chronyd with multiple NTP servers) and end-to-end workflow
+// This test covers the following scenarios:
+// Tests auto-remediation with multiple remediation types simultaneously
+//
+//	        (file-based, audit rules, array values - whichever are non-compliant)
+//	Tests scanning on a subset of nodes (via framework.TestPoolName MachineConfigPool)
+//	Tests ComplianceRemediation status transitions (Applied → PASS after rescan)
+//	Tests array value remediations (chronyd with multiple NTP servers) and end-to-end workflow
 //
 // The test dynamically adapts to the environment by:
 // 1. Scanning with multiple rules (file, audit, array value types)
