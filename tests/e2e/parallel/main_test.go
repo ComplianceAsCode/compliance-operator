@@ -1014,10 +1014,10 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
+	err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestScanWithUnexistentResourceFails(t *testing.T) {
@@ -1246,7 +1246,7 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 }
 
 // TestSingleTailoredPlatformScanSucceedsOptionalProxy tests TailoredProfiles created from scratch
-// without extending an existing Profile. Covers test cases 47373, 47371.
+// without extending an existing Profile.
 func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -1355,7 +1355,7 @@ func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Test 3: TailoredProfile with both node and platform rules should error (47373, 47371)
+	// Test 3: TailoredProfile with both node and platform rules should error
 	tpMixedName := "test-tailoredmixedprofile"
 	tpMixed := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
