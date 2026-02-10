@@ -2164,8 +2164,6 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
-// Test author: xiyuan@redhat.com
-// Ported from downstream tests: 60854, 60864
 // TestHypershiftTailoredProfileScan tests scanning HyperShift hosted cluster
 // with tailored profiles for ocp4-cis and ocp4-pci-dss compliance profiles
 func TestHypershiftTailoredProfileScan(t *testing.T) {
