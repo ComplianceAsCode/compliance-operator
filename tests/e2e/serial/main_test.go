@@ -2164,6 +2164,115 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+// Test author: xiyuan@redhat.com
+// Ported from downstream tests: 60854, 60864
+// TestHypershiftTailoredProfileScan tests scanning HyperShift hosted cluster
+// with tailored profiles for ocp4-cis and ocp4-pci-dss compliance profiles
+func TestHypershiftTailoredProfileScan(t *testing.T) {
+	f := framework.Global
+
+	// Skip test if not running on a HyperShift cluster
+	infraList := configv1.InfrastructureList{}
+	err := f.Client.List(context.TODO(), &infraList)
+	if err != nil {
+		t.Fatalf("Failed to list infrastructures: %v", err)
+	}
+
+	isHypershift := false
+	for _, infra := range infraList.Items {
+		if infra.Status.ControlPlaneTopology == configv1.ExternalTopologyMode {
+			isHypershift = true
+			break
+		}
+	}
+
+	if !isHypershift {
+		t.Skip("Test requires HyperShift cluster (External control plane topology)")
+	}
+
+	// Create tailored profile for ocp4-cis
+	cisTPName := "test-hypershift-cis-tp"
+	cisTP := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cisTPName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Extends:     "ocp4-cis",
+			Title:       "HyperShift CIS Tailored Profile",
+			Description: "Tailored profile for ocp4-cis on HyperShift cluster",
+		},
+	}
+	err = f.Client.Create(context.TODO(), cisTP, nil)
+	if err != nil {
+		t.Fatalf("failed to create CIS TailoredProfile: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), cisTP)
+
+	// Create tailored profile for ocp4-pci-dss
+	pciTPName := "test-hypershift-pci-tp"
+	pciTP := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pciTPName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Extends:     "ocp4-pci-dss",
+			Title:       "HyperShift PCI-DSS Tailored Profile",
+			Description: "Tailored profile for ocp4-pci-dss on HyperShift cluster",
+		},
+	}
+	err = f.Client.Create(context.TODO(), pciTP, nil)
+	if err != nil {
+		t.Fatalf("failed to create PCI-DSS TailoredProfile: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pciTP)
+
+	// Create ScanSettingBinding with both tailored profiles
+	suiteName := framework.GetObjNameFromTest(t)
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     cisTPName,
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     pciTPName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("failed to create ScanSettingBinding: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for CIS scan to complete
+	// When using SSB with TailoredProfile, the scan has same name as the TP
+	if err = f.WaitForScanStatus(f.OperatorNamespace, cisTPName, compv1alpha1.PhaseDone); err != nil {
+		t.Fatalf("CIS scan failed to complete: %s", err)
+	}
+
+	// Wait for PCI-DSS scan to complete
+	if err = f.WaitForScanStatus(f.OperatorNamespace, pciTPName, compv1alpha1.PhaseDone); err != nil {
+		t.Fatalf("PCI-DSS scan failed to complete: %s", err)
+	}
+
+	t.Logf("Both HyperShift tailored profile scans completed successfully")
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
