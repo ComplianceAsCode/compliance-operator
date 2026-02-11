@@ -2170,25 +2170,12 @@ func TestHypershiftTailoredProfileScan(t *testing.T) {
 	f := framework.Global
 
 	// Skip test if not running on a HyperShift cluster
-	infraList := configv1.InfrastructureList{}
-	err := f.Client.List(context.TODO(), &infraList)
-	if err != nil {
-		t.Fatalf("Failed to list infrastructures: %v", err)
-	}
-
-	isHypershift := false
-	for _, infra := range infraList.Items {
-		if infra.Status.ControlPlaneTopology == configv1.ExternalTopologyMode {
-			isHypershift = true
-			break
-		}
-	}
-
-	if !isHypershift {
-		t.Skip("Test requires HyperShift cluster (External control plane topology)")
+	if f.Platform != "HyperShift" {
+		t.Skip("Test requires HyperShift platform")
 	}
 
 	// Create tailored profile for ocp4-cis
+	var err error
 	cisTPName := "test-hypershift-cis-tp"
 	cisTP := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
