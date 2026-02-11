@@ -684,6 +684,15 @@ func TestSingleScanSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to assert PVC reference for scan %s: %s", scanName, err)
 	}
+
+	// Validate exit-code is "0"
+	exitCode, _, err := f.GetScanExitCodeAndErrorMsg(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exitCode != "0" {
+		t.Fatalf("Expected ConfigMap exit-code to be '0', but got: '%s'", exitCode)
+	}
 }
 
 func TestSingleScanTimestamps(t *testing.T) {
@@ -1069,6 +1078,15 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 
 	if err = f.ScanHasWarnings(scanName, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
+	}
+
+	// Validate exit-code is "2"
+	exitCode, _, err := f.GetScanExitCodeAndErrorMsg(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exitCode != "2" {
+		t.Fatalf("Expected ConfigMap exit-code to be '2', but got: '%s'", exitCode)
 	}
 }
 
