@@ -33,32 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (f *Framework) AssertMustHaveParsedProfiles(pbName, productType, productName string) error {
-	var l compv1alpha1.ProfileList
-	o := &client.ListOptions{
-		LabelSelector: labels.SelectorFromSet(map[string]string{
-			compv1alpha1.ProfileBundleOwnerLabel: pbName,
-		}),
-	}
-	if err := f.Client.List(context.TODO(), &l, o); err != nil {
-		return err
-	}
-	if len(l.Items) <= 0 {
-		return fmt.Errorf("failed to get profiles from ProfileBundle %s. Expected at least one but got %d", pbName, len(l.Items))
-	}
-
-	for _, p := range l.Items {
-		if p.Annotations[compv1alpha1.ProductTypeAnnotation] != productType {
-			return fmt.Errorf("expected %s to be %s, got %s instead", compv1alpha1.ProductTypeAnnotation, productType, p.Annotations[compv1alpha1.ProductTypeAnnotation])
-		}
-
-		if p.Annotations[compv1alpha1.ProductAnnotation] != productName {
-			return fmt.Errorf("expected %s to be %s, got %s instead", compv1alpha1.ProductAnnotation, productName, p.Annotations[compv1alpha1.ProductAnnotation])
-		}
-	}
-	return nil
-}
-
 // AssertScanHasTotalCheckCounts asserts that the scan has the expected total check counts
 func (f *Framework) AssertScanHasTotalCheckCounts(namespace, scanName string) error {
 	// check if scan has annotation
