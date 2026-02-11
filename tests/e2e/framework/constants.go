@@ -17,5 +17,6 @@ const (
 	OcpContentFile                = "ssg-ocp4-ds.xml"
 	UnexistentResourceContentFile = "ocp4-unexistent-resource.xml"
 	CelContentFile                = "cel-content.yaml"
-	PromethusTestSA               = "prometheus-query-sa"
+	PrometheusTestSA               = "prometheus-query-sa"
+	FedoraTestImage = "registry.fedoraproject.org/fedora:latest"
 )
