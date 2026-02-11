@@ -2164,6 +2164,76 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+func TestPrometheusRuleComplianceAlert(t *testing.T) {
+	f := framework.Global
+	bindingName := "pci-test"
+	expectedAlertDescription := "The compliance suite pci-test returned as NON-COMPLIANT, ERROR, or INCONSISTENT"
+
+	// Set up RBAC for AlertManager API access
+	err := f.SetupRBACForMetricsTest()
+	if err != nil {
+		t.Fatalf("failed to setup RBAC for metrics test: %s", err)
+	}
+	defer f.CleanUpRBACForMetricsTest()
+
+	// Verify namespace has cluster-monitoring label
+	ns := &corev1.Namespace{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: f.OperatorNamespace}, ns); err != nil {
+		t.Fatalf("failed to get namespace %s: %v", f.OperatorNamespace, err)
+	}
+	if ns.Labels == nil || ns.Labels["openshift.io/cluster-monitoring"] != "true" {
+		t.Fatalf("namespace %s does not have openshift.io/cluster-monitoring label set to true", f.OperatorNamespace)
+	}
+
+	// Verify metrics service exists
+	metricsService := &corev1.Service{}
+	metricsServiceKey := types.NamespacedName{Name: "metrics", Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), metricsServiceKey, metricsService); err != nil {
+		t.Fatalf("failed to get metrics service: %v", err)
+	}
+
+	// Create ScanSettingBinding with ocp4-pci-dss profile
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-pci-dss",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     "default",
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatalf("failed to create ScanSettingBinding %s: %v", bindingName, err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Verify ScanSettingBinding was created
+	if err := f.WaitForScanSettingBindingStatus(f.OperatorNamespace, bindingName, compv1alpha1.ScanSettingBindingPhaseReady); err != nil {
+		t.Fatalf("ScanSettingBinding %s failed to become ready: %v", bindingName, err)
+	}
+
+	// Wait for ComplianceSuite to complete with NON-COMPLIANT result
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatalf("ComplianceSuite %s did not reach expected status: %v", bindingName, err)
+	}
+
+	// Check that the alert is firing in AlertManager with the expected description
+	// This verifies that the PrometheusRule is working and the alert is actually active
+	if err := f.AssertAlertManagerAlertExists(bindingName, expectedAlertDescription, 5*time.Minute); err != nil {
+		t.Fatalf("AlertManager alert check failed: %v", err)
+	}
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
