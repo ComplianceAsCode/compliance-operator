@@ -1766,6 +1766,38 @@ func (f *Framework) WaitForComplianceSuiteDeletion(name, namespace string) error
 	return nil
 }
 
+const suiteDeletionTimeout = 180 * time.Second
+
+// WaitForSuiteScansCleanup polls until no ComplianceScans belonging to the suite/ScanSettingBinding (same name) remain in the namespace.
+func (f *Framework) WaitForSuiteScansCleanup(suiteOrBindingName, namespace string) error {
+	return wait.Poll(RetryInterval, suiteDeletionTimeout, func() (bool, error) {
+		var scanList compv1alpha1.ComplianceScanList
+		err := f.Client.List(context.TODO(), &scanList, client.InNamespace(namespace), client.MatchingLabels{
+			compv1alpha1.SuiteLabel: suiteOrBindingName,
+		})
+		if err != nil {
+			return false, err
+		}
+		if len(scanList.Items) == 0 {
+			return true, nil
+		}
+		log.Printf("Waiting for %d ComplianceScan(s) for suite %s/%s to be deleted\n", len(scanList.Items), namespace, suiteOrBindingName)
+		return false, nil
+	})
+}
+
+// DeleteScanSettingBindingAndWaitForCleanup deletes the given ScanSettingBinding and waits for all ComplianceScans
+// belonging to that binding (same name as the suite) to be removed.
+func (f *Framework) DeleteScanSettingBindingAndWaitForCleanup(ssb *compv1alpha1.ScanSettingBinding) error {
+	if err := f.Client.Delete(context.TODO(), ssb); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete ScanSettingBinding %s/%s: %w", ssb.Namespace, ssb.Name, err)
+	}
+	if err := f.WaitForSuiteScansCleanup(ssb.Name, ssb.Namespace); err != nil {
+		return fmt.Errorf("wait for ComplianceScans for suite %s/%s to cleanup (timeout %s): %w", ssb.Namespace, ssb.Name, suiteDeletionTimeout, err)
+	}
+	return nil
+}
+
 func (f *Framework) AssertScanSettingBindingConditionIsReady(name string, namespace string) error {
 	ssb := &compv1alpha1.ScanSettingBinding{}
 	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, ssb)
