@@ -12,6 +12,7 @@ import (
 	compsuitectrl "github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancesuite"
 	configv1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2164,6 +2165,212 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+// TestOperatorResourceLimitsConfigurable tests that the compliance operator's
+// resource limits and requests can be configured via patching the deployment.
+func TestOperatorResourceLimitsConfigurable(t *testing.T) {
+	f := framework.Global
+	deploymentName := "compliance-operator"
+
+	// Get the compliance-operator deployment
+	deployment := &appsv1.Deployment{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      deploymentName,
+		Namespace: f.OperatorNamespace,
+	}, deployment)
+	if err != nil {
+		t.Fatalf("failed to get compliance-operator deployment: %s", err)
+	}
+
+	// Verify default resource limits
+	t.Log("Verifying default resource limits for compliance-operator")
+	if len(deployment.Spec.Template.Spec.Containers) == 0 {
+		t.Fatal("no containers found in deployment")
+	}
+
+	container := deployment.Spec.Template.Spec.Containers[0]
+	if container.Name != "compliance-operator" {
+		t.Fatalf("expected container name 'compliance-operator', got %s", container.Name)
+	}
+
+	// Check default limits
+	defaultCPULimit := container.Resources.Limits.Cpu().String()
+	defaultMemLimit := container.Resources.Limits.Memory().String()
+	defaultCPURequest := container.Resources.Requests.Cpu().String()
+	defaultMemRequest := container.Resources.Requests.Memory().String()
+
+	if defaultCPULimit != "200m" {
+		t.Errorf("expected default CPU limit 200m, got %s", defaultCPULimit)
+	}
+	if defaultMemLimit != "500Mi" {
+		t.Errorf("expected default memory limit 500Mi, got %s", defaultMemLimit)
+	}
+	if defaultCPURequest != "10m" {
+		t.Errorf("expected default CPU request 10m, got %s", defaultCPURequest)
+	}
+	if defaultMemRequest != "20Mi" {
+		t.Errorf("expected default memory request 20Mi, got %s", defaultMemRequest)
+	}
+
+	// Patch the deployment with new resource limits
+	t.Log("Patching deployment with new resource limits")
+
+	// Create a patch to update resource requirements
+	patchData := []byte(`{
+		"spec": {
+			"template": {
+				"spec": {
+					"containers": [{
+						"name": "compliance-operator",
+						"resources": {
+							"limits": {
+								"cpu": "256m",
+								"memory": "512Mi"
+							},
+							"requests": {
+								"cpu": "25m",
+								"memory": "52Mi"
+							}
+						}
+					}]
+				}
+			}
+		}
+	}`)
+
+	// Get the current pod UID before patching to detect when a new pod is created
+	podList := &corev1.PodList{}
+	err = f.Client.List(context.TODO(), podList,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels(map[string]string{"name": "compliance-operator"}))
+	if err != nil {
+		t.Fatalf("failed to list operator pods before patch: %s", err)
+	}
+	if len(podList.Items) == 0 {
+		t.Fatal("no compliance-operator pods found before patch")
+	}
+	oldPodUID := podList.Items[0].UID
+
+	// Apply the patch
+	err = f.Client.Patch(context.TODO(), deployment, client.RawPatch(types.StrategicMergePatchType, patchData))
+	if err != nil {
+		t.Fatalf("failed to patch deployment: %s", err)
+	}
+
+	// Defer cleanup: restore original resource limits
+	defer func() {
+		t.Log("Restoring original resource limits")
+		restorePatch := []byte(`{
+			"spec": {
+				"template": {
+					"spec": {
+						"containers": [{
+							"name": "compliance-operator",
+							"resources": {
+								"limits": {
+									"cpu": "200m",
+									"memory": "500Mi"
+								},
+								"requests": {
+									"cpu": "10m",
+									"memory": "20Mi"
+								}
+							}
+						}]
+					}
+				}
+			}
+		}`)
+
+		// Get fresh deployment object for restore
+		freshDeployment := &appsv1.Deployment{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      deploymentName,
+			Namespace: f.OperatorNamespace,
+		}, freshDeployment); err != nil {
+			t.Logf("failed to get deployment for restore: %s", err)
+			return
+		}
+
+		if err := f.Client.Patch(context.TODO(), freshDeployment, client.RawPatch(types.StrategicMergePatchType, restorePatch)); err != nil {
+			t.Logf("failed to restore original resource limits: %s", err)
+		}
+
+		// Wait for deployment to be ready with original limits
+		if err := f.WaitForDeployment(deploymentName, 1, framework.RetryInterval, framework.Timeout); err != nil {
+			t.Logf("deployment did not become ready after restore: %s", err)
+		}
+	}()
+
+	// Wait for a new pod to be created with the updated resource limits
+	// We poll until we find a pod with a different UID (new pod) that has the expected resources
+	t.Log("Waiting for new pod with updated resource limits")
+	var newPod *corev1.Pod
+	err = wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		podList := &corev1.PodList{}
+		listErr := f.Client.List(context.TODO(), podList,
+			client.InNamespace(f.OperatorNamespace),
+			client.MatchingLabels(map[string]string{"name": "compliance-operator"}))
+		if listErr != nil {
+			log.Printf("failed to list operator pods: %s, retrying...", listErr)
+			return false, nil
+		}
+
+		if len(podList.Items) == 0 {
+			log.Printf("no compliance-operator pods found yet, waiting...")
+			return false, nil
+		}
+
+		pod := &podList.Items[0]
+
+		// Check if this is a new pod (different UID)
+		if pod.UID == oldPodUID {
+			log.Printf("old pod still exists (UID: %s), waiting for new pod...", oldPodUID)
+			return false, nil
+		}
+
+		// Check if the new pod is running
+		if pod.Status.Phase != corev1.PodRunning {
+			log.Printf("new pod exists but not running yet (phase: %s), waiting...", pod.Status.Phase)
+			return false, nil
+		}
+
+		// Found a new running pod
+		newPod = pod
+		log.Printf("new pod found with UID: %s, phase: %s", pod.UID, pod.Status.Phase)
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("timed out waiting for new pod with updated resources: %s", err)
+	}
+
+	// Verify the new pod has the updated resource limits
+	t.Log("Verifying new resource limits on operator pod")
+	if len(newPod.Spec.Containers) == 0 {
+		t.Fatal("no containers found in new pod")
+	}
+
+	podContainer := newPod.Spec.Containers[0]
+	newCPULimit := podContainer.Resources.Limits.Cpu().String()
+	newMemLimit := podContainer.Resources.Limits.Memory().String()
+	newCPURequest := podContainer.Resources.Requests.Cpu().String()
+	newMemRequest := podContainer.Resources.Requests.Memory().String()
+
+	if newCPULimit != "256m" {
+		t.Errorf("expected new CPU limit 256m, got %s", newCPULimit)
+	}
+	if newMemLimit != "512Mi" {
+		t.Errorf("expected new memory limit 512Mi, got %s", newMemLimit)
+	}
+	if newCPURequest != "25m" {
+		t.Errorf("expected new CPU request 25m, got %s", newCPURequest)
+	}
+	if newMemRequest != "52Mi" {
+		t.Errorf("expected new memory request 52Mi, got %s", newMemRequest)
+	}
+
+	t.Log("Successfully verified operator resource limits are configurable")
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
@@ -2202,7 +2409,7 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 //							NodeSelector: workerNodesLabel,
 //							ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 //								Debug: true,
-//							},
+//			},
 //						},
 //						Name: scanName,
 //					},
