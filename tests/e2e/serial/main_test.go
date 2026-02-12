@@ -2042,6 +2042,126 @@ func TestSuspendScanSettingDoesNotCreateScan(t *testing.T) {
 	}
 }
 
+func TestScannerAndAPICollectorLimitsConfigurable(t *testing.T) {
+	f := framework.Global
+
+	// Create ScanSetting with resource limits
+	scanSettingName := framework.GetObjNameFromTest(t) + "-scansetting"
+	cpuLimit := "150m"
+	memoryLimit := "512Mi"
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+			Schedule:              "0 1 * * *",
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug: true,
+			ScanLimits: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse(cpuLimit),
+				corev1.ResourceMemory: resource.MustParse(memoryLimit),
+			},
+		},
+		Roles: []string{"master", "worker"},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
+
+	bindingName := framework.GetObjNameFromTest(t) + "-binding"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-cis-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the ComplianceSuite to verify scanLimits
+	suite := &compv1alpha1.ComplianceSuite{}
+	key := types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, scanWrapper := range suite.Spec.Scans {
+		if scanWrapper.ScanLimits == nil {
+			t.Fatalf("scan %s in ComplianceSuite %s has no scanLimits", scanWrapper.Name, bindingName)
+		}
+
+		cpuQty, hasCPU := scanWrapper.ScanLimits[corev1.ResourceCPU]
+		if !hasCPU {
+			t.Fatalf("scan %s in ComplianceSuite %s has no CPU limit", scanWrapper.Name, bindingName)
+		}
+		if cpuQty.String() != cpuLimit {
+			t.Fatalf("scan %s in ComplianceSuite %s has CPU limit %s, expected %s", scanWrapper.Name, bindingName, cpuQty.String(), cpuLimit)
+		}
+
+		memQty, hasMem := scanWrapper.ScanLimits[corev1.ResourceMemory]
+		if !hasMem {
+			t.Fatalf("scan %s in ComplianceSuite %s has no memory limit", scanWrapper.Name, bindingName)
+		}
+		if memQty.String() != memoryLimit {
+			t.Fatalf("scan %s in ComplianceSuite %s has memory limit %s, expected %s", scanWrapper.Name, bindingName, memQty.String(), memoryLimit)
+		}
+	}
+
+	// Wait for scanner pods to be created and verify their resource limits
+	var podList *corev1.PodList
+	err := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		podList = &corev1.PodList{}
+		listErr := f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+			"workload": "scanner",
+		}))
+		if listErr != nil {
+			return false, listErr
+		}
+		if len(podList.Items) == 0 {
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("failed to find scanner pods: %v", err)
+	}
+
+	// Verify resource limits for all scanner pods
+	for _, pod := range podList.Items {
+		// Wait for pod limits to be set correctly
+		if err := framework.WaitForPod(framework.CheckPodLimit(f.KubeClient, pod.Name, f.OperatorNamespace, cpuLimit, memoryLimit)); err != nil {
+			t.Fatalf("pod %s does not have expected resource limits: %v", pod.Name, err)
+		}
+	}
+}
+
 func TestScanDeprecatedProfile(t *testing.T) {
 	f := framework.Global
 
