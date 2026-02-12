@@ -2237,6 +2237,19 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 		}
 	}`)
 
+	// Get the current pod UID before patching to detect when a new pod is created
+	podList := &corev1.PodList{}
+	err = f.Client.List(context.TODO(), podList,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels(map[string]string{"name": "compliance-operator"}))
+	if err != nil {
+		t.Fatalf("failed to list operator pods before patch: %s", err)
+	}
+	if len(podList.Items) == 0 {
+		t.Fatal("no compliance-operator pods found before patch")
+	}
+	oldPodUID := podList.Items[0].UID
+
 	// Apply the patch
 	err = f.Client.Patch(context.TODO(), deployment, client.RawPatch(types.StrategicMergePatchType, patchData))
 	if err != nil {
@@ -2288,32 +2301,55 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 		}
 	}()
 
-	// Wait for the deployment to rollout with new pod
-	err = f.WaitForDeployment(deploymentName, 1, framework.RetryInterval, framework.Timeout)
+	// Wait for a new pod to be created with the updated resource limits
+	// We poll until we find a pod with a different UID (new pod) that has the expected resources
+	t.Log("Waiting for new pod with updated resource limits")
+	var newPod *corev1.Pod
+	err = wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		podList := &corev1.PodList{}
+		listErr := f.Client.List(context.TODO(), podList,
+			client.InNamespace(f.OperatorNamespace),
+			client.MatchingLabels(map[string]string{"name": "compliance-operator"}))
+		if listErr != nil {
+			log.Printf("failed to list operator pods: %s, retrying...", listErr)
+			return false, nil
+		}
+
+		if len(podList.Items) == 0 {
+			log.Printf("no compliance-operator pods found yet, waiting...")
+			return false, nil
+		}
+
+		pod := &podList.Items[0]
+
+		// Check if this is a new pod (different UID)
+		if pod.UID == oldPodUID {
+			log.Printf("old pod still exists (UID: %s), waiting for new pod...", oldPodUID)
+			return false, nil
+		}
+
+		// Check if the new pod is running
+		if pod.Status.Phase != corev1.PodRunning {
+			log.Printf("new pod exists but not running yet (phase: %s), waiting...", pod.Status.Phase)
+			return false, nil
+		}
+
+		// Found a new running pod
+		newPod = pod
+		log.Printf("new pod found with UID: %s, phase: %s", pod.UID, pod.Status.Phase)
+		return true, nil
+	})
 	if err != nil {
-		t.Fatalf("deployment did not become ready after patch: %s", err)
+		t.Fatalf("timed out waiting for new pod with updated resources: %s", err)
 	}
 
-	// Get the new pod and verify it has the updated resource limits
+	// Verify the new pod has the updated resource limits
 	t.Log("Verifying new resource limits on operator pod")
-	podList := &corev1.PodList{}
-	err = f.Client.List(context.TODO(), podList,
-		client.InNamespace(f.OperatorNamespace),
-		client.MatchingLabels(map[string]string{"name": "compliance-operator"}))
-	if err != nil {
-		t.Fatalf("failed to list operator pods: %s", err)
+	if len(newPod.Spec.Containers) == 0 {
+		t.Fatal("no containers found in new pod")
 	}
 
-	if len(podList.Items) == 0 {
-		t.Fatal("no compliance-operator pods found")
-	}
-
-	pod := podList.Items[0]
-	if len(pod.Spec.Containers) == 0 {
-		t.Fatal("no containers found in pod")
-	}
-
-	podContainer := pod.Spec.Containers[0]
+	podContainer := newPod.Spec.Containers[0]
 	newCPULimit := podContainer.Resources.Limits.Cpu().String()
 	newMemLimit := podContainer.Resources.Limits.Memory().String()
 	newCPURequest := podContainer.Resources.Requests.Cpu().String()
