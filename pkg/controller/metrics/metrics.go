@@ -2,18 +2,19 @@ package metrics
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 
 	"github.com/go-logr/logr"
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
 
 const (
@@ -138,17 +139,22 @@ func (m *Metrics) Start(ctx context.Context) error {
 	m.log.Info("Starting to serve controller metrics")
 	http.Handle(HandlerPath, promhttp.Handler())
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		NextProtos: []string{"http/1.1"},
+	cfg, err := config.GetConfig()
+	if err != nil {
+		m.log.Error(err, "Failed to get Kubernetes config, using default TLS configuration")
+		cfg = &rest.Config{}
 	}
-	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+
+	// Get TLS configuration from OpenShift APIServer cluster-wide policy
+	// Falls back to secure defaults (TLS 1.2) if APIServer config is unavailable
+	tlsConfig := utils.GetAPIServerTLSConfigOrDefault(ctx, cfg)
+	tlsConfig.NextProtos = []string{"http/1.1"}
 	server := &http.Server{
 		Addr:      MetricsAddrListen,
 		TLSConfig: tlsConfig,
 	}
 
-	err := server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
+	err = server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
 	if err != nil {
 		// unhandled on purpose, we don't want to exit the operator.
 		m.log.Error(err, "Metrics service failed")
