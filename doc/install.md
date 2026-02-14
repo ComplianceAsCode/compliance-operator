@@ -76,6 +76,18 @@ you can run the compliance-operator on EKS using the EKS-specific overrides in
 $ helm install . --namespace openshift-compliance --generate-name -f eks-values.yaml
 ```
 
+To install on Generic Kubernetes, use the `generic-values.yaml` file:
+
+```
+$ helm install . --namespace openshift-compliance --generate-name -f generic-values.yaml
+```
+
+To install on HyperShfit Hosted Cluster, use the `hypershift-values.yaml` file:
+
+```
+$ helm install . --namespace openshift-compliance --generate-name -f hypershift-values.yaml
+```
+
 You can use Helm to uninstall, or delete a release, but Helm does not cleanup
 [custom resource
 definitions](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#helm).

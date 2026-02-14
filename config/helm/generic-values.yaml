@@ -1,0 +1,5 @@
+# Values defined in this file are specific to running the compliance-operator
+# on a Generic Kubernetes Cluster. All other values use the defaults defined in values.yaml.
+platform: generic
+nodeSelector: 
+tolerations: null
