@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -2161,6 +2162,76 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 
 	if err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRemediationNeedsReview(t *testing.T) {
+	f := framework.Global
+
+	suiteName := framework.GetObjNameFromTest(t)
+	scanName := suiteName
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+	suite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: true,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: "quay.io/openshifttest/co_content:qe_remediation_variable",
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Rule:         "xccdf_org.ssgproject.content_rule_chronyd_or_ntpd_specify_multiple_servers",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: scanName,
+				},
+			},
+		},
+	}
+	// Create the suite
+	err := f.Client.Create(context.TODO(), suite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), suite)
+
+	if err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check remediation applicationState is NeedsReview
+	remName := scanName + "-chronyd-or-ntpd-specify-multiple-servers"
+	err = f.WaitForRemediationState(remName, f.OperatorNamespace, compv1alpha1.RemediationNeedsReview)
+	if err != nil {
+		t.Fatalf("Failed waiting for remediation to be in NeedsReview state: %v", err)
+	}
+
+	// Check remediation annotations
+	rem := &compv1alpha1.ComplianceRemediation{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: remName, Namespace: f.OperatorNamespace}, rem)
+	if err != nil {
+		t.Fatalf("Failed to get remediation %s: %v", remName, err)
+	}
+
+	unsetValue, hasUnsetValue := rem.Annotations[compv1alpha1.RemediationUnsetValueAnnotation]
+	if !hasUnsetValue || !strings.Contains(unsetValue, "var-multiple-time-servers") {
+		t.Fatalf("Expected remediation to have annotation %s containing 'var-multiple-time-servers', got: %v", compv1alpha1.RemediationUnsetValueAnnotation, unsetValue)
+	}
+
+	valueRequired, hasValueRequired := rem.Annotations[compv1alpha1.RemediationValueRequiredAnnotation]
+	if !hasValueRequired || !strings.Contains(valueRequired, "var-multiple-time-servers") {
+		t.Fatalf("Expected remediation to have annotation %s containing 'var-multiple-time-servers', got: %v", compv1alpha1.RemediationValueRequiredAnnotation, valueRequired)
 	}
 }
 
