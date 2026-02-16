@@ -290,7 +290,7 @@ func (f *Framework) addFrameworks() error {
 	}
 
 	// MCO objects
-	if f.Platform != "rosa" || f.Platform == "HyperShift" {
+	if f.Platform != "rosa" && f.Platform != "HyperShift" {
 		mcoObjs := [2]dynclient.ObjectList{
 			&mcfgv1.MachineConfigPoolList{},
 			&mcfgv1.MachineConfigList{},
@@ -304,7 +304,7 @@ func (f *Framework) addFrameworks() error {
 	}
 
 	// ClusterClaim objects
-	if f.Platform == "rosa" || f.Platform == "HyperShift" {
+	if f.Platform == "rosa" {
 		ccObjs := [1]dynclient.ObjectList{
 			&clusterv1alpha1.ClusterClaimList{},
 		}
