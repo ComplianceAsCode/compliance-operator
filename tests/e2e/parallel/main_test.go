@@ -856,7 +856,8 @@ func TestScanTailoredProfileIsDeprecated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// SCENARIO 2: TailoredProfile extends a deprecated Profile (covers downstream test case 81235)
+	// SCENARIO 2: TailoredProfile extends a deprecated Profile - the TailoredProfile itself is not marked deprecated,
+	// but it should still trigger the deprecation warning because it extends a deprecated profile
 	// Create a ProfileBundle that will generate profiles
 	deprecatedPBName := "test-deprecated-pb"
 	deprecatedPB := &compv1alpha1.ProfileBundle{
@@ -1124,10 +1125,10 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
+	err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestScanWithUnexistentResourceFails(t *testing.T) {
