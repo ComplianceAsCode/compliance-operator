@@ -89,12 +89,12 @@ continue to carry it.
 
 ```bash
 # Add custom labels and annotations to an existing Rule
-oc label rule ocp4-api-server-encryption-provider-config \
+oc label rule ocp4-api-server-audit-log-path \
   business-unit=payments \
   risk-tier=critical \
   -n openshift-compliance
 
-oc annotate rule ocp4-api-server-encryption-provider-config \
+oc annotate rule ocp4-api-server-audit-log-path \
   internal-id=SEC-4021 \
   exception-ticket=JIRA-123 \
   -n openshift-compliance
@@ -111,7 +111,7 @@ oc get compliancecheckresults \
 
 # Inspect the custom annotations on a specific result
 oc get compliancecheckresult \
-  ocp4-cis-api-server-encryption-provider-config \
+  ocp4-cis-api-server-audit-log-path \
   -o jsonpath='{.metadata.annotations.internal-id}' \
   -n openshift-compliance
 # Output: SEC-4021
@@ -228,7 +228,13 @@ Operator-managed prefixes:
 - `complianceoperator.openshift.io/`
 - `complianceascode.io/`
 
-#### Component 2 — OpenSCAP aggregator path (`cmd/manager/aggregator.go`)
+#### Component 2 — RBAC (`config/rbac/remediation_aggregator_role.yaml`)
+
+The `remediation-aggregator` Role requires `list` permission on `rules` in the
+`compliance.openshift.io` API group so that `NewRuleMetadataCache` can list all
+Rule objects in the namespace.
+
+#### Component 3 — OpenSCAP aggregator path (`cmd/manager/aggregator.go`)
 
 In `createResults()`, after building the standard check-result labels and
 annotations, the aggregator:
@@ -253,7 +259,7 @@ createResults()
         └── createOrUpdateOneResult()
 ```
 
-#### Component 3 — CEL scanner path (`cmd/manager/cel-scanner.go`)
+#### Component 4 — CEL scanner path (`cmd/manager/cel-scanner.go`)
 
 In `runPlatformScan()`, when building the `ComplianceCheckResult` from a
 `CustomRule` evaluation:
@@ -269,7 +275,7 @@ Because those functions merge `resultLabels` into a new map that already contain
 operator labels, operator values always win (set first), and custom values are
 appended.
 
-#### Component 4 — Profileparser annotation preservation (`pkg/profileparser/profileparser.go`)
+#### Component 5 — Profileparser annotation preservation (`pkg/profileparser/profileparser.go`)
 
 **Current behavior (bug):** The Rule update callback does a full replacement:
 ```go

@@ -1632,6 +1632,12 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - compliance.openshift.io
+          resources:
+          - rules
+          verbs:
+          - list
+        - apiGroups:
           - scheduling.k8s.io
           resources:
           - priorityclasses
@@ -1732,5 +1738,5 @@ spec:
     name: operator
   - image: ghcr.io/complianceascode/k8scontent:latest
     name: profile
-  replaces: compliance-operator.v1.7.1
+  replaces: compliance-operator.v1.7.0
   version: 1.8.0-dev
