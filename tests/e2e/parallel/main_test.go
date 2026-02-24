@@ -977,6 +977,7 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	scanName := framework.GetObjNameFromTest(t)
+	t.Logf("Creating ComplianceScan %s with storage size 2Gi", scanName)
 	testScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scanName,
@@ -1001,23 +1002,29 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), testScan)
+	t.Logf("Waiting for scan %s to reach phase Done", scanName)
 	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s did not reach Done phase: %v", scanName, err)
 	}
+	t.Logf("Scan %s reached Done phase", scanName)
 
+	t.Logf("Asserting scan %s is compliant", scanName)
 	err = f.AssertScanIsCompliant(scanName, f.OperatorNamespace)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s is not compliant: %v", scanName, err)
 	}
+	t.Logf("Asserting scan %s has valid PVC reference with size 2Gi", scanName)
 	err = f.AssertScanHasValidPVCReferenceWithSize(scanName, "2Gi", f.OperatorNamespace)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s PVC reference check failed: %v", scanName, err)
 	}
+	t.Logf("Asserting ARF report exists in PVC for scan %s", scanName)
 	err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s ARF report check failed: %v", scanName, err)
 	}
+	t.Logf("All assertions passed for scan %s", scanName)
 }
 
 func TestScanWithUnexistentResourceFails(t *testing.T) {
