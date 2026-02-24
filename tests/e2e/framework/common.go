@@ -2264,6 +2264,38 @@ func (f *Framework) UntaintNode(nodeName, taintKey string) error {
 	return nil
 }
 
+// WaitForResultServerPodsWithNodeSelector polls until 2 result server pods are Running with the given nodeSelector.
+func (f *Framework) WaitForResultServerPodsWithNodeSelector(expectedNodeSelector map[string]string) error {
+	const resultServerPodWaitTimeout = 10 * time.Minute
+	resultServerPodLabels := map[string]string{"workload": "resultserver"}
+	var list *corev1.PodList
+	return wait.Poll(RetryInterval, resultServerPodWaitTimeout, func() (bool, error) {
+		list = &corev1.PodList{}
+		if err := f.Client.List(context.TODO(), list, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(resultServerPodLabels)); err != nil {
+			return false, err
+		}
+		if len(list.Items) < 2 {
+			return false, nil
+		}
+		for _, pod := range list.Items {
+			if pod.Status.Phase != corev1.PodRunning {
+				return false, nil
+			}
+		}
+		for _, pod := range list.Items {
+			if pod.Spec.NodeSelector == nil || len(pod.Spec.NodeSelector) == 0 {
+				return false, nil
+			}
+			for k, v := range expectedNodeSelector {
+				if pod.Spec.NodeSelector[k] != v {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	})
+}
+
 func (f *Framework) WaitForRemediationToBeAutoApplied(remName, remNamespace string, pool *mcfgv1.MachineConfigPool) error {
 	rem := &compv1alpha1.ComplianceRemediation{}
 	var lastErr error

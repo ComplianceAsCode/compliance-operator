@@ -2164,6 +2164,184 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+func TestResultServerNodeSelectorTolerations(t *testing.T) {
+	f := framework.Global
+
+	defaultScanSetting := &compv1alpha1.ScanSetting{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "default", Namespace: f.OperatorNamespace}, defaultScanSetting); err != nil {
+		t.Fatal(err)
+	}
+
+	scanSettingName := "default"
+	if defaultScanSetting.RawResultStorage.NodeSelector == nil || len(defaultScanSetting.RawResultStorage.NodeSelector) == 0 {
+		scanSettingName = framework.GetObjNameFromTest(t) + "-master-ss"
+		customScanSetting1 := defaultScanSetting.DeepCopy()
+		customScanSetting1.ObjectMeta = metav1.ObjectMeta{Name: scanSettingName, Namespace: f.OperatorNamespace}
+		customScanSetting1.RawResultStorage.NodeSelector = map[string]string{"node-role.kubernetes.io/master": ""}
+		customScanSetting1.RawResultStorage.Tolerations = []corev1.Toleration{
+			{Key: "node-role.kubernetes.io/master", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+		}
+		if err := f.Client.Create(context.TODO(), customScanSetting1, nil); err != nil {
+			t.Fatalf("failed to create ScanSetting with master nodeSelector: %v", err)
+		}
+		defer f.Client.Delete(context.TODO(), customScanSetting1)
+	}
+
+	// Round 1: master nodeSelector
+	bindingName1 := framework.GetObjNameFromTest(t) + "-master-ns"
+	ssb1 := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: bindingName1, Namespace: f.OperatorNamespace},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSettingName,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &ssb1, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &ssb1)
+
+	if err := f.WaitForResultServerPodsWithNodeSelector(map[string]string{"node-role.kubernetes.io/master": ""}); err != nil {
+		t.Fatalf("round 1: result server pods not ready with master nodeSelector: %v", err)
+	}
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName1, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		if err2 := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName1, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err2 != nil {
+			t.Fatalf("ComplianceSuite %s did not complete: %v", bindingName1, err2)
+		}
+	}
+
+	f.Client.Delete(context.TODO(), &ssb1)
+	
+	// Round 2: worker nodeSelector
+	customScanSettingName2 := framework.GetObjNameFromTest(t) + "-worker-ss"
+	customScanSetting2 := defaultScanSetting.DeepCopy()
+	customScanSetting2.ObjectMeta = metav1.ObjectMeta{Name: customScanSettingName2, Namespace: f.OperatorNamespace}
+	customScanSetting2.RawResultStorage.NodeSelector = map[string]string{"node-role.kubernetes.io/worker": ""}
+	if customScanSetting2.RawResultStorage.Tolerations == nil {
+		customScanSetting2.RawResultStorage.Tolerations = []corev1.Toleration{}
+	}
+	if err := f.Client.Create(context.TODO(), customScanSetting2, nil); err != nil {
+		t.Fatalf("failed to create custom ScanSetting: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), customScanSetting2)
+
+	bindingName2 := framework.GetObjNameFromTest(t) + "-worker-ns"
+	ssb2 := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: bindingName2, Namespace: f.OperatorNamespace},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-high-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     customScanSettingName2,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &ssb2, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &ssb2)
+
+	if err := f.WaitForResultServerPodsWithNodeSelector(map[string]string{"node-role.kubernetes.io/worker": ""}); err != nil {
+		t.Fatalf("round 2: result server pods not ready with worker nodeSelector: %v", err)
+	}
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName2, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		if err2 := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName2, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err2 != nil {
+			t.Fatalf("ComplianceSuite %s did not complete: %v", bindingName2, err2)
+		}
+	}
+
+	// Round 3: tolerations + tainted worker node
+	f.Client.Delete(context.TODO(), &ssb2)
+	
+	workerNodes, err := f.GetNodesWithSelector(map[string]string{"node-role.kubernetes.io/worker": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(workerNodes) == 0 {
+		t.Skip("No worker nodes available")
+	}
+	workerNode := &workerNodes[1]
+
+	taintKey := "key1"
+	customScanSetting2.RawResultStorage.Tolerations = []corev1.Toleration{
+		{Effect: corev1.TaintEffectNoSchedule, Key: "node-role.kubernetes.io/master", Operator: corev1.TolerationOpExists},
+		{Effect: corev1.TaintEffectNoExecute, Key: "node.kubernetes.io/not-ready", Operator: corev1.TolerationOpExists, TolerationSeconds: &[]int64{300}[0]},
+		{Effect: corev1.TaintEffectNoExecute, Key: "node.kubernetes.io/unreachable", Operator: corev1.TolerationOpExists, TolerationSeconds: &[]int64{300}[0]},
+		{Effect: corev1.TaintEffectNoSchedule, Key: "node.kubernetes.io/memory-pressure", Operator: corev1.TolerationOpExists},
+		{Effect: corev1.TaintEffectNoExecute, Key: taintKey, Value: "value1", Operator: corev1.TolerationOpEqual},
+	}
+	if err := f.Client.Update(context.TODO(), customScanSetting2); err != nil {
+		t.Fatalf("failed to update custom ScanSetting with tolerations: %v", err)
+	}
+
+	taint := corev1.Taint{Key: taintKey, Value: "value1", Effect: corev1.TaintEffectNoSchedule}
+	if err := f.TaintNode(workerNode, taint); err != nil {
+		t.Fatalf("failed to taint node %s: %v", workerNode.Name, err)
+	}
+	defer f.UntaintNode(workerNode.Name, taintKey)
+
+	labeledNode := &corev1.Node{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: workerNode.Name}, labeledNode); err != nil {
+		t.Fatalf("failed to get node %s before labeling: %v", workerNode.Name, err)
+	}
+	if labeledNode.Labels == nil {
+		labeledNode.Labels = make(map[string]string)
+	}
+	labeledNode.Labels["taint"] = "true"
+	if err := f.Client.Update(context.TODO(), labeledNode); err != nil {
+		t.Fatalf("failed to label node %s: %v", workerNode.Name, err)
+	}
+	defer func() {
+		unlabeledNode := &corev1.Node{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: workerNode.Name}, unlabeledNode); err == nil {
+			delete(unlabeledNode.Labels, "taint")
+			f.Client.Update(context.TODO(), unlabeledNode)
+		}
+	}()
+
+	ssb2Round3 := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: bindingName2, Namespace: f.OperatorNamespace},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-high-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     customScanSettingName2,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &ssb2Round3, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &ssb2Round3)
+
+	if err := f.WaitForResultServerPodsWithNodeSelector(map[string]string{"node-role.kubernetes.io/worker": ""}); err != nil {
+		t.Fatalf("round 3: result server pods not ready with worker nodeSelector: %v", err)
+	}
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName2, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		if err2 := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName2, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err2 != nil {
+			t.Fatalf("ComplianceSuite %s did not complete: %v", bindingName2, err2)
+		}
+	}
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
