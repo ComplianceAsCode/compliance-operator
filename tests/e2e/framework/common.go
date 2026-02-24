@@ -2399,6 +2399,49 @@ func (f *Framework) UntaintNode(nodeName, taintKey string) error {
 	return nil
 }
 
+// WaitForResultServerPodsWithNodeSelector polls until 2 result server pods are Running with the given nodeSelector.
+// It returns the list of node names (pod.Spec.NodeName) where those pods are scheduled.
+func (f *Framework) WaitForResultServerPodsWithNodeSelector(expectedNodeSelector map[string]string) ([]string, error) {
+	const resultServerPodWaitTimeout = 10 * time.Minute
+	resultServerPodLabels := map[string]string{"workload": "resultserver"}
+	var list *corev1.PodList
+	var nodeNames []string
+	err := wait.Poll(RetryInterval, resultServerPodWaitTimeout, func() (bool, error) {
+		list = &corev1.PodList{}
+		if err := f.Client.List(context.TODO(), list, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(resultServerPodLabels)); err != nil {
+			return false, err
+		}
+		expectedResultServerPodCount := 2
+		if len(list.Items) < expectedResultServerPodCount {
+			return false, nil
+		}
+		for _, pod := range list.Items {
+			if pod.Status.Phase != corev1.PodRunning {
+				return false, nil
+			}
+		}
+		for _, pod := range list.Items {
+			if pod.Spec.NodeSelector == nil || len(pod.Spec.NodeSelector) == 0 {
+				return false, nil
+			}
+			for k, v := range expectedNodeSelector {
+				if pod.Spec.NodeSelector[k] != v {
+					return false, nil
+				}
+			}
+		}
+		nodeNames = make([]string, 0, len(list.Items))
+		for _, pod := range list.Items {
+			nodeNames = append(nodeNames, pod.Spec.NodeName)
+		}
+		return true, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return nodeNames, nil
+}
+
 func (f *Framework) WaitForRemediationToBeAutoApplied(remName, remNamespace string, pool *mcfgv1.MachineConfigPool) error {
 	rem := &compv1alpha1.ComplianceRemediation{}
 	var lastErr error
