@@ -2683,6 +2683,172 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 	t.Logf("  - Validated that rule %s has FAIL status", customRuleName)
 }
 
+func TestCustomRuleMetadataPropagation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	customRuleName := fmt.Sprintf("%s-meta-rule", testName)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+	testNamespace := f.OperatorNamespace
+
+	customRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      customRuleName,
+			Namespace: testNamespace,
+			Labels: map[string]string{
+				"business-unit": "payments",
+				"risk-tier":     "critical",
+			},
+			Annotations: map[string]string{
+				"internal-id":    "SEC-4021",
+				"audit-contact":  "platform-security-team",
+			},
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:          customRuleName,
+				Title:       "Metadata Propagation Test Rule",
+				Description: "A rule that always passes, used to verify custom metadata propagation",
+				Severity:    "medium",
+			},
+			CustomRulePayload: compv1alpha1.CustomRulePayload{
+				ScannerType:   compv1alpha1.ScannerTypeCEL,
+				Expression:    "namespaces.items.size() > 0",
+				FailureReason: "This rule should always pass",
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "namespaces",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "namespaces",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), customRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), customRule)
+
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Metadata Propagation Test Profile",
+			Description: "Tests that custom labels and annotations propagate to ComplianceCheckResults",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      customRuleName,
+					Kind:      "CustomRule",
+					Rationale: "Verify metadata propagation",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	suiteName := ssbName
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("Scan did not complete as expected: %v", err)
+	}
+
+	scanName := tpName
+	expectedCheck := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", scanName, customRuleName),
+			Namespace: testNamespace,
+		},
+		ID:     customRuleName,
+		Status: compv1alpha1.CheckResultPass,
+	}
+
+	err = f.AssertHasCheck(suiteName, scanName, expectedCheck)
+	if err != nil {
+		t.Fatalf("Check result assertion failed: %v", err)
+	}
+
+	var checkResult compv1alpha1.ComplianceCheckResult
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      expectedCheck.Name,
+		Namespace: testNamespace,
+	}, &checkResult)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceCheckResult: %v", err)
+	}
+
+	if checkResult.Labels["business-unit"] != "payments" {
+		t.Errorf("expected label business-unit=payments, got %q", checkResult.Labels["business-unit"])
+	}
+	if checkResult.Labels["risk-tier"] != "critical" {
+		t.Errorf("expected label risk-tier=critical, got %q", checkResult.Labels["risk-tier"])
+	}
+	if checkResult.Annotations["internal-id"] != "SEC-4021" {
+		t.Errorf("expected annotation internal-id=SEC-4021, got %q", checkResult.Annotations["internal-id"])
+	}
+	if checkResult.Annotations["audit-contact"] != "platform-security-team" {
+		t.Errorf("expected annotation audit-contact=platform-security-team, got %q", checkResult.Annotations["audit-contact"])
+	}
+
+	if checkResult.Labels[compv1alpha1.ComplianceScanLabel] != scanName {
+		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
+	}
+	if checkResult.Labels[compv1alpha1.ComplianceCheckResultStatusLabel] != string(compv1alpha1.CheckResultPass) {
+		t.Errorf("operator-managed status label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceCheckResultStatusLabel])
+	}
+
+	t.Log("Test completed successfully. Custom metadata propagation verified:")
+	t.Log("  - Custom labels propagated to ComplianceCheckResult")
+	t.Log("  - Custom annotations propagated to ComplianceCheckResult")
+	t.Log("  - Operator-managed labels/annotations were not overridden")
+}
+
 func TestCustomRuleWithMultipleInputs(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
