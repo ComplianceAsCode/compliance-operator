@@ -2849,6 +2849,143 @@ func TestCustomRuleMetadataPropagation(t *testing.T) {
 	t.Log("  - Operator-managed labels/annotations were not overridden")
 }
 
+func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+	testNamespace := f.OperatorNamespace
+	ruleName := "ocp4-api-server-audit-log-path"
+
+	var rule compv1alpha1.Rule
+	err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      ruleName,
+		Namespace: testNamespace,
+	}, &rule)
+	if err != nil {
+		t.Fatalf("Failed to get Rule %s: %v", ruleName, err)
+	}
+
+	if rule.Labels == nil {
+		rule.Labels = make(map[string]string)
+	}
+	rule.Labels["e2e-business-unit"] = "security-ops"
+	rule.Labels["e2e-risk-tier"] = "high"
+	if rule.Annotations == nil {
+		rule.Annotations = make(map[string]string)
+	}
+	rule.Annotations["e2e-internal-id"] = "SEC-9001"
+	rule.Annotations["e2e-audit-contact"] = "compliance-team"
+
+	err = f.Client.Update(context.TODO(), &rule)
+	if err != nil {
+		t.Fatalf("Failed to add custom metadata to Rule: %v", err)
+	}
+	defer func() {
+		var cleanupRule compv1alpha1.Rule
+		if getErr := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: ruleName, Namespace: testNamespace,
+		}, &cleanupRule); getErr == nil {
+			delete(cleanupRule.Labels, "e2e-business-unit")
+			delete(cleanupRule.Labels, "e2e-risk-tier")
+			delete(cleanupRule.Annotations, "e2e-internal-id")
+			delete(cleanupRule.Annotations, "e2e-audit-contact")
+			_ = f.Client.Update(context.TODO(), &cleanupRule)
+		}
+	}()
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "OpenSCAP Metadata Propagation Test",
+			Description: "Tests that custom metadata on Rules propagates through the aggregator",
+			Extends:     "ocp4-cis",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      ruleName,
+					Rationale: "Verify metadata propagation via OpenSCAP aggregator",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForSuiteScansStatus(testNamespace, ssbName, compv1alpha1.PhaseDone, compv1alpha1.ResultNotApplicable)
+	if err != nil {
+		err = f.WaitForSuiteScansStatus(testNamespace, ssbName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+		if err != nil {
+			t.Fatalf("Scan did not complete: %v", err)
+		}
+	}
+
+	checkResultName := fmt.Sprintf("%s-%s", tpName, "api-server-audit-log-path")
+	var checkResult compv1alpha1.ComplianceCheckResult
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkResultName,
+		Namespace: testNamespace,
+	}, &checkResult)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceCheckResult %s: %v", checkResultName, err)
+	}
+
+	if checkResult.Labels["e2e-business-unit"] != "security-ops" {
+		t.Errorf("expected label e2e-business-unit=security-ops, got %q", checkResult.Labels["e2e-business-unit"])
+	}
+	if checkResult.Labels["e2e-risk-tier"] != "high" {
+		t.Errorf("expected label e2e-risk-tier=high, got %q", checkResult.Labels["e2e-risk-tier"])
+	}
+	if checkResult.Annotations["e2e-internal-id"] != "SEC-9001" {
+		t.Errorf("expected annotation e2e-internal-id=SEC-9001, got %q", checkResult.Annotations["e2e-internal-id"])
+	}
+	if checkResult.Annotations["e2e-audit-contact"] != "compliance-team" {
+		t.Errorf("expected annotation e2e-audit-contact=compliance-team, got %q", checkResult.Annotations["e2e-audit-contact"])
+	}
+
+	if checkResult.Labels[compv1alpha1.ComplianceScanLabel] != tpName {
+		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
+	}
+
+	t.Log("OpenSCAP metadata propagation verified:")
+	t.Log("  - Custom labels propagated through aggregator to ComplianceCheckResult")
+	t.Log("  - Custom annotations propagated through aggregator to ComplianceCheckResult")
+	t.Log("  - Operator-managed labels were not overridden")
+}
+
 func TestCustomRuleWithMultipleInputs(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
