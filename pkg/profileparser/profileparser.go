@@ -107,9 +107,12 @@ func ParseBundle(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg 
 					return fmt.Errorf("unexpected type")
 				}
 
-				foundRule.Annotations = updatedRule.Annotations
-				// if the check type has changed, add an annotation to the rule
-				// to indicate that the rule needs to be checked in TailoredProfile validation
+				if foundRule.Annotations == nil {
+					foundRule.Annotations = make(map[string]string)
+				}
+				for k, v := range updatedRule.Annotations {
+					foundRule.Annotations[k] = v
+				}
 				if foundRule.CheckType != updatedRule.CheckType {
 					log.Info("Rule check type has changed", "rule", foundRule.Name, "oldCheckType", foundRule.CheckType, "newCheckType", updatedRule.CheckType)
 					foundRule.Annotations[cmpv1alpha1.RuleLastCheckTypeChangedAnnotationKey] = foundRule.CheckType
