@@ -1738,5 +1738,5 @@ spec:
     name: operator
   - image: ghcr.io/complianceascode/k8scontent:latest
     name: profile
-  replaces: compliance-operator.v1.7.0
+  replaces: compliance-operator.v1.7.1
   version: 1.8.0-dev
