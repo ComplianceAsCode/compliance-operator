@@ -2165,10 +2165,7 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 }
 
 // TestHypershiftHostedClusterCISScan tests scanning a HyperShift hosted cluster
-// for ocp4-cis and ocp4-cis-node profiles. HyperShift is OpenShift's hosted
-// control plane architecture where the control plane runs separately from worker nodes.
-// This test creates a TailoredProfile that disables control plane rules that are
-// checked on the management cluster.
+// for ocp4-cis and ocp4-cis-node profiles.
 func TestHypershiftHostedClusterCISScan(t *testing.T) {
 	f := framework.Global
 	const tpName = "cis-compliance-hypershift"
