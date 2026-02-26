@@ -1540,13 +1540,13 @@ func (f *Framework) AssertScanHasValidPVCReferenceWithSize(scanName, size, names
 	return nil
 }
 
-func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error {
+func (f *Framework) AssertARFReportExistsInPVC(t *testing.T, scanName, namespace string) error {
 	pvcName, err := f.GetRawResultClaimNameFromScan(namespace, scanName)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("AssertARFReportExistsInPVC: scan=%s pvc=%s namespace=%s", scanName, pvcName, namespace)
+	t.Logf("scan=%s pvc=%s namespace=%s", scanName, pvcName, namespace)
 
 	arfFormatCheckerPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1587,13 +1587,13 @@ func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error
 
 	pod := &core.Pod{}
 	key := types.NamespacedName{Name: arfFormatCheckerPod.Name, Namespace: namespace}
-	log.Printf("AssertARFReportExistsInPVC: waiting for checker pod %s to complete", arfFormatCheckerPod.Name)
+	t.Logf("waiting for checker pod %s to complete", arfFormatCheckerPod.Name)
 	timeoutErr := wait.Poll(RetryInterval, time.Minute*2, func() (bool, error) {
 		if err := f.Client.Get(context.TODO(), key, pod); err != nil {
-			log.Printf("AssertARFReportExistsInPVC: checker pod not yet available: %v", err)
+			t.Logf("checker pod not yet available: %v", err)
 			return false, nil
 		}
-		log.Printf("AssertARFReportExistsInPVC: checker pod %s phase=%s", pod.Name, pod.Status.Phase)
+		t.Logf("checker pod %s phase=%s", pod.Name, pod.Status.Phase)
 		if pod.Status.Phase == core.PodSucceeded {
 			return true, nil
 		}
@@ -1603,7 +1603,7 @@ func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error
 		return false, nil
 	})
 	if timeoutErr != nil {
-		log.Printf("AssertARFReportExistsInPVC: timed out waiting for checker pod %s (last phase: %s)", arfFormatCheckerPod.Name, pod.Status.Phase)
+		t.Logf("timed out waiting for checker pod %s (last phase: %s)", arfFormatCheckerPod.Name, pod.Status.Phase)
 	}
 	return timeoutErr
 }

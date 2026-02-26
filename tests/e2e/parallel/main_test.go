@@ -1020,7 +1020,7 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 		t.Fatalf("Scan %s PVC reference check failed: %v", scanName, err)
 	}
 	t.Logf("Asserting ARF report exists in PVC for scan %s", scanName)
-	err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
+	err = f.AssertARFReportExistsInPVC(t, scanName, f.OperatorNamespace)
 	if err != nil {
 		t.Fatalf("Scan %s ARF report check failed: %v", scanName, err)
 	}
