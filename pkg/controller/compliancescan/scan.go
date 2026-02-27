@@ -516,18 +516,7 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 					corev1.ResourceCPU:    resource.MustParse("100m"),
 				},
 			},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      "report-dir",
-					MountPath: "/reports",
-					ReadOnly:  true,
-				},
-				{
-					Name:      "tls",
-					MountPath: "/etc/pki/tls",
-					ReadOnly:  true,
-				},
-			},
+			VolumeMounts: getLogCollectorVolumeMounts(scanInstance),
 		},
 	}
 
@@ -549,14 +538,16 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 				},
 			},
 		},
-		{
+	}
+	if scanInstance.Spec.RawResultStorage.Enabled != nil && *scanInstance.Spec.RawResultStorage.Enabled {
+		podVolumes = append(podVolumes, corev1.Volume{
 			Name: "tls",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: ClientCertPrefix + scanInstance.Name,
 				},
 			},
-		},
+		})
 	}
 
 	pod.Spec.Volumes = append(pod.Spec.Volumes, podVolumes...)
