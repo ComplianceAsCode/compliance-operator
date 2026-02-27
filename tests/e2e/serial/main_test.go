@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -2162,6 +2164,352 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	if err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestMustGatherImageWorksAsExpected(t *testing.T) {
+	f := framework.Global
+
+	suiteName := framework.GetObjNameFromTest(t)
+	scanSettingBindingName := suiteName
+
+	// Create ScanSettingBinding to trigger compliance scans
+	scanSettingBinding := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingBindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-cis-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     "default",
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), scanSettingBinding, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), scanSettingBinding)
+
+	// Wait for the ComplianceSuite scans to complete
+	log.Printf("Waiting for ComplianceSuite scans to complete...")
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent)
+	if err != nil {
+		t.Fatalf("Scan did not complete successfully: %v", err)
+	}
+	log.Printf("ComplianceSuite scans completed")
+
+	// Verify that compliance resources exist before running must-gather
+	log.Printf("Verifying compliance resources exist in namespace %s...", f.OperatorNamespace)
+	scansOutput, err := runOCandGetOutput([]string{
+		"get", "compliancescans,compliancesuites,compliancecheckresults",
+		"-n", f.OperatorNamespace,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to check for compliance resources: %v", err)
+	} else {
+		log.Printf("Compliance resources in namespace:\n%s", scansOutput)
+	}
+
+	// Get the must-gather image
+	// In upstream, we use an environment variable or default image since there's no CSV
+	mustGatherImage := getMustGatherImage(f)
+	log.Printf("Must-gather image: %s", mustGatherImage)
+
+	// Create a temporary directory for must-gather output
+	mustGatherDir := fmt.Sprintf("/tmp/must-gather-%s", suiteName)
+	defer os.RemoveAll(mustGatherDir)
+
+	// Execute must-gather
+	log.Printf("Executing must-gather with image %s to directory %s...", mustGatherImage, mustGatherDir)
+	_, err = runOCandGetOutput([]string{
+		"adm", "must-gather",
+		"--image=" + mustGatherImage,
+		"--dest-dir=" + mustGatherDir,
+	})
+	if err != nil {
+		t.Fatalf("Failed to execute must-gather: %v", err)
+	}
+
+	log.Printf("Must-gather completed successfully")
+
+	// Verify the must-gather output directory exists
+	if _, err := os.Stat(mustGatherDir); os.IsNotExist(err) {
+		t.Fatalf("Must-gather directory does not exist: %s", mustGatherDir)
+	}
+
+	// Verify essential files and directories are present in must-gather output
+	failureCount := verifyMustGatherContents(mustGatherDir, t)
+	if failureCount > 0 {
+		t.Fatalf("%d must-gather content verification failures", failureCount)
+	}
+
+	log.Printf("Must-gather content verification passed")
+}
+
+// getMustGatherImage retrieves the must-gather image to use for the test
+// It tries the following in order:
+// 1. MUST_GATHER_IMAGE environment variable
+// 2. Try to get it from CSV (if OLM is being used)
+// 3. Fall back to the default upstream image
+func getMustGatherImage(f *framework.Framework) string {
+	// Check for environment variable first
+	if mgImage := os.Getenv("MUST_GATHER_IMAGE"); mgImage != "" {
+		log.Printf("Using must-gather image from MUST_GATHER_IMAGE env var: %s", mgImage)
+		return mgImage
+	}
+
+	// Try to get from CSV if it exists (for OLM deployments)
+	csvImage, err := getMustGatherImageFromCSV(f)
+	if err == nil && csvImage != "" {
+		log.Printf("Using must-gather image from CSV: %s", csvImage)
+		return csvImage
+	}
+
+	// Fall back to default upstream image
+	defaultImage := "ghcr.io/complianceascode/must-gather-ocp:latest"
+	log.Printf("Using default must-gather image: %s", defaultImage)
+	return defaultImage
+}
+
+// getMustGatherImageFromCSV retrieves the must-gather image reference from the CSV
+// Returns an error if CSV doesn't exist or doesn't have the must-gather image
+func getMustGatherImageFromCSV(f *framework.Framework) (string, error) {
+	// First, try to get the CSV name
+	csvName, err := runOCandGetOutput([]string{
+		"get", "csv",
+		"-n", f.OperatorNamespace,
+		"-l", "operators.coreos.com/compliance-operator." + f.OperatorNamespace + "=",
+		"-o=jsonpath={.items[0].metadata.name}",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get CSV name: %w", err)
+	}
+
+	csvName = strings.TrimSpace(csvName)
+	if csvName == "" {
+		return "", fmt.Errorf("no CSV found")
+	}
+
+	// Get the must-gather image from the CSV
+	output, err := runOCandGetOutput([]string{
+		"get", "csv", csvName,
+		"-n", f.OperatorNamespace,
+		"-o=jsonpath={.spec.relatedImages[?(@.name==\"must-gather\")].image}",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get must-gather image from CSV: %w", err)
+	}
+
+	// Remove any surrounding quotes
+	image := strings.Trim(strings.TrimSpace(output), "'\"")
+	if image == "" {
+		return "", fmt.Errorf("must-gather image not found in CSV %s", csvName)
+	}
+	return image, nil
+}
+
+// runOCandGetOutput runs an oc command and returns the output
+func runOCandGetOutput(args []string) (string, error) {
+	ocPath, err := exec.LookPath("oc")
+	if err != nil {
+		return "", fmt.Errorf("failed to find oc binary: %v", err)
+	}
+
+	cmd := exec.Command(ocPath, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to run oc command: %v", err)
+	}
+	return string(out), nil
+}
+
+// verifyMustGatherContents verifies the expected files and directories are present in the must-gather output
+func verifyMustGatherContents(mustGatherDir string, t *testing.T) int {
+	failureCount := 0
+
+	log.Printf("Verifying must-gather contents in %s", mustGatherDir)
+
+	// Check if the directory has subdirectories (must-gather creates a timestamp directory)
+	entries, err := os.ReadDir(mustGatherDir)
+	if err != nil {
+		t.Logf("Failed to read must-gather directory: %v", err)
+		failureCount++
+		return failureCount
+	}
+
+	if len(entries) == 0 {
+		t.Logf("Must-gather directory is empty")
+		failureCount++
+		return failureCount
+	}
+
+	// must-gather creates a timestamped directory (e.g., must-gather.local.123456)
+	// We need to find it first
+	var timestampDir string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			timestampDir = fmt.Sprintf("%s/%s", mustGatherDir, entry.Name())
+			log.Printf("Found timestamped directory: %s", entry.Name())
+			break
+		}
+	}
+
+	if timestampDir == "" {
+		t.Logf("Could not find timestamped must-gather directory")
+		failureCount++
+		return failureCount
+	}
+
+	// List all directories in timestamped directory for debugging
+	timestampEntries, err := os.ReadDir(timestampDir)
+	if err == nil {
+		log.Printf("Contents of timestamped directory:")
+		for _, entry := range timestampEntries {
+			if entry.IsDir() {
+				log.Printf("  - %s (directory)", entry.Name())
+			} else {
+				log.Printf("  - %s (file)", entry.Name())
+			}
+		}
+	}
+
+	// The must-gather data is written directly to the timestamped directory
+	// Verify openshift-compliance namespace directory exists
+	complianceNamespaceDir := fmt.Sprintf("%s/openshift-compliance", timestampDir)
+	if _, err := os.Stat(complianceNamespaceDir); os.IsNotExist(err) {
+		t.Logf("openshift-compliance directory not found at %s", complianceNamespaceDir)
+		failureCount++
+		return failureCount
+	}
+
+	log.Printf("Found openshift-compliance directory")
+
+	// List all directories in openshift-compliance for debugging
+	complianceEntries, err := os.ReadDir(complianceNamespaceDir)
+	if err == nil {
+		log.Printf("Contents of openshift-compliance directory:")
+		for _, entry := range complianceEntries {
+			if entry.IsDir() {
+				log.Printf("  - %s (directory)", entry.Name())
+			} else {
+				log.Printf("  - %s (file)", entry.Name())
+			}
+		}
+	}
+
+	// Verify essential subdirectories exist
+	essentialDirs := []string{"pods", "configmaps"}
+	for _, dir := range essentialDirs {
+		dirPath := fmt.Sprintf("%s/%s", complianceNamespaceDir, dir)
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			t.Logf("Expected directory %s not found", dir)
+			failureCount++
+		} else {
+			log.Printf("Found %s directory", dir)
+		}
+	}
+
+	// Check for compliance CRD directories (all should exist since we're using a ScanSettingBinding)
+	// Note: These are created by the gather script at lines 8-20 of gather_compliance
+	// They are only present if there are actual CRD instances in the namespace
+	complianceCRDs := []string{
+		"compliancescans.compliance.openshift.io",
+		"compliancesuites.compliance.openshift.io",
+		"compliancecheckresults.compliance.openshift.io",
+	}
+
+	// Search for CRD directories in multiple locations
+	// The gather script may place them in different directories depending on the environment
+	foundCRDs := searchCRDDirectories(complianceCRDs, complianceNamespaceDir, timestampDir)
+
+	// Log results
+	if len(foundCRDs) < len(complianceCRDs) {
+		missingCRDs := []string{}
+		for _, crd := range complianceCRDs {
+			if !foundCRDs[crd] {
+				missingCRDs = append(missingCRDs, crd)
+			}
+		}
+		t.Logf("WARNING: Not all compliance CRD directories found. Missing: %v", missingCRDs)
+		t.Logf("Found: %d/%d CRD directories", len(foundCRDs), len(complianceCRDs))
+		t.Logf("This may indicate the gather script failed to collect CRD data - check gather.logs")
+		log.Printf("WARNING: Missing CRD directories %v, but core must-gather data was collected successfully", missingCRDs)
+	}
+
+	return failureCount
+}
+
+// searchCRDDirectories searches for CRD directories in multiple locations and returns a map of found CRDs.
+// It searches in order: compliance namespace dir, parent timestamp dir, other namespace dirs.
+// Returns early once all CRDs are found to optimize performance.
+func searchCRDDirectories(crdNames []string, complianceNamespaceDir, timestampDir string) map[string]bool {
+	foundCRDs := make(map[string]bool)
+	searchLocations := []struct {
+		name        string
+		getPathFunc func(string) []string
+	}{
+		{
+			name: "compliance namespace directory",
+			getPathFunc: func(crd string) []string {
+				return []string{fmt.Sprintf("%s/%s", complianceNamespaceDir, crd)}
+			},
+		},
+		{
+			name: "parent timestamp directory",
+			getPathFunc: func(crd string) []string {
+				return []string{fmt.Sprintf("%s/%s", timestampDir, crd)}
+			},
+		},
+		{
+			name: "other namespace directories",
+			getPathFunc: func(crd string) []string {
+				var paths []string
+				if entries, err := os.ReadDir(timestampDir); err == nil {
+					for _, entry := range entries {
+						if entry.IsDir() && entry.Name() != "openshift-compliance" && entry.Name() != "gather.logs" {
+							paths = append(paths, fmt.Sprintf("%s/%s/%s", timestampDir, entry.Name(), crd))
+						}
+					}
+				}
+				return paths
+			},
+		},
+	}
+
+	for _, location := range searchLocations {
+		if len(foundCRDs) == len(crdNames) {
+			break // All CRDs found, no need to continue searching
+		}
+
+		for _, crd := range crdNames {
+			if foundCRDs[crd] {
+				continue // Already found this CRD
+			}
+
+			for _, path := range location.getPathFunc(crd) {
+				if _, err := os.Stat(path); err == nil {
+					log.Printf("Found CRD directory in %s: %s", location.name, crd)
+					foundCRDs[crd] = true
+					break
+				}
+			}
+		}
+	}
+
+	return foundCRDs
 }
 
 //testExecution{

@@ -1215,7 +1215,9 @@ func (f *Framework) WaitForCustomRuleStatus(namespace, name string, targetPhase 
 
 // waitForScanStatus will poll until the compliancescan that we're lookingfor reaches a certain status, or until
 // a timeout is reached.
-func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatus compv1alpha1.ComplianceScanStatusResult) error {
+// The targetComplianceStatuses parameter accepts one or more acceptable compliance statuses.
+// If multiple statuses are provided, the function will return successfully if any of them match.
+func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatuses ...compv1alpha1.ComplianceScanStatusResult) error {
 	suite := &compv1alpha1.ComplianceSuite{}
 	var lastErr error
 	// retry and ignore errors until timeout
@@ -1270,13 +1272,21 @@ func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus
 			return false, nil
 		}
 
-		// The suite is now done, make sure the compliance status is expected
-		if suite.Status.Result != targetComplianceStatus {
-			return false, fmt.Errorf("expecting %s got %s", targetComplianceStatus, suite.Status.Result)
+		// The suite is now done, make sure the compliance status is one of the expected values
+		statusMatched := false
+		for _, acceptableStatus := range targetComplianceStatuses {
+			if suite.Status.Result == acceptableStatus {
+				statusMatched = true
+				break
+			}
+		}
+
+		if !statusMatched {
+			return false, fmt.Errorf("expecting one of %v got %s", targetComplianceStatuses, suite.Status.Result)
 		}
 
 		// If we were expecting an error, there's no use checking the scans
-		if targetComplianceStatus == compv1alpha1.ResultError {
+		if suite.Status.Result == compv1alpha1.ResultError {
 			return true, nil
 		}
 
