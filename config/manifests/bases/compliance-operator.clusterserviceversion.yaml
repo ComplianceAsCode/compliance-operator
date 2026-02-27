@@ -1516,6 +1516,12 @@ spec:
           - tailoredprofiles
           verbs:
           - get
+        - apiGroups:
+          - compliance.openshift.io
+          resources:
+          - rules
+          verbs:
+          - list
         serviceAccountName: remediation-aggregator
       - rules:
         - apiGroups:

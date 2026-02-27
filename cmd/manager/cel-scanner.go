@@ -374,14 +374,19 @@ func (c *CelScanner) runPlatformScan() {
 		// Generate a DNS-friendly name from the scan name and rule ID
 		checkResultName := fmt.Sprintf("%s-%s", c.celConfig.ScanName, utils.IDToDNSFriendlyName(originalRule.Spec.ID))
 
+		// Extract custom labels/annotations from the CustomRule to propagate to the ComplianceCheckResult
+		customLabels, customAnnotations := utils.GetCustomMetadata(originalRule.GetLabels(), originalRule.GetAnnotations())
+
 		compResult := &cmpv1alpha1.ComplianceCheckResult{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "compliance.openshift.io/v1alpha1",
 				Kind:       "ComplianceCheckResult",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      checkResultName,
-				Namespace: c.celConfig.NameSpace,
+				Name:        checkResultName,
+				Namespace:   c.celConfig.NameSpace,
+				Labels:      customLabels,
+				Annotations: customAnnotations,
 			},
 			ID:           originalRule.Spec.ID,
 			Description:  originalRule.Spec.Description,
