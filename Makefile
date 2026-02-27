@@ -56,7 +56,6 @@ GIT_OPTS?=
 # We rely on a bash script for this since it's simplier than interating over a
 # list with conditionals in GNU make.
 GIT_REMOTE?=$(shell ./utils/git-remote.sh)
-PREVIOUS_VERSION?=$(shell ./utils/get-current-version.sh)
 
 # Image variables
 # ===============
@@ -391,6 +390,12 @@ update-version-numbers: check-operator-version ## Set skip range and version num
 	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(VERSION)'/" config/manifests/bases/compliance-operator.clusterserviceversion.yaml
 	sed -i "s/\(\"name\": \"compliance-operator.v\).*\"/\1$(VERSION)\"/" catalog/preamble.json
 	sed -i "s/\(\"skipRange\": \">=.*\)<.*\"/\1<$(VERSION)\"/" catalog/preamble.json
+	sed -i 's/^\(ARG CO_OLD_VERSION="\).*/\1$(PREVIOUS_VERSION)"/' bundle.openshift.Dockerfile
+	sed -i 's/^\(ARG CO_NEW_VERSION="\).*/\1$(VERSION)"/' bundle.openshift.Dockerfile
+	sed -i 's/^\([ \t]*version=\).*/\1$(VERSION)/' images/must-gather/Containerfile
+	sed -i 's/^\([ \t]*version=\).*/\1$(VERSION)/' images/openscap/Containerfile
+	sed -i 's/^\([ \t]*version=\).*/\1$(VERSION)/' images/operator/Dockerfile
+	sed -i 's/^\(.*Version = "\).*/\1$(VERSION)"/' version/version.go
 
 .PHONY: namespace
 namespace: ## Create the default namespace for the operator (e.g., openshift-compliance).
@@ -675,7 +680,21 @@ must-gather-push: must-gather-image
 .PHONY: must-gather
 must-gather: must-gather-image must-gather-push  ## Build and push the must-gather image
 
-##@ Release
+CURRENT_VERSION=$(shell grep "^VERSION?=" version.Makefile | cut -d'=' -f2)
+.PHONY: bump-version
+bump-version:
+ifeq ($(VERSION), $(CURRENT_VERSION))
+	@echo "Nothing to bump, set variable VERSION. e.g:"
+	@echo "make bump-version VERSION=1.9.0"
+else
+	## Current version will be previous version
+	@echo "Bumping version from $(PREVIOUS_VERSION) to $(VERSION)"
+	sed -i '/^\PREVIOUS_VERSION?=.*/d' version.Makefile
+	sed -i 's/^\VERSION?=\(.*\)/PREVIOUS_VERSION?=\1/' version.Makefile
+	echo "VERSION?=$(VERSION)" >> version.Makefile
+
+	$(MAKE) bundle
+endif
 
 .PHONY: package-version-to-tag
 package-version-to-tag: check-operator-version ## Explicitly override $TAG with $VERSION. This is a useful utility for other release targets.
