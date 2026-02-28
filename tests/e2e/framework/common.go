@@ -842,7 +842,7 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		// This pool is still "invalid" for testing as no nodes match this selector
 		p.Spec.NodeSelector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"node-role.kubernetes.io/e2e-invalid": "",
+				"node-role.kubernetes.io/" + testInvalidPoolName: "",
 			},
 		}
 		p.Spec.MachineConfigSelector = &metav1.LabelSelector{
