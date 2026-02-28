@@ -31,10 +31,6 @@ type ProbeSpecApplyConfiguration struct {
 	Targets                                 *ProbeTargetsApplyConfiguration      `json:"targets,omitempty"`
 	Interval                                *monitoringv1.Duration               `json:"interval,omitempty"`
 	ScrapeTimeout                           *monitoringv1.Duration               `json:"scrapeTimeout,omitempty"`
-	TLSConfig                               *SafeTLSConfigApplyConfiguration     `json:"tlsConfig,omitempty"`
-	BearerTokenSecret                       *corev1.SecretKeySelector            `json:"bearerTokenSecret,omitempty"`
-	BasicAuth                               *BasicAuthApplyConfiguration         `json:"basicAuth,omitempty"`
-	OAuth2                                  *OAuth2ApplyConfiguration            `json:"oauth2,omitempty"`
 	MetricRelabelConfigs                    []RelabelConfigApplyConfiguration    `json:"metricRelabelings,omitempty"`
 	Authorization                           *SafeAuthorizationApplyConfiguration `json:"authorization,omitempty"`
 	SampleLimit                             *uint64                              `json:"sampleLimit,omitempty"`
@@ -45,8 +41,10 @@ type ProbeSpecApplyConfiguration struct {
 	LabelNameLengthLimit                    *uint64                              `json:"labelNameLengthLimit,omitempty"`
 	LabelValueLengthLimit                   *uint64                              `json:"labelValueLengthLimit,omitempty"`
 	NativeHistogramConfigApplyConfiguration `json:",inline"`
-	KeepDroppedTargets                      *uint64 `json:"keepDroppedTargets,omitempty"`
-	ScrapeClassName                         *string `json:"scrapeClass,omitempty"`
+	KeepDroppedTargets                      *uint64                        `json:"keepDroppedTargets,omitempty"`
+	ScrapeClassName                         *string                        `json:"scrapeClass,omitempty"`
+	Params                                  []ProbeParamApplyConfiguration `json:"params,omitempty"`
+	HTTPConfigApplyConfiguration            `json:",inline"`
 }
 
 // ProbeSpecApplyConfiguration constructs a declarative configuration of the ProbeSpec type for use with
@@ -100,38 +98,6 @@ func (b *ProbeSpecApplyConfiguration) WithInterval(value monitoringv1.Duration) 
 // If called multiple times, the ScrapeTimeout field is set to the value of the last call.
 func (b *ProbeSpecApplyConfiguration) WithScrapeTimeout(value monitoringv1.Duration) *ProbeSpecApplyConfiguration {
 	b.ScrapeTimeout = &value
-	return b
-}
-
-// WithTLSConfig sets the TLSConfig field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the TLSConfig field is set to the value of the last call.
-func (b *ProbeSpecApplyConfiguration) WithTLSConfig(value *SafeTLSConfigApplyConfiguration) *ProbeSpecApplyConfiguration {
-	b.TLSConfig = value
-	return b
-}
-
-// WithBearerTokenSecret sets the BearerTokenSecret field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the BearerTokenSecret field is set to the value of the last call.
-func (b *ProbeSpecApplyConfiguration) WithBearerTokenSecret(value corev1.SecretKeySelector) *ProbeSpecApplyConfiguration {
-	b.BearerTokenSecret = &value
-	return b
-}
-
-// WithBasicAuth sets the BasicAuth field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the BasicAuth field is set to the value of the last call.
-func (b *ProbeSpecApplyConfiguration) WithBasicAuth(value *BasicAuthApplyConfiguration) *ProbeSpecApplyConfiguration {
-	b.BasicAuth = value
-	return b
-}
-
-// WithOAuth2 sets the OAuth2 field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the OAuth2 field is set to the value of the last call.
-func (b *ProbeSpecApplyConfiguration) WithOAuth2(value *OAuth2ApplyConfiguration) *ProbeSpecApplyConfiguration {
-	b.OAuth2 = value
 	return b
 }
 
@@ -214,11 +180,19 @@ func (b *ProbeSpecApplyConfiguration) WithLabelValueLengthLimit(value uint64) *P
 	return b
 }
 
+// WithScrapeNativeHistograms sets the ScrapeNativeHistograms field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ScrapeNativeHistograms field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithScrapeNativeHistograms(value bool) *ProbeSpecApplyConfiguration {
+	b.NativeHistogramConfigApplyConfiguration.ScrapeNativeHistograms = &value
+	return b
+}
+
 // WithScrapeClassicHistograms sets the ScrapeClassicHistograms field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ScrapeClassicHistograms field is set to the value of the last call.
 func (b *ProbeSpecApplyConfiguration) WithScrapeClassicHistograms(value bool) *ProbeSpecApplyConfiguration {
-	b.ScrapeClassicHistograms = &value
+	b.NativeHistogramConfigApplyConfiguration.ScrapeClassicHistograms = &value
 	return b
 }
 
@@ -226,7 +200,7 @@ func (b *ProbeSpecApplyConfiguration) WithScrapeClassicHistograms(value bool) *P
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NativeHistogramBucketLimit field is set to the value of the last call.
 func (b *ProbeSpecApplyConfiguration) WithNativeHistogramBucketLimit(value uint64) *ProbeSpecApplyConfiguration {
-	b.NativeHistogramBucketLimit = &value
+	b.NativeHistogramConfigApplyConfiguration.NativeHistogramBucketLimit = &value
 	return b
 }
 
@@ -234,7 +208,15 @@ func (b *ProbeSpecApplyConfiguration) WithNativeHistogramBucketLimit(value uint6
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NativeHistogramMinBucketFactor field is set to the value of the last call.
 func (b *ProbeSpecApplyConfiguration) WithNativeHistogramMinBucketFactor(value resource.Quantity) *ProbeSpecApplyConfiguration {
-	b.NativeHistogramMinBucketFactor = &value
+	b.NativeHistogramConfigApplyConfiguration.NativeHistogramMinBucketFactor = &value
+	return b
+}
+
+// WithConvertClassicHistogramsToNHCB sets the ConvertClassicHistogramsToNHCB field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ConvertClassicHistogramsToNHCB field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithConvertClassicHistogramsToNHCB(value bool) *ProbeSpecApplyConfiguration {
+	b.NativeHistogramConfigApplyConfiguration.ConvertClassicHistogramsToNHCB = &value
 	return b
 }
 
@@ -251,5 +233,66 @@ func (b *ProbeSpecApplyConfiguration) WithKeepDroppedTargets(value uint64) *Prob
 // If called multiple times, the ScrapeClassName field is set to the value of the last call.
 func (b *ProbeSpecApplyConfiguration) WithScrapeClassName(value string) *ProbeSpecApplyConfiguration {
 	b.ScrapeClassName = &value
+	return b
+}
+
+// WithParams adds the given value to the Params field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Params field.
+func (b *ProbeSpecApplyConfiguration) WithParams(values ...*ProbeParamApplyConfiguration) *ProbeSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithParams")
+		}
+		b.Params = append(b.Params, *values[i])
+	}
+	return b
+}
+
+// WithBasicAuth sets the BasicAuth field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the BasicAuth field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithBasicAuth(value *BasicAuthApplyConfiguration) *ProbeSpecApplyConfiguration {
+	b.HTTPConfigWithoutTLSApplyConfiguration.BasicAuth = value
+	return b
+}
+
+// WithOAuth2 sets the OAuth2 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the OAuth2 field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithOAuth2(value *OAuth2ApplyConfiguration) *ProbeSpecApplyConfiguration {
+	b.HTTPConfigWithoutTLSApplyConfiguration.OAuth2 = value
+	return b
+}
+
+// WithBearerTokenSecret sets the BearerTokenSecret field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the BearerTokenSecret field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithBearerTokenSecret(value corev1.SecretKeySelector) *ProbeSpecApplyConfiguration {
+	b.HTTPConfigWithoutTLSApplyConfiguration.BearerTokenSecret = &value
+	return b
+}
+
+// WithFollowRedirects sets the FollowRedirects field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FollowRedirects field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithFollowRedirects(value bool) *ProbeSpecApplyConfiguration {
+	b.HTTPConfigWithoutTLSApplyConfiguration.FollowRedirects = &value
+	return b
+}
+
+// WithEnableHTTP2 sets the EnableHTTP2 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnableHTTP2 field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithEnableHTTP2(value bool) *ProbeSpecApplyConfiguration {
+	b.HTTPConfigWithoutTLSApplyConfiguration.EnableHTTP2 = &value
+	return b
+}
+
+// WithTLSConfig sets the TLSConfig field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TLSConfig field is set to the value of the last call.
+func (b *ProbeSpecApplyConfiguration) WithTLSConfig(value *SafeTLSConfigApplyConfiguration) *ProbeSpecApplyConfiguration {
+	b.HTTPConfigApplyConfiguration.TLSConfig = value
 	return b
 }
