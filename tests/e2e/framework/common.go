@@ -2166,7 +2166,6 @@ func (f *Framework) AssertHasCheck(suiteName, scanName string, check compv1alpha
 
 	return nil
 }
-
 func (f *Framework) AssertHasRemediations(suiteName, scanName, roleLabel string, remNameList []string) error {
 	var scanSuiteMapNames = make(map[string]bool)
 	var scanSuiteRemediations []compv1alpha1.ComplianceRemediation

@@ -898,7 +898,7 @@ func TestScanTailoredProfileHasDuplicateVariables(t *testing.T) {
 
 }
 
-func TestScanProducesRemediations(t *testing.T) {
+func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	bindingName := framework.GetObjNameFromTest(t)
@@ -913,8 +913,8 @@ func TestScanProducesRemediations(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
-			Title:       "TestScanProducesRemediations",
-			Description: "TestScanProducesRemediations",
+			Title:       "TestScanProducesRemediationsAndLabels",
+			Description: "TestScanProducesRemediationsAndLabels",
 			Extends:     "ocp4-moderate",
 		},
 	}
@@ -969,6 +969,30 @@ func TestScanProducesRemediations(t *testing.T) {
 	for _, rem := range remList.Items {
 		if rem.Status.ApplicationState != compv1alpha1.RemediationNotApplied {
 			t.Fatal("expected all remediations are unapplied when scan finishes")
+		}
+	}
+	// Verify ComplianceCheckResult labels are correctly set
+	// Get all checks from the suite to verify label functionality
+	checkList := &compv1alpha1.ComplianceCheckResultList{}
+	err = f.Client.List(context.TODO(), checkList, inNs, withLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(checkList.Items) == 0 {
+		t.Fatal("expected at least one check result")
+	}
+	// Use the first check to verify labels are working correctly
+	firstCheck := checkList.Items[0]
+	// Verify all required labels are present
+	labelsToVerify := []string{
+		compv1alpha1.SuiteLabel,
+		compv1alpha1.ComplianceScanLabel,
+		compv1alpha1.ComplianceCheckResultSeverityLabel,
+		compv1alpha1.ComplianceCheckResultStatusLabel,
+	}
+	for _, label := range labelsToVerify {
+		if firstCheck.Labels[label] == "" {
+			t.Fatalf("check %s is missing label %s", firstCheck.Name, label)
 		}
 	}
 }
