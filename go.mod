@@ -129,7 +129,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	golang.org/x/mod v0.25.0
 	golang.org/x/net v0.42.0
 	golang.org/x/oauth2 v0.28.0 // indirect
