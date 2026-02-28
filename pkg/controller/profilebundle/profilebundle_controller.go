@@ -42,6 +42,7 @@ var oneReplica int32 = 1
 func (r *ReconcileProfileBundle) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&compliancev1alpha1.ProfileBundle{}).
+		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }
 
@@ -67,6 +68,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("profilebundle-controller").
 		For(&compliancev1alpha1.ProfileBundle{}).
+		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }
 
@@ -251,6 +253,15 @@ func (r *ReconcileProfileBundle) Reconcile(ctx context.Context, request reconcil
 
 	// Pod already exists and its init container at least ran - don't requeue
 	reqLogger.Info("Skip reconcile: Workload already up-to-date", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+
+	// If the ProfileBundle is still pending, the profileparser hasn't
+	// finished updating the status yet. Requeue so we can detect if
+	// it fails without updating the status (e.g., pod crash, rollout
+	// delay, API connectivity issues).
+	if instance.Status.DataStreamStatus == compliancev1alpha1.DataStreamPending {
+		reqLogger.Info("ProfileBundle still pending, requeueing to check status")
+		return reconcile.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
+	}
 
 	// Handle upgrades
 	if instance.Status.DataStreamStatus == compliancev1alpha1.DataStreamValid &&
