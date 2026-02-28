@@ -190,6 +190,10 @@ github.com/cespare/xxhash/v2
 # github.com/clarketm/json v1.17.1
 ## explicit
 github.com/clarketm/json
+# github.com/clipperhouse/uax29/v2 v2.2.0
+## explicit; go 1.18
+github.com/clipperhouse/uax29/v2/graphemes
+github.com/clipperhouse/uax29/v2/internal/iterators
 # github.com/coreos/fcct v0.5.0
 ## explicit; go 1.12
 github.com/coreos/fcct/base/v0_1
@@ -538,8 +542,8 @@ github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-runewidth v0.0.16
-## explicit; go 1.9
+# github.com/mattn/go-runewidth v0.0.20
+## explicit; go 1.20
 github.com/mattn/go-runewidth
 # github.com/mitchellh/go-homedir v1.1.0
 ## explicit
@@ -896,9 +900,6 @@ github.com/prometheus/prometheus/web/api/v1
 # github.com/prometheus/sigv4 v0.1.0
 ## explicit; go 1.21
 github.com/prometheus/sigv4
-# github.com/rivo/uniseg v0.4.7
-## explicit; go 1.18
-github.com/rivo/uniseg
 # github.com/robfig/cron v1.2.0
 ## explicit
 github.com/robfig/cron
