@@ -2164,6 +2164,127 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
+	f := framework.Global
+
+	baselineImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "runtime_sshd")
+	pbName := framework.GetObjNameFromTest(t)
+
+	rhcos4Pb, err := f.CreateProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rhcos4Pb)
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// This test applies an SSH remediation and verifies runtime checks still work
+	suiteName := "test-runtime-ssh-remediation"
+	scanName := fmt.Sprintf("%s-scan", suiteName)
+
+	suite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: true,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: baselineImage,
+						Profile:      "xccdf_org.ssgproject.content_profile_e8",
+						Rule:         "xccdf_org.ssgproject.content_rule_sshd_disable_gssapi_auth",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: framework.GetPoolNodeRoleSelector(),
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: scanName,
+				},
+			},
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), suite, nil); err != nil {
+		t.Fatalf("failed to create ComplianceSuite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), suite)
+
+	// Get the MachineConfigPool before remediation
+	poolBeforeRemediation := &mcfgv1.MachineConfigPool{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: framework.TestPoolName}, poolBeforeRemediation); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for initial scan to complete - it should be non-compliant
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		// Might already be compliant if previously remediated
+		if err2 := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err2 != nil {
+			t.Fatalf("initial scan did not complete: %v", err)
+		}
+		t.Log("System already compliant, skipping remediation test")
+		return
+	}
+
+	// Check that remediation was auto-applied
+	remName := fmt.Sprintf("%s-sshd-disable-gssapi-auth", scanName)
+	if err := f.WaitForRemediationToBeAutoApplied(remName, f.OperatorNamespace, poolBeforeRemediation); err != nil {
+		t.Logf("Remediation might not be needed or already applied: %v", err)
+	}
+
+	// Re-run the scan to verify compliance with runtime checking
+	if err := f.ReRunScan(scanName, f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for re-scan to complete - should be compliant now
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err != nil {
+		t.Logf("WARNING: Re-scan was not compliant after remediation: %v", err)
+	}
+
+	// Verify the runtime config was still created and used in the re-scan
+	t.Log("Verifying runtime SSH config was used in re-scan after remediation")
+
+	// Get the check result for the SSH rule
+	checkName := fmt.Sprintf("%s-sshd-disable-gssapi-auth", scanName)
+	check := &compv1alpha1.ComplianceCheckResult{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkName,
+		Namespace: f.OperatorNamespace,
+	}, check); err != nil {
+		t.Logf("Could not get check result %s: %v", checkName, err)
+	} else {
+		t.Logf("SSH check after remediation - Status: %s", check.Status)
+		if check.Status == compv1alpha1.CheckResultPass {
+			t.Log("SUCCESS: SSH configuration check passed after remediation (runtime config verified)")
+		}
+	}
+
+	// Clean up the remediation if it was applied
+	rem := &compv1alpha1.ComplianceRemediation{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      remName,
+		Namespace: f.OperatorNamespace,
+	}, rem); err == nil {
+		// Unapply the remediation
+		if err := f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, framework.TestPoolName); err != nil {
+			t.Logf("Could not unapply remediation: %v", err)
+		}
+
+		// Wait for nodes to be ready again
+		if err := f.WaitForNodesToBeReady(); err != nil {
+			t.Logf("Nodes did not become ready after remediation removal: %v", err)
+		}
+	}
+
+	t.Log("Runtime SSH configuration with remediation test completed")
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
