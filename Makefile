@@ -622,6 +622,10 @@ e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment concurrently
 	@$(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-test.log
 
+.PHONY: e2e-cel
+e2e-cel: e2e-set-image prep-e2e ## Run tests using a CEL scanner
+	@$(GO) test ./tests/e2e/cel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
 .PHONY: prep-e2e
 prep-e2e: kustomize
 	rm -rf $(TEST_SETUP_DIR)
