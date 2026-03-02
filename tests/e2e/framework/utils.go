@@ -402,27 +402,106 @@ func runOCandGetOutput(arg []string) (string, error) {
 
 // createServiceAccount creates a service account
 func (f *Framework) SetupRBACForMetricsTest() error {
+	// Create service account
 	_, err := runOCandGetOutput([]string{
 		"create", "sa", PromethusTestSA, "-n", f.OperatorNamespace})
 	if err != nil {
 		return fmt.Errorf("Failed to create service account: %v", err)
 	}
 
+	// Create a ClusterRole with permissions to access monitoring resources
+	clusterRoleYAML := `apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-alertmanager-view
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - alertmanagers
+  - alertmanagers/api
+  - prometheuses
+  - prometheuses/api
+  verbs:
+  - get
+  - list
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/proxy
+  - services/proxy
+  - pods/proxy
+  verbs:
+  - get
+  - create
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get`
+
+	// Write ClusterRole to temp file
+	tmpFile, err := os.CreateTemp("", "clusterrole-*.yaml")
+	if err != nil {
+		log.Printf("Warning: Failed to create temp file for ClusterRole: %v", err)
+	} else {
+		defer os.Remove(tmpFile.Name())
+		if _, err := tmpFile.WriteString(clusterRoleYAML); err != nil {
+			log.Printf("Warning: Failed to write ClusterRole YAML: %v", err)
+		} else {
+			tmpFile.Close()
+			_, err = runOCandGetOutput([]string{"apply", "-f", tmpFile.Name()})
+			if err != nil {
+				log.Printf("Warning: Failed to create custom ClusterRole (it may already exist): %v", err)
+			}
+		}
+	}
+
+	// Add cluster-monitoring-view role (for Prometheus metrics)
 	_, err = runOCandGetOutput([]string{
 		"adm", "policy", "add-cluster-role-to-user", "cluster-monitoring-view", "-z", PromethusTestSA, "-n", f.OperatorNamespace})
 	if err != nil {
-		return fmt.Errorf("Failed to add cluster role to user: %v", err)
+		return fmt.Errorf("Failed to add cluster-monitoring-view role: %v", err)
 	}
+
+	// Add custom monitoring role (for AlertManager API access)
+	_, err = runOCandGetOutput([]string{
+		"adm", "policy", "add-cluster-role-to-user", "monitoring-alertmanager-view", "-z", PromethusTestSA, "-n", f.OperatorNamespace})
+	if err != nil {
+		return fmt.Errorf("Failed to add monitoring-alertmanager-view role: %v", err)
+	}
+
 	return nil
 }
 
-// CleanupRBACForMetricsTest deletes the service account
+// CleanupRBACForMetricsTest deletes the service account and ClusterRole
 func (f *Framework) CleanUpRBACForMetricsTest() error {
+	// Delete ClusterRoleBindings (they are automatically named by oc adm policy command)
+	// These will be cleaned up when the service account is deleted, but we'll try to clean them explicitly
+	runOCandGetOutput([]string{
+		"adm", "policy", "remove-cluster-role-from-user", "cluster-monitoring-view", "-z", PromethusTestSA, "-n", f.OperatorNamespace})
+	runOCandGetOutput([]string{
+		"adm", "policy", "remove-cluster-role-from-user", "monitoring-alertmanager-view", "-z", PromethusTestSA, "-n", f.OperatorNamespace})
+
+	// Delete service account
 	_, err := runOCandGetOutput([]string{
 		"delete", "sa", PromethusTestSA, "-n", f.OperatorNamespace})
 	if err != nil {
 		return fmt.Errorf("Failed to delete service account: %v", err)
 	}
+
+	// Delete custom ClusterRole (ignore errors if it doesn't exist)
+	runOCandGetOutput([]string{"delete", "clusterrole", "monitoring-alertmanager-view", "--ignore-not-found=true"})
+
 	return nil
 }
 
@@ -443,11 +522,43 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 		// Clear slice in case of a retry
 		metricsTargets = nil
 
+		// Pod overrides with proper security context for restricted pod security policy
+		// Properly escape the command for JSON
+		commandJSON, _ := json.Marshal(prometheusCommand)
+		commandJSONStr := string(commandJSON)
+
+		podOverrides := `{
+			"spec": {
+				"serviceAccountName": "` + PromethusTestSA + `",
+				"securityContext": {
+					"runAsNonRoot": true,
+					"seccompProfile": {
+						"type": "RuntimeDefault"
+					}
+				},
+				"containers": [{
+					"name": "metrics-test",
+					"image": "registry.fedoraproject.org/fedora:latest",
+					"command": ["bash", "-c", ` + commandJSONStr + `],
+					"securityContext": {
+						"allowPrivilegeEscalation": false,
+						"runAsNonRoot": true,
+						"capabilities": {
+							"drop": ["ALL"]
+						},
+						"seccompProfile": {
+							"type": "RuntimeDefault"
+						}
+					}
+				}]
+			}
+		}`
+
 		out, err := runOCandGetOutput([]string{
 			"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
 			"-n", namespace,
-			"--overrides={\"spec\": {\"serviceAccountName\": \"" + PromethusTestSA + "\"}}",
-			"metrics-test", "--", "bash", "-c", prometheusCommand,
+			"--overrides=" + podOverrides,
+			"metrics-test",
 		})
 
 		if err != nil {
@@ -612,4 +723,217 @@ func getTestMetricsCMD(namespace string) string {
 
 func GetPoolNodeRoleSelector() map[string]string {
 	return utils.GetNodeRoleSelector(TestPoolName)
+}
+
+// AssertAlertManagerAlertExists checks that an alert exists in AlertManager with the specified
+// label name and description string. It queries AlertManager API using a pod with proper RBAC.
+// Assumes RBAC is already set up via SetupRBACForMetricsTest().
+func (f *Framework) AssertAlertManagerAlertExists(labelName, expectedDescription string, timeout time.Duration) error {
+	// Determine AlertManager API version based on cluster version
+	apiVersion, err := f.getAlertManagerAPIVersion()
+	if err != nil {
+		return fmt.Errorf("failed to determine AlertManager API version: %w", err)
+	}
+
+	// Get AlertManager URL
+	alertManagerURL, err := f.getAlertManagerURL()
+	if err != nil {
+		return fmt.Errorf("failed to get AlertManager URL: %w", err)
+	}
+
+	const alertManagerCommand = `
+		TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) && 
+		{ curl -k -s https://%s/api/%s/alerts \
+		  --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+		  -H "Authorization: Bearer $TOKEN"; }
+	`
+	command := fmt.Sprintf(alertManagerCommand, alertManagerURL, apiVersion)
+	namespace := f.OperatorNamespace
+
+	var lastErr error
+	timeouterr := wait.Poll(RetryInterval, timeout, func() (bool, error) {
+		// Pod overrides with proper security context for restricted pod security policy
+		// Properly escape the command for JSON
+		commandJSON, _ := json.Marshal(command)
+		commandJSONStr := string(commandJSON)
+
+		podOverrides := `{
+			"spec": {
+				"serviceAccountName": "` + PromethusTestSA + `",
+				"securityContext": {
+					"runAsNonRoot": true,
+					"seccompProfile": {
+						"type": "RuntimeDefault"
+					}
+				},
+				"containers": [{
+					"name": "alertmanager-test",
+					"image": "registry.fedoraproject.org/fedora:latest",
+					"command": ["bash", "-c", ` + commandJSONStr + `],
+					"securityContext": {
+						"allowPrivilegeEscalation": false,
+						"runAsNonRoot": true,
+						"capabilities": {
+							"drop": ["ALL"]
+						},
+						"seccompProfile": {
+							"type": "RuntimeDefault"
+						}
+					}
+				}]
+			}
+		}`
+
+		out, err := runOCandGetOutput([]string{
+			"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
+			"-n", namespace,
+			"--overrides=" + podOverrides,
+			"alertmanager-test",
+		})
+
+		if err != nil {
+			lastErr = fmt.Errorf("error getting AlertManager output: %v", err)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+
+		outTrimmed := trimAlertManagerOutput(string(out))
+		if outTrimmed == "" {
+			lastErr = fmt.Errorf("empty output from AlertManager command")
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+
+		// Parse the AlertManager API response
+		// For v1 API, alerts are in data.alerts array
+		// For v2 API, alerts are directly in an array
+		var alerts []struct {
+			Labels      map[string]string      `json:"labels"`
+			Annotations map[string]string      `json:"annotations"`
+			Status      struct{ State string } `json:"status"`
+		}
+
+		// Try parsing as v2 format first (direct array)
+		err = json.Unmarshal([]byte(outTrimmed), &alerts)
+		if err != nil {
+			// Try parsing as v1 format (wrapped in data object)
+			var v1Response struct {
+				Data struct {
+					Alerts []struct {
+						Labels      map[string]string      `json:"labels"`
+						Annotations map[string]string      `json:"annotations"`
+						Status      struct{ State string } `json:"status"`
+					} `json:"alerts"`
+				} `json:"data"`
+			}
+			if err2 := json.Unmarshal([]byte(outTrimmed), &v1Response); err2 == nil {
+				alerts = v1Response.Data.Alerts
+			} else {
+				lastErr = fmt.Errorf("error unmarshalling AlertManager JSON: %v", err)
+				log.Printf("%v... retrying\n", lastErr)
+				return false, nil
+			}
+		}
+
+		// Check if any alert has the expected label name and description
+		for _, alert := range alerts {
+			if alert.Labels != nil {
+				// Check if the alert has a label with value matching the suite name
+				if nameValue, found := alert.Labels["name"]; found && nameValue == labelName {
+					if alert.Annotations != nil {
+						description, found := alert.Annotations["description"]
+						if found && strings.Contains(description, expectedDescription) {
+							log.Printf("Found alert with label name=%s and expected description", labelName)
+							return true, nil
+						}
+					}
+				}
+			}
+		}
+
+		lastErr = fmt.Errorf("alert with label name=%s and description containing '%s' not found in AlertManager", labelName, expectedDescription)
+		log.Printf("%v... retrying\n", lastErr)
+		return false, nil
+	})
+
+	if timeouterr != nil {
+		if lastErr != nil {
+			return fmt.Errorf("failed to find alert in AlertManager: %w", lastErr)
+		}
+		return fmt.Errorf("timed out waiting for alert in AlertManager: %w", timeouterr)
+	}
+
+	return nil
+}
+
+// trimAlertManagerOutput extracts JSON from AlertManager API output
+func trimAlertManagerOutput(out string) string {
+	// Try to find JSON array start
+	jsonStart := strings.Index(out, "[")
+	if jsonStart == -1 {
+		// Try to find JSON object with "data" field (v1 API)
+		dataStart := strings.Index(out, `{"data"`)
+		if dataStart != -1 {
+			jsonStart = dataStart
+		} else {
+			return ""
+		}
+	}
+
+	// Find the matching closing bracket or brace
+	jsonEnd := strings.LastIndex(out, "]")
+	if jsonEnd == -1 {
+		jsonEnd = strings.LastIndex(out, "}")
+	}
+	if jsonEnd == -1 || jsonStart >= jsonEnd {
+		return ""
+	}
+
+	return out[jsonStart : jsonEnd+1]
+}
+
+// getAlertManagerAPIVersion determines the AlertManager API version based on cluster version
+// Returns "v1" for OCP < 4.17, "v2" for OCP >= 4.17
+func (f *Framework) getAlertManagerAPIVersion() (string, error) {
+	version, err := runOCandGetOutput([]string{
+		"get", "clusterversion/version", "-ojsonpath={.status.desired.version}",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get cluster version: %w", err)
+	}
+
+	version = strings.TrimSpace(version)
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid version format: %s", version)
+	}
+
+	major := parts[0]
+	minorStr := parts[1]
+	minor, err := strconv.Atoi(minorStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse minor version: %w", err)
+	}
+
+	if major == "4" && minor >= 17 {
+		return "v2", nil
+	} else if major == "4" && minor < 17 {
+		return "v1", nil
+	}
+
+	return "", fmt.Errorf("unknown version %s.%s", major, minorStr)
+}
+
+// getAlertManagerURL gets the AlertManager route URL
+func (f *Framework) getAlertManagerURL() (string, error) {
+	// Try to get route first
+	route, err := runOCandGetOutput([]string{
+		"get", "route", "alertmanager-main", "-n", "openshift-monitoring", "-o=jsonpath={.spec.host}",
+	})
+	if err == nil && strings.TrimSpace(route) != "" {
+		return strings.TrimSpace(route), nil
+	}
+
+	// Fallback to service URL
+	return "alertmanager-main.openshift-monitoring.svc.cluster.local:9093", nil
 }
