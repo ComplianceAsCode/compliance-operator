@@ -12,6 +12,7 @@ import (
 	compsuitectrl "github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancesuite"
 	configv1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2164,6 +2165,81 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+func TestPrometheusRuleComplianceAlert(t *testing.T) {
+	f := framework.Global
+	ssbName := framework.GetObjNameFromTest(t) + "-pci-dss-alert"
+
+	// Verify namespace has cluster-monitoring label
+	ns := &corev1.Namespace{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: f.OperatorNamespace}, ns); err != nil {
+		t.Fatalf("failed to get namespace %s: %v", f.OperatorNamespace, err)
+	}
+	if ns.Labels == nil || ns.Labels["openshift.io/cluster-monitoring"] != "true" {
+		t.Fatalf("namespace %s does not have openshift.io/cluster-monitoring label set to true", f.OperatorNamespace)
+	}
+
+	// Verify metrics service exists
+	metricsService := &corev1.Service{}
+	metricsServiceKey := types.NamespacedName{Name: "metrics", Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), metricsServiceKey, metricsService); err != nil {
+		t.Fatalf("failed to get metrics service: %v", err)
+	}
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "ocp4-pci-dss",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for ComplianceSuite to complete with NON-COMPLIANT result
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, ssbName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatalf("ComplianceSuite %s did not reach expected status: %v", ssbName, err)
+	}
+
+	// Check that the compliance PrometheusRule alert is generated with expected alert name and description
+	if err := framework.AddToFrameworkScheme(monitoringv1.AddToScheme, &monitoringv1.PrometheusRuleList{}); err != nil {
+		t.Fatalf("failed to add monitoring scheme: %v", err)
+	}
+	pr := &monitoringv1.PrometheusRule{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "compliance", Namespace: f.OperatorNamespace}, pr); err != nil {
+		t.Fatalf("failed to get PrometheusRule compliance: %v", err)
+	}
+	if len(pr.Spec.Groups) < 1 || len(pr.Spec.Groups[0].Rules) < 1 {
+		t.Fatalf("PrometheusRule compliance has no groups or rules")
+	}
+	rule := pr.Spec.Groups[0].Rules[0]
+	const expectedAlert = "NonCompliant"
+	if rule.Alert != expectedAlert {
+		t.Fatalf("PrometheusRule compliance alert: got %q, want %q", rule.Alert, expectedAlert)
+	}
+	const expectedDescription = "The compliance suite {{ $labels.name }} returned as NON-COMPLIANT, ERROR, or INCONSISTENT"
+	if rule.Annotations == nil || rule.Annotations["description"] != expectedDescription {
+		got := ""
+		if rule.Annotations != nil {
+			got = rule.Annotations["description"]
+		}
+		t.Fatalf("PrometheusRule compliance description: got %q, want %q", got, expectedDescription)
+	}
+}
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
