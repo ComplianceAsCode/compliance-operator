@@ -647,7 +647,7 @@ func (f *Framework) GetDefaultStorageClassProvisioner() (string, error) {
 }
 
 // CreateCustomStorageClass creates a custom StorageClass object
-func (f *Framework) CreateCustomStorageClass(name, provisioner string) *unstructured.Unstructured {
+func (f *Framework) CreateCustomStorageClass(name, provisioner string) (*unstructured.Unstructured, error) {
 	sc := &unstructured.Unstructured{}
 	sc.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "storage.k8s.io",
@@ -655,8 +655,10 @@ func (f *Framework) CreateCustomStorageClass(name, provisioner string) *unstruct
 		Kind:    "StorageClass",
 	})
 	sc.SetName(name)
-	unstructured.SetNestedField(sc.Object, provisioner, "provisioner")
-	return sc
+	if err := unstructured.SetNestedField(sc.Object, provisioner, "provisioner"); err != nil {
+		return nil, fmt.Errorf("failed to set provisioner field: %w", err)
+	}
+	return sc, nil
 }
 
 // AssertScanPVCHasStorageConfig verifies that the PVC for a scan has the expected storage configuration

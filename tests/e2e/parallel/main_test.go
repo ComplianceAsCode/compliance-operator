@@ -5325,7 +5325,10 @@ func TestScanWithCustomStorageClass(t *testing.T) {
 	}
 
 	// Create custom StorageClass named "gold"
-	customStorageClass := f.CreateCustomStorageClass(storageClassName, defaultProvisioner)
+	customStorageClass, err := f.CreateCustomStorageClass(storageClassName, defaultProvisioner)
+	if err != nil {
+		t.Fatalf("failed to create custom storage class object %s: %s", storageClassName, err)
+	}
 	err = f.Client.Create(context.TODO(), customStorageClass, nil)
 	if err != nil {
 		t.Fatalf("failed to create custom storage class %s: %s", storageClassName, err)
