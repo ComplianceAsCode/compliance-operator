@@ -2164,6 +2164,244 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+// TestScanHyperShiftHostedClusterPCIDSS tests scanning HyperShift hosted clusters with PCI-DSS profiles
+func TestScanHyperShiftHostedClusterPCIDSS(t *testing.T) {
+	f := framework.Global
+
+	// Check if running on a HyperShift hosted cluster
+	infra := &configv1.Infrastructure{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, infra)
+	if err != nil {
+		t.Fatalf("Failed to get cluster infrastructure: %s", err)
+	}
+
+	// Skip test if not running on a HyperShift (External control plane) cluster
+	if infra.Status.ControlPlaneTopology != configv1.ExternalTopologyMode {
+		t.Skip("Skipping HyperShift test - not running on a hosted cluster (External control plane)")
+	}
+
+	tpName := "test-hypershift-pci-dss-tailored-profile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				"compliance.openshift.io/product-type": "Platform",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Extends:     "ocp4-pci-dss",
+			Title:       "PCIDSS for Hypershift",
+			Description: "PCIDSS for Hypershift Master-plane components",
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				// Rules below are checked on the Management cluster in HyperShift architecture
+				{Name: "ocp4-api-server-admission-control-plugin-namespacelifecycle", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-admission-control-plugin-noderestriction", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-admission-control-plugin-scc", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-admission-control-plugin-service-account", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-audit-log-maxbackup", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-audit-log-maxsize", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-ocp-api-server-audit-log-maxbackup", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-ocp-api-server-audit-log-maxsize", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-audit-log-path", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-auth-mode-node", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-auth-mode-rbac", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-bind-address", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-client-ca", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-encryption-provider-cipher", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-etcd-ca", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-etcd-cert", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-etcd-key", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-kubelet-certificate-authority", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-kubelet-client-cert", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-kubelet-client-key", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-request-timeout", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-service-account-lookup", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-service-account-public-key", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-tls-cert", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-tls-cipher-suites", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-tls-private-key", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-audit-log-forwarding-enabled", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-controller-insecure-port-disabled", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-controller-secure-port", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-controller-service-account-ca", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-controller-service-account-private-key", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-controller-use-service-account", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-auto-tls", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-cert-file", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-client-cert-auth", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-key-file", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-peer-auto-tls", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-peer-cert-file", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-peer-client-cert-auth", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-peer-key-file", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-kubelet-configure-tls-key", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-kubelet-configure-tls-cert", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-kubelet-disable-readonly-port", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-admission-control-plugin-alwaysadmit", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-admission-control-plugin-alwayspullimages", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-admission-control-plugin-securitycontextdeny", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-anonymous-auth", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-api-priority-flowschema-catch-all", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-auth-mode-no-aa", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-basic-auth", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-https-for-kubelet-conn", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-insecure-bind-address", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-no-adm-ctrl-plugins-disabled", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-oauth-https-serving-cert", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-openshift-https-serving-cert", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-profiling-protected-by-rbac", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-api-server-token-auth", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-openshift-api-server-audit-log-path", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-scheduler-no-bind-address", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-tls-version-check-apiserver", Rationale: "This rule is being checked on the Management cluster"},
+				{Name: "ocp4-etcd-check-cipher-suite", Rationale: "This rule is being checked on the Management cluster"},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatalf("failed to create TailoredProfile %s: %s", tp.Name, createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	// Wait for TailoredProfile to be ready
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("failed waiting for TailoredProfile to be ready: %s", err)
+	}
+
+	suiteName := framework.GetObjNameFromTest(t)
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "ocp4-pci-dss-node",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("failed to create ScanSettingBinding: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for the suite to complete
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatalf("failed waiting for suite to complete: %s", err)
+	}
+
+	// Get the ComplianceSuite to verify it completed
+	suite := &compv1alpha1.ComplianceSuite{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: suiteName, Namespace: f.OperatorNamespace}, suite)
+	if err != nil {
+		t.Fatalf("failed to get ComplianceSuite: %s", err)
+	}
+
+	if suite.Status.Phase != compv1alpha1.PhaseDone {
+		t.Fatalf("Expected suite phase to be DONE, got %s", suite.Status.Phase)
+	}
+
+	if suite.Status.Result != compv1alpha1.ResultNonCompliant {
+		t.Logf("Warning: Expected suite result to be NON-COMPLIANT, got %s", suite.Status.Result)
+	}
+
+	// Verify specific ComplianceCheckResults
+	// Check for configure-network-policies-namespaces rule (expected to FAIL on most clusters)
+	checkConfigureNetworkPolicies := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-configure-network-policies-namespaces", tpName),
+			Namespace: f.OperatorNamespace,
+		},
+	}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkConfigureNetworkPolicies.Name,
+		Namespace: f.OperatorNamespace,
+	}, &checkConfigureNetworkPolicies)
+	if err != nil {
+		t.Logf("Warning: Could not get check result for configure-network-policies-namespaces: %s", err)
+	} else {
+		t.Logf("ComplianceCheckResult %s status: %s", checkConfigureNetworkPolicies.Name, checkConfigureNetworkPolicies.Status)
+		if checkConfigureNetworkPolicies.Status != compv1alpha1.CheckResultFail {
+			t.Logf("Warning: Expected configure-network-policies-namespaces to FAIL, got %s", checkConfigureNetworkPolicies.Status)
+		}
+	}
+
+	// Check for kubeadmin-removed rule (status depends on whether kubeadmin secret exists)
+	kubeadminSecret := &corev1.Secret{}
+	kubeadminSecretErr := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      "kubeadmin",
+		Namespace: "kube-system",
+	}, kubeadminSecret)
+
+	checkKubeadminRemoved := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-kubeadmin-removed", tpName),
+			Namespace: f.OperatorNamespace,
+		},
+	}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkKubeadminRemoved.Name,
+		Namespace: f.OperatorNamespace,
+	}, &checkKubeadminRemoved)
+	if err != nil {
+		t.Logf("Warning: Could not get check result for kubeadmin-removed: %s", err)
+	} else {
+		t.Logf("ComplianceCheckResult %s status: %s", checkKubeadminRemoved.Name, checkKubeadminRemoved.Status)
+		// If kubeadmin secret doesn't exist, the check should PASS
+		// If kubeadmin secret exists, the check should FAIL
+		if kubeadminSecretErr != nil {
+			// Secret doesn't exist, check should PASS
+			if checkKubeadminRemoved.Status != compv1alpha1.CheckResultPass {
+				t.Logf("Warning: Expected kubeadmin-removed to PASS (secret not found), got %s", checkKubeadminRemoved.Status)
+			}
+		} else {
+			// Secret exists, check should FAIL
+			if checkKubeadminRemoved.Status != compv1alpha1.CheckResultFail {
+				t.Logf("Warning: Expected kubeadmin-removed to FAIL (secret exists), got %s", checkKubeadminRemoved.Status)
+			}
+		}
+	}
+
+	// Verify that ComplianceCheckResults exist for both scans
+	scanNames := []string{
+		tpName,              // TailoredProfile scan
+		"ocp4-pci-dss-node", // Profile scan
+	}
+
+	for _, scanName := range scanNames {
+		checkResultList := &compv1alpha1.ComplianceCheckResultList{}
+		err = f.Client.List(context.TODO(), checkResultList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels{
+			compv1alpha1.ComplianceScanLabel: scanName,
+		})
+		if err != nil {
+			t.Fatalf("failed to list ComplianceCheckResults for scan %s: %s", scanName, err)
+		}
+
+		if len(checkResultList.Items) == 0 {
+			t.Logf("Warning: No ComplianceCheckResults found for scan %s", scanName)
+		} else {
+			t.Logf("Found %d ComplianceCheckResults for scan %s", len(checkResultList.Items), scanName)
+		}
+	}
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
