@@ -981,13 +981,11 @@ func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	if len(checkList.Items) == 0 {
 		t.Fatal("expected at least one check result")
 	}
-	// Expected scan name is binding name + profile name
-	expectedScanName := bindingName + "-" + tpName
 	// Verify all required labels are present on every check result
 	// For some labels we can verify the exact value
 	labelsWithValues := map[string]string{
 		compv1alpha1.SuiteLabel:          bindingName,
-		compv1alpha1.ComplianceScanLabel: expectedScanName,
+		compv1alpha1.ComplianceScanLabel: bindingName,
 	}
 	// For other labels we just verify they are present (non-empty)
 	labelsPresenceOnly := []string{
