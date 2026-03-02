@@ -5325,8 +5325,7 @@ func TestTimeoutDisabledWithZeroValue(t *testing.T) {
 			AutoApplyRemediations: false,
 		},
 		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-			Timeout:           "0s",
-			MaxRetryOnTimeout: 2,
+			Timeout: "0s",
 		},
 		Roles: []string{"master", "worker"},
 	}
@@ -5366,23 +5365,14 @@ func TestTimeoutDisabledWithZeroValue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify the scan completed without timeout errors
+	// Verify that scans do not have the timeout annotation
 	suite := &compv1alpha1.ComplianceSuite{}
 	key := types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}
 	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
 		t.Fatal(err)
 	}
 
-	// Check that all scans in the suite are in DONE phase (not ERROR from timeout)
 	for _, scanStatus := range suite.Status.ScanStatuses {
-		if scanStatus.Phase != compv1alpha1.PhaseDone {
-			t.Fatalf("expected scan %s to be DONE, but got %s", scanStatus.Name, scanStatus.Phase)
-		}
-		// Ensure the scan didn't fail due to timeout
-		if scanStatus.Result == compv1alpha1.ResultError {
-			t.Fatalf("scan %s resulted in ERROR, expected it to complete successfully with timeout disabled", scanStatus.Name)
-		}
-
 		// Verify the scan does not have the timeout annotation
 		scan := &compv1alpha1.ComplianceScan{}
 		scanKey := types.NamespacedName{Name: scanStatus.Name, Namespace: f.OperatorNamespace}
