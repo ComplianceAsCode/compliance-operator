@@ -7,3 +7,4 @@ resources:
   - kubevirt-no-vms-overcommiting-guest-memory
   - tailored-profile.yaml
   - scan-setting-binding.yaml
+  - ocp-virt-restrict-patching-annotations.yaml

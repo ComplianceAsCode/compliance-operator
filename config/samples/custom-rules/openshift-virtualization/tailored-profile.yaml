@@ -36,4 +36,9 @@ spec:
         scheduling algorithms. If the VM consumes the entire memory might
         cause the guest to crash with workload interruptions and guest
         malfunctioning.
+    - kind: CustomRule
+      name: ocp-virt-restrict-patching-annotations
+      rationale: |-
+        Cloud administrators should not patch OpenShift Virtualization objects,
+        but rather configure the OpenShift Virtualization options available in HCO.
   title: Platform checks for OpenShift Virtualization
