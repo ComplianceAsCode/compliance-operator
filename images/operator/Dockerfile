@@ -27,7 +27,7 @@ LABEL \
         com.redhat.component="openshift-compliance-operator-container" \
         io.openshift.maintainer.product="OpenShift Container Platform" \
         io.openshift.maintainer.component="Compliance Operator" \
-        version=1.7.1
+        version=1.8.0-dev
 
 WORKDIR /
 
