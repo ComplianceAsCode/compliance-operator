@@ -1,0 +1,42 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: kubevirt-disable-downward-metrics
+  namespace: openshift-compliance
+spec:
+  title: "KubeVirt downwardMetrics Feature Gate Must Be Disabled"
+  id: kubevirt_downward_metrics_feature_gate_is_enabled
+  description: |-
+    The downwardMetrics feature allows users to collect and monitor additional
+    metrics related to host and virtual machine performance.
+
+    Enabling the downwardMetrics feature introduces the risk of unauthorized or
+    unintended sharing of information, as well as manipulation of information
+    flow restrictions. The additional metrics include sensitive performance
+    data, which could aid in the reconnaissance activities of a malicious
+    actor.
+
+    Without downwardMetrics, guests are not able to use the host metrics.
+
+    To fix, set downwardMetrics to False.
+
+    $ oc patch hyperconverged kubevirt-hyperconverged -n openshift-cnv --type='json' -p='[
+     {"op": "replace", "path": "/spec/featureGates/downwardMetrics", "value": false },
+    ]'
+  failureReason: |-
+    The '.spec.featureGates.downwardMetrics' field is set to 'true' in the
+    'kubevirt-hyperconverged' resource.
+  severity: Medium
+  checkType: Platform
+  scannerType: CEL
+  inputs:
+    - name: hco
+      kubernetesInputSpec:
+        apiVersion: hco.kubevirt.io/v1beta1
+        resource: hyperconvergeds
+        resourceName: kubevirt-hyperconverged
+        resourceNamespace: openshift-cnv
+  expression: |
+      !has(hco.spec.featureGates) ||
+      !has(hco.spec.featureGates.downwardMetrics) ||
+      hco.spec.featureGates.downwardMetrics == false

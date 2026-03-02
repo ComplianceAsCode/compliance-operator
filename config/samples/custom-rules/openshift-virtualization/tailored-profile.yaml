@@ -7,6 +7,14 @@ spec:
   description: Custom security checks for OpenShift Virtualization
   enableRules:
     - kind: CustomRule
+      name: kubevirt-disable-downward-metrics
+      rationale: |-
+        Enabling the downwardMetrics feature introduces the risk of
+        unauthorized or unintended sharing of information, as well as
+        manipulation of information flow restrictions. The additional metrics
+        include sensitive performance data, which could aid in the
+        reconnaissance activities of a malicious actor.
+    - kind: CustomRule
       name: kubevirt-nonroot-feature-gate-is-enabled
       rationale: |-
         Unauthorized access to a root account without restrictions implemented
