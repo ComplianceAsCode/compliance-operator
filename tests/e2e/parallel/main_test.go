@@ -5713,8 +5713,10 @@ func TestRuleVariableAnnotation(t *testing.T) {
 	}
 }
 
-// Verifies that setting timeout to "0s" disables the timeout functionality
-func TestTimeoutDisabledWithZeroValue(t *testing.T) {
+// TestCSVInfrastructureFeaturesAnnotation tests that the Compliance Operator CSV
+// has the proper infrastructure features annotation for disconnected environments.
+// This test verifies support for disconnected, FIPS, and proxy-aware configurations.
+func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
