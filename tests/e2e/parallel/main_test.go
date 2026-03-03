@@ -5216,7 +5216,6 @@ func TestRuleVariableAnnotation(t *testing.T) {
 // TestCSVInfrastructureFeaturesAnnotation tests that the Compliance Operator CSV
 // has the proper infrastructure features annotation for disconnected environments.
 // This test verifies support for disconnected, FIPS, and proxy-aware configurations.
-// Ported from downstream test case OCP-40280
 func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
