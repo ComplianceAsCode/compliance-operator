@@ -3977,7 +3977,7 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 	if masterScan.Spec.Debug != true {
-		log.Println("Expected that the settings set debug to true in master scan")
+		t.Fatal("Expected that the settings set debug to true in master scan")
 	}
 
 	workerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4e8profile.Name + "-worker"}
@@ -3987,7 +3987,7 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 	if workerScan.Spec.Debug != true {
-		log.Println("Expected that the settings set debug to true in workers scan")
+		t.Fatal("Expected that the settings set debug to true in workers scan")
 	}
 
 	moderateMasterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-master"}
@@ -3997,7 +3997,7 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 	if moderateMasterScan.Spec.Debug != true {
-		log.Println("Expected that the settings set debug to true in moderate master scan")
+		t.Fatal("Expected that the settings set debug to true in moderate master scan")
 	}
 
 	moderateWorkerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-worker"}
@@ -4007,7 +4007,7 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 	if moderateWorkerScan.Spec.Debug != true {
-		log.Println("Expected that the settings set debug to true in moderate worker scan")
+		t.Fatal("Expected that the settings set debug to true in moderate worker scan")
 	}
 
 	podList := &corev1.PodList{}
@@ -4016,9 +4016,10 @@ func TestScanSettingBinding(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	// check if the scanning pod has properly been created and has priority class set
+	// check if the scanning pod has properly been created and has limits set
 	for _, pod := range podList.Items {
-		if strings.Contains(pod.Name, workerScan.Name) {
+		if strings.Contains(pod.Name, masterScan.Name) || strings.Contains(pod.Name, workerScan.Name) ||
+			strings.Contains(pod.Name, moderateMasterScan.Name) || strings.Contains(pod.Name, moderateWorkerScan.Name) {
 			if err := framework.WaitForPod(framework.CheckPodLimit(f.KubeClient, pod.Name, f.OperatorNamespace, defaultCpuLimit, testMemoryLimit)); err != nil {
 				t.Fatal(err)
 			}
