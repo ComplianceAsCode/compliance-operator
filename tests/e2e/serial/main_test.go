@@ -2351,7 +2351,7 @@ func getMustGatherImageFromCSV(f *framework.Framework) (string, error) {
 		csvItem := &csvList.Items[i]
 		if name := csvItem.GetName(); name != "" {
 			// CSVs typically have names like "compliance-operator.vX.Y.Z"
-			if len(name) >= 18 && name[:18] == "compliance-operator" {
+			if len(name) >= 19 && name[:19] == "compliance-operator" {
 				csv = csvItem
 				break
 			}
