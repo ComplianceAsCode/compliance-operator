@@ -683,11 +683,6 @@ func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedS
 				break
 			}
 		}
-		// Alternative: check if the PVC name contains our scan name
-		if strings.Contains(pvc.Name, scanName) {
-			scanPVC = pvc
-			break
-		}
 	}
 
 	if scanPVC == nil {
