@@ -340,6 +340,23 @@ func writeToArtifactsDir(dir, scan, pod, container, log string) error {
 	return nil
 }
 
+// writeMetricsToArtifacts writes metrics output to the artifacts directory
+func writeMetricsToArtifacts(filename, content string) {
+	artifactsDir := os.Getenv("ARTIFACT_DIR")
+	if artifactsDir == "" {
+		// If ARTIFACT_DIR is not set, just log a summary instead of full output
+		log.Printf("Metrics data available (%d bytes) - set ARTIFACT_DIR to save to file", len(content))
+		return
+	}
+
+	filePath := path.Join(artifactsDir, filename)
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		log.Printf("Warning: Failed to write metrics to %s: %v", filePath, err)
+	} else {
+		log.Printf("Metrics output written to %s (%d bytes)", filePath, len(content))
+	}
+}
+
 func AssertEachMetric(namespace string, expectedMetrics map[string]int) error {
 	metricErrs := make([]error, 0)
 	metricsOutput, err := getMetricResults(namespace)
@@ -463,7 +480,7 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 			return false, nil
 		}
 
-		log.Printf("Metrics output:\n%s\n", outTrimmed)
+		writeMetricsToArtifacts("prometheus_metrics_targets.json", outTrimmed)
 		var responseData struct {
 			Data struct {
 				ActiveTargets []promv1.Target `json:"activeTargets"`
@@ -542,13 +559,15 @@ func (f *Framework) AssertServiceMonitoringMetricsTarget(metrics []promv1.Target
 		return fmt.Errorf("Expected %d metrics, got %d", expectedTargetsCount, len(metrics))
 	}
 
+	upCount := 0
 	for _, metric := range metrics {
 		if metric.Health != "up" {
 			return fmt.Errorf("Metric %s is not up. LastError: %s", metric.Labels, metric.LastError)
-		} else {
-			log.Printf("Metric instance %s is up. LastScrape: %s", metric.Labels, metric.LastScrape)
 		}
+		upCount++
 	}
+	// Log summary instead of each individual metric
+	log.Printf("All %d metric instances are up", upCount)
 	return nil
 }
 
@@ -601,7 +620,7 @@ func getMetricResults(namespace string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting output %s", err)
 	}
-	log.Printf("metrics output:\n%s\n", string(out))
+	writeMetricsToArtifacts("operator_metrics.txt", string(out))
 	return string(out), nil
 }
 
