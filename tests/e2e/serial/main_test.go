@@ -350,6 +350,7 @@ func TestScanHasProfileGUID(t *testing.T) {
 	tpName := "test-scan-have-profile-guid-tp"
 	// This is the profileGUID for the redhat_openshift_container_platform_4.1 product and xccdf_org.ssgproject.content_profile_moderate profile
 	const profileGUIDOCPModerate = "d625badc-92a1-5438-afd7-19526c26b03c"
+	const profileGUIDOCPModerateNode = "ef297cbd-f5a0-5c0c-baab-edeebb761e27"
 	const profileGUIDTP = "04a11c78-7c77-545e-8341-f1b7b743bcb8"
 	const profileGUIDRHCOSModerate = "eceb9af0-17d4-5c59-9b17-07cfd22a3ba1"
 	const profileGUIDOCPCIS = "a230315d-3e4a-5b58-b00f-f96f1553e036"
@@ -358,6 +359,12 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = f.AssertProfileGUIDMatches("ocp4-moderate-node", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = f.AssertProfileGUIDMatches("rhcos4-moderate", f.OperatorNamespace, profileGUIDRHCOSModerate)
 	if err != nil {
 		t.Fatal(err)
@@ -366,6 +373,12 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// check the GUID is present for all the profiles
+	err = f.AssertAllProfilesHaveGUID(f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tpName,
@@ -405,6 +418,11 @@ func TestScanHasProfileGUID(t *testing.T) {
 				APIGroup: "compliance.openshift.io/v1alpha1",
 			},
 			{
+				Name:     "ocp4-moderate-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
 				Name:     "rhcos4-moderate",
 				Kind:     "Profile",
 				APIGroup: "compliance.openshift.io/v1alpha1",
@@ -421,13 +439,33 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+	// Cleanup: Delete ScanSettingBinding first, then wait for ComplianceSuite to be cascade-deleted
+	// This ensures proper cleanup before the next test runs
+	defer func() {
+		// Delete the binding first - this will cascade delete the ComplianceSuite
+		if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
+			t.Logf("Failed to delete ScanSettingBinding: %v", err)
+			return
+		}
+		// Now wait for the suite to be deleted (it's owned by the binding)
+		if err := f.WaitForComplianceSuiteDeletion(bindingName, f.OperatorNamespace); err != nil {
+			t.Logf("ComplianceSuite cleanup warning: %v", err)
+		}
+	}()
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
 	}
 
 	// check if the profileGUID is correct in the scan's label
 	err = f.AssertScanGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-worker", f.OperatorNamespace, profileGUIDOCPModerateNode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +486,31 @@ func TestScanHasProfileGUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	// Check if the profileGUID is correct in the ccr's label
+	err = f.AssertResultsGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-worker", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-worker", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-master", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-cis", f.OperatorNamespace, profileGUIDOCPCIS)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMixProductScan(t *testing.T) {
@@ -1764,9 +1826,37 @@ func TestSuspendScanSetting(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
 
+	// Create a second ScanSettingBinding with ocp4-pci-dss profile using the same ScanSetting
+	bindingName2 := framework.GetObjNameFromTest(t) + "-binding-pci"
+	scanSettingBinding2 := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName2,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-pci-dss",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding2, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding2)
+
 	// Wait until the first scan completes since the CronJob is created
 	// after the scan is done
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName2, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1776,11 +1866,23 @@ func TestSuspendScanSetting(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	suite2 := &compv1alpha1.ComplianceSuite{}
+	key2 := types.NamespacedName{Name: bindingName2, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), key2, suite2); err != nil {
+		t.Fatal(err)
+	}
+
 	// Assert the CronJob is not suspended.
 	if err := f.AssertCronJobIsNotSuspended(compsuitectrl.GetRerunnerName(suite.Name)); err != nil {
 		t.Fatal(err)
 	}
+	if err := f.AssertCronJobIsNotSuspended(compsuitectrl.GetRerunnerName(suite2.Name)); err != nil {
+		t.Fatal(err)
+	}
 	if err := f.AssertScanSettingBindingConditionIsReady(bindingName, f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.AssertScanSettingBindingConditionIsReady(bindingName2, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1797,10 +1899,19 @@ func TestSuspendScanSetting(t *testing.T) {
 	if err := f.WaitForScanSettingBindingStatus(f.OperatorNamespace, bindingName, compv1alpha1.ScanSettingBindingPhaseSuspended); err != nil {
 		t.Fatalf("ScanSettingBinding %s failed to suspend", bindingName)
 	}
+	if err := f.WaitForScanSettingBindingStatus(f.OperatorNamespace, bindingName2, compv1alpha1.ScanSettingBindingPhaseSuspended); err != nil {
+		t.Fatalf("ScanSettingBinding %s failed to suspend", bindingName2)
+	}
 	if err := f.AssertCronJobIsSuspended(compsuitectrl.GetRerunnerName(suite.Name)); err != nil {
 		t.Fatal(err)
 	}
+	if err := f.AssertCronJobIsSuspended(compsuitectrl.GetRerunnerName(suite2.Name)); err != nil {
+		t.Fatal(err)
+	}
 	if err := f.AssertScanSettingBindingConditionIsSuspended(bindingName, f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.AssertScanSettingBindingConditionIsSuspended(bindingName2, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1817,10 +1928,19 @@ func TestSuspendScanSetting(t *testing.T) {
 	if err := f.WaitForScanSettingBindingStatus(f.OperatorNamespace, bindingName, compv1alpha1.ScanSettingBindingPhaseReady); err != nil {
 		t.Fatalf("ScanSettingBinding %s failed to resume", bindingName)
 	}
+	if err := f.WaitForScanSettingBindingStatus(f.OperatorNamespace, bindingName2, compv1alpha1.ScanSettingBindingPhaseReady); err != nil {
+		t.Fatalf("ScanSettingBinding %s failed to resume", bindingName2)
+	}
 	if err := f.AssertCronJobIsNotSuspended(compsuitectrl.GetRerunnerName(suite.Name)); err != nil {
 		t.Fatal(err)
 	}
+	if err := f.AssertCronJobIsNotSuspended(compsuitectrl.GetRerunnerName(suite2.Name)); err != nil {
+		t.Fatal(err)
+	}
 	if err := f.AssertScanSettingBindingConditionIsReady(bindingName, f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.AssertScanSettingBindingConditionIsReady(bindingName2, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -334,6 +335,16 @@ func (f *Framework) addFrameworks() error {
 	for _, obj := range scObjs {
 		if err := AddToFrameworkScheme(schedulingv1.AddToScheme, obj); err != nil {
 			return fmt.Errorf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+		}
+	}
+
+	// ValidatingAdmissionPolicy objects
+	vapObjs := [1]dynclient.ObjectList{
+		&admissionregistrationv1.ValidatingAdmissionPolicyList{},
+	}
+	for _, obj := range vapObjs {
+		if err := AddToFrameworkScheme(admissionregistrationv1.AddToScheme, obj); err != nil {
+			return fmt.Errorf("failed to add admissionregistration resource scheme to framework: %v", err)
 		}
 	}
 
@@ -791,16 +802,60 @@ func (f *Framework) createMachineConfigPool(n string) error {
 	return nil
 }
 
+// validatingAdmissionPolicyExists checks if a ValidatingAdmissionPolicy with the given name exists
+func (f *Framework) validatingAdmissionPolicyExists(name string) (bool, error) {
+	vap := &admissionregistrationv1.ValidatingAdmissionPolicy{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name}, vap)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (f *Framework) createInvalidMachineConfigPool(n string) error {
 	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
+
+	// Check if ValidatingAdmissionPolicy exists
+	vapExists, err := f.validatingAdmissionPolicyExists("custom-machine-config-pool-selector")
+	if err != nil {
+		return fmt.Errorf("failed to check ValidatingAdmissionPolicy: %w", err)
+	}
+
 	p := &mcfgv1.MachineConfigPool{
 		ObjectMeta: metav1.ObjectMeta{Name: n},
 		Spec: mcfgv1.MachineConfigPoolSpec{
 			Paused: false,
 		},
+	}
+
+	// Only add selectors if ValidatingAdmissionPolicy exists
+	// This ensures backward compatibility with older clusters
+	if vapExists {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' exists, adding minimal selectors to MachineConfigPool %s\n", n)
+		// Add minimal selectors to pass ValidatingAdmissionPolicy
+		// This pool is still "invalid" for testing as no nodes match this selector
+		p.Spec.NodeSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"node-role.kubernetes.io/" + testInvalidPoolName: "",
+			},
+		}
+		p.Spec.MachineConfigSelector = &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "machineconfiguration.openshift.io/role",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"worker"},
+				},
+			},
+		}
+	} else {
+		log.Printf("ValidatingAdmissionPolicy 'custom-machine-config-pool-selector' not found, creating MachineConfigPool %s without selectors (legacy mode)\n", n)
 	}
 
 	createErr := backoff.RetryNotify(
@@ -1464,6 +1519,54 @@ func (f *Framework) AssertProfileGUIDMatches(name, namespace, expectedGUID strin
 	return nil
 }
 
+// AssertAllProfilesHaveGUID checks that all profiles in the namespace have the profile-guid label
+func (f *Framework) AssertAllProfilesHaveGUID(namespace string) error {
+	profileList := &compv1alpha1.ProfileList{}
+	lo := &client.ListOptions{
+		Namespace: namespace,
+	}
+	err := f.Client.List(context.TODO(), profileList, lo)
+	if err != nil {
+		return fmt.Errorf("failed to list profiles: %w", err)
+	}
+	for _, profile := range profileList.Items {
+		guid, exists := profile.Labels[compv1alpha1.ProfileGuidLabel]
+		if !exists {
+			return fmt.Errorf("Profile %s does not have label %s", profile.Name, compv1alpha1.ProfileGuidLabel)
+		}
+		if guid == "" {
+			return fmt.Errorf("Profile %s has empty %s label", profile.Name, compv1alpha1.ProfileGuidLabel)
+		}
+	}
+	return nil
+}
+
+// AssertResultsGUIDMatches checks that all ComplianceCheckResults for a scan have the expected GUID.
+func (f *Framework) AssertResultsGUIDMatches(scanName, namespace, expectedGUID string) error {
+	ccrList := &compv1alpha1.ComplianceCheckResultList{}
+	defer f.logContainerOutput(namespace, scanName)
+	lo := &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(map[string]string{
+			compv1alpha1.ComplianceScanLabel: scanName,
+		}),
+		Namespace: namespace,
+	}
+	err := f.Client.List(context.TODO(), ccrList, lo)
+	if err != nil {
+		return err
+	}
+	if len(ccrList.Items) == 0 {
+		return fmt.Errorf("no ComplianceCheckResults found for scan %s in namespace %s", scanName, namespace)
+	}
+	for i := range ccrList.Items {
+		ccr := &ccrList.Items[i]
+		if ccr.Labels[compv1alpha1.ProfileGuidLabel] != expectedGUID {
+			return fmt.Errorf("expected GUID %s for ComplianceCheckResult %s (scan %s), got %s", expectedGUID, ccr.Name, scanName, ccr.Labels[compv1alpha1.ProfileGuidLabel])
+		}
+	}
+	return nil
+}
+
 func (f *Framework) AssertScanIsNonCompliant(name, namespace string) error {
 	cs := &compv1alpha1.ComplianceScan{}
 	defer f.logContainerOutput(namespace, name)
@@ -1540,11 +1643,13 @@ func (f *Framework) AssertScanHasValidPVCReferenceWithSize(scanName, size, names
 	return nil
 }
 
-func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error {
+func (f *Framework) AssertARFReportExistsInPVC(t *testing.T, scanName, namespace string) error {
 	pvcName, err := f.GetRawResultClaimNameFromScan(namespace, scanName)
 	if err != nil {
 		return err
 	}
+
+	t.Logf("scan=%s pvc=%s namespace=%s", scanName, pvcName, namespace)
 
 	arfFormatCheckerPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1556,8 +1661,8 @@ func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error
 			Containers: []core.Container{
 				{
 					Name:    "format-checker",
-					Image:   "registry.access.redhat.com/ubi8/ubi-minimal",
-					Command: []string{"/bin/bash", "-c", "ls /scan-results/0 2>/dev/null | grep -q '.xml.bzip2' && exit 0 || exit 1"},
+					Image:   "registry.access.redhat.com/ubi9/ubi-minimal",
+					Command: []string{"/bin/bash", "-c", "ls -la /scan-results/0 2>&1 || echo 'directory /scan-results/0 not found'; ls /scan-results/0 2>/dev/null | grep -q '.xml.bzip2' && exit 0 || exit 1"},
 					VolumeMounts: []core.VolumeMount{
 						{
 							Name:      "scan-results",
@@ -1585,10 +1690,13 @@ func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error
 
 	pod := &core.Pod{}
 	key := types.NamespacedName{Name: arfFormatCheckerPod.Name, Namespace: namespace}
-	return wait.Poll(2*time.Second, 10*time.Second, func() (bool, error) {
+	t.Logf("waiting for checker pod %s to complete", arfFormatCheckerPod.Name)
+	timeoutErr := wait.Poll(RetryInterval, time.Minute*2, func() (bool, error) {
 		if err := f.Client.Get(context.TODO(), key, pod); err != nil {
+			t.Logf("checker pod not yet available: %v", err)
 			return false, nil
 		}
+		t.Logf("checker pod %s phase=%s", pod.Name, pod.Status.Phase)
 		if pod.Status.Phase == core.PodSucceeded {
 			return true, nil
 		}
@@ -1597,6 +1705,10 @@ func (f *Framework) AssertARFReportExistsInPVC(scanName, namespace string) error
 		}
 		return false, nil
 	})
+	if timeoutErr != nil {
+		t.Logf("timed out waiting for checker pod %s (last phase: %s)", arfFormatCheckerPod.Name, pod.Status.Phase)
+	}
+	return timeoutErr
 }
 
 func (f *Framework) AssertScanExists(name, namespace string) error {
@@ -1629,6 +1741,29 @@ func (f *Framework) AssertComplianceSuiteDoesNotExist(name, namespace string) er
 		return err
 	}
 	return fmt.Errorf("Failed to assert ComplianceSuite %s does not exist.", name)
+}
+
+// WaitForComplianceSuiteDeletion waits for a ComplianceSuite to be deleted.
+// This is useful for cleanup after deleting a ScanSettingBinding, as the suite
+// should be cascade-deleted. Returns nil when the suite is deleted, or an error
+// if the timeout is reached.
+func (f *Framework) WaitForComplianceSuiteDeletion(name, namespace string) error {
+	suiteKey := types.NamespacedName{Name: name, Namespace: namespace}
+	suite := &compv1alpha1.ComplianceSuite{}
+	err := wait.Poll(RetryInterval, 120*time.Second, func() (bool, error) {
+		err := f.Client.Get(context.TODO(), suiteKey, suite)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("ComplianceSuite %s may not have been fully cleaned up: %w", name, err)
+	}
+	return nil
 }
 
 func (f *Framework) AssertScanSettingBindingConditionIsReady(name string, namespace string) error {
@@ -1704,6 +1839,45 @@ func (f *Framework) GetConfigMapsFromScan(scaninstance *compv1alpha1.ComplianceS
 		return configmaps.Items, err
 	}
 	return configmaps.Items, nil
+}
+
+// GetScanExitCodeAndErrorMsg retrieves the exit code and error message from a scan's ConfigMaps
+// Returns exit code as a string, error message as a string, and an error if any occurred
+// If no ConfigMaps exist or if exit-code/error-msg are not found, returns empty strings
+func (f *Framework) GetScanExitCodeAndErrorMsg(scanName, namespace string) (string, string, error) {
+	// Get the scan
+	scan := &compv1alpha1.ComplianceScan{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, scan)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get scan %s: %w", scanName, err)
+	}
+
+	// Get ConfigMaps from the scan
+	configMaps, err := f.GetConfigMapsFromScan(scan)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get ConfigMaps from scan %s: %w", scanName, err)
+	}
+
+	var exitCode string
+	var errorMsg string
+
+	// Look for exit-code in ConfigMaps
+	for _, cm := range configMaps {
+		if code, ok := cm.Data["exit-code"]; ok {
+			exitCode = code
+			break
+		}
+	}
+
+	// Look for error-msg in ConfigMaps
+	for _, cm := range configMaps {
+		if msg, ok := cm.Data["error-msg"]; ok {
+			errorMsg = msg
+			break
+		}
+	}
+
+	return exitCode, errorMsg, nil
 }
 
 func (f *Framework) GetPodsForScan(scanName string) ([]core.Pod, error) {
@@ -1907,7 +2081,7 @@ func GetRotationCheckerWorkload(namespace, rawResultName string) *core.Pod {
 			Containers: []core.Container{
 				{
 					Name:    "checker",
-					Image:   "registry.access.redhat.com/ubi8/ubi-minimal",
+					Image:   "registry.access.redhat.com/ubi9/ubi-minimal",
 					Command: []string{"/bin/bash", "-c", "ls /raw-results | grep -v 'lost+found'"},
 					VolumeMounts: []core.VolumeMount{
 						{
@@ -2944,4 +3118,27 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
+}
+
+// waitForNamespaceDeletion waits until a namespace is fully deleted from the cluster
+func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, timeout time.Duration) error {
+	err := wait.Poll(retryInterval, timeout, func() (bool, error) {
+		_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			// Namespace is deleted
+			return true, nil
+		}
+		if err != nil {
+			log.Printf("Error checking namespace %s deletion status: %v, retrying...", namespace, err)
+			return false, nil
+		}
+		log.Printf("Waiting for namespace %s to be fully deleted...", namespace)
+		return false, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("namespace %s was not deleted within timeout: %w", namespace, err)
+	}
+	log.Printf("Namespace %s successfully deleted and cleaned up", namespace)
+	return nil
 }

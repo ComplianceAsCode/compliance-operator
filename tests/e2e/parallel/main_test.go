@@ -124,6 +124,26 @@ func TestProfileModification(t *testing.T) {
 		t.Fatalf("failed to find rule %s in profile %s", unlinkedRule, profileName)
 	}
 
+	tpName1 := fmt.Sprintf("%s-tp-before-update", pbName)
+	tp1 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName1,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestProfileModification Before Update",
+			Description: "TailoredProfile created before ProfileBundle update",
+			Extends:     profileName,
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp1, nil); err != nil {
+		t.Fatalf("failed to create TailoredProfile %s: %s", tpName1, err)
+	}
+	defer f.Client.Delete(context.TODO(), tp1)
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName1, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+
 	// update the image with a new hash
 	modPb := origPb.DeepCopy()
 	if err := f.Client.Get(context.TODO(), types.NamespacedName{Namespace: modPb.Namespace, Name: modPb.Name}, modPb); err != nil {
@@ -160,6 +180,26 @@ func TestProfileModification(t *testing.T) {
 	framework.IsRuleInProfile(unlinkedRuleName, profilePostUpdate)
 	if found {
 		t.Fatalf("rule %s unexpectedly found", unlinkedRuleName)
+	}
+
+	tpName2 := fmt.Sprintf("%s-tp-after-update", pbName)
+	tp2 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName2,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestProfileModification After Update",
+			Description: "TailoredProfile created after ProfileBundle update",
+			Extends:     profileName,
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp2, nil); err != nil {
+		t.Fatalf("failed to create TailoredProfile %s: %s", tpName2, err)
+	}
+	defer f.Client.Delete(context.TODO(), tp2)
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName2, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -684,6 +724,15 @@ func TestSingleScanSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to assert PVC reference for scan %s: %s", scanName, err)
 	}
+
+	// Validate exit-code is "0"
+	exitCode, _, err := f.GetScanExitCodeAndErrorMsg(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exitCode != "0" {
+		t.Fatalf("Expected ConfigMap exit-code to be '0', but got: '%s'", exitCode)
+	}
 }
 
 func TestSingleScanTimestamps(t *testing.T) {
@@ -898,7 +947,7 @@ func TestScanTailoredProfileHasDuplicateVariables(t *testing.T) {
 
 }
 
-func TestScanProducesRemediations(t *testing.T) {
+func TestScanProducesRemediationsAndLabels(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	bindingName := framework.GetObjNameFromTest(t)
@@ -913,9 +962,9 @@ func TestScanProducesRemediations(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
-			Title:       "TestScanProducesRemediations",
-			Description: "TestScanProducesRemediations",
-			Extends:     "ocp4-moderate",
+			Title:       t.Name(),
+			Description: t.Name(),
+			Extends:     "ocp4-e8",
 		},
 	}
 
@@ -971,12 +1020,48 @@ func TestScanProducesRemediations(t *testing.T) {
 			t.Fatal("expected all remediations are unapplied when scan finishes")
 		}
 	}
+	// Verify ComplianceCheckResult labels are correctly set
+	// Get all checks from the suite to verify label functionality
+	checkList := &compv1alpha1.ComplianceCheckResultList{}
+	err = f.Client.List(context.TODO(), checkList, inNs, withLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(checkList.Items) == 0 {
+		t.Fatal("expected at least one check result")
+	}
+	// Verify all required labels are present on every check result
+	// For some labels we can verify the exact value
+	labelsWithValues := map[string]string{
+		compv1alpha1.SuiteLabel:          bindingName,
+		compv1alpha1.ComplianceScanLabel: bindingName,
+	}
+	// For other labels we just verify they are present (non-empty)
+	labelsPresenceOnly := []string{
+		compv1alpha1.ComplianceCheckResultSeverityLabel,
+		compv1alpha1.ComplianceCheckResultStatusLabel,
+	}
+	for _, check := range checkList.Items {
+		// Check labels with specific expected values
+		for label, expected := range labelsWithValues {
+			if check.Labels[label] != expected {
+				t.Fatalf("check %s label %s: got %q, want %q", check.Name, label, check.Labels[label], expected)
+			}
+		}
+		// Check labels that must be present (non-empty)
+		for _, label := range labelsPresenceOnly {
+			if check.Labels[label] == "" {
+				t.Fatalf("check %s is missing label %s", check.Name, label)
+			}
+		}
+	}
 }
 
 func TestSingleScanWithStorageSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	scanName := framework.GetObjNameFromTest(t)
+	t.Logf("Creating ComplianceScan %s with storage size 2Gi", scanName)
 	testScan := &compv1alpha1.ComplianceScan{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      scanName,
@@ -1001,23 +1086,29 @@ func TestSingleScanWithStorageSucceeds(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), testScan)
+	t.Logf("Waiting for scan %s to reach phase Done", scanName)
 	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s did not reach Done phase: %v", scanName, err)
 	}
+	t.Logf("Scan %s reached Done phase", scanName)
 
+	t.Logf("Asserting scan %s is compliant", scanName)
 	err = f.AssertScanIsCompliant(scanName, f.OperatorNamespace)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s is not compliant: %v", scanName, err)
 	}
+	t.Logf("Asserting scan %s has valid PVC reference with size 2Gi", scanName)
 	err = f.AssertScanHasValidPVCReferenceWithSize(scanName, "2Gi", f.OperatorNamespace)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s PVC reference check failed: %v", scanName, err)
 	}
-	err = f.AssertARFReportExistsInPVC(scanName, f.OperatorNamespace)
+	t.Logf("Asserting ARF report exists in PVC for scan %s", scanName)
+	err = f.AssertARFReportExistsInPVC(t, scanName, f.OperatorNamespace)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Scan %s ARF report check failed: %v", scanName, err)
 	}
+	t.Logf("All assertions passed for scan %s", scanName)
 }
 
 func TestScanWithUnexistentResourceFails(t *testing.T) {
@@ -1069,6 +1160,15 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 
 	if err = f.ScanHasWarnings(scanName, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
+	}
+
+	// Validate exit-code is "2"
+	exitCode, _, err := f.GetScanExitCodeAndErrorMsg(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exitCode != "2" {
+		t.Fatalf("Expected ConfigMap exit-code to be '2', but got: '%s'", exitCode)
 	}
 }
 
@@ -3897,6 +3997,12 @@ func TestScanSettingBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	rhcos4moderateprofile := &compv1alpha1.Profile{}
+	moderateKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcosPb.Name + "-moderate"}
+	if err := f.Client.Get(context.TODO(), moderateKey, rhcos4moderateprofile); err != nil {
+		t.Fatal(err)
+	}
+
 	scanSettingName := objName + "-setting"
 	scanSetting := compv1alpha1.ScanSetting{
 		ObjectMeta: metav1.ObjectMeta{
@@ -3933,6 +4039,11 @@ func TestScanSettingBinding(t *testing.T) {
 				Kind:     "Profile",
 				APIGroup: "compliance.openshift.io/v1alpha1",
 			},
+			{
+				Name:     rhcos4moderateprofile.Name,
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
 		},
 		SettingsRef: &compv1alpha1.NamedObjectReference{
 			Name:     scanSetting.Name,
@@ -3959,7 +4070,7 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 	if masterScan.Spec.Debug != true {
-		log.Println("Expected that the settings set debug to true in master scan")
+		t.Fatal("Expected that the settings set debug to true in master scan")
 	}
 
 	workerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4e8profile.Name + "-worker"}
@@ -3969,7 +4080,27 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 	if workerScan.Spec.Debug != true {
-		log.Println("Expected that the settings set debug to true in workers scan")
+		t.Fatal("Expected that the settings set debug to true in workers scan")
+	}
+
+	moderateMasterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-master"}
+	moderateMasterScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), moderateMasterScanKey, moderateMasterScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if moderateMasterScan.Spec.Debug != true {
+		t.Fatal("Expected that the settings set debug to true in moderate master scan")
+	}
+
+	moderateWorkerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-worker"}
+	moderateWorkerScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), moderateWorkerScanKey, moderateWorkerScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if moderateWorkerScan.Spec.Debug != true {
+		t.Fatal("Expected that the settings set debug to true in moderate worker scan")
 	}
 
 	podList := &corev1.PodList{}
@@ -3978,9 +4109,10 @@ func TestScanSettingBinding(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	// check if the scanning pod has properly been created and has priority class set
+	// check if the scanning pod has properly been created and has limits set
 	for _, pod := range podList.Items {
-		if strings.Contains(pod.Name, workerScan.Name) {
+		if strings.Contains(pod.Name, masterScan.Name) || strings.Contains(pod.Name, workerScan.Name) ||
+			strings.Contains(pod.Name, moderateMasterScan.Name) || strings.Contains(pod.Name, moderateWorkerScan.Name) {
 			if err := framework.WaitForPod(framework.CheckPodLimit(f.KubeClient, pod.Name, f.OperatorNamespace, defaultCpuLimit, testMemoryLimit)); err != nil {
 				t.Fatal(err)
 			}
@@ -5300,4 +5432,88 @@ func TestRuleVariableAnnotation(t *testing.T) {
 			t.Logf("Rule %s correctly has variable annotation: %s", tc.ruleName, tc.expectedVariable)
 		})
 	}
+}
+
+// Verifies that access modes and Storage class are configurable through ComplianceSuite and ComplianceScan
+func TestScanWithCustomStorageClass(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	scanName := framework.GetObjNameFromTest(t)
+	suiteName := scanName + "-suite"
+	storageClassName := scanName + "-gold"
+
+	// Get the default storage class provisioner for our custom storage class
+	defaultProvisioner, err := f.GetDefaultStorageClassProvisioner()
+	if err != nil {
+		t.Skipf("skipping test: no default storage class provisioner available: %s", err)
+	}
+
+	// Create custom StorageClass named "gold"
+	customStorageClass, err := f.CreateCustomStorageClass(storageClassName, defaultProvisioner)
+	if err != nil {
+		t.Fatalf("failed to create custom storage class object %s: %s", storageClassName, err)
+	}
+	err = f.Client.Create(context.TODO(), customStorageClass, nil)
+	if err != nil {
+		t.Fatalf("failed to create custom storage class %s: %s", storageClassName, err)
+	}
+	defer f.Client.Delete(context.TODO(), customStorageClass)
+
+	// Create ComplianceSuite with custom storage configuration
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: scanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ScanType:     compv1alpha1.ScanTypeNode,
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: map[string]string{
+							"node-role.kubernetes.io/worker": "",
+						},
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								StorageClassName: &storageClassName,
+								PVAccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatalf("failed to create compliance suite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	// Wait for the scan to complete
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("scan did not complete successfully: %s", err)
+	}
+
+	// Verify PVC has correct storageClassName and accessModes
+	err = f.AssertScanPVCHasStorageConfig(scanName, f.OperatorNamespace, storageClassName, corev1.ReadWriteOnce)
+	if err != nil {
+		t.Fatalf("PVC verification failed: %s", err)
+	}
+
+	t.Logf("Successfully verified scan %s has custom storage configuration", scanName)
 }
