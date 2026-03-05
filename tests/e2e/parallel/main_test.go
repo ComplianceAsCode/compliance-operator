@@ -5524,91 +5524,101 @@ func TestScanWithCustomStorageClass(t *testing.T) {
 	t.Logf("Successfully verified scan %s has custom storage configuration", scanName)
 }
 
-// TestScanWithInvalidStorageSizeReportsMetrics tests that metrics are reported when a scan with an invalid storage size
-func TestScanWithInvalidStorageSizeReportsMetrics(t *testing.T) {
+// TestScanWithInvalidStorageSizeRejected tests that scans with invalid storage size are rejected at API level
+func TestScanWithInvalidStorageSizeRejected(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
-	suiteName := framework.GetObjNameFromTest(t)
-	scanName := fmt.Sprintf("%s-worker-scan", suiteName)
-
-	// Create a ComplianceSuite with invalid storage size to trigger an error
-	testSuite := &compv1alpha1.ComplianceSuite{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      suiteName,
-			Namespace: f.OperatorNamespace,
+	// Test cases with different invalid storage size formats
+	testCases := []struct {
+		name        string
+		size        string
+		description string
+	}{
+		{
+			name:        "invalid-text",
+			size:        "invalid-size",
+			description: "Plain text that is not a valid quantity",
 		},
-		Spec: compv1alpha1.ComplianceSuiteSpec{
-			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-				AutoApplyRemediations: false,
-			},
-			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
-				{
-					Name: scanName,
-					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
-						ContentImage: contentImagePath,
-						Profile:      "xccdf_org.ssgproject.content_profile_coreos-ncp",
-						Content:      "ssg-rhcos4-ds.xml",
-						ScanType:     compv1alpha1.ScanTypeNode,
-						NodeSelector: map[string]string{
-							"node-role.kubernetes.io/worker": "",
-						},
-						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-							RawResultStorage: compv1alpha1.RawResultStorageSettings{
-								Size: "1B", // Invalid size that will cause an error
+		{
+			name:        "invalid-unit",
+			size:        "1GB",
+			description: "Using GB instead of Gi (decimal vs binary)",
+		},
+		{
+			name:        "invalid-suffix",
+			size:        "1B",
+			description: "Using B suffix which is not valid in Kubernetes quantities",
+		},
+		{
+			name:        "random-string",
+			size:        "abc123",
+			description: "Random string that cannot be parsed",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			suiteName := framework.GetObjNameFromTest(t)
+			scanName := fmt.Sprintf("%s-worker-scan", suiteName)
+
+			// Create a ComplianceSuite with invalid storage size
+			testSuite := &compv1alpha1.ComplianceSuite{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      suiteName,
+					Namespace: f.OperatorNamespace,
+				},
+				Spec: compv1alpha1.ComplianceSuiteSpec{
+					ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+						AutoApplyRemediations: false,
+					},
+					Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+						{
+							Name: scanName,
+							ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+								ContentImage: contentImagePath,
+								Profile:      "xccdf_org.ssgproject.content_profile_coreos-ncp",
+								Content:      "ssg-rhcos4-ds.xml",
+								ScanType:     compv1alpha1.ScanTypeNode,
+								NodeSelector: map[string]string{
+									"node-role.kubernetes.io/worker": "",
+								},
+								ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+									RawResultStorage: compv1alpha1.RawResultStorageSettings{
+										Size: tc.size, // Invalid size format
+									},
+								},
 							},
 						},
 					},
 				},
-			},
-		},
-	}
+			}
 
-	err := f.Client.Create(context.TODO(), testSuite, nil)
-	if err != nil {
-		t.Fatalf("failed to create ComplianceSuite: %s", err)
-	}
-	defer f.Client.Delete(context.TODO(), testSuite)
+			// Attempt to create the suite - this should fail with validation error
+			err := f.Client.Create(context.TODO(), testSuite, nil)
+			if err == nil {
+				// If creation succeeded, clean up and fail the test
+				f.Client.Delete(context.TODO(), testSuite)
+				t.Fatalf("expected ComplianceSuite creation to fail with invalid size %q (%s), but it succeeded", tc.size, tc.description)
+			}
 
-	// Wait for the scan to complete with ERROR status
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultError)
-	if err != nil {
-		t.Fatal(err)
-	}
+			// Verify the error message contains expected validation failure text
+			expectedErrorSubstrings := []string{
+				"Invalid value",
+				"size must be a valid Kubernetes quantity",
+			}
 
-	// Verify the suite result is ERROR
-	suite := &compv1alpha1.ComplianceSuite{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: suiteName, Namespace: f.OperatorNamespace}, suite)
-	if err != nil {
-		t.Fatalf("failed to get ComplianceSuite: %s", err)
-	}
+			errorMsg := err.Error()
+			for _, expectedSubstr := range expectedErrorSubstrings {
+				if !strings.Contains(errorMsg, expectedSubstr) {
+					t.Errorf("expected error message to contain %q, but got: %s", expectedSubstr, errorMsg)
+				}
+			}
 
-	if suite.Status.Result != compv1alpha1.ResultError {
-		t.Fatalf("expected suite result to be ERROR, got %s", suite.Status.Result)
-	}
-
-	// Check for metrics that report the error state
-	// HELP compliance_operator_compliance_state A gauge for the compliance state of a ComplianceSuite.
-	// Set to 0 when COMPLIANT, 1 when NON-COMPLIANT, 2 when INCONSISTENT, and 3 when ERROR
-	metricsSet := map[string]int{
-		fmt.Sprintf("compliance_operator_compliance_state{name=\"%s\"}", suiteName): 3,
-	}
-
-	// Retry metrics assertion as metrics may not be immediately available
-	var metErr error
-	retryErr := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
-		metErr = framework.AssertEachMetric(f.OperatorNamespace, metricsSet)
-		if metErr != nil {
-			// Retry on failure - metrics might not be available yet
-			return false, nil
-		}
-		return true, nil
-	})
-
-	if retryErr != nil {
-		if metErr != nil {
-			t.Fatalf("failed to assert metrics for error scan after retries: %s (last error: %s)", retryErr, metErr)
-		}
-		t.Fatalf("failed to assert metrics for error scan: %s", retryErr)
+			t.Logf("Successfully rejected invalid storage size %q with error: %s", tc.size, errorMsg)
+		})
 	}
 }
