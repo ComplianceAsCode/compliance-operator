@@ -125,7 +125,10 @@ func (r *Rule) Identifier() string {
 }
 
 func (r *Rule) Type() scanner.RuleType {
-	return scanner.RuleTypeCEL
+	if r.RulePayload.ScannerType == ScannerTypeCEL {
+		return scanner.RuleTypeCEL
+	}
+	return scanner.RuleTypeCustom
 }
 
 func (r *Rule) Inputs() []scanner.Input {

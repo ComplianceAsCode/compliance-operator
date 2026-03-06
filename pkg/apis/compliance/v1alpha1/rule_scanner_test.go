@@ -145,8 +145,13 @@ var _ = Describe("Rule scanner interfaces", func() {
 		Expect(rule.Identifier()).To(Equal("ocp4-cel-security-context"))
 	})
 
-	It("returns CEL RuleType", func() {
+	It("returns CEL RuleType for CEL rules", func() {
 		Expect(rule.Type()).To(Equal(scanner.RuleTypeCEL))
+	})
+
+	It("returns Custom RuleType for non-CEL rules", func() {
+		rule.RulePayload.ScannerType = ScannerTypeOpenSCAP
+		Expect(rule.Type()).To(Equal(scanner.RuleTypeCustom))
 	})
 
 	It("returns converted inputs", func() {

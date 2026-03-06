@@ -1,9 +1,15 @@
 package profileparser
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 )
 
@@ -146,3 +152,109 @@ func TestCELBundleToRulePayload(t *testing.T) {
 		t.Fatalf("Expected 1 input, got %d", len(payload.Inputs))
 	}
 }
+
+var _ = Describe("ParseCELBundle integration", func() {
+	const celYAML = `rules:
+  - name: check-nodes
+    id: check_nodes
+    title: Check nodes exist
+    severity: medium
+    checkType: Platform
+    expression: "nodes.items.size() > 0"
+    inputs:
+      - name: nodes
+        kubernetesInputSpec:
+          apiVersion: v1
+          resource: nodes
+    failureReason: "No nodes found"
+    variables:
+      - var-min-nodes
+    controls:
+      NIST-800-53:
+        - "CM-6(a)"
+        - "IA-5(f)"
+      CIS-OCP:
+        - "1.1.1"
+profiles:
+  - name: cel-nodes-profile
+    id: cel_profile_nodes
+    title: CEL Nodes Profile
+    productType: Platform
+    rules:
+      - check-nodes
+    values:
+      - var-min-nodes
+`
+
+	It("creates Rule and Profile CRs with correct annotations", func() {
+		tmpFile, err := os.CreateTemp("", "cel-bundle-*.yaml")
+		Expect(err).NotTo(HaveOccurred())
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.WriteString(celYAML)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tmpFile.Close()).To(Succeed())
+
+		pb := &cmpv1alpha1.ProfileBundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cel-test-pb",
+				Namespace: testNamespace,
+			},
+		}
+		Expect(client.Create(context.TODO(), pb)).To(Succeed())
+
+		pcfg := &ParserConfig{
+			Client: client,
+			Scheme: client.Scheme(),
+		}
+
+		err = ParseCELBundle(tmpFile.Name(), pb, pcfg)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify Rule CR
+		rule := &cmpv1alpha1.Rule{}
+		ruleKey := types.NamespacedName{
+			Name:      GetPrefixedName(pb.Name, "check-nodes"),
+			Namespace: testNamespace,
+		}
+		Expect(client.Get(context.TODO(), ruleKey, rule)).To(Succeed())
+		Expect(rule.RulePayload.ScannerType).To(Equal(cmpv1alpha1.ScannerTypeCEL))
+		Expect(rule.RulePayload.Expression).To(Equal("nodes.items.size() > 0"))
+		Expect(rule.RulePayload.Inputs).To(HaveLen(1))
+		Expect(rule.RulePayload.FailureReason).To(Equal("No nodes found"))
+		Expect(rule.Annotations[cmpv1alpha1.RuleIDAnnotationKey]).To(Equal("check-nodes"))
+		Expect(rule.Annotations[cmpv1alpha1.RuleVariableAnnotationKey]).To(Equal("var-min-nodes"))
+
+		nistKey := "control.compliance.openshift.io/NIST-800-53"
+		Expect(rule.Annotations).To(HaveKey(nistKey))
+		Expect(rule.Annotations[nistKey]).To(ContainSubstring("CM-6(a)"))
+		Expect(rule.Annotations[nistKey]).To(ContainSubstring("IA-5(f)"))
+
+		cisKey := "control.compliance.openshift.io/CIS-OCP"
+		Expect(rule.Annotations[cisKey]).To(Equal("1.1.1"))
+
+		Expect(rule.Annotations["policies.open-cluster-management.io/standards"]).To(ContainSubstring("NIST-800-53"))
+		Expect(rule.Annotations["policies.open-cluster-management.io/standards"]).To(ContainSubstring("CIS-OCP"))
+
+		profileRefAnnotation := rule.Annotations[cmpv1alpha1.RuleProfileAnnotationKey]
+		Expect(profileRefAnnotation).To(ContainSubstring(GetPrefixedName(pb.Name, "cel-nodes-profile")))
+
+		// Verify Profile CR
+		profile := &cmpv1alpha1.Profile{}
+		profileKey := types.NamespacedName{
+			Name:      GetPrefixedName(pb.Name, "cel-nodes-profile"),
+			Namespace: testNamespace,
+		}
+		Expect(client.Get(context.TODO(), profileKey, profile)).To(Succeed())
+		Expect(profile.Annotations[cmpv1alpha1.ScannerTypeAnnotation]).To(Equal(string(cmpv1alpha1.ScannerTypeCEL)))
+		Expect(profile.Annotations[cmpv1alpha1.ProductTypeAnnotation]).To(Equal("Platform"))
+		Expect(profile.Labels).To(HaveKey(cmpv1alpha1.ProfileGuidLabel))
+		Expect(profile.Labels[cmpv1alpha1.ProfileBundleOwnerLabel]).To(Equal(pb.Name))
+		Expect(profile.ID).To(Equal("cel_profile_nodes"))
+		Expect(profile.Title).To(Equal("CEL Nodes Profile"))
+		Expect(profile.Rules).To(HaveLen(1))
+		Expect(string(profile.Rules[0])).To(Equal(GetPrefixedName(pb.Name, "check-nodes")))
+		Expect(profile.Values).To(HaveLen(1))
+		Expect(string(profile.Values[0])).To(Equal("var-min-nodes"))
+	})
+})
