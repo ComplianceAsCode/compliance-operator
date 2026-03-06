@@ -293,13 +293,39 @@ rules:
 rule and profile YAML files from their respective directories and assembles
 them into a single validated bundle YAML file.
 
+The bundler can be used in three ways:
+
+**Makefile target** (recommended for development):
+
+```bash
+make cel-bundle
+```
+
+This regenerates `tests/data/cel-content-test.yaml` from the individual files
+in `tests/data/cel-rules/` and `tests/data/cel-profiles/`, then copies it to
+`images/testcontent/cel_content/cel-content.yaml`.
+
+**CLI tool** (`cmd/cel-bundler`):
+
+```bash
+go run ./cmd/cel-bundler/... \
+  -rules tests/data/cel-rules \
+  -profiles tests/data/cel-profiles \
+  -output cel-content.yaml
+```
+
+**Go library** (`pkg/celcontent`):
+
 ```go
 import "github.com/ComplianceAsCode/compliance-operator/pkg/celcontent"
 
-// Generate a bundle from directories
+// Load and validate from directories
 bundle, err := celcontent.BundleFromDirs("cel-rules/", "cel-profiles/")
 
-// Or write directly to a file
+// Serialize to YAML bytes
+yamlBytes, err := celcontent.BundleToYAML("cel-rules/", "cel-profiles/")
+
+// Write directly to a file (convenience wrapper)
 err := celcontent.BundleToFile("cel-rules/", "cel-profiles/", "cel-content.yaml")
 ```
 
