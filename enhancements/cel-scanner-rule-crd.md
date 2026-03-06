@@ -189,6 +189,13 @@ at creation time:
 - Sets `scanner-type` annotation on Profile CRs (`OpenSCAP` or `CEL`).
 - Sets `product-type=Platform` annotation on CEL Profiles.
 - Sets `scannerType: OpenSCAP` on all XCCDF Rule CRs.
+- Sets `compliance.openshift.io/rule-variable` on CEL Rules that declare
+  `variables`, listing the `Variable` CRs the rule depends on.
+- Sets `control.compliance.openshift.io/<standard>` and RHACM annotations
+  on CEL Rules that declare `controls`, consistent with XCCDF reference
+  parsing.
+- Populates `Profile.Values` for CEL Profiles from the `values` field in
+  the CEL content YAML, so the scanner can load default variable values.
 - Reports validation errors via `ProfileBundle` status (the existing error
   reporting mechanism).
 
@@ -246,17 +253,35 @@ bundled file validated at build time (CEL expressions compiled, rule references
 checked). The bundle format:
 
 ```yaml
-apiVersion: compliance.openshift.io/v1alpha1
-kind: CELContent
 rules:
-  - id: pods-must-have-security-context
+  - name: pods-must-have-security-context
+    id: check_pods_must_have_security_context
     title: Pods must have security context
-    # ... all rule fields ...
+    severity: medium
+    checkType: Platform
+    expression: "pods.items.all(p, has(p.spec.securityContext))"
+    inputs:
+      - name: pods
+        kubernetesInputSpec:
+          apiVersion: v1
+          resource: pods
+    failureReason: "Some pods do not have a security context"
+    variables:               # optional: Variable CRs this rule depends on
+      - var-pod-timeout
+    controls:                # optional: compliance standard references
+      NIST-800-53:
+        - "CM-6(a)"
+      CIS-OCP:
+        - "5.2.1"
 profiles:
-  - id: cel-security-profile
+  - name: cel-security-profile
+    id: cel_profile_security
     title: CEL Security Profile
+    productType: Platform
     rules:
       - pods-must-have-security-context
+    values:                  # optional: Variable CRs referenced by the profile
+      - var-pod-timeout
 ```
 
 **Delivery**: The content image ships both files:
@@ -287,7 +312,29 @@ spec:
   (CEL). At least one must be provided.
 - New `ParseCELBundle()` function reads the YAML bundle, creates `Rule` CRs
   with `scannerType=CEL` and `Profile` CRs with `scanner-type=CEL` annotation.
+- CEL Rule annotations set by the parser:
+  - `compliance.openshift.io/rule` — rule identifier
+  - `compliance.openshift.io/profiles` — which profiles include the rule
+  - `compliance.openshift.io/rule-variable` — which `Variable` CRs the rule
+    depends on (from `variables` in the YAML)
+  - `control.compliance.openshift.io/<standard>` — compliance controls (from
+    `controls` in the YAML, e.g. `NIST-800-53`, `CIS-OCP`)
+  - `policies.open-cluster-management.io/standards` and `/controls` — RHACM
+    standard/control annotations (derived from `controls`)
+- CEL Profile values: `Profile.Values` populated from the optional `values`
+  list in the YAML, allowing the CEL scanner to load `Variable` CRs.
 - Existing XCCDF path updated to set `scannerType: OpenSCAP` on all Rules.
+
+**Variables**: CEL rules reuse `Variable` CRs created by the XCCDF DataStream
+parser from the same `ProfileBundle`. The CEL content YAML does not define its
+own variables. This works because a `ProfileBundle` ships both XCCDF and CEL
+content from the same image, and the XCCDF DataStream already defines all the
+variables that CEL rules may reference. Users override variable values via
+`TailoredProfile.spec.setValues`, which works identically for both OpenSCAP
+and CEL scans.
+
+A future iteration may add a `variables` section to the CEL content format for
+bundles that ship CEL-only content without an accompanying XCCDF DataStream.
 
 #### Backward Compatibility
 

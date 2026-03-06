@@ -1665,7 +1665,6 @@ var _ = Describe("TailoredprofileController", func() {
 
 		Context("with unsupported CustomRule scanner type", func() {
 			BeforeEach(func() {
-				// Create a CustomRule with unsupported scanner type
 				customRule := &compv1alpha1.CustomRule{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      customRuleName,
@@ -1677,7 +1676,7 @@ var _ = Describe("TailoredprofileController", func() {
 							Title:         "Test Custom Rule",
 							Description:   "A test custom rule with unsupported scanner",
 							Severity:      "medium",
-							ScannerType:   compv1alpha1.ScannerTypeOpenSCAP, // Unsupported for CustomRules
+							ScannerType:   compv1alpha1.ScannerTypeOpenSCAP,
 							Expression:    "true",
 							Inputs:        []compv1alpha1.InputPayload{},
 							FailureReason: "Test error",
@@ -1690,7 +1689,6 @@ var _ = Describe("TailoredprofileController", func() {
 				createErr := r.Client.Create(ctx, customRule)
 				Expect(createErr).To(BeNil())
 
-				// Create TailoredProfile referencing the CustomRule
 				tp := &compv1alpha1.TailoredProfile{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      tpName,
@@ -1710,7 +1708,6 @@ var _ = Describe("TailoredprofileController", func() {
 			})
 
 			AfterEach(func() {
-				// Clean up
 				tp := &compv1alpha1.TailoredProfile{}
 				r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
 				r.Client.Delete(ctx, tp)
@@ -1728,17 +1725,280 @@ var _ = Describe("TailoredprofileController", func() {
 					},
 				}
 
-				// Reconcile
 				result, err := r.Reconcile(context.TODO(), tpReq)
 				Expect(err).To(BeNil())
 				Expect(result.Requeue).To(BeFalse())
 
-				// Check TailoredProfile status
 				tp := &compv1alpha1.TailoredProfile{}
 				err = r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
 				Expect(err).To(BeNil())
 				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateError))
 				Expect(tp.Status.ErrorMessage).To(ContainSubstring("unsupported ScannerType"))
+			})
+		})
+	})
+
+	Describe("TailoredProfile with CEL-typed Rule CRs", func() {
+		var (
+			tpName      = "test-tp-cel-rule"
+			celRuleName = "cel-rule-1"
+		)
+
+		Context("with a CEL-typed Rule CR (no extends)", func() {
+			BeforeEach(func() {
+				celRule := &compv1alpha1.Rule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      celRuleName,
+						Namespace: namespace,
+					},
+					RulePayload: compv1alpha1.RulePayload{
+						ID:          "cel_rule_1",
+						Title:       "CEL Rule",
+						ScannerType: compv1alpha1.ScannerTypeCEL,
+						Expression:  "true",
+						CheckType:   compv1alpha1.CheckTypePlatform,
+					},
+				}
+				crefErr := controllerutil.SetControllerReference(
+					&compv1alpha1.ProfileBundle{ObjectMeta: metav1.ObjectMeta{Name: "pb-1", Namespace: namespace}},
+					celRule, r.Scheme)
+				Expect(crefErr).To(BeNil())
+				createErr := r.Client.Create(ctx, celRule)
+				Expect(createErr).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{Name: celRuleName},
+						},
+					},
+				}
+				createErr = r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+
+			It("should set CEL annotations and reach Ready state", func() {
+				tpReq := reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: tpName, Namespace: namespace},
+				}
+
+				By("First reconcile: sets ownership and CEL annotations")
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{}
+				err = r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
+				Expect(err).To(BeNil())
+				Expect(tp.GetAnnotations()[cmpv1alpha1.ScannerTypeAnnotation]).To(Equal(string(cmpv1alpha1.ScannerTypeCEL)))
+				Expect(tp.GetAnnotations()[cmpv1alpha1.ProductTypeAnnotation]).To(Equal(string(cmpv1alpha1.ScanTypePlatform)))
+				Expect(tp.GetOwnerReferences()).To(HaveLen(1))
+				Expect(tp.GetOwnerReferences()[0].Kind).To(Equal("ProfileBundle"))
+
+				By("Second reconcile: sets Ready status")
+				_, err = r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				err = r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
+				Expect(err).To(BeNil())
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateReady))
+			})
+		})
+
+		Context("mixing CEL Rules with OpenSCAP Rules", func() {
+			BeforeEach(func() {
+				celRule := &compv1alpha1.Rule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      celRuleName,
+						Namespace: namespace,
+					},
+					RulePayload: compv1alpha1.RulePayload{
+						ID:          "cel_rule_mix",
+						Title:       "CEL Rule",
+						ScannerType: compv1alpha1.ScannerTypeCEL,
+						Expression:  "true",
+						CheckType:   compv1alpha1.CheckTypePlatform,
+					},
+				}
+				crefErr := controllerutil.SetControllerReference(
+					&compv1alpha1.ProfileBundle{ObjectMeta: metav1.ObjectMeta{Name: "pb-1", Namespace: namespace}},
+					celRule, r.Scheme)
+				Expect(crefErr).To(BeNil())
+				createErr := r.Client.Create(ctx, celRule)
+				Expect(createErr).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{Name: celRuleName},
+							{Name: "rule-1"},
+						},
+					},
+				}
+				createErr = r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+
+			It("should reject with an error", func() {
+				tpReq := reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: tpName, Namespace: namespace},
+				}
+
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{}
+				err = r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
+				Expect(err).To(BeNil())
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateError))
+				Expect(tp.Status.ErrorMessage).To(ContainSubstring("cannot mix CEL-typed Rules with OpenSCAP Rules"))
+			})
+		})
+
+		Context("mixing CEL Rules with CustomRules (both CEL)", func() {
+			BeforeEach(func() {
+				celRule := &compv1alpha1.Rule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      celRuleName,
+						Namespace: namespace,
+					},
+					RulePayload: compv1alpha1.RulePayload{
+						ID:          "cel_rule_combo",
+						Title:       "CEL Rule",
+						ScannerType: compv1alpha1.ScannerTypeCEL,
+						Expression:  "true",
+						CheckType:   compv1alpha1.CheckTypePlatform,
+					},
+				}
+				crefErr := controllerutil.SetControllerReference(
+					&compv1alpha1.ProfileBundle{ObjectMeta: metav1.ObjectMeta{Name: "pb-1", Namespace: namespace}},
+					celRule, r.Scheme)
+				Expect(crefErr).To(BeNil())
+				createErr := r.Client.Create(ctx, celRule)
+				Expect(createErr).To(BeNil())
+
+				customRule := &compv1alpha1.CustomRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "custom-cel-rule",
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.CustomRuleSpec{
+						RulePayload: compv1alpha1.RulePayload{
+							ID:          "custom_cel_1",
+							Title:       "Custom CEL Rule",
+							ScannerType: compv1alpha1.ScannerTypeCEL,
+							Expression:  "true",
+							Inputs: []compv1alpha1.InputPayload{
+								{
+									Name: "pods",
+									KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+										Group: "", APIVersion: "v1", Resource: "pods",
+									},
+								},
+							},
+						},
+					},
+					Status: compv1alpha1.CustomRuleStatus{
+						Phase: compv1alpha1.CustomRulePhaseReady,
+					},
+				}
+				createErr = r.Client.Create(ctx, customRule)
+				Expect(createErr).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{Name: celRuleName},
+							{Name: "custom-cel-rule", Kind: compv1alpha1.CustomRuleKind},
+						},
+					},
+				}
+				createErr = r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+
+			It("should succeed because both are CEL-based", func() {
+				tpReq := reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: tpName, Namespace: namespace},
+				}
+
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				_, err = r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{}
+				err = r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
+				Expect(err).To(BeNil())
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateReady))
+				Expect(tp.GetAnnotations()[cmpv1alpha1.ScannerTypeAnnotation]).To(Equal(string(cmpv1alpha1.ScannerTypeCEL)))
+			})
+		})
+
+		Context("CEL Rule with extends (not supported)", func() {
+			BeforeEach(func() {
+				celRule := &compv1alpha1.Rule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      celRuleName,
+						Namespace: namespace,
+					},
+					RulePayload: compv1alpha1.RulePayload{
+						ID:          "cel_rule_ext",
+						Title:       "CEL Rule",
+						ScannerType: compv1alpha1.ScannerTypeCEL,
+						Expression:  "true",
+						CheckType:   compv1alpha1.CheckTypePlatform,
+					},
+				}
+				crefErr := controllerutil.SetControllerReference(
+					&compv1alpha1.ProfileBundle{ObjectMeta: metav1.ObjectMeta{Name: "pb-1", Namespace: namespace}},
+					celRule, r.Scheme)
+				Expect(crefErr).To(BeNil())
+				createErr := r.Client.Create(ctx, celRule)
+				Expect(createErr).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      tpName,
+						Namespace: namespace,
+					},
+					Spec: compv1alpha1.TailoredProfileSpec{
+						Extends: profileName,
+						EnableRules: []compv1alpha1.RuleReferenceSpec{
+							{Name: celRuleName},
+						},
+					},
+				}
+				createErr = r.Client.Create(ctx, tp)
+				Expect(createErr).To(BeNil())
+			})
+
+			It("should reject with an error", func() {
+				tpReq := reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: tpName, Namespace: namespace},
+				}
+
+				_, err := r.Reconcile(context.TODO(), tpReq)
+				Expect(err).To(BeNil())
+
+				tp := &compv1alpha1.TailoredProfile{}
+				err = r.Client.Get(ctx, types.NamespacedName{Name: tpName, Namespace: namespace}, tp)
+				Expect(err).To(BeNil())
+				Expect(tp.Status.State).To(Equal(compv1alpha1.TailoredProfileStateError))
+				Expect(tp.Status.ErrorMessage).To(ContainSubstring("CEL rules"))
+				Expect(tp.Status.ErrorMessage).To(ContainSubstring("not supported with extends"))
 			})
 		})
 	})

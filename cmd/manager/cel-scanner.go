@@ -277,6 +277,15 @@ func runCelScanner(cmd *cobra.Command, args []string) {
 	}
 }
 
+// celRuleWrapper provides unified access to both scanner.Rule interface
+// and the RulePayload fields needed for ComplianceCheckResult generation.
+// Both Rule CRs and CustomRule CRs implement scanner.Rule; this wrapper
+// lets us carry the payload metadata alongside the scanner interface.
+type celRuleWrapper struct {
+	scannerRule scanner.Rule
+	payload     *cmpv1alpha1.RulePayload
+}
+
 // runPlatformScan runs the platform scan based on the profile and inputs.
 func (c *CelScanner) runPlatformScan() {
 	cmdLog.V(1).Info("Running platform scan")
@@ -287,16 +296,19 @@ func (c *CelScanner) runPlatformScan() {
 		os.Exit(CelExitCodeError)
 	}
 	exitCode := CelExitCodeCompliant
-	// Check if a tailored profile is provided, and get selected rules
-	var selectedRules []*cmpv1alpha1.CustomRule
+
+	var selectedRules []celRuleWrapper
 	var setVars []*cmpv1alpha1.Variable
+	var err error
+
 	if c.celConfig.Tailoring != "" {
-		tailoredProfile, err := c.getTailoredProfile(c.celConfig.NameSpace)
-		if err != nil {
-			cmdLog.Error(err, "Failed to get tailored profile", "name", c.celConfig.Tailoring)
+		// TailoredProfile path: load TP and get selected rules (CustomRules and/or CEL Rules)
+		tailoredProfile, tpErr := c.getTailoredProfile(c.celConfig.NameSpace)
+		if tpErr != nil {
+			cmdLog.Error(tpErr, "Failed to get tailored profile", "name", c.celConfig.Tailoring)
 			os.Exit(CelExitCodeError)
 		}
-		selectedRules, err = c.getSelectedCustomRules(tailoredProfile)
+		selectedRules, err = c.getSelectedCELRules(tailoredProfile)
 		if err != nil {
 			cmdLog.Error(err, "Failed to get selected rules for tailored profile", "name", c.celConfig.Tailoring)
 			os.Exit(CelExitCodeError)
@@ -308,14 +320,24 @@ func (c *CelScanner) runPlatformScan() {
 			os.Exit(CelExitCodeError)
 		}
 	} else {
-		cmdLog.Error(nil, "No tailored profile provided")
-		os.Exit(CelExitCodeError)
+		// Profile path: load Profile CR and get its CEL rules
+		selectedRules, err = c.getCELRulesFromProfile(c.celConfig.Profile, c.celConfig.NameSpace)
+		if err != nil {
+			cmdLog.Error(err, "Failed to get CEL rules from profile", "name", c.celConfig.Profile)
+			os.Exit(CelExitCodeError)
+		}
+		// Load variables referenced by the Profile with their default values.
+		// CEL rules reuse Variable CRs created from the XCCDF DataStream.
+		setVars, err = c.getVariablesForProfile(c.celConfig.Profile, c.celConfig.NameSpace)
+		if err != nil {
+			cmdLog.Error(err, "Failed to get variables for profile", "name", c.celConfig.Profile)
+			os.Exit(CelExitCodeError)
+		}
 	}
 
 	// Convert variables to SDK format
 	celVariables := make([]scanner.CelVariable, 0, len(setVars))
 	for _, v := range setVars {
-		// Create an inline adapter for Variable to CelVariable
 		celVar := &celVariableAdapter{
 			name:      v.Name,
 			namespace: v.Namespace,
@@ -324,15 +346,14 @@ func (c *CelScanner) runPlatformScan() {
 		celVariables = append(celVariables, celVar)
 	}
 
-	// Convert CustomRules to SDK Rules
-	// CustomRule now properly implements scanner.Rule and scanner.CelRule interfaces
+	// Build SDK rule list, skipping rules with empty expressions
 	sdkRules := make([]scanner.Rule, 0, len(selectedRules))
-	for _, customRule := range selectedRules {
-		if customRule.Spec.Expression == "" {
-			cmdLog.Info("Warning: Skipping rule with empty expression", "rule", customRule.Name)
+	for _, rw := range selectedRules {
+		if rw.payload.Expression == "" {
+			cmdLog.Info("Warning: Skipping rule with empty expression", "rule", rw.scannerRule.Identifier())
 			continue
 		}
-		sdkRules = append(sdkRules, customRule)
+		sdkRules = append(sdkRules, rw.scannerRule)
 	}
 
 	// Create scan configuration
@@ -348,31 +369,27 @@ func (c *CelScanner) runPlatformScan() {
 	ctx := context.Background()
 	checkResults, err := c.sdkScanner.Scan(ctx, scanConfig)
 	if err != nil {
-		cmdLog.Error(err, "Failed to run scan", "scanName", c.celConfig.ScanName, "TailoredProfile", c.celConfig.Tailoring)
+		cmdLog.Error(err, "Failed to run scan", "scanName", c.celConfig.ScanName)
 		os.Exit(CelExitCodeError)
+	}
+
+	// Build a lookup map from rule identifier to wrapper for result mapping
+	ruleByID := make(map[string]*celRuleWrapper, len(selectedRules))
+	for i := range selectedRules {
+		ruleByID[selectedRules[i].scannerRule.Identifier()] = &selectedRules[i]
 	}
 
 	// Convert SDK results to compliance operator results
 	evalResultList := []*cmpv1alpha1.ComplianceCheckResult{}
 	for _, result := range checkResults {
-		// Find the original rule to get additional metadata
-		var originalRule *cmpv1alpha1.CustomRule
-		for _, rule := range selectedRules {
-			// Use the Identifier() method for consistency with the interface
-			if rule.Identifier() == result.ID {
-				originalRule = rule
-				break
-			}
-		}
-
-		if originalRule == nil {
+		rw, found := ruleByID[result.ID]
+		if !found {
 			cmdLog.Info("Warning: Could not find corresponding rule for check result", "resultID", result.ID, "reason", "unable to link check result to the rule that produced it")
 			continue
 		}
 
-		// Convert SDK CheckResult to ComplianceCheckResult
 		// Generate a DNS-friendly name from the scan name and rule ID
-		checkResultName := fmt.Sprintf("%s-%s", c.celConfig.ScanName, utils.IDToDNSFriendlyName(originalRule.Spec.ID))
+		checkResultName := fmt.Sprintf("%s-%s", c.celConfig.ScanName, utils.IDToDNSFriendlyName(rw.payload.ID))
 
 		compResult := &cmpv1alpha1.ComplianceCheckResult{
 			TypeMeta: metav1.TypeMeta{
@@ -383,11 +400,11 @@ func (c *CelScanner) runPlatformScan() {
 				Name:      checkResultName,
 				Namespace: c.celConfig.NameSpace,
 			},
-			ID:           originalRule.Spec.ID,
-			Description:  originalRule.Spec.Description,
-			Rationale:    originalRule.Spec.Rationale,
-			Severity:     cmpv1alpha1.ComplianceCheckResultSeverity(originalRule.Spec.Severity),
-			Instructions: originalRule.Spec.Instructions,
+			ID:           rw.payload.ID,
+			Description:  rw.payload.Description,
+			Rationale:    rw.payload.Rationale,
+			Severity:     cmpv1alpha1.ComplianceCheckResultSeverity(rw.payload.Severity),
+			Instructions: rw.payload.Instructions,
 			Warnings:     result.Warnings,
 		}
 
@@ -399,8 +416,8 @@ func (c *CelScanner) runPlatformScan() {
 			compResult.Status = cmpv1alpha1.CheckResultFail
 			exitCode = CelExitCodeNonCompliant
 			// Add the FailureReason to warnings when the check fails
-			if originalRule.Spec.FailureReason != "" {
-				compResult.Warnings = append(compResult.Warnings, originalRule.Spec.FailureReason)
+			if rw.payload.FailureReason != "" {
+				compResult.Warnings = append(compResult.Warnings, rw.payload.FailureReason)
 			}
 		case scanner.CheckResultError:
 			compResult.Status = cmpv1alpha1.CheckResultError
@@ -567,36 +584,59 @@ func (c *CelScanner) getTailoredProfile(namespace string) (*cmpv1alpha1.Tailored
 	return tailoredProfile, nil
 }
 
-// getSelectedCustomRules fetches custom rules referenced in the tailored profile.
-func (c *CelScanner) getSelectedCustomRules(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.CustomRule, error) {
-	var selectedRules []*cmpv1alpha1.CustomRule
+// getSelectedCELRules fetches CEL rules referenced in the tailored profile.
+// It handles both CustomRule (kind:CustomRule) and Rule CRs (kind:Rule with scannerType=CEL).
+func (c *CelScanner) getSelectedCELRules(tp *cmpv1alpha1.TailoredProfile) ([]celRuleWrapper, error) {
+	var selectedRules []celRuleWrapper
 	ruleMap := make(map[string]bool) // Track rules to detect duplicates
 
 	// Only process EnableRules for now - DisableRules and ManualRules will be supported
 	// when we implement CEL scanning with default rules
 	for _, selection := range tp.Spec.EnableRules {
-		// Check for duplicate rules
 		if ruleMap[selection.Name] {
 			return nil, fmt.Errorf("rule '%s' appears twice in EnableRules", selection.Name)
 		}
 		ruleMap[selection.Name] = true
 
-		rule := &cmpv1alpha1.CustomRule{}
-		ruleKey := v1api.NamespacedName{Name: selection.Name, Namespace: tp.Namespace}
-		err := c.client.Get(context.TODO(), ruleKey, rule)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return nil, fmt.Errorf("rule '%s' not found in namespace '%s'", selection.Name, tp.Namespace)
+		if selection.Kind == cmpv1alpha1.CustomRuleKind {
+			rule := &cmpv1alpha1.CustomRule{}
+			ruleKey := v1api.NamespacedName{Name: selection.Name, Namespace: tp.Namespace}
+			err := c.client.Get(context.TODO(), ruleKey, rule)
+			if err != nil {
+				if errors.IsNotFound(err) {
+					return nil, fmt.Errorf("CustomRule '%s' not found in namespace '%s'", selection.Name, tp.Namespace)
+				}
+				return nil, fmt.Errorf("fetching CustomRule '%s': %w", selection.Name, err)
 			}
-			return nil, fmt.Errorf("fetching rule '%s': %w", selection.Name, err)
+			if err := c.validateCELRulePayload(rule.Name, &rule.Spec.RulePayload); err != nil {
+				return nil, fmt.Errorf("invalid CustomRule '%s': %w", rule.Name, err)
+			}
+			selectedRules = append(selectedRules, celRuleWrapper{
+				scannerRule: rule,
+				payload:     &rule.Spec.RulePayload,
+			})
+		} else {
+			// Default or explicit kind:Rule
+			rule := &cmpv1alpha1.Rule{}
+			ruleKey := v1api.NamespacedName{Name: selection.Name, Namespace: tp.Namespace}
+			err := c.client.Get(context.TODO(), ruleKey, rule)
+			if err != nil {
+				if errors.IsNotFound(err) {
+					return nil, fmt.Errorf("Rule '%s' not found in namespace '%s'", selection.Name, tp.Namespace)
+				}
+				return nil, fmt.Errorf("fetching Rule '%s': %w", selection.Name, err)
+			}
+			if rule.ScannerType != cmpv1alpha1.ScannerTypeCEL {
+				return nil, fmt.Errorf("Rule '%s' has scannerType '%s', expected CEL", rule.Name, rule.ScannerType)
+			}
+			if err := c.validateCELRulePayload(rule.Name, &rule.RulePayload); err != nil {
+				return nil, fmt.Errorf("invalid Rule '%s': %w", rule.Name, err)
+			}
+			selectedRules = append(selectedRules, celRuleWrapper{
+				scannerRule: rule,
+				payload:     &rule.RulePayload,
+			})
 		}
-
-		// Validate the rule has required fields
-		if err := c.validateCustomRule(rule); err != nil {
-			return nil, fmt.Errorf("invalid rule '%s': %w", rule.Name, err)
-		}
-
-		selectedRules = append(selectedRules, rule)
 	}
 
 	if len(selectedRules) == 0 {
@@ -606,45 +646,97 @@ func (c *CelScanner) getSelectedCustomRules(tp *cmpv1alpha1.TailoredProfile) ([]
 	return selectedRules, nil
 }
 
-// validateCustomRule validates that a CustomRule has all required fields
-func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
-	if rule == nil {
-		return fmt.Errorf("rule is nil")
+// getCELRulesFromProfile loads a Profile CR and fetches all its CEL-typed Rule CRs.
+func (c *CelScanner) getCELRulesFromProfile(profileName, namespace string) ([]celRuleWrapper, error) {
+	profile := &cmpv1alpha1.Profile{}
+	profileKey := v1api.NamespacedName{Name: profileName, Namespace: namespace}
+	if err := c.client.Get(context.TODO(), profileKey, profile); err != nil {
+		return nil, fmt.Errorf("fetching Profile '%s': %w", profileName, err)
 	}
 
-	if rule.Name == "" {
-		return fmt.Errorf("rule name is empty")
+	var selectedRules []celRuleWrapper
+	for _, profileRule := range profile.Rules {
+		ruleName := string(profileRule)
+		rule := &cmpv1alpha1.Rule{}
+		ruleKey := v1api.NamespacedName{Name: ruleName, Namespace: namespace}
+		if err := c.client.Get(context.TODO(), ruleKey, rule); err != nil {
+			if errors.IsNotFound(err) {
+				return nil, fmt.Errorf("Rule '%s' referenced by Profile '%s' not found", ruleName, profileName)
+			}
+			return nil, fmt.Errorf("fetching Rule '%s': %w", ruleName, err)
+		}
+		if rule.ScannerType != cmpv1alpha1.ScannerTypeCEL {
+			cmdLog.V(1).Info("Skipping non-CEL rule in CEL profile", "rule", ruleName, "scannerType", rule.ScannerType)
+			continue
+		}
+		if err := c.validateCELRulePayload(rule.Name, &rule.RulePayload); err != nil {
+			return nil, fmt.Errorf("invalid Rule '%s': %w", rule.Name, err)
+		}
+		selectedRules = append(selectedRules, celRuleWrapper{
+			scannerRule: rule,
+			payload:     &rule.RulePayload,
+		})
 	}
 
-	if err := rule.Validate(); err != nil {
-		return fmt.Errorf("CustomRule validation failed: %w", err)
+	if len(selectedRules) == 0 {
+		cmdLog.Info("Warning: No CEL rules found in profile", "profile", profileName)
 	}
 
-	if rule.Spec.Expression == "" {
+	return selectedRules, nil
+}
+
+// validateCELRulePayload validates that a RulePayload has the required CEL fields.
+func (c *CelScanner) validateCELRulePayload(name string, payload *cmpv1alpha1.RulePayload) error {
+	if payload.Expression == "" {
 		return fmt.Errorf("CEL expression is empty")
 	}
 
-	if len(rule.Spec.Inputs) == 0 {
+	if len(payload.Inputs) == 0 {
 		return fmt.Errorf("rule has no inputs defined")
 	}
 
-	// Validate each input
-	for i, input := range rule.Spec.Inputs {
+	for i, input := range payload.Inputs {
 		if input.Name == "" {
 			return fmt.Errorf("input %d has empty resource name", i)
 		}
 
-		// Validate KubernetesInputSpec using its own Validate method
 		if err := input.KubernetesInputSpec.Validate(); err != nil {
 			return fmt.Errorf("input %d validation failed: %w", i, err)
 		}
 	}
 
-	if rule.Spec.FailureReason == "" {
-		cmdLog.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
+	if payload.FailureReason == "" {
+		cmdLog.V(1).Info("Warning: Rule has no error message defined", "rule", name)
 	}
 
 	return nil
+}
+
+// getVariablesForProfile loads all Variable CRs referenced in the Profile's Values
+// list with their default values. CEL rules reuse Variable CRs from the XCCDF DataStream.
+func (c *CelScanner) getVariablesForProfile(profileName, namespace string) ([]*cmpv1alpha1.Variable, error) {
+	profile := &cmpv1alpha1.Profile{}
+	profileKey := v1api.NamespacedName{Name: profileName, Namespace: namespace}
+	if err := c.client.Get(context.TODO(), profileKey, profile); err != nil {
+		return nil, fmt.Errorf("fetching Profile '%s': %w", profileName, err)
+	}
+
+	var vars []*cmpv1alpha1.Variable
+	for _, profileValue := range profile.Values {
+		variable := &cmpv1alpha1.Variable{}
+		varKey := v1api.NamespacedName{Name: string(profileValue), Namespace: namespace}
+		err := c.client.Get(context.TODO(), varKey, variable)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				cmdLog.V(1).Info("Variable referenced by profile not found, skipping", "variable", string(profileValue), "profile", profileName)
+				continue
+			}
+			return nil, fmt.Errorf("fetching variable '%s': %w", string(profileValue), err)
+		}
+		vars = append(vars, variable)
+	}
+
+	return vars, nil
 }
 
 func (c *CelScanner) getVariablesForTailoredProfile(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.Variable, error) {
