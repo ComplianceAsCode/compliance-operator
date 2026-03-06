@@ -354,6 +354,13 @@ func (c *CelScanner) runPlatformScan() {
 
 	// Convert SDK results to compliance operator results
 	evalResultList := []*cmpv1alpha1.ComplianceCheckResult{}
+	// Cache custom metadata per result so we can merge it with the same
+	// precedence logic the SCAP/aggregator path uses (operator keys win).
+	type customMeta struct {
+		labels      map[string]string
+		annotations map[string]string
+	}
+	customMetadataByName := make(map[string]customMeta)
 	for _, result := range checkResults {
 		// Find the original rule to get additional metadata
 		var originalRule *cmpv1alpha1.CustomRule
@@ -373,6 +380,12 @@ func (c *CelScanner) runPlatformScan() {
 		// Convert SDK CheckResult to ComplianceCheckResult
 		// Generate a DNS-friendly name from the scan name and rule ID
 		checkResultName := fmt.Sprintf("%s-%s", c.celConfig.ScanName, utils.IDToDNSFriendlyName(originalRule.Spec.ID))
+
+		// Extract custom (non-operator-managed) labels/annotations from the CustomRule.
+		// These will be merged into the check result after operator-managed keys are
+		// set, using MergeCustomMetadata (operator keys take precedence).
+		cl, ca := utils.GetCustomMetadata(originalRule.GetLabels(), originalRule.GetAnnotations())
+		customMetadataByName[checkResultName] = customMeta{labels: cl, annotations: ca}
 
 		compResult := &cmpv1alpha1.ComplianceCheckResult{
 			TypeMeta: metav1.TypeMeta{
@@ -464,6 +477,13 @@ func (c *CelScanner) runPlatformScan() {
 			parsedResult.CheckResult = pr
 			checkResultLabels := getCheckResultLabels(parsedResult, pr.Labels, scan)
 			checkResultAnnotations := getCheckResultAnnotations(pr, pr.Annotations)
+
+			// Merge custom metadata from the CustomRule using the same
+			// precedence as the SCAP/aggregator path: operator keys win.
+			if cm, ok := customMetadataByName[pr.Name]; ok {
+				checkResultLabels, checkResultAnnotations = utils.MergeCustomMetadata(
+					checkResultLabels, cm.labels, checkResultAnnotations, cm.annotations)
+			}
 
 			crkey := getObjKey(pr.Name, pr.Namespace)
 			foundCheckResult := &cmpv1alpha1.ComplianceCheckResult{}
