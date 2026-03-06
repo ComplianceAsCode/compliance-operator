@@ -55,32 +55,11 @@ type KubernetesInputSpec struct {
 	ResourceName string `json:"resourceName,omitempty"`
 }
 
-type CustomRulePayload struct {
-
-	// ScannerType denotes the scanning implementation to use when evaluating rules
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=CEL
-	ScannerType ScannerType `json:"scannerType"`
-
-	// Expression is the CEL expression to evaluate
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Expression string `json:"expression"`
-
-	// Inputs defines the Kubernetes resources that need to be fetched before evaluating the expression
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinItems=1
-	Inputs []InputPayload `json:"inputs"`
-
-	// FailureReason is displayed when the rule evaluation fails
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	FailureReason string `json:"failureReason"`
-}
-
+// CustomRuleSpec embeds RulePayload which now contains all CEL fields
+// (scannerType, expression, inputs, failureReason). This is CRD-compatible
+// since both RulePayload and the former CustomRulePayload were json:",inline".
 type CustomRuleSpec struct {
-	RulePayload       `json:",inline"`
-	CustomRulePayload `json:",inline"`
+	RulePayload `json:",inline"`
 }
 
 // CustomRuleStatus defines the observed state of CustomRule
@@ -117,7 +96,7 @@ const (
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// CustomRule represents a rule that can be used with TailoredProfiles to execute arbitrary checks against the cluster.
+// CustomRule represents a user-created rule for use with TailoredProfiles to execute arbitrary checks against the cluster.
 type CustomRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -165,7 +144,6 @@ func (k *KubernetesInputSpec) Name() string {
 
 // Validate implements scanner.InputSpec
 func (k *KubernetesInputSpec) Validate() error {
-	// Validate required fields
 	if k.APIVersion == "" {
 		return fmt.Errorf("apiVersion is required")
 	}
@@ -177,80 +155,44 @@ func (k *KubernetesInputSpec) Validate() error {
 	return nil
 }
 
-// ===== Implement scanner.Rule and scanner.CelRule interfaces =====
-// These methods allow CustomRule to be used directly with the SDK scanner
+// ===== scanner.Rule and scanner.CelRule interfaces for CustomRule =====
+// Delegates to shared RulePayload helpers to avoid code duplication with Rule.
 
-// Identifier implements scanner.Rule
 func (cr *CustomRule) Identifier() string {
-	// Use the rule's Name as the identifier
 	return cr.Name
 }
 
-// Type implements scanner.Rule
 func (cr *CustomRule) Type() scanner.RuleType {
-	// CustomRules are always CEL type
 	return scanner.RuleTypeCEL
 }
 
-// Inputs implements scanner.Rule
 func (cr *CustomRule) Inputs() []scanner.Input {
-	inputs := make([]scanner.Input, 0, len(cr.Spec.CustomRulePayload.Inputs))
-	for _, input := range cr.Spec.CustomRulePayload.Inputs {
-		if input.Name != "" {
-			// Create SDK-compatible input using our concrete struct
-			sdkInput := &scanner.InputImpl{
-				InputName: input.Name,
-				InputType: scanner.InputTypeKubernetes,
-				InputSpec: &input.KubernetesInputSpec,
-			}
-			inputs = append(inputs, sdkInput)
-		}
-	}
-	return inputs
+	return cr.Spec.RulePayload.ToScannerInputs()
 }
 
-// Metadata implements scanner.Rule
 func (cr *CustomRule) Metadata() *scanner.RuleMetadata {
-	return &scanner.RuleMetadata{
-		Name:        cr.Name,
-		Description: cr.Spec.Description,
-		Extensions: map[string]interface{}{
-			"id":             cr.Spec.ID,
-			"description":    cr.Spec.Description,
-			"title":          cr.Spec.Title,
-			"warning":        cr.Spec.Warning,
-			"checkType":      cr.Spec.CheckType,
-			"availableFixes": cr.Spec.AvailableFixes,
-			"rationale":      cr.Spec.Rationale,
-			"severity":       cr.Spec.Severity,
-			"instructions":   cr.Spec.Instructions,
-		},
-	}
+	return cr.Spec.RulePayload.ToScannerMetadata(cr.Name)
 }
 
-// Content implements scanner.Rule
 func (cr *CustomRule) Content() interface{} {
-	return cr.Spec.CustomRulePayload.Expression
+	return cr.Spec.Expression
 }
 
-// Expression implements scanner.CelRule
 func (cr *CustomRule) Expression() string {
-	return cr.Spec.CustomRulePayload.Expression
+	return cr.Spec.Expression
 }
 
-// ErrorMessage returns the error message to display when the rule fails
+// ErrorMessage returns the failure reason (not part of SDK interface).
 func (cr *CustomRule) ErrorMessage() string {
-	return cr.Spec.CustomRulePayload.FailureReason
+	return cr.Spec.FailureReason
 }
 
 // Validate performs validation specific to CustomRule constraints
 func (cr *CustomRule) Validate() error {
-	// Validate checkType is always "Platform" for CustomRules
 	if cr.Spec.CheckType != "" && cr.Spec.CheckType != CheckTypePlatform {
 		return fmt.Errorf("checkType must be 'Platform' for CustomRules, got: %s", cr.Spec.CheckType)
 	}
 
-	// Validate ScannerType is always "CEL" for CustomRules
 	if cr.Spec.ScannerType != ScannerTypeCEL {
 		return fmt.Errorf("scannerType must be 'CEL' for CustomRules, got: %s", cr.Spec.ScannerType)
 	}

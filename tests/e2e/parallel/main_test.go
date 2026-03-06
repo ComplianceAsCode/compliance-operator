@@ -2619,8 +2619,6 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 				Title:       "Test Pods Must Have Security Context",
 				Description: fmt.Sprintf("Ensures test pods with label customrule-test=%s have proper security context", testLabel),
 				Severity:    "high",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: fmt.Sprintf(`
 					pods.items.filter(pod,
@@ -2824,8 +2822,6 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 				Title:       "Namespaces Must Have Network Policies",
 				Description: "Ensures all namespaces have at least one network policy",
 				Severity:    "medium",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					namespaces.items.all(ns,
@@ -2981,8 +2977,6 @@ func TestCustomRuleValidation(t *testing.T) {
 				Title:       "Invalid Rule",
 				Description: "This rule has invalid CEL expression",
 				Severity:    "low",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					pods.items.all(pod,
@@ -3028,8 +3022,6 @@ func TestCustomRuleValidation(t *testing.T) {
 				Title:       "Undeclared Variable Rule",
 				Description: "This rule uses undeclared variables",
 				Severity:    "low",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					pods.items.all(pod,
@@ -3086,8 +3078,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has invalid checkType",
 				Severity:    "low",
 				CheckType:   "Node", // This should be rejected
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3130,8 +3120,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has invalid scannerType",
 				Severity:    "low",
 				CheckType:   "Platform", // Valid checkType
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3168,8 +3156,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has valid checkType and scannerType",
 				Severity:    "low",
 				CheckType:   "Platform", // Valid checkType
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3212,8 +3198,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has empty checkType which should be valid",
 				Severity:    "low",
 				// CheckType is empty, which should be valid
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3265,8 +3249,6 @@ func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 				Title:       "No Privileged Containers",
 				Description: "Ensures no containers are running in privileged mode",
 				Severity:    "high",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression:  expression,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3478,8 +3460,6 @@ func TestCustomRuleFailureReasonInCheckResult(t *testing.T) {
 				Title:       "Ensure Deployments Have at Least 3 Replicas",
 				Description: "Validates that all deployments have at least 3 replicas for high availability",
 				Severity:    "medium",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					deployments.items.all(deployment,
@@ -3736,8 +3716,6 @@ func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 				Title:       "Pods Must Have Security Context",
 				Description: "Ensures all pods have security context defined with runAsNonRoot set to true",
 				Severity:    "medium",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)
 				`,
@@ -3847,7 +3825,7 @@ func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 	}
 
 	// Update with invalid expression
-	currentRule.Spec.CustomRulePayload.Expression = `podsx.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
+	currentRule.Spec.Expression = `podsx.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
 
 	err = f.Client.Update(context.TODO(), currentRule)
 	if err != nil {
@@ -3888,7 +3866,7 @@ func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 	}
 
 	// Update with a valid but different expression to ensure change is detected
-	currentRule.Spec.CustomRulePayload.Expression = `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
+	currentRule.Spec.Expression = `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
 
 	err = f.Client.Update(context.TODO(), currentRule)
 	if err != nil {

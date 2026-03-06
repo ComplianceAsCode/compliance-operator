@@ -328,7 +328,7 @@ func (c *CelScanner) runPlatformScan() {
 	// CustomRule now properly implements scanner.Rule and scanner.CelRule interfaces
 	sdkRules := make([]scanner.Rule, 0, len(selectedRules))
 	for _, customRule := range selectedRules {
-		if customRule.Spec.CustomRulePayload.Expression == "" {
+		if customRule.Spec.Expression == "" {
 			cmdLog.Info("Warning: Skipping rule with empty expression", "rule", customRule.Name)
 			continue
 		}
@@ -620,16 +620,16 @@ func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
 		return fmt.Errorf("CustomRule validation failed: %w", err)
 	}
 
-	if rule.Spec.CustomRulePayload.Expression == "" {
+	if rule.Spec.Expression == "" {
 		return fmt.Errorf("CEL expression is empty")
 	}
 
-	if len(rule.Spec.CustomRulePayload.Inputs) == 0 {
+	if len(rule.Spec.Inputs) == 0 {
 		return fmt.Errorf("rule has no inputs defined")
 	}
 
 	// Validate each input
-	for i, input := range rule.Spec.CustomRulePayload.Inputs {
+	for i, input := range rule.Spec.Inputs {
 		if input.Name == "" {
 			return fmt.Errorf("input %d has empty resource name", i)
 		}
@@ -640,7 +640,7 @@ func (c *CelScanner) validateCustomRule(rule *cmpv1alpha1.CustomRule) error {
 		}
 	}
 
-	if rule.Spec.CustomRulePayload.FailureReason == "" {
+	if rule.Spec.FailureReason == "" {
 		cmdLog.V(1).Info("Warning: Rule has no error message defined", "rule", rule.Name)
 	}
 

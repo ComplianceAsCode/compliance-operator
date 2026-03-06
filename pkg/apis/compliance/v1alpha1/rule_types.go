@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/ComplianceAsCode/compliance-sdk/pkg/scanner"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -27,6 +28,7 @@ const (
 	CheckTypeNone     = ""
 )
 
+
 type RulePayload struct {
 	// The ID of the Rule
 	ID string `json:"id"`
@@ -51,17 +53,100 @@ type RulePayload struct {
 	// +optional
 	// +listType=atomic
 	AvailableFixes []FixDefinition `json:"availableFixes,omitempty"`
+	// ScannerType denotes which scanner evaluates this rule.
+	// All rules must have an explicit scanner type set by the parser or user.
+	// +optional
+	// +kubebuilder:validation:Enum=OpenSCAP;CEL
+	ScannerType ScannerType `json:"scannerType,omitempty"`
+	// Expression is the CEL expression to evaluate (required when scannerType=CEL)
+	// +optional
+	Expression string `json:"expression,omitempty"`
+	// Inputs defines the Kubernetes resources that need to be fetched before evaluating the expression
+	// +optional
+	Inputs []InputPayload `json:"inputs,omitempty"`
+	// FailureReason is displayed when a CEL rule evaluation fails
+	// +optional
+	FailureReason string `json:"failureReason,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
 // Rule is the Schema for the rules API
 // +kubebuilder:resource:path=rules,scope=Namespaced
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type Rule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	RulePayload `json:",inline"`
+}
+
+// ToScannerInputs converts RulePayload inputs to SDK scanner.Input slice.
+// Shared by both Rule and CustomRule to avoid duplication.
+func (rp *RulePayload) ToScannerInputs() []scanner.Input {
+	inputs := make([]scanner.Input, 0, len(rp.Inputs))
+	for _, input := range rp.Inputs {
+		if input.Name != "" {
+			sdkInput := &scanner.InputImpl{
+				InputName: input.Name,
+				InputType: scanner.InputTypeKubernetes,
+				InputSpec: &input.KubernetesInputSpec,
+			}
+			inputs = append(inputs, sdkInput)
+		}
+	}
+	return inputs
+}
+
+// ToScannerMetadata builds a scanner.RuleMetadata from RulePayload fields.
+// Shared by both Rule and CustomRule to avoid duplication.
+func (rp *RulePayload) ToScannerMetadata(name string) *scanner.RuleMetadata {
+	return &scanner.RuleMetadata{
+		Name:        name,
+		Description: rp.Description,
+		Extensions: map[string]interface{}{
+			"id":             rp.ID,
+			"description":    rp.Description,
+			"title":          rp.Title,
+			"warning":        rp.Warning,
+			"checkType":      rp.CheckType,
+			"availableFixes": rp.AvailableFixes,
+			"rationale":      rp.Rationale,
+			"severity":       rp.Severity,
+			"instructions":   rp.Instructions,
+		},
+	}
+}
+
+// ===== scanner.Rule and scanner.CelRule interfaces for Rule =====
+
+func (r *Rule) Identifier() string {
+	return r.Name
+}
+
+func (r *Rule) Type() scanner.RuleType {
+	return scanner.RuleTypeCEL
+}
+
+func (r *Rule) Inputs() []scanner.Input {
+	return r.RulePayload.ToScannerInputs()
+}
+
+func (r *Rule) Metadata() *scanner.RuleMetadata {
+	return r.RulePayload.ToScannerMetadata(r.Name)
+}
+
+func (r *Rule) Content() interface{} {
+	return r.RulePayload.Expression
+}
+
+func (r *Rule) Expression() string {
+	return r.RulePayload.Expression
+}
+
+// ErrorMessage returns the failure reason for this rule (not part of SDK interface).
+func (r *Rule) ErrorMessage() string {
+	return r.RulePayload.FailureReason
 }
 
 // FixDefinition Specifies a fix or remediation

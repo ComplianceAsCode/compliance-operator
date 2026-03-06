@@ -1355,14 +1355,12 @@ var _ = Describe("TailoredprofileController", func() {
 					},
 					Spec: compv1alpha1.CustomRuleSpec{
 						RulePayload: compv1alpha1.RulePayload{
-							ID:          "custom_rule_1",
-							Title:       "Test Custom Rule",
-							Description: "A test custom rule",
-							Severity:    "medium",
-						},
-						CustomRulePayload: compv1alpha1.CustomRulePayload{
-							ScannerType: compv1alpha1.ScannerTypeCEL,
-							Expression:  "true",
+							ID:           "custom_rule_1",
+							Title:        "Test Custom Rule",
+							Description:  "A test custom rule",
+							Severity:     "medium",
+							ScannerType:  compv1alpha1.ScannerTypeCEL,
+							Expression:   "true",
 							Inputs: []compv1alpha1.InputPayload{
 								{
 									Name: "pods",
@@ -1448,14 +1446,12 @@ var _ = Describe("TailoredprofileController", func() {
 					},
 					Spec: compv1alpha1.CustomRuleSpec{
 						RulePayload: compv1alpha1.RulePayload{
-							ID:          "custom_rule_2",
-							Title:       "Test Custom Rule with Error",
-							Description: "A test custom rule with validation error",
-							Severity:    "high",
-						},
-						CustomRulePayload: compv1alpha1.CustomRulePayload{
-							ScannerType: compv1alpha1.ScannerTypeCEL,
-							Expression:  "invalid expression",
+							ID:           "custom_rule_2",
+							Title:        "Test Custom Rule with Error",
+							Description:  "A test custom rule with validation error",
+							Severity:     "high",
+							ScannerType:  compv1alpha1.ScannerTypeCEL,
+							Expression:   "invalid expression",
 							Inputs: []compv1alpha1.InputPayload{
 								{
 									Name: "pods",
@@ -1539,14 +1535,12 @@ var _ = Describe("TailoredprofileController", func() {
 					},
 					Spec: compv1alpha1.CustomRuleSpec{
 						RulePayload: compv1alpha1.RulePayload{
-							ID:          "custom_rule_3",
-							Title:       "Test Custom Rule Pending",
-							Description: "A test custom rule pending validation",
-							Severity:    "low",
-						},
-						CustomRulePayload: compv1alpha1.CustomRulePayload{
-							ScannerType: compv1alpha1.ScannerTypeCEL,
-							Expression:  "true",
+							ID:           "custom_rule_3",
+							Title:        "Test Custom Rule Pending",
+							Description:  "A test custom rule pending validation",
+							Severity:     "low",
+							ScannerType:  compv1alpha1.ScannerTypeCEL,
+							Expression:   "true",
 							Inputs: []compv1alpha1.InputPayload{
 								{
 									Name: "pods",
@@ -1679,12 +1673,10 @@ var _ = Describe("TailoredprofileController", func() {
 					},
 					Spec: compv1alpha1.CustomRuleSpec{
 						RulePayload: compv1alpha1.RulePayload{
-							ID:          "custom_rule_5",
-							Title:       "Test Custom Rule",
-							Description: "A test custom rule with unsupported scanner",
-							Severity:    "medium",
-						},
-						CustomRulePayload: compv1alpha1.CustomRulePayload{
+							ID:            "custom_rule_5",
+							Title:         "Test Custom Rule",
+							Description:   "A test custom rule with unsupported scanner",
+							Severity:      "medium",
 							ScannerType:   compv1alpha1.ScannerTypeOpenSCAP, // Unsupported for CustomRules
 							Expression:    "true",
 							Inputs:        []compv1alpha1.InputPayload{},
