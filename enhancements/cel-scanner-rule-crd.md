@@ -66,8 +66,8 @@ CEL scans do not need it.
 5. Set explicit `scannerType` on every `Rule` (both OpenSCAP and CEL); no
    more implicit empty-means-OpenSCAP.
 7. Support a CEL content pipeline: individual YAML source files bundled into
-   a single validated file, declared via a new optional `celContentFile`
-   field on `ProfileBundleSpec`.
+   a single validated file via the `pkg/celcontent` bundler utility, declared
+   via a new optional `celContentFile` field on `ProfileBundleSpec`.
 8. Enable the CEL scanner to load rules from `Profile` CRs (not just
    `TailoredProfile`), adding a `--tailoring=false` path.
 
@@ -75,9 +75,6 @@ CEL scans do not need it.
 
 1. Implementing mutation protection (validating webhook) for parser-created
    `Rule` and `Profile` CRs. This may be addressed in a follow-up enhancement.
-3. Building the CEL content bundling tool itself (the build-time tool that
-   concatenates individual YAML files into a single bundle). This enhancement
-   defines the format; tooling is a separate effort.
 
 ## Proposal
 
@@ -238,19 +235,84 @@ TailoredProfile (true), instead of being hardcoded to true.
 **Source structure** (in CaC/content or compliance-operator repo):
 
 ```
-CEL-Rules/
-  pods-must-have-security-context.yaml
-  namespaces-must-have-network-policies.yaml
-CEL-Profiles/
-  cel-security-profile.yaml
+cel-rules/
+  check-default-namespace-has-no-pods.yaml
+  check-namespaces-have-resource-quotas.yaml
+  check-cluster-admin-bindings.yaml
+cel-profiles/
+  cel-e2e-test-profile.yaml
 ```
 
-Each rule file is a standalone YAML with `RulePayload` CEL fields. Each
-profile file lists rule IDs.
+Each rule file is a standalone YAML containing the full rule definition
+(name, id, title, severity, expression, inputs, controls, etc.). Each
+profile file is a standalone YAML listing the profile metadata and rule
+references.
 
-**Build step**: A build tool concatenates individual YAMLs into a single
-bundled file validated at build time (CEL expressions compiled, rule references
-checked). The bundle format:
+Example individual rule file (`cel-rules/check-default-namespace-has-no-pods.yaml`):
+
+```yaml
+name: check-default-namespace-has-no-pods
+id: check_default_namespace_has_no_pods
+title: Default namespace must not contain application pods
+severity: medium
+checkType: Platform
+expression: |
+  pods.items.filter(p,
+      p.metadata.namespace == 'default' &&
+      !p.metadata.name.startsWith('kubernetes')
+  ).size() == 0
+inputs:
+  - name: pods
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: pods
+      resourceNamespace: default
+failureReason: Application pods are running in the default namespace.
+controls:
+  NIST-800-53:
+    - "AC-6"
+    - "CM-7"
+  CIS-OCP:
+    - "5.7.4"
+```
+
+Example individual profile file (`cel-profiles/cel-e2e-test-profile.yaml`):
+
+```yaml
+name: cel-e2e-test-profile
+id: cel_e2e_test_profile
+title: CEL E2E Test Profile
+productType: Platform
+rules:
+  - check-default-namespace-has-no-pods
+  - check-namespaces-have-resource-quotas
+  - check-cluster-admin-bindings
+```
+
+**Bundler utility** (`pkg/celcontent`): A Go package that reads individual
+rule and profile YAML files from their respective directories and assembles
+them into a single validated bundle YAML file.
+
+```go
+import "github.com/ComplianceAsCode/compliance-operator/pkg/celcontent"
+
+// Generate a bundle from directories
+bundle, err := celcontent.BundleFromDirs("cel-rules/", "cel-profiles/")
+
+// Or write directly to a file
+err := celcontent.BundleToFile("cel-rules/", "cel-profiles/", "cel-content.yaml")
+```
+
+The bundler performs the following validations:
+- Each rule must have a `name`, `expression`, and at least one `input`.
+- Each profile must have a `name` and at least one `rule`.
+- Duplicate rule names across files are rejected.
+- Profile rule references are validated against the loaded rule set.
+- Non-YAML files (README.md, .gitkeep, etc.) are silently ignored.
+- Rules and profiles are sorted alphabetically by name for deterministic output.
+
+**Build step**: The bundler assembles individual YAMLs into a single
+bundled file at build time. The bundle format:
 
 ```yaml
 rules:
@@ -375,12 +437,45 @@ existing OpenSCAP rules.
 - **Unit tests**: Shared CEL validation (compile success/failure), scanner
   interface parity between Rule and CustomRule, TailoredProfile with CEL
   Rules, CEL scanner loading from Profile, parser CEL content parsing.
-- **E2E tests**: Create a ProfileBundle with both XCCDF and CEL content.
-  Verify Rules and Profiles are created with correct `scannerType` and
-  `scanner-type` annotations. Create a ScanSettingBinding referencing a CEL
-  Profile and verify the CEL scanner runs successfully. Create a
-  TailoredProfile extending a CEL Profile and verify the scan uses the
-  tailoring path.
+- **Bundler tests** (`pkg/celcontent/bundler_test.go`): Validates the bundler
+  utility reads individual files from `tests/data/cel-rules/` and
+  `tests/data/cel-profiles/`, produces correct bundle output, enforces
+  duplicate detection, missing field validation, unknown rule references,
+  and non-YAML file filtering. A roundtrip test verifies serialize/deserialize
+  fidelity.
+- **Parser integration tests** (`pkg/profileparser/cel_content_test.go`):
+  Uses the bundler to generate a bundle from the individual test files at
+  test time, then passes it through `ParseCELBundle` to verify correct
+  `Rule` and `Profile` CR creation with all annotations, labels, and fields.
+  A consistency test (`TestCELBundleCommittedFileMatchesBundler`) verifies
+  the committed `tests/data/cel-content-test.yaml` stays in sync with the
+  individual source files.
+- **Test data organization**:
+  - `tests/data/cel-rules/` — Individual CEL rule YAML files
+  - `tests/data/cel-profiles/` — Individual CEL profile YAML files
+  - `tests/data/cel-content-test.yaml` — Bundled output (regenerated from
+    the individual files)
+- **E2E test infrastructure**:
+  - `images/testcontent/cel_content/` — Test content image directory
+    containing `cel-content.yaml` bundle and `ssg-rhcos4-ds.xml` XCCDF XML.
+  - `cel_content` tag in `images/testcontent/broken-content.sh` builds a
+    test content image used by e2e tests.
+  - `cmd/cel-bundler/` — CLI tool for regenerating the bundled YAML from
+    individual rule/profile files.
+  - `make cel-bundle` — Makefile target that regenerates
+    `tests/data/cel-content-test.yaml` and copies it to the test image dir.
+- **E2E tests** (`tests/e2e/parallel/main_test.go`):
+  - `TestCELProfileBundle`: Creates a ProfileBundle with both XCCDF and CEL
+    content. Verifies the ProfileBundle reaches VALID state, CEL Rules are
+    created with correct `scannerType`, `expression`, `inputs`, annotations
+    (`RuleIDAnnotationKey`, `RuleProfileAnnotationKey`), labels
+    (`ProfileBundleOwnerLabel`), and severity. Verifies the CEL Profile has
+    correct `scanner-type` annotation, `ProductTypeAnnotation`, all expected
+    rule references, and `ProfileBundleOwnerLabel`.
+  - `TestCELProfileScan`: Creates a ProfileBundle with CEL content, then a
+    ScanSettingBinding referencing the CEL Profile. Waits for the scan to
+    complete and verifies that ComplianceCheckResults are created for all
+    three CEL rules.
 
 ### Upgrade / Downgrade Strategy
 

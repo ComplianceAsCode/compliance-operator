@@ -199,6 +199,25 @@ func (f *Framework) CreateProfileBundle(pbName string, baselineImage string, con
 	return origPb, nil
 }
 
+func (f *Framework) CreateProfileBundleWithCEL(pbName, baselineImage, contentFile, celContentFile string) (*compv1alpha1.ProfileBundle, error) {
+	origPb := &compv1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ProfileBundleSpec{
+			ContentImage:   baselineImage,
+			ContentFile:    contentFile,
+			CELContentFile: celContentFile,
+		},
+	}
+	log.Printf("Creating ProfileBundle %s with CEL content %s", pbName, celContentFile)
+	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+		return nil, err
+	}
+	return origPb, nil
+}
+
 func (f *Framework) cleanUpProfileBundle(p string) error {
 	pb := &compv1alpha1.ProfileBundle{
 		ObjectMeta: metav1.ObjectMeta{

@@ -1,0 +1,116 @@
+rules:
+- name: check-default-namespace-has-no-pods
+  id: check_default_namespace_has_no_pods
+  title: Default namespace must not contain application pods
+  description: 'The default namespace should be kept empty and not used for running
+
+    application workloads. Running pods in the default namespace bypasses
+
+    RBAC policies that may be scoped to specific namespaces and reduces
+
+    the security posture of the cluster.'
+  rationale: 'Using the default namespace for workloads circumvents namespace-based
+
+    access controls and network policies.'
+  severity: medium
+  checkType: Platform
+  expression: "pods.items.filter(p,\n    p.metadata.namespace == 'default' &&\n  \
+    \  !p.metadata.name.startsWith('kubernetes')\n).size() == 0\n"
+  inputs:
+  - name: pods
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: pods
+      resourceNamespace: default
+  failureReason: Application pods are running in the default namespace.
+  instructions: 'Run ''oc get pods -n default'' and verify that no application pods
+
+    are present. Only the ''kubernetes'' service should exist.'
+  controls:
+    NIST-800-53:
+    - AC-6
+    - CM-7
+    CIS-OCP:
+    - 5.7.4
+- name: check-namespaces-have-network-policies
+  id: check_namespaces_have_network_policies
+  title: Namespaces must have network policies
+  description: 'All user-created namespaces should have at least one NetworkPolicy
+
+    defined to control ingress and egress traffic. Namespaces without
+
+    network policies allow unrestricted pod-to-pod communication.'
+  rationale: 'Without network policies, any pod can communicate with any other
+
+    pod in the cluster, increasing the blast radius of a compromise.'
+  severity: medium
+  checkType: Platform
+  expression: "namespaces.items.all(ns,\n    ns.metadata.name.startsWith('kube-')\
+    \ ||\n    ns.metadata.name == 'default' ||\n    ns.metadata.name.startsWith('openshift')\
+    \ ||\n    networkpolicies.items.exists(np,\n        np.metadata.namespace == ns.metadata.name\n\
+    \    )\n)\n"
+  inputs:
+  - name: namespaces
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: namespaces
+  - name: networkpolicies
+    kubernetesInputSpec:
+      group: networking.k8s.io
+      apiVersion: v1
+      resource: networkpolicies
+  failureReason: One or more user namespaces do not have a NetworkPolicy defined.
+  instructions: 'For each user namespace run ''oc get networkpolicies -n <namespace>''
+
+    and verify that at least one NetworkPolicy exists.'
+  controls:
+    NIST-800-53:
+    - SC-7
+    - SC-7(5)
+    CIS-OCP:
+    - 5.3.2
+- name: check-no-privileged-containers
+  id: check_no_privileged_containers
+  title: Containers must not run in privileged mode
+  description: 'Privileged containers have full access to the host''s devices and
+
+    kernel capabilities. No container should run in privileged mode
+
+    unless absolutely necessary and explicitly approved.'
+  rationale: 'Privileged containers can escape container isolation and compromise
+
+    the entire node.'
+  severity: high
+  checkType: Platform
+  expression: "pods.items.all(pod,\n    pod.spec.containers.all(container,\n     \
+    \   !has(container.securityContext) ||\n        !has(container.securityContext.privileged)\
+    \ ||\n        container.securityContext.privileged == false\n    )\n)\n"
+  inputs:
+  - name: pods
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: pods
+  failureReason: One or more containers are running in privileged mode.
+  instructions: 'Run ''oc get pods -A -o json | jq ''.items[] | select(.spec.containers[]
+
+    .securityContext.privileged==true) | .metadata.name'''' and review
+
+    each privileged container.'
+  controls:
+    NIST-800-53:
+    - AC-6(1)
+    - AC-6(5)
+    CIS-OCP:
+    - 5.2.1
+profiles:
+- name: cel-e2e-test-profile
+  id: cel_e2e_test_profile
+  title: CEL E2E Test Profile
+  description: 'A test profile containing CEL-based rules for end-to-end testing
+
+    of the CEL scanner pipeline.'
+  productType: Platform
+  rules:
+  - check-default-namespace-has-no-pods
+  - check-namespaces-have-network-policies
+  - check-no-privileged-containers
