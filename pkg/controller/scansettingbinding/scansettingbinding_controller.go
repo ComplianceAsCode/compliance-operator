@@ -465,12 +465,16 @@ func profileReferenceToScan(reference *profileReference) (*compliancev1alpha1.Co
 		Name:               reference.name,
 	}
 
-	hasCustomRuleTP := false
+	// Determine if this is a CEL-based scan (CustomRule TP, CEL TP, or CEL Profile).
+	// CEL scans do not use XCCDF content from the ProfileBundle.
+	isCELScan := false
 	if reference.tailoredProfile != nil {
-		hasCustomRuleTP = hasCustomRule(reference.tailoredProfile)
+		isCELScan = hasCustomRule(reference.tailoredProfile) || isCELObject(reference.tailoredProfile)
+	} else if reference.profile != nil {
+		isCELScan = isCELObject(reference.profile)
 	}
 
-	if !hasCustomRuleTP {
+	if !isCELScan {
 		err = fillContentData(reference.profileBundle, &scan)
 		if err != nil {
 			return nil, "", err
@@ -552,8 +556,13 @@ func fillTailoredProfileData(tp *unstructured.Unstructured, scan *compliancev1al
 		return common.WrapNonRetriableCtrlError(err)
 	}
 
-	if hasCustomRule(tp) {
+	// CEL-based TailoredProfiles (CustomRule or CEL Rule) use the TP name directly
+	// as the profile identifier since there's no XCCDF tailoring involved.
+	// We also set TailoringConfigMap with the TP name so the cel-scanner knows
+	// this is a TailoredProfile-based scan (as opposed to a direct Profile scan).
+	if hasCustomRule(tp) || isCELObject(tp) {
 		scan.Profile = tp.GetName()
+		scan.TailoringConfigMap = &compliancev1alpha1.TailoringConfigMapRef{Name: tp.GetName()}
 	} else {
 		scan.Profile = v1alphaTp.Status.ID
 		if v1alphaTp.Status.OutputRef.Name != "" {
@@ -576,7 +585,13 @@ func fillProfileData(p *unstructured.Unstructured, scan *compliancev1alpha1.Comp
 		return common.WrapNonRetriableCtrlError(err)
 	}
 
-	scan.Profile = v1alphaProfile.ID
+	// CEL Profiles use the CR name directly as the profile identifier
+	// since they don't have XCCDF profile IDs.
+	if isCELObject(p) {
+		scan.Profile = p.GetName()
+	} else {
+		scan.Profile = v1alphaProfile.ID
+	}
 
 	return nil
 }
@@ -710,6 +725,9 @@ func resolveProfileReference(r *ReconcileScanSettingBinding, instance *complianc
 		} else if hasCustomRule(profile) {
 			// we do not need to do anything here, as customRules based TailoredProfiles do not need
 			// a Profile or ProfileBundle
+		} else if isCELObject(profile) {
+			// CEL Rule-based TailoredProfiles without a ProfileBundle owner
+			// don't need a Profile or ProfileBundle for content resolution
 		} else {
 			return nil, common.NewNonRetriableCtrlError("TailoredProfile must be owned by a Profile or ProfileBundle")
 		}
@@ -735,6 +753,18 @@ func hasCustomRule(object metav1.Object) bool {
 		return true
 	}
 	return false
+}
+
+// isCELObject checks if a Profile or TailoredProfile has scanner-type=CEL.
+// This covers CEL Rule-based objects that don't use the CustomRuleProfileAnnotation.
+func isCELObject(object metav1.Object) bool {
+	if object.GetAnnotations() == nil {
+		return false
+	}
+	return strings.EqualFold(
+		object.GetAnnotations()[compliancev1alpha1.ScannerTypeAnnotation],
+		string(compliancev1alpha1.ScannerTypeCEL),
+	)
 }
 
 func resolveProfile(r *ReconcileScanSettingBinding, instance *compliancev1alpha1.ScanSettingBinding, profReference *profileReference, logger logr.Logger) (*unstructured.Unstructured, error) {

@@ -14,7 +14,11 @@ spec:
     singular: rule
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Rule is the Schema for the rules API
@@ -59,9 +63,63 @@ spec:
           description:
             description: The description of the Rule
             type: string
+          expression:
+            description: Expression is the CEL expression to evaluate (required when
+              scannerType=CEL)
+            type: string
+          failureReason:
+            description: FailureReason is displayed when a CEL rule evaluation fails
+            type: string
           id:
             description: The ID of the Rule
             type: string
+          inputs:
+            description: Inputs defines the Kubernetes resources that need to be fetched
+              before evaluating the expression
+            items:
+              properties:
+                kubernetesInputSpec:
+                  description: KubernetesInputSpec is the specification of the Kubernetes
+                    resource to fetch
+                  properties:
+                    apiVersion:
+                      description: APIVersion is the API version (e.g., "v1", "v1beta1")
+                      minLength: 1
+                      type: string
+                    group:
+                      description: Group is the API group (e.g., "apps", "" for core
+                        resources)
+                      type: string
+                    resource:
+                      description: |-
+                        Resource is the resource type (e.g., "pods", "configmaps")
+                        Use the plural form of the resource
+                      minLength: 1
+                      type: string
+                    resourceName:
+                      description: |-
+                        ResourceName is the specific resource name
+                        Leave empty to fetch all resources of this type
+                      type: string
+                    resourceNamespace:
+                      description: |-
+                        ResourceNamespace is the namespace to search in
+                        Leave empty for cluster-scoped resources or to search all namespaces
+                      type: string
+                  required:
+                  - apiVersion
+                  - resource
+                  type: object
+                name:
+                  description: Name is the variable name used to reference this resource
+                    in the CEL expression
+                  minLength: 1
+                  type: string
+              required:
+              - kubernetesInputSpec
+              - name
+              type: object
+            type: array
           instructions:
             description: Instructions for auditing this specific rule
             type: string
@@ -78,6 +136,14 @@ spec:
           rationale:
             description: The rationale of the Rule
             type: string
+          scannerType:
+            description: |-
+              ScannerType denotes which scanner evaluates this rule.
+              All rules must have an explicit scanner type set by the parser or user.
+            enum:
+            - OpenSCAP
+            - CEL
+            type: string
           severity:
             description: The severity level
             type: string
@@ -93,3 +159,4 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}

@@ -1,0 +1,11 @@
+name: cel-e2e-test-profile
+id: cel_e2e_test_profile
+title: CEL E2E Test Profile
+description: |-
+  A test profile containing CEL-based rules for end-to-end testing
+  of the CEL scanner pipeline.
+productType: Platform
+rules:
+  - check-default-namespace-has-no-pods
+  - check-namespaces-have-network-policies
+  - check-no-privileged-containers

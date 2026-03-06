@@ -29,7 +29,9 @@ const (
 
 func (r *ReconcileComplianceScan) launchScanPod(instance *compv1alpha1.ComplianceScan, pod *corev1.Pod, logger logr.Logger) error {
 	podLogger := logger.WithValues("Pod.Name", pod.Name)
-	if instance.Spec.TailoringConfigMap != nil {
+	// CEL scans use TailoringConfigMap as a signal for the tailoring flag
+	// but don't have an actual XML tailoring configmap to reconcile.
+	if instance.Spec.TailoringConfigMap != nil && instance.Spec.ScannerType != compv1alpha1.ScannerTypeCEL {
 		if err := r.reconcileTailoring(instance, pod, logger); err != nil {
 			return err
 		}
@@ -310,9 +312,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 				"--scan-type=" + "Platform",
 				"--platform=" + os.Getenv("PLATFORM"),
 				"--debug=" + fmt.Sprintf("%t", scanInstance.Spec.Debug),
-				// TODO(@Vincent056): make this configurable, we need to update this to
-				// fetch this value dynamically when we start supporting CEL in Rule CRs
-				"--tailoring=" + "true",
+				"--tailoring=" + fmt.Sprintf("%t", scanInstance.Spec.TailoringConfigMap != nil),
 				"--scan-name=" + scanInstance.Name,
 				"--namespace=" + scanInstance.Namespace,
 			},

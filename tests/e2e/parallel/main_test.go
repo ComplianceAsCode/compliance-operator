@@ -2619,8 +2619,6 @@ func TestCustomRuleTailoredProfile(t *testing.T) {
 				Title:       "Test Pods Must Have Security Context",
 				Description: fmt.Sprintf("Ensures test pods with label customrule-test=%s have proper security context", testLabel),
 				Severity:    "high",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: fmt.Sprintf(`
 					pods.items.filter(pod,
@@ -2824,8 +2822,6 @@ func TestCustomRuleWithMultipleInputs(t *testing.T) {
 				Title:       "Namespaces Must Have Network Policies",
 				Description: "Ensures all namespaces have at least one network policy",
 				Severity:    "medium",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					namespaces.items.all(ns,
@@ -2981,8 +2977,6 @@ func TestCustomRuleValidation(t *testing.T) {
 				Title:       "Invalid Rule",
 				Description: "This rule has invalid CEL expression",
 				Severity:    "low",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					pods.items.all(pod,
@@ -3028,8 +3022,6 @@ func TestCustomRuleValidation(t *testing.T) {
 				Title:       "Undeclared Variable Rule",
 				Description: "This rule uses undeclared variables",
 				Severity:    "low",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					pods.items.all(pod,
@@ -3086,8 +3078,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has invalid checkType",
 				Severity:    "low",
 				CheckType:   "Node", // This should be rejected
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3130,8 +3120,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has invalid scannerType",
 				Severity:    "low",
 				CheckType:   "Platform", // Valid checkType
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3168,8 +3156,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has valid checkType and scannerType",
 				Severity:    "low",
 				CheckType:   "Platform", // Valid checkType
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3212,8 +3198,6 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Description: "This rule has empty checkType which should be valid",
 				Severity:    "low",
 				// CheckType is empty, which should be valid
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3265,8 +3249,6 @@ func TestTailoredProfileRejectsMixedRuleTypes(t *testing.T) {
 				Title:       "No Privileged Containers",
 				Description: "Ensures no containers are running in privileged mode",
 				Severity:    "high",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression:  expression,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3478,8 +3460,6 @@ func TestCustomRuleFailureReasonInCheckResult(t *testing.T) {
 				Title:       "Ensure Deployments Have at Least 3 Replicas",
 				Description: "Validates that all deployments have at least 3 replicas for high availability",
 				Severity:    "medium",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `
 					deployments.items.all(deployment,
@@ -3736,8 +3716,6 @@ func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 				Title:       "Pods Must Have Security Context",
 				Description: "Ensures all pods have security context defined with runAsNonRoot set to true",
 				Severity:    "medium",
-			},
-			CustomRulePayload: compv1alpha1.CustomRulePayload{
 				ScannerType: compv1alpha1.ScannerTypeCEL,
 				Expression: `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)
 				`,
@@ -3847,7 +3825,7 @@ func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 	}
 
 	// Update with invalid expression
-	currentRule.Spec.CustomRulePayload.Expression = `podsx.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
+	currentRule.Spec.Expression = `podsx.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
 
 	err = f.Client.Update(context.TODO(), currentRule)
 	if err != nil {
@@ -3888,7 +3866,7 @@ func TestCustomRuleCascadingStatusUpdate(t *testing.T) {
 	}
 
 	// Update with a valid but different expression to ensure change is detected
-	currentRule.Spec.CustomRulePayload.Expression = `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
+	currentRule.Spec.Expression = `pods.items.all(pod, pod.spec.securityContext != null && pod.spec.securityContext.runAsNonRoot == true)`
 
 	err = f.Client.Update(context.TODO(), currentRule)
 	if err != nil {
@@ -5522,4 +5500,218 @@ func TestScanWithCustomStorageClass(t *testing.T) {
 	}
 
 	t.Logf("Successfully verified scan %s has custom storage configuration", scanName)
+}
+
+func TestCELProfileBundle(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	pbName := framework.GetObjNameFromTest(t)
+	celContentImage := brokenContentImagePath + ":cel_content"
+
+	pb, err := f.CreateProfileBundleWithCEL(pbName, celContentImage, framework.RhcosContentFile, framework.CelContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle with CEL content: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatalf("ProfileBundle did not reach VALID state: %s", err)
+	}
+	t.Log("ProfileBundle is VALID")
+
+	// Verify that XCCDF profiles were also parsed (the content image has ssg-rhcos4-ds.xml)
+	if err := f.AssertProfileBundleMustHaveParsedRules(pbName); err != nil {
+		t.Fatalf("ProfileBundle should have parsed XCCDF rules: %s", err)
+	}
+
+	// Verify CEL profile was created
+	celProfileName := pbName + "-cel-e2e-test-profile"
+	celProfile := &compv1alpha1.Profile{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name: celProfileName, Namespace: f.OperatorNamespace,
+	}, celProfile)
+	if err != nil {
+		t.Fatalf("CEL profile not found: %s", err)
+	}
+	t.Logf("CEL profile %s exists", celProfileName)
+
+	// Verify CEL profile annotations
+	if celProfile.Annotations[compv1alpha1.ScannerTypeAnnotation] != string(compv1alpha1.ScannerTypeCEL) {
+		t.Fatalf("expected scanner-type annotation CEL, got %s", celProfile.Annotations[compv1alpha1.ScannerTypeAnnotation])
+	}
+	if celProfile.Annotations[compv1alpha1.ProductTypeAnnotation] != string(compv1alpha1.ScanTypePlatform) {
+		t.Fatalf("expected product-type annotation Platform, got %s", celProfile.Annotations[compv1alpha1.ProductTypeAnnotation])
+	}
+	if celProfile.Labels[compv1alpha1.ProfileBundleOwnerLabel] != pbName {
+		t.Fatalf("expected ProfileBundleOwnerLabel %s, got %s", pbName, celProfile.Labels[compv1alpha1.ProfileBundleOwnerLabel])
+	}
+
+	// Verify CEL profile has correct rules
+	expectedRules := []string{
+		pbName + "-check-default-namespace-has-no-pods",
+		pbName + "-check-namespaces-have-network-policies",
+		pbName + "-check-no-privileged-containers",
+	}
+	if len(celProfile.Rules) != len(expectedRules) {
+		t.Fatalf("expected %d rules in CEL profile, got %d", len(expectedRules), len(celProfile.Rules))
+	}
+	for _, expectedRule := range expectedRules {
+		found := false
+		for _, rule := range celProfile.Rules {
+			if string(rule) == expectedRule {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("rule %s not found in CEL profile", expectedRule)
+		}
+	}
+	t.Logf("CEL profile has all %d expected rules", len(expectedRules))
+
+	// Verify CEL rules exist and have correct attributes
+	celRuleNames := []string{
+		"check-default-namespace-has-no-pods",
+		"check-namespaces-have-network-policies",
+		"check-no-privileged-containers",
+	}
+	for _, ruleName := range celRuleNames {
+		fullRuleName := pbName + "-" + ruleName
+		rule := &compv1alpha1.Rule{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: fullRuleName, Namespace: f.OperatorNamespace,
+		}, rule)
+		if err != nil {
+			t.Fatalf("CEL rule %s not found: %s", fullRuleName, err)
+		}
+
+		if rule.ScannerType != compv1alpha1.ScannerTypeCEL {
+			t.Fatalf("rule %s: expected ScannerType CEL, got %s", fullRuleName, rule.ScannerType)
+		}
+		if rule.Expression == "" {
+			t.Fatalf("rule %s: expression should not be empty", fullRuleName)
+		}
+		if len(rule.Inputs) == 0 {
+			t.Fatalf("rule %s: should have at least one input", fullRuleName)
+		}
+		if rule.Labels[compv1alpha1.ProfileBundleOwnerLabel] != pbName {
+			t.Fatalf("rule %s: expected ProfileBundleOwnerLabel %s, got %s", fullRuleName, pbName, rule.Labels[compv1alpha1.ProfileBundleOwnerLabel])
+		}
+		if rule.Annotations[compv1alpha1.RuleIDAnnotationKey] == "" {
+			t.Fatalf("rule %s: missing RuleIDAnnotationKey", fullRuleName)
+		}
+		if rule.Annotations[compv1alpha1.RuleProfileAnnotationKey] == "" {
+			t.Fatalf("rule %s: missing RuleProfileAnnotationKey", fullRuleName)
+		}
+		t.Logf("CEL rule %s verified: ScannerType=CEL, Expression present, %d inputs", fullRuleName, len(rule.Inputs))
+	}
+
+	// Verify the privileged-containers rule has high severity
+	privRule := &compv1alpha1.Rule{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name: pbName + "-check-no-privileged-containers", Namespace: f.OperatorNamespace,
+	}, privRule)
+	if err != nil {
+		t.Fatalf("failed to get privileged containers rule: %s", err)
+	}
+	if privRule.Severity != "high" {
+		t.Fatalf("expected severity high for privileged containers rule, got %s", privRule.Severity)
+	}
+	t.Log("CEL ProfileBundle parsing test completed successfully")
+}
+
+func TestCELProfileScan(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	pbName := testName + "-pb"
+	ssbName := testName + "-ssb"
+	testNamespace := f.OperatorNamespace
+	celContentImage := brokenContentImagePath + ":cel_content"
+
+	// Create ProfileBundle with CEL content
+	pb, err := f.CreateProfileBundleWithCEL(pbName, celContentImage, framework.RhcosContentFile, framework.CelContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatalf("ProfileBundle did not reach VALID state: %s", err)
+	}
+
+	// Bind the CEL profile to a ScanSetting via ScanSettingBinding
+	celProfileName := pbName + "-cel-e2e-test-profile"
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     celProfileName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("ScanSettingBinding did not become ready: %v", err)
+	}
+	t.Log("ScanSettingBinding is ready")
+
+	// The suite name matches the SSB name
+	suiteName := ssbName
+
+	// The CEL rules check for pods in default namespace, network policies, and privileged containers.
+	// In most clusters this will be non-compliant. Accept either result - we just need the scan to complete.
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+		if err != nil {
+			t.Fatalf("CEL scan did not complete: %v", err)
+		}
+		t.Log("CEL scan completed as COMPLIANT")
+	} else {
+		t.Log("CEL scan completed as NON-COMPLIANT")
+	}
+
+	// Verify ComplianceCheckResults were created for the CEL rules
+	scanName := celProfileName
+	celRuleNames := []string{
+		"check-default-namespace-has-no-pods",
+		"check-namespaces-have-network-policies",
+		"check-no-privileged-containers",
+	}
+	for _, ruleName := range celRuleNames {
+		checkName := fmt.Sprintf("%s-%s", scanName, ruleName)
+		check := &compv1alpha1.ComplianceCheckResult{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: checkName, Namespace: testNamespace,
+		}, check)
+		if err != nil {
+			t.Fatalf("ComplianceCheckResult %s not found: %v", checkName, err)
+		}
+
+		if check.Status != compv1alpha1.CheckResultPass && check.Status != compv1alpha1.CheckResultFail {
+			t.Fatalf("check %s has unexpected status: %s", checkName, check.Status)
+		}
+		t.Logf("ComplianceCheckResult %s: status=%s, severity=%s", checkName, check.Status, check.Severity)
+	}
+
+	t.Log("CEL Profile scan test completed successfully - all 3 CEL rules produced check results")
 }

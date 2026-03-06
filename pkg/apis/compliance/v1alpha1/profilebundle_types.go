@@ -38,6 +38,12 @@ type ProfileBundleSpec struct {
 	ContentImage string `json:"contentImage"`
 	// Is the path for the file in the image that contains the content for this bundle.
 	ContentFile string `json:"contentFile"`
+	// Is the path for the file in the image that contains the CEL-based
+	// compliance content (rules and profiles) for this bundle. This is
+	// optional and when set, the parser will create CEL Rule and Profile CRs
+	// alongside any XCCDF content from ContentFile.
+	// +optional
+	CELContentFile string `json:"celContentFile,omitempty"`
 }
 
 // Defines the observed state of ProfileBundle
