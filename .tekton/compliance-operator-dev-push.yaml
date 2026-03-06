@@ -8,7 +8,7 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master" && ( ".tekton/compliance-operator-dev-*.yaml".pathChanged() || "images/operator/***".pathChanged() || "images/redhat.repo".pathChanged() || "main.go".pathChanged() || "tools.go".pathChanged() || "pkg/**/*.go".pathChanged() || "cmd/**/*.go".pathChanged() || "version/***".pathChanged() || "config/***".pathChanged() || "*Makefile*".pathChanged() || "vendor/***".pathChanged() || "tests/***".pathChanged() || "LICENSE".pathChanged() )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master" && ( ".tekton/compliance-operator-dev-*.yaml".pathChanged() || "images/operator/***".pathChanged() || "images/redhat.repo".pathChanged() || "main.go".pathChanged() || "tools.go".pathChanged() || "images/operator/Dockerfile".pathChanged() || "build/bin/*".pathChanged() || "pkg/**/*.go".pathChanged() || "cmd/**/*.go".pathChanged() || "version/***".pathChanged() || "config/***".pathChanged() || "*Makefile*".pathChanged() || "vendor/***".pathChanged() || "tests/***".pathChanged() || "LICENSE".pathChanged() )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: compliance-operator-dev
@@ -407,7 +407,7 @@ spec:
       - name: CACHI2_ARTIFACT
         value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
       - name: ARGS
-        value: "--project-name=openshift/compliance-operator --report --org=86a5b6bf-8aad-4842-ab41-e5c7358c202e"
+        value: "--project-name=ComplianceAsCode/compliance-operator --report --org=86a5b6bf-8aad-4842-ab41-e5c7358c202e"
       runAfter:
       - build-image-index
       taskRef:

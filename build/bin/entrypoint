@@ -1,12 +1,11 @@
 #!/bin/sh -e
 
 # This is documented here:
-# https://docs.openshift.com/container-platform/3.11/creating_images/guidelines.html#openshift-specific-guidelines
+# https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/images/creating-images#use-uid_create-images
 
-if ! whoami &>/dev/null; then
-  if [ -w /etc/passwd ]; then
-    echo "${USER_NAME:-compliance-operator}:x:$(id -u):$(id -g):${USER_NAME:-compliance-operator} user:${HOME}:/sbin/nologin" >> /etc/passwd
-  fi
-fi
+# Since version 4.1 OCP supports arbitrary UIDs without requiring /etc/passwd entries
+# https://docs.redhat.com/en/documentation/openshift_container_platform/4.1/html/images/creating_images
+# The container runs with the UID assigned by the platform, with group 0 (root) membership
+# File permissions are managed through group ownership, not username lookups
 
 exec ${OPERATOR} $@
