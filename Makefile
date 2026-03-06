@@ -127,7 +127,17 @@ E2E_TEST_TYPE?=all
 # variable to true if you prefer the tests to cleanup regardless of test status, e.g.:
 # E2E_CLEANUP_ON_ERROR=true make e2e
 E2E_CLEANUP_ON_ERROR?=false
-E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
+
+# Installation method for e2e tests. Options: manifest (default), subscription
+E2E_INSTALL_METHOD?=manifest
+# OLM subscription channel (only used when E2E_INSTALL_METHOD=subscription)
+E2E_OLM_CHANNEL?=stable
+# OLM catalog source (only used when E2E_INSTALL_METHOD=subscription)
+E2E_OLM_SOURCE?=redhat-operators
+# OLM catalog source namespace (only used when E2E_INSTALL_METHOD=subscription)
+E2E_OLM_SOURCE_NAMESPACE?=openshift-marketplace
+
+E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE) -installMethod=$(E2E_INSTALL_METHOD) -olmChannel=$(E2E_OLM_CHANNEL) -olmSource=$(E2E_OLM_SOURCE) -olmSourceNamespace=$(E2E_OLM_SOURCE_NAMESPACE)
 TEST_OPTIONS?=-timeout=20m
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
