@@ -168,6 +168,11 @@ func (f *Framework) TearDown() error {
 	if err != nil {
 		return err
 	}
+	// Wait for worker pool to be updated after nodes are unlabeled
+	err = f.WaitForMachineConfigPoolUpdated(workerPoolName)
+	if err != nil {
+		return err
+	}
 	err = f.cleanUpMachineConfigPool("e2e")
 	if err != nil {
 		return err
