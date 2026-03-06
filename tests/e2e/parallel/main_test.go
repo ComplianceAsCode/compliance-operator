@@ -5523,3 +5523,102 @@ func TestScanWithCustomStorageClass(t *testing.T) {
 
 	t.Logf("Successfully verified scan %s has custom storage configuration", scanName)
 }
+
+// TestScanWithInvalidStorageSizeRejected tests that scans with invalid storage size are rejected at API level
+func TestScanWithInvalidStorageSizeRejected(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Test cases with different invalid storage size formats
+	testCases := []struct {
+		name        string
+		size        string
+		description string
+	}{
+		{
+			name:        "invalid-text",
+			size:        "invalid-size",
+			description: "Plain text that is not a valid quantity",
+		},
+		{
+			name:        "invalid-unit",
+			size:        "1GB",
+			description: "Using GB instead of Gi (decimal vs binary)",
+		},
+		{
+			name:        "invalid-suffix",
+			size:        "1B",
+			description: "Using B suffix which is not valid in Kubernetes quantities",
+		},
+		{
+			name:        "random-string",
+			size:        "abc123",
+			description: "Random string that cannot be parsed",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			suiteName := framework.GetObjNameFromTest(t)
+			scanName := fmt.Sprintf("%s-worker-scan", suiteName)
+
+			// Create a ComplianceSuite with invalid storage size
+			testSuite := &compv1alpha1.ComplianceSuite{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      suiteName,
+					Namespace: f.OperatorNamespace,
+				},
+				Spec: compv1alpha1.ComplianceSuiteSpec{
+					ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+						AutoApplyRemediations: false,
+					},
+					Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+						{
+							Name: scanName,
+							ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+								ContentImage: contentImagePath,
+								Profile:      "xccdf_org.ssgproject.content_profile_coreos-ncp",
+								Content:      "ssg-rhcos4-ds.xml",
+								ScanType:     compv1alpha1.ScanTypeNode,
+								NodeSelector: map[string]string{
+									"node-role.kubernetes.io/worker": "",
+								},
+								ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+									RawResultStorage: compv1alpha1.RawResultStorageSettings{
+										Size: tc.size, // Invalid size format
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// Attempt to create the suite - this should fail with validation error
+			err := f.Client.Create(context.TODO(), testSuite, nil)
+			if err == nil {
+				// If creation succeeded, clean up and fail the test
+				f.Client.Delete(context.TODO(), testSuite)
+				t.Fatalf("expected ComplianceSuite creation to fail with invalid size %q (%s), but it succeeded", tc.size, tc.description)
+			}
+
+			// Verify the error message contains expected validation failure text
+			expectedErrorSubstrings := []string{
+				"Invalid value",
+				"size must be a valid Kubernetes quantity",
+			}
+
+			errorMsg := err.Error()
+			for _, expectedSubstr := range expectedErrorSubstrings {
+				if !strings.Contains(errorMsg, expectedSubstr) {
+					t.Errorf("expected error message to contain %q, but got: %s", expectedSubstr, errorMsg)
+				}
+			}
+
+			t.Logf("Successfully rejected invalid storage size %q with error: %s", tc.size, errorMsg)
+		})
+	}
+}
