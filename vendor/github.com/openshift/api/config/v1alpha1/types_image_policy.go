@@ -50,7 +50,7 @@ type ImagePolicySpec struct {
 	// policy contains configuration to allow scopes to be verified, and defines how
 	// images not matching the verification policy will be treated.
 	// +required
-	Policy Policy `json:"policy"`
+	Policy ImageSigstoreVerificationPolicy `json:"policy"`
 }
 
 // +kubebuilder:validation:XValidation:rule="size(self.split('/')[0].split('.')) == 1 ? self.split('/')[0].split('.')[0].split(':')[0] == 'localhost' : true",message="invalid image scope format, scope must contain a fully qualified domain name or 'localhost'"
@@ -59,8 +59,8 @@ type ImagePolicySpec struct {
 // +kubebuilder:validation:MaxLength=512
 type ImageScope string
 
-// Policy defines the verification policy for the items in the scopes list.
-type Policy struct {
+// ImageSigstoreVerificationPolicy defines the verification policy for the items in the scopes list.
+type ImageSigstoreVerificationPolicy struct {
 	// rootOfTrust specifies the root of trust for the policy.
 	// +required
 	RootOfTrust PolicyRootOfTrust `json:"rootOfTrust"`
@@ -73,33 +73,41 @@ type Policy struct {
 // +union
 // +kubebuilder:validation:XValidation:rule="has(self.policyType) && self.policyType == 'PublicKey' ? has(self.publicKey) : !has(self.publicKey)",message="publicKey is required when policyType is PublicKey, and forbidden otherwise"
 // +kubebuilder:validation:XValidation:rule="has(self.policyType) && self.policyType == 'FulcioCAWithRekor' ? has(self.fulcioCAWithRekor) : !has(self.fulcioCAWithRekor)",message="fulcioCAWithRekor is required when policyType is FulcioCAWithRekor, and forbidden otherwise"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=SigstoreImageVerificationPKI,rule="has(self.policyType) && self.policyType == 'PKI' ? has(self.pki) : !has(self.pki)",message="pki is required when policyType is PKI, and forbidden otherwise"
 type PolicyRootOfTrust struct {
 	// policyType serves as the union's discriminator. Users are required to assign a value to this field, choosing one of the policy types that define the root of trust.
 	// "PublicKey" indicates that the policy relies on a sigstore publicKey and may optionally use a Rekor verification.
 	// "FulcioCAWithRekor" indicates that the policy is based on the Fulcio certification and incorporates a Rekor verification.
+	// "PKI" indicates that the policy is based on the certificates from Bring Your Own Public Key Infrastructure (BYOPKI). This value is enabled by turning on the SigstoreImageVerificationPKI feature gate.
 	// +unionDiscriminator
 	// +required
 	PolicyType PolicyType `json:"policyType"`
 	// publicKey defines the root of trust based on a sigstore public key.
 	// +optional
-	PublicKey *PublicKey `json:"publicKey,omitempty"`
+	PublicKey *ImagePolicyPublicKeyRootOfTrust `json:"publicKey,omitempty"`
 	// fulcioCAWithRekor defines the root of trust based on the Fulcio certificate and the Rekor public key.
 	// For more information about Fulcio and Rekor, please refer to the document at:
 	// https://github.com/sigstore/fulcio and https://github.com/sigstore/rekor
 	// +optional
-	FulcioCAWithRekor *FulcioCAWithRekor `json:"fulcioCAWithRekor,omitempty"`
+	FulcioCAWithRekor *ImagePolicyFulcioCAWithRekorRootOfTrust `json:"fulcioCAWithRekor,omitempty"`
+	// pki defines the root of trust based on Bring Your Own Public Key Infrastructure (BYOPKI) Root CA(s) and corresponding intermediate certificates.
+	// +optional
+	// +openshift:enable:FeatureGate=SigstoreImageVerificationPKI
+	PKI *ImagePolicyPKIRootOfTrust `json:"pki,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=PublicKey;FulcioCAWithRekor
+// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum=PublicKey;FulcioCAWithRekor
+// +openshift:validation:FeatureGateAwareEnum:featureGate=SigstoreImageVerificationPKI,enum=PublicKey;FulcioCAWithRekor;PKI
 type PolicyType string
 
 const (
 	PublicKeyRootOfTrust         PolicyType = "PublicKey"
 	FulcioCAWithRekorRootOfTrust PolicyType = "FulcioCAWithRekor"
+	PKIRootOfTrust               PolicyType = "PKI"
 )
 
-// PublicKey defines the root of trust based on a sigstore public key.
-type PublicKey struct {
+// ImagePolicyPublicKeyRootOfTrust defines the root of trust based on a sigstore public key.
+type ImagePolicyPublicKeyRootOfTrust struct {
 	// keyData contains inline base64-encoded data for the PEM format public key.
 	// KeyData must be at most 8192 characters.
 	// +required
@@ -112,8 +120,8 @@ type PublicKey struct {
 	RekorKeyData []byte `json:"rekorKeyData,omitempty"`
 }
 
-// FulcioCAWithRekor defines the root of trust based on the Fulcio certificate and the Rekor public key.
-type FulcioCAWithRekor struct {
+// ImagePolicyFulcioCAWithRekorRootOfTrust defines the root of trust based on the Fulcio certificate and the Rekor public key.
+type ImagePolicyFulcioCAWithRekorRootOfTrust struct {
 	// fulcioCAData contains inline base64-encoded data for the PEM format fulcio CA.
 	// fulcioCAData must be at most 8192 characters.
 	// +required
@@ -126,7 +134,7 @@ type FulcioCAWithRekor struct {
 	RekorKeyData []byte `json:"rekorKeyData"`
 	// fulcioSubject specifies OIDC issuer and the email of the Fulcio authentication configuration.
 	// +required
-	FulcioSubject PolicyFulcioSubject `json:"fulcioSubject,omitempty"`
+	FulcioSubject PolicyFulcioSubject `json:"fulcioSubject"`
 }
 
 // PolicyFulcioSubject defines the OIDC issuer and the email of the Fulcio authentication configuration.
@@ -141,6 +149,48 @@ type PolicyFulcioSubject struct {
 	// +required
 	// +kubebuilder:validation:XValidation:rule=`self.matches('^\\S+@\\S+$')`,message="invalid email address"
 	SignedEmail string `json:"signedEmail"`
+}
+
+// ImagePolicyPKIRootOfTrust defines the root of trust based on Root CA(s) and corresponding intermediate certificates.
+type ImagePolicyPKIRootOfTrust struct {
+	// caRootsData contains base64-encoded data of a certificate bundle PEM file, which contains one or more CA roots in the PEM format. The total length of the data must not exceed 8192 characters.
+	// +required
+	// +kubebuilder:validation:MaxLength=8192
+	// +kubebuilder:validation:XValidation:rule="string(self).startsWith('-----BEGIN CERTIFICATE-----')",message="the caRootsData must start with base64 encoding of '-----BEGIN CERTIFICATE-----'."
+	// +kubebuilder:validation:XValidation:rule="string(self).endsWith('-----END CERTIFICATE-----\\n') || string(self).endsWith('-----END CERTIFICATE-----')",message="the caRootsData must end with base64 encoding of '-----END CERTIFICATE-----'."
+	// +kubebuilder:validation:XValidation:rule="string(self).findAll('-----BEGIN CERTIFICATE-----').size() == string(self).findAll('-----END CERTIFICATE-----').size()",message="caRootsData must be base64 encoding of valid PEM format data contain the same number of '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----' markers."
+	CertificateAuthorityRootsData []byte `json:"caRootsData"`
+	// caIntermediatesData contains base64-encoded data of a certificate bundle PEM file, which contains one or more intermediate certificates in the PEM format. The total length of the data must not exceed 8192 characters.
+	// caIntermediatesData requires caRootsData to be set.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="string(self).startsWith('-----BEGIN CERTIFICATE-----')",message="the caIntermediatesData must start with base64 encoding of '-----BEGIN CERTIFICATE-----'."
+	// +kubebuilder:validation:XValidation:rule="string(self).endsWith('-----END CERTIFICATE-----\\n') || string(self).endsWith('-----END CERTIFICATE-----')",message="the caIntermediatesData must end with base64 encoding of '-----END CERTIFICATE-----'."
+	// +kubebuilder:validation:XValidation:rule="string(self).findAll('-----BEGIN CERTIFICATE-----').size() == string(self).findAll('-----END CERTIFICATE-----').size()",message="caIntermediatesData must be base64 encoding of valid PEM format data contain the same number of '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----' markers."
+	// +kubebuilder:validation:MaxLength=8192
+	CertificateAuthorityIntermediatesData []byte `json:"caIntermediatesData,omitempty"`
+
+	// pkiCertificateSubject defines the requirements imposed on the subject to which the certificate was issued.
+	// +required
+	PKICertificateSubject PKICertificateSubject `json:"pkiCertificateSubject"`
+}
+
+// PKICertificateSubject defines the requirements imposed on the subject to which the certificate was issued.
+// +kubebuilder:validation:XValidation:rule="has(self.email) || has(self.hostname)", message="at least one of email or hostname must be set in pkiCertificateSubject"
+// +openshift:enable:FeatureGate=SigstoreImageVerificationPKI
+type PKICertificateSubject struct {
+	// email specifies the expected email address imposed on the subject to which the certificate was issued, and must match the email address listed in the Subject Alternative Name (SAN) field of the certificate.
+	// The email should be a valid email address and at most 320 characters in length.
+	// +optional
+	// +kubebuilder:validation:MaxLength:=320
+	// +kubebuilder:validation:XValidation:rule=`self.matches('^\\S+@\\S+$')`,message="invalid email address in pkiCertificateSubject"
+	Email string `json:"email,omitempty"`
+	// hostname specifies the expected hostname imposed on the subject to which the certificate was issued, and it must match the hostname listed in the Subject Alternative Name (SAN) DNS field of the certificate.
+	// The hostname should be a valid dns 1123 subdomain name, optionally prefixed by '*.', and at most 253 characters in length.
+	// It should consist only of lowercase alphanumeric characters, hyphens, periods and the optional preceding asterisk.
+	// +optional
+	// +kubebuilder:validation:MaxLength:=253
+	// +kubebuilder:validation:XValidation:rule="self.startsWith('*.') ? !format.dns1123Subdomain().validate(self.replace('*.', '', 1)).hasValue() : !format.dns1123Subdomain().validate(self).hasValue()",message="hostname should be a valid dns 1123 subdomain name, optionally prefixed by '*.'. It should consist only of lowercase alphanumeric characters, hyphens, periods and the optional preceding asterisk."
+	Hostname string `json:"hostname,omitempty"`
 }
 
 // PolicyIdentity defines image identity the signature claims about the image. When omitted, the default matchPolicy is "MatchRepoDigestOrExact".
@@ -211,6 +261,7 @@ type ImagePolicyStatus struct {
 	// conditions provide details on the status of this API Resource.
 	// +listType=map
 	// +listMapKey=type
+	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
