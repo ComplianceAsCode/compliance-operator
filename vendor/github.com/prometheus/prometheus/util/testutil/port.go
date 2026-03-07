@@ -1,4 +1,4 @@
-// Copyright 2021 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package testutil
 
 import (
 	"net"
+	"slices"
 	"sync"
 	"testing"
 )
@@ -48,12 +49,7 @@ func RandomUnprivilegedPort(t *testing.T) int {
 }
 
 func portWasUsed(port int) bool {
-	for _, usedPort := range usedPorts {
-		if port == usedPort {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(usedPorts, port)
 }
 
 func getPort() (int, error) {
