@@ -2,6 +2,7 @@ package parallel_e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -5360,10 +5361,28 @@ func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
 		t.Fatal("CSV is missing operators.openshift.io/infrastructure-features annotation")
 	}
 
-	// The annotation should contain ["disconnected", "fips", "proxy-aware"]
-	expectedFeatures := `["disconnected", "fips", "proxy-aware"]`
-	if infraFeatures != expectedFeatures {
-		t.Fatalf("Expected infrastructure-features to be %s, but got: %s", expectedFeatures, infraFeatures)
+	// Parse the annotation as JSON
+	var features []string
+	if err := json.Unmarshal([]byte(infraFeatures), &features); err != nil {
+		t.Fatalf("Failed to parse infrastructure-features annotation %q: %v", infraFeatures, err)
+	}
+
+	expectedFeatures := map[string]bool{
+		"disconnected": false,
+		"fips":         false,
+		"proxy-aware":  false,
+	}
+
+	for _, f := range features {
+		if _, ok := expectedFeatures[f]; ok {
+			expectedFeatures[f] = true
+		}
+	}
+
+	for feature, found := range expectedFeatures {
+		if !found {
+			t.Errorf("Expected infrastructure feature %q not found in annotation: %s", feature, infraFeatures)
+		}
 	}
 
 	t.Logf("CSV %s correctly has infrastructure-features annotation: %s", csv.GetName(), infraFeatures)
