@@ -908,7 +908,7 @@ func checkScanUnknownError(cm *corev1.ConfigMap) error {
 	if exitcode != common.OpenSCAPExitCodeCompliant && exitcode != common.OpenSCAPExitCodeNonCompliant && exitcode != common.PodUnschedulableExitCode {
 		errorMsg, ok := cm.Data["error-msg"]
 		if ok {
-			return fmt.Errorf(errorMsg)
+			return fmt.Errorf("%s", errorMsg)
 		}
 		return fmt.Errorf("the ConfigMap '%s' was missing 'error-msg' despite exitcode %s", cm.Name, exitcode)
 	}
@@ -950,7 +950,7 @@ func getScanResult(cm *corev1.ConfigMap) (compv1alpha1.ComplianceScanStatusResul
 	if !ok {
 		errMsg = fmt.Sprintf("Undefined error in ConfigMap %s", cm.Name)
 	}
-	return compv1alpha1.ResultError, fmt.Errorf(errMsg)
+	return compv1alpha1.ResultError, fmt.Errorf("%s", errMsg)
 }
 
 func getReplicatedTailoringCMName(instanceName string) string {
