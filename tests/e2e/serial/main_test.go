@@ -2522,10 +2522,11 @@ func verifyMustGatherContents(mustGatherDir, namespace string, t *testing.T) int
 				missingCRDs = append(missingCRDs, crd)
 			}
 		}
-		t.Logf("WARNING: Not all compliance CRD directories found. Missing: %v", missingCRDs)
+		t.Logf("ERROR: Not all compliance CRD directories found. Missing: %v", missingCRDs)
 		t.Logf("Found: %d/%d CRD directories", len(foundCRDs), len(complianceCRDs))
-		t.Logf("This may indicate the gather script failed to collect CRD data - check gather.logs")
-		log.Printf("WARNING: Missing CRD directories %v, but core must-gather data was collected successfully", missingCRDs)
+		t.Logf("This indicates the gather script failed to collect CRD data - check gather.logs")
+		log.Printf("ERROR: Missing CRD directories %v - this is a must-gather bug", missingCRDs)
+		failureCount++
 	}
 
 	return failureCount
