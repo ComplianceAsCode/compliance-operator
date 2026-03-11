@@ -264,12 +264,28 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
-	disableHTTP2 := func(c *tls.Config) {
-		c.NextProtos = []string{"http/1.1"}
+	webhookTLSOpts := []func(config *tls.Config){
+		func(c *tls.Config) {
+			c.NextProtos = []string{"http/1.1"}
+		},
+	}
+	// If the cluster has a TLS security profile configured and the adherence
+	// policy requires it, apply the profile to the webhook server.
+	webhookTLSProfile := common.GetClusterTLSProfile(ctx, kubeClient)
+	if webhookTLSProfile != nil {
+		webhookTLSOpts = append(webhookTLSOpts, func(c *tls.Config) {
+			profileConfig, err := common.TLSConfigFromProfile(webhookTLSProfile)
+			if err != nil {
+				setupLog.Error(err, "Failed to configure webhook TLS from cluster profile")
+				return
+			}
+			c.MinVersion = profileConfig.MinVersion
+			c.CipherSuites = profileConfig.CipherSuites
+		})
 	}
 	webhookServerOptions := webhook.Options{
 		Port:    9443,
-		TLSOpts: []func(config *tls.Config){disableHTTP2},
+		TLSOpts: webhookTLSOpts,
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -328,6 +344,14 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	if err := met.Register(); err != nil {
 		setupLog.Error(err, "Error registering metrics")
 		os.Exit(1)
+	}
+
+	// Fetch the cluster-wide TLS security profile from the APIServer resource.
+	// If the tlsAdherence policy requires strict adherence, configure all TLS
+	// endpoints to use the cluster's TLS security profile.
+	tlsProfile := common.GetClusterTLSProfile(ctx, kubeClient)
+	if tlsProfile != nil {
+		met.SetTLSSecurityProfile(tlsProfile)
 	}
 
 	si, getSIErr := getSchedulingInfo(ctx, mgr.GetAPIReader())
@@ -811,3 +835,4 @@ func createNonComplianceAlert(ctx context.Context, client *monclientv1.Monitorin
 	}
 	return nil
 }
+

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-logr/logr"
+	configv1 "github.com/openshift/api/config/v1"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,6 +15,7 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/common"
 )
 
 const (
@@ -47,9 +49,10 @@ const (
 
 // Metrics is the main structure of this package.
 type Metrics struct {
-	impl    impl
-	log     logr.Logger
-	metrics *ControllerMetrics
+	impl               impl
+	log                logr.Logger
+	metrics            *ControllerMetrics
+	tlsSecurityProfile *configv1.TLSSecurityProfile
 }
 
 type ControllerMetrics struct {
@@ -118,6 +121,13 @@ func New() *Metrics {
 	return NewMetrics(&defaultImpl{})
 }
 
+// SetTLSSecurityProfile configures the TLS security profile to use for the
+// metrics server. When set, the server uses cipher suites and minimum TLS
+// version from the given profile instead of the defaults.
+func (m *Metrics) SetTLSSecurityProfile(profile *configv1.TLSSecurityProfile) {
+	m.tlsSecurityProfile = profile
+}
+
 // Register iterates over all available metrics and registers them.
 func (m *Metrics) Register() error {
 	for name, collector := range map[string]prometheus.Collector{
@@ -138,11 +148,23 @@ func (m *Metrics) Start(ctx context.Context) error {
 	m.log.Info("Starting to serve controller metrics")
 	http.Handle(HandlerPath, promhttp.Handler())
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		NextProtos: []string{"http/1.1"},
+	var tlsConfig *tls.Config
+	if m.tlsSecurityProfile != nil {
+		var err error
+		tlsConfig, err = common.TLSConfigFromProfile(m.tlsSecurityProfile)
+		if err != nil {
+			m.log.Error(err, "Failed to configure TLS from cluster profile, falling back to defaults")
+			tlsConfig = nil
+		}
 	}
-	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			NextProtos: []string{"http/1.1"},
+		}
+		tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	}
+
 	server := &http.Server{
 		Addr:      MetricsAddrListen,
 		TLSConfig: tlsConfig,
