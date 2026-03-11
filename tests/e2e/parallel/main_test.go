@@ -4893,7 +4893,7 @@ func TestScanSettingBindingWatchesTailoredProfile(t *testing.T) {
 
 }
 
-func TestManualRulesTailoredProfile(t *testing.T) {
+func TestTailoringManualRulesDoesNotGenerateRemediations(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "kubeletconfig")
@@ -5005,6 +5005,141 @@ func TestManualRulesTailoredProfile(t *testing.T) {
 
 	if len(remList.Items) != 0 {
 		t.Fatal("expected no remediation")
+	}
+}
+
+// TestTailoringEnabledRulesGenerateRemediations verifies that when a rule is added via EnableRules,
+// it behaves as a normal rule (not manual), reports PASS/FAIL status, and generates remediations when it fails.
+// This complements TestTailoringManualRulesDoesNotGenerateRemediations which verifies the opposite behavior.
+func TestTailoringEnabledRulesGenerateRemediations(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+        var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "kubeletconfig")
+	// This rule is expected to fail in the test environment, allowing us to verify remediation generation
+	const requiredRule = "oauth-or-oauthclient-token-maxage"
+	// Use short but meaningful names to fit within Kubernetes 63-char DNS name limit
+	pbName := "enabled-rules-rem"
+	enabledTPName := "enabled-rules-rem"
+	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
+
+	ocpPb, err := f.CreateProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ocpPb)
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the rule we are going to test exists
+	requiredRuleName := prefixName(pbName, requiredRule)
+	err, found := framework.Global.DoesRuleExist(f.OperatorNamespace, requiredRuleName)
+	if err != nil {
+		t.Fatal(err)
+	} else if !found {
+		t.Fatalf("Expected rule %s not found", requiredRuleName)
+	}
+
+	// Create a TailoredProfile with the rule as an enabled rule
+	enabledScanName := fmt.Sprintf("%s", enabledTPName)
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      enabledTPName,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "enabled-rules-test",
+			Description: "A test tailored profile to verify enabled rules generate remediations",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      prefixName(pbName, requiredRule),
+					Rationale: "To verify enabled rule behavior",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      enabledTPName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     enabledTPName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for the scan to complete
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, enabledTPName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the rule shows FAIL (not MANUAL) status
+	enabledCheckName := fmt.Sprintf("%s-%s", enabledScanName, requiredRule)
+	actualCheck := &compv1alpha1.ComplianceCheckResult{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      enabledCheckName,
+		Namespace: f.OperatorNamespace,
+	}, actualCheck)
+	if err != nil {
+		t.Fatalf("Failed to get check result: %v", err)
+	}
+
+	// Verify the status is FAIL (this rule is expected to fail in the test environment)
+	if actualCheck.Status != compv1alpha1.CheckResultFail {
+		t.Fatalf("Expected check result status to be FAIL, but got %s", actualCheck.Status)
+	}
+
+	// Verify that a remediation is created for the failed enabled rule
+	// This is the key difference from manual rules which never create remediations
+	inNs := client.InNamespace(f.OperatorNamespace)
+	enabledRemList := &compv1alpha1.ComplianceRemediationList{}
+	enabledWithLabel := client.MatchingLabels{
+		compv1alpha1.ComplianceScanLabel: enabledScanName,
+	}
+	err = f.Client.List(context.TODO(), enabledRemList, inNs, enabledWithLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// For enabled rules that fail, remediations should be created
+	expectedRemediationName := fmt.Sprintf("%s-%s", enabledScanName, requiredRule)
+	foundRemediation := false
+	for _, rem := range enabledRemList.Items {
+		if rem.Name == expectedRemediationName {
+			foundRemediation = true
+			t.Logf("Successfully verified remediation %s was created for failed enabled rule", expectedRemediationName)
+			break
+		}
+	}
+	if !foundRemediation {
+		t.Fatalf("Expected remediation %s for failed enabled rule, but none found", expectedRemediationName)
 	}
 }
 
