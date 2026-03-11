@@ -845,6 +845,14 @@ func newStandardParser() *referenceParser {
 	if cocperr != nil {
 		log.Error(cocperr, "Could not register CIS OpenShift reference parser") // not much we can do here..
 	}
+	cocp170err := p.registerStandard("CIS-OCP-1-7-0", `^https://www\.cisecurity\.org/benchmark/kubernetes/v1\.7\.0$`)
+	if cocp170err != nil {
+		log.Error(cocp170err, "Could not register CIS OpenShift 1.7.0 reference parser") // not much we can do here..
+	}
+	cocp190err := p.registerStandard("CIS-OCP-1-9-0", `^https://www\.cisecurity\.org/benchmark/kubernetes/v1\.9\.0$`)
+	if cocp190err != nil {
+		log.Error(cocp190err, "Could not register CIS OpenShift 1.9.0 reference parser") // not much we can do here..
+	}
 	crherr := p.registerStandard("CIS-RHEL", `^https://www\.cisecurity\.org/benchmark/red_hat_linux/$`)
 	if crherr != nil {
 		log.Error(crherr, "Could not register CIS Red Hat Linux reference parser") // not much we can do here..
