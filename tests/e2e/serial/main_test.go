@@ -660,12 +660,12 @@ func TestAutoRemediate(t *testing.T) {
 					Rationale: "Test file-based remediation",
 				},
 				{
-					// Issue 47346: Array value remediation
+					// Array value remediation
 					Name:      "rhcos4-chronyd-or-ntpd-specify-multiple-servers",
 					Rationale: "Test array value remediation with multiple NTP servers",
 				},
 				{
-					// Issue 27967: Different remediation type (audit rules)
+					// Different remediation type (audit rules)
 					Name:      "rhcos4-audit-rules-dac-modification-chmod",
 					Rationale: "Test audit rule remediation",
 				},
@@ -741,7 +741,7 @@ func TestAutoRemediate(t *testing.T) {
 		t.Skip("No non-compliant rules found - system is already compliant with all test rules, cannot test auto-remediation")
 	}
 
-	log.Printf("Found %d remediation(s) to test: Issue 27967 - multiple remediation types\n", len(ourRemediations))
+	log.Printf("Found %d remediation(s) to test: - multiple remediation types\n", len(ourRemediations))
 	for _, rem := range ourRemediations {
 		log.Printf("  - %s\n", rem.Name)
 	}
@@ -766,7 +766,7 @@ func TestAutoRemediate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Issue 33711: Verify ComplianceRemediation shows "Applied" status
+		// Verify ComplianceRemediation shows "Applied" status
 		log.Printf("Verifying remediation %s is in Applied state\n", rem.Name)
 		err = f.WaitForRemediationState(rem.Name, f.OperatorNamespace, compv1alpha1.RemediationApplied)
 		if err != nil {
@@ -806,7 +806,7 @@ func TestAutoRemediate(t *testing.T) {
 	}
 	log.Printf("scan %s re-run has finished with COMPLIANT result\n", scanName)
 
-	// Issue 33711: Verify all checks pass after remediation (Applied → PASS transition)
+	// Verify all checks pass after remediation (Applied → PASS transition)
 	log.Printf("Verifying all %d remediated checks are now PASS\n", len(appliedRemediations))
 	for _, rem := range appliedRemediations {
 		// Extract the rule name from remediation name (format: scanname-rulename)
