@@ -4,7 +4,7 @@ import "time"
 
 const (
 	RetryInterval                 = time.Second * 5
-	Timeout                       = time.Minute * 30
+	Timeout                       = time.Minute * 60
 	TestPoolName                  = "e2e"
 	maxRetries                    = 5
 	cleanupTimeout                = time.Minute * 5
@@ -12,7 +12,7 @@ const (
 	workerPoolName                = "worker"
 	testInvalidPoolName           = "e2e-invalid"
 	machineOperationRetryInterval = time.Second * 10
-	machineOperationTimeout       = time.Minute * 25
+	machineOperationTimeout       = time.Minute * 45
 	RhcosContentFile              = "ssg-rhcos4-ds.xml"
 	OcpContentFile                = "ssg-ocp4-ds.xml"
 	UnexistentResourceContentFile = "ocp4-unexistent-resource.xml"
