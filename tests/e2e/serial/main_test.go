@@ -780,7 +780,7 @@ func TestAutoRemediate(t *testing.T) {
 			t.Fatal(err)
 		}
 		appliedRemediations = append(appliedRemediations, updatedRem)
-		log.Printf("✓ Remediation %d/%d applied successfully: %s\n", i+1, len(ourRemediations), rem.Name)
+		log.Printf("Remediation %d/%d applied successfully: %s\n", i+1, len(ourRemediations), rem.Name)
 	}
 
 	log.Printf("All %d remediation(s) applied successfully\n", len(appliedRemediations))
@@ -823,7 +823,7 @@ func TestAutoRemediate(t *testing.T) {
 		if checkResult.Status != compv1alpha1.CheckResultPass {
 			t.Fatalf("Expected check %s to PASS after remediation, got %s", checkName, checkResult.Status)
 		}
-		log.Printf("✓ Check %s is PASS\n", checkName)
+		log.Printf("Check %s is PASS\n", checkName)
 	}
 
 	// The test should not leave junk around, let's remove all MCs and wait
