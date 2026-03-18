@@ -3175,7 +3175,7 @@ func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, ti
 	return nil
 }
 
-// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result 
+// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result
 func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.Node, configMaps []core.ConfigMap) error {
 	for _, node := range nodes {
 		nodeName := node.Name
@@ -3210,4 +3210,4 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 	}
 	return nil
-}	
+}

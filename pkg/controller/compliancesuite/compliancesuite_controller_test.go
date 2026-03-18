@@ -19,8 +19,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	k8stesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -94,8 +96,10 @@ var _ = Describe("ComplianceSuiteController", func() {
 		err = mcfgapi.Install(cscheme)
 		Expect(err).To(BeNil())
 
+		tracker := k8stesting.NewObjectTracker(cscheme, serializer.NewCodecFactory(cscheme).UniversalDecoder())
 		client := fake.NewClientBuilder().
 			WithScheme(cscheme).
+			WithObjectTracker(tracker).
 			WithStatusSubresource(nodeScan, suite, &compv1alpha1.ComplianceRemediation{}).
 			WithRuntimeObjects(nodeScan, suite, &compv1alpha1.ComplianceRemediation{}).
 			Build()
