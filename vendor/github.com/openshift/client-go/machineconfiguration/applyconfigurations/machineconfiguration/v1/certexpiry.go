@@ -3,15 +3,20 @@
 package v1
 
 import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CertExpiryApplyConfiguration represents a declarative configuration of the CertExpiry type for use
 // with apply.
+//
+// ceryExpiry contains the bundle name and the expiry date
 type CertExpiryApplyConfiguration struct {
-	Bundle  *string  `json:"bundle,omitempty"`
-	Subject *string  `json:"subject,omitempty"`
-	Expiry  *v1.Time `json:"expiry,omitempty"`
+	// bundle is the name of the bundle in which the subject certificate resides
+	Bundle *string `json:"bundle,omitempty"`
+	// subject is the subject of the certificate
+	Subject *string `json:"subject,omitempty"`
+	// expiry is the date after which the certificate will no longer be valid
+	Expiry *metav1.Time `json:"expiry,omitempty"`
 }
 
 // CertExpiryApplyConfiguration constructs a declarative configuration of the CertExpiry type for use with
@@ -39,7 +44,7 @@ func (b *CertExpiryApplyConfiguration) WithSubject(value string) *CertExpiryAppl
 // WithExpiry sets the Expiry field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Expiry field is set to the value of the last call.
-func (b *CertExpiryApplyConfiguration) WithExpiry(value v1.Time) *CertExpiryApplyConfiguration {
+func (b *CertExpiryApplyConfiguration) WithExpiry(value metav1.Time) *CertExpiryApplyConfiguration {
 	b.Expiry = &value
 	return b
 }

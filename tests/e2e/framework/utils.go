@@ -478,7 +478,7 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 
 		// Filter metrics for the specified namespace
 		for _, metricsTarget := range responseData.Data.ActiveTargets {
-			if metricsTarget.Labels != nil &&
+			if !metricsTarget.Labels.IsEmpty() &&
 				metricContainsLabel(metricsTarget, "namespace", namespace) &&
 				(metricContainsLabel(metricsTarget, "endpoint", "metrics") ||
 					metricContainsLabel(metricsTarget, "endpoint", "metrics-co")) {
@@ -511,14 +511,7 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 
 // function to check a label value in a metric match certain value
 func metricContainsLabel(metricTarget promv1.Target, labelName string, labelValue string) bool {
-	if metricTarget.Labels != nil {
-		for _, label := range metricTarget.Labels {
-			if label.Name == labelName && label.Value == labelValue {
-				return true
-			}
-		}
-	}
-	return false
+	return metricTarget.Labels.Get(labelName) == labelValue
 }
 
 func trimOutput(out string) string {
