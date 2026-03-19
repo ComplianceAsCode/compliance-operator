@@ -1172,6 +1172,63 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 	}
 }
 
+func TestScanStorageOutOfLimitRangeFails(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	// Create LimitRange
+	lr := &corev1.LimitRange{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pvc-limitrange",
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: corev1.LimitRangeSpec{
+			Limits: []corev1.LimitRangeItem{
+				{
+					Type: corev1.LimitTypePersistentVolumeClaim,
+					Max: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("5Gi"),
+					},
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), lr, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), lr)
+
+	scanName := framework.GetObjNameFromTest(t)
+	testScan := &compv1alpha1.ComplianceScan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceScanSpec{
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+				RawResultStorage: compv1alpha1.RawResultStorageSettings{
+					Size: "6Gi",
+				},
+				Debug: true,
+			},
+		},
+	}
+	// use Context's create helper to create the object and add a cleanup function for the new object
+	err := f.Client.Create(context.TODO(), testScan, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testScan)
+	f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
+	err = f.AssertScanIsInError(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
 
 func TestSingleTailoredScanSucceeds(t *testing.T) {
 	t.Parallel()
@@ -1411,7 +1468,101 @@ func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
 	}
 }
 
+func TestScanWithNodeSelectorFiltersCorrectly(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+	testComplianceScan := &compv1alpha1.ComplianceScan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-filtered-scan",
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceScanSpec{
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			NodeSelector: selectWorkers,
+			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+				Debug: true,
+			},
+		},
+	}
+	// use Context's create helper to create the object and add a cleanup function for the new object
+	err := f.Client.Create(context.TODO(), testComplianceScan, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testComplianceScan)
+	err = f.WaitForScanStatus(f.OperatorNamespace, "test-filtered-scan", compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	nodes, err := f.GetNodesWithSelector(selectWorkers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configmaps, err := f.GetConfigMapsFromScan(testComplianceScan)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes, configmaps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(nodes) != len(configmaps) {
+		t.Fatalf("The number of reports doesn't match the number of selected nodes: %d reports / %d nodes", len(configmaps), len(nodes))
+	}
+	err = f.AssertScanIsCompliant("test-filtered-scan", f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScanWithNodeSelectorNoMatches(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	scanName := framework.GetObjNameFromTest(t)
+	selectNone := map[string]string{
+		"node-role.kubernetes.io/no-matches": "",
+	}
+	testComplianceScan := &compv1alpha1.ComplianceScan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceScanSpec{
+			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+			Content:      framework.RhcosContentFile,
+			ContentImage: contentImagePath,
+			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+			NodeSelector: selectNone,
+			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+				Debug:             true,
+				ShowNotApplicable: true,
+			},
+		},
+	}
+	// use Context's create helper to create the object and add a cleanup function for the new object
+	err := f.Client.Create(context.TODO(), testComplianceScan, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testComplianceScan)
+	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanIsNotApplicable(scanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestScanWithInvalidScanTypeFails(t *testing.T) {
 	t.Parallel()
@@ -2018,10 +2169,404 @@ func TestSuiteWithInvalidScheduleShowsError(t *testing.T) {
 	}
 }
 
+func TestScheduledSuite(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := "test-scheduled-suite"
 
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
 
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+				Schedule:              "*/2 * * * *",
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: workerScanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Rotation: 1,
+							},
+							Debug: true,
+						},
+					},
+				},
+			},
+		},
+	}
 
+	err := f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
 
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for one re-scan
+	err = f.WaitForReScanStatus(f.OperatorNamespace, workerScanName, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for a second one to assert this is running scheduled as expected
+	err = f.WaitForReScanStatus(f.OperatorNamespace, workerScanName, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove cronjob so it doesn't keep running while other tests are
+	// running. Use Patch instead of Update to avoid resource version
+	// conflicts with the controller.
+	patch := []byte(`{"spec":{"schedule":""}}`)
+	if err = f.Client.Patch(context.TODO(), testSuite, client.RawPatch(types.MergePatchType, patch)); err != nil {
+		t.Fatal(err)
+	}
+
+	rawResultClaimName, err := f.GetRawResultClaimNameFromScan(f.OperatorNamespace, workerScanName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rotationCheckerPod := framework.GetRotationCheckerWorkload(f.OperatorNamespace, rawResultClaimName)
+	if err = f.Client.Create(context.TODO(), rotationCheckerPod, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rotationCheckerPod)
+
+	err = f.AssertResultStorageHasExpectedItemsAfterRotation(1, f.OperatorNamespace, rotationCheckerPod.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScheduledSuitePriorityClass(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := "test-scheduled-suite-priority-class"
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+
+	priorityClass := &schedulingv1.PriorityClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "e2e-compliance-suite-high-priority",
+		},
+		Value: 100,
+	}
+
+	// Ensure that the priority class is created
+	err := f.Client.Create(context.TODO(), priorityClass, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), priorityClass)
+
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: workerScanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							PriorityClass: "e2e-compliance-suite-high-priority",
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Rotation: 1,
+							},
+							Debug: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	podList := &corev1.PodList{}
+	err = f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		"workload": "scanner",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check if the scanning pod has properly been created and has priority class set
+	for _, pod := range podList.Items {
+		if strings.Contains(pod.Name, workerScanName) {
+			if err := framework.WaitForPod(framework.CheckPodPriorityClass(f.KubeClient, pod.Name, f.OperatorNamespace, "e2e-compliance-suite-high-priority")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScheduledSuiteNoStorage(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := "test-scheduled-suite-no-storage"
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+
+	falseValue := false
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: workerScanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Enabled: &falseValue,
+							},
+							Debug: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		compv1alpha1.ComplianceScanLabel: workerScanName,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pvcList.Items) > 0 {
+		for _, pvc := range pvcList.Items {
+			t.Fatalf("Found unexpected PVC %s", pvc.Name)
+		}
+		t.Fatal("Expected not to find PVC associated with the scan.")
+	}
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScheduledSuiteInvalidPriorityClass(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := "test-scheduled-suite-invalid-priority-class"
+
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: workerScanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							PriorityClass: "priority-invalid",
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Rotation: 1,
+							},
+							Debug: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	podList := &corev1.PodList{}
+	err = f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		"workload": "scanner",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check if the scanning pod has properly been created and has priority class set
+	for _, pod := range podList.Items {
+		if strings.Contains(pod.Name, workerScanName) {
+			if err := framework.WaitForPod(framework.CheckPodPriorityClass(f.KubeClient, pod.Name, f.OperatorNamespace, "")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScheduledSuiteUpdate(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := framework.GetObjNameFromTest(t)
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+
+	initialSchedule := "0 * * * *"
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+				Schedule:              initialSchedule,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: workerScanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.WaitForCronJobWithSchedule(f.OperatorNamespace, suiteName, initialSchedule)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get new reference of suite
+	foundSuite := &compv1alpha1.ComplianceSuite{}
+	key := types.NamespacedName{Name: testSuite.Name, Namespace: testSuite.Namespace}
+	if err = f.Client.Get(context.TODO(), key, foundSuite); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update schedule
+	testSuiteCopy := foundSuite.DeepCopy()
+	updatedSchedule := "*/2 * * * *"
+	testSuiteCopy.Spec.Schedule = updatedSchedule
+	if err = f.Client.Update(context.TODO(), testSuiteCopy); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = f.WaitForCronJobWithSchedule(f.OperatorNamespace, suiteName, updatedSchedule); err != nil {
+		t.Fatal(err)
+	}
+
+	// Clean up
+	// Get new reference of suite
+	foundSuite = &compv1alpha1.ComplianceSuite{}
+	if err = f.Client.Get(context.TODO(), key, foundSuite); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove cronjob so it doesn't keep running while other tests are running
+	testSuiteCopy = foundSuite.DeepCopy()
+	updatedSchedule = ""
+	testSuiteCopy.Spec.Schedule = updatedSchedule
+	if err = f.Client.Update(context.TODO(), testSuiteCopy); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // TestCustomRuleTailoredProfile tests CustomRule functionality with TailoredProfiles
 func TestCustomRuleTailoredProfile(t *testing.T) {
@@ -3581,6 +4126,267 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 
 }
+func TestScanSettingBindingNoStorage(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	objName := framework.GetObjNameFromTest(t)
+	var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "kubeletconfig")
+	const requiredRule = "kubelet-eviction-thresholds-set-soft-imagefs-available"
+	pbName := framework.GetObjNameFromTest(t)
+	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
+
+	ocpPb, err := f.CreateProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ocpPb)
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that if the rule we are going to test is there
+	requiredRuleName := prefixName(pbName, requiredRule)
+	err, found := framework.Global.DoesRuleExist(f.OperatorNamespace, requiredRuleName)
+	if err != nil {
+		t.Fatal(err)
+	} else if !found {
+		t.Fatalf("Expected rule %s not found", requiredRuleName)
+	}
+
+	suiteName := "storage-test-node"
+	scanSettingBindingName := suiteName
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "storage-test",
+			Description: "A test tailored profile to test storage settings",
+			ManualRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      prefixName(pbName, requiredRule),
+					Rationale: "To be tested",
+				},
+			},
+		},
+	}
+
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+	scanSettingNoStorageName := objName + "-setting-no-storage"
+	falseValue := false
+	trueValue := true
+	scanSettingWithStorageName := objName + "-setting-with-storage"
+	scanSettingNoStorage := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingNoStorageName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug: true,
+			RawResultStorage: compv1alpha1.RawResultStorageSettings{
+				Enabled: &falseValue,
+			},
+		},
+		Roles: []string{"master", "worker"},
+	}
+
+	scanSettingWithStorage := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingWithStorageName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug: true,
+			RawResultStorage: compv1alpha1.RawResultStorageSettings{
+				Enabled: &trueValue,
+			},
+		},
+		Roles: []string{"master", "worker"},
+	}
+
+	if err := f.Client.Create(context.TODO(), &scanSettingNoStorage, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingNoStorage)
+
+	if err := f.Client.Create(context.TODO(), &scanSettingWithStorage, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingWithStorage)
+
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingBindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     suiteName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSettingNoStorage.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait until the suite finishes, thus verifying the suite exists
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: suiteName + "-master"}
+	scan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), scanKey, scan); err != nil {
+		t.Fatal(err)
+	}
+
+	if scan.Spec.RawResultStorage.Enabled != nil && *scan.Spec.RawResultStorage.Enabled {
+		t.Fatal("Expected that the scan does not have raw result storage enabled")
+	}
+
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		compv1alpha1.ComplianceScanLabel: scan.Name,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pvcList.Items) > 0 {
+		for _, pvc := range pvcList.Items {
+			t.Fatalf("Found unexpected PVC %s", pvc.Name)
+		}
+		t.Fatal("Expected not to find PVC associated with the scan.")
+	}
+	// let's delete the scan setting binding
+	if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
+		t.Fatal(err)
+	}
+
+	// let's create a new scan setting binding with the with storage setting
+	scanSettingBinding = compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingBindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     suiteName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSettingWithStorage.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait until the suite finishes, thus verifying the suite exists
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scan = &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), scanKey, scan); err != nil {
+		t.Fatal(err)
+	}
+
+	if scan.Spec.RawResultStorage.Enabled != nil && *scan.Spec.RawResultStorage.Enabled == false {
+		t.Fatal("Expected that the scan has raw result storage enabled")
+	}
+
+	pvcList = &corev1.PersistentVolumeClaimList{}
+	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		compv1alpha1.ComplianceScanLabel: scan.Name,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pvcList.Items) == 0 {
+		t.Fatal("Expected to find PVC associated with the scan.")
+	}
+	t.Logf("Found PVC %s", pvcList.Items[0].Name)
+	t.Logf("Succeeded to create PVC associated with the scan.")
+
+	// let's update the scan setting binding to use the no storage setting
+	ssb := &compv1alpha1.ScanSettingBinding{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Namespace: f.OperatorNamespace, Name: scanSettingBindingName}, ssb); err != nil {
+		t.Fatal("Expected to find the scan setting binding, but got error: ", err)
+	}
+	ssb.SettingsRef.Name = scanSettingNoStorage.Name
+	if err := f.Client.Update(context.TODO(), ssb); err != nil {
+		t.Fatal(err)
+	}
+
+	// let's rerun the scan
+	err = f.ReRunScan(scan.Name, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// wait for scan to finish
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// get the scan again
+	scan = &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), scanKey, scan); err != nil {
+		t.Fatal(err)
+	}
+
+	// make sure enabled is false
+	if scan.Spec.RawResultStorage.Enabled != nil && *scan.Spec.RawResultStorage.Enabled == true {
+		t.Fatal("Expected that the scan does not have raw result storage enabled")
+	}
+
+	// let's check that the PVC should be there and still associated with the scan
+	pvcList = &corev1.PersistentVolumeClaimList{}
+	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		compv1alpha1.ComplianceScanLabel: scan.Name,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pvcList.Items) == 0 {
+		t.Fatal("Expected to find PVC associated with the scan.")
+	}
+	t.Logf("Found PVC %s", pvcList.Items[0].Name)
+	t.Logf("Succeeded to check that the PVC is still there.")
+
+}
 
 func TestScanSettingBindingTailoringManyEnablingRulePass(t *testing.T) {
 
@@ -4301,6 +5107,68 @@ func TestHideRule(t *testing.T) {
 	}
 }
 
+func TestScheduledSuiteTimeoutFail(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := "test-scheduled-suite-timeout-fail"
+
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: workerScanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							MaxRetryOnTimeout: 0,
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Rotation: 1,
+							},
+							Timeout: "1s",
+							Debug:   true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultError)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scan := &compv1alpha1.ComplianceScan{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: workerScanName, Namespace: f.OperatorNamespace}, scan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := scan.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; !ok {
+		t.Fatal("The scan should have the timeout annotation")
+	}
+}
 
 func TestResultServerHTTPVersion(t *testing.T) {
 	t.Parallel()
@@ -4573,3 +5441,85 @@ func TestRuleVariableAnnotation(t *testing.T) {
 }
 
 // Verifies that access modes and Storage class are configurable through ComplianceSuite and ComplianceScan
+func TestScanWithCustomStorageClass(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	scanName := framework.GetObjNameFromTest(t)
+	suiteName := scanName + "-suite"
+	storageClassName := scanName + "-gold"
+
+	// Get the default storage class provisioner for our custom storage class
+	defaultProvisioner, err := f.GetDefaultStorageClassProvisioner()
+	if err != nil {
+		t.Skipf("skipping test: no default storage class provisioner available: %s", err)
+	}
+
+	// Create custom StorageClass named "gold"
+	customStorageClass, err := f.CreateCustomStorageClass(storageClassName, defaultProvisioner)
+	if err != nil {
+		t.Fatalf("failed to create custom storage class object %s: %s", storageClassName, err)
+	}
+	err = f.Client.Create(context.TODO(), customStorageClass, nil)
+	if err != nil {
+		t.Fatalf("failed to create custom storage class %s: %s", storageClassName, err)
+	}
+	defer f.Client.Delete(context.TODO(), customStorageClass)
+
+	// Create ComplianceSuite with custom storage configuration
+	testSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: scanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ScanType:     compv1alpha1.ScanTypeNode,
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: map[string]string{
+							"node-role.kubernetes.io/worker": "",
+						},
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								StorageClassName: &storageClassName,
+								PVAccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), testSuite, nil)
+	if err != nil {
+		t.Fatalf("failed to create compliance suite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), testSuite)
+
+	// Wait for the scan to complete
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("scan did not complete successfully: %s", err)
+	}
+
+	// Verify PVC has correct storageClassName and accessModes
+	err = f.AssertScanPVCHasStorageConfig(scanName, f.OperatorNamespace, storageClassName, corev1.ReadWriteOnce)
+	if err != nil {
+		t.Fatalf("PVC verification failed: %s", err)
+	}
+
+	t.Logf("Successfully verified scan %s has custom storage configuration", scanName)
+}
