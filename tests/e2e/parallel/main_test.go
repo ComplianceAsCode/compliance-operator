@@ -2452,6 +2452,12 @@ func TestScheduledSuitePlatformNoStorage(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), testSuite)
 
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pvcList := &corev1.PersistentVolumeClaimList{}
 	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
 		compv1alpha1.ComplianceScanLabel: platformScanName,
@@ -2459,17 +2465,8 @@ func TestScheduledSuitePlatformNoStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pvcList.Items) > 0 {
-		for _, pvc := range pvcList.Items {
-			t.Fatalf("Found unexpected PVC %s", pvc.Name)
-		}
-		t.Fatal("Expected not to find PVC associated with the scan.")
-	}
-
-	// Ensure that all the scans in the suite have finished and are marked as Done
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
-	if err != nil {
-		t.Fatal(err)
+	for _, pvc := range pvcList.Items {
+		t.Fatalf("Found unexpected PVC %s", pvc.Name)
 	}
 }
 
