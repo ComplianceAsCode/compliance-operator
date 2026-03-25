@@ -2560,9 +2560,9 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
 
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
-		t.Fatal(err) 
+		t.Fatal(err)
 	}
-    
+
 	if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
 		t.Fatal(err)
 	}
@@ -2580,7 +2580,7 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 	if err := f.Client.Update(context.TODO(), scanSettingUpdate); err != nil {
 		t.Fatalf("failed to update ScanSetting: %s", err)
 	}
-	
+
 	// Clear metadata to ensure clean recreation of the ssb
 	scanSettingBinding.ObjectMeta = metav1.ObjectMeta{
 		Name:      bindingName,
@@ -2616,14 +2616,13 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 			t.Fatalf("suite left PENDING state (expected to remain PENDING for 30s): phase=%s", suite.Status.Phase)
 		}
 		time.Sleep(framework.RetryInterval)
-}
+	}
 }
 
 // TestPCIDSSApiChecksWithLargeMachineConfigScale tests that the PCI-DSS api-checks pod
 // doesn't crash when dealing with a large number (150) of MachineConfigs.
 // This is a stress test to ensure the compliance operator can handle environments
 // with many MachineConfigs without the scanner pods entering CrashLoopBackOff.
-// Ported from downstream OCP-53667
 func TestPCIDSSApiChecksWithLargeMachineConfigScale(t *testing.T) {
 	f := framework.Global
 	const (
