@@ -527,7 +527,7 @@ func (r *ReconcileComplianceRemediation) isRequiredValueSet(rem *compv1alpha1.Co
 		}
 		tpContent, ok := tpcm.Data["tailoring.xml"]
 		if !ok {
-			return false, fmt.Errorf("Error retriving Tailor Profile CM")
+			return false, fmt.Errorf("error retrieving tailored profile configmap")
 		}
 		if strings.Contains(tpContent, strings.ReplaceAll(requiredValue, "-", "_")) {
 			return true, nil
