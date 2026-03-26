@@ -2430,9 +2430,9 @@ func TestScheduledSuitePlatformNoStorage(t *testing.T) {
 					Name: platformScanName,
 					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 						ContentImage: contentImagePath,
-						Profile:      "xccdf_org.ssgproject.content_profile_cis",
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 						Content:      framework.OcpContentFile,
-						Rule:         "xccdf_org.ssgproject.content_rule_cluster_version_operator_exists",
+						Rule:         "xccdf_org.ssgproject.content_rule_ocp_idp_no_htpasswd",
 						ScanType:     compv1alpha1.ScanTypePlatform,
 						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 							RawResultStorage: compv1alpha1.RawResultStorageSettings{
