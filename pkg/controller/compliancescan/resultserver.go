@@ -316,59 +316,6 @@ func getLogCollectorVolumeMounts(instance *compv1alpha1.ComplianceScan) []corev1
 	}
 }
 
-func getPlatformScannerPodVolumes(instance *compv1alpha1.ComplianceScan) []corev1.Volume {
-	mode := int32(0755)
-	volumeList := []corev1.Volume{
-		{
-			Name: "report-dir",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: "content-dir",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: "tmp-dir",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: "fetch-results",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: scriptCmForScan(instance),
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: scriptCmForScan(instance),
-					},
-					DefaultMode: &mode,
-				},
-			},
-		},
-	}
-	if instance.Spec.RawResultStorage.Enabled != nil && *instance.Spec.RawResultStorage.Enabled {
-		volumeList = append(volumeList, corev1.Volume{
-			Name: "tls",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: ClientCertPrefix + instance.Name,
-				},
-			},
-		},
-		)
-	}
-	return volumeList
-}
-
 func getNodeScannerPodVolumes(instance *compv1alpha1.ComplianceScan, node *corev1.Node) []corev1.Volume {
 	mode := int32(0744)
 	kubeMode := int32(0600)
