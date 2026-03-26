@@ -623,10 +623,6 @@ e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests con
 e2e-scan-config: e2e-set-image prep-e2e ## Run scan and suite configuration end-to-end tests concurrently.
 	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scan-config $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-scan-config.log
 
-.PHONY: e2e-deployment
-e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tests concurrently.
-	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
-
 .PHONY: e2e-serial
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-serial.log
@@ -658,6 +654,13 @@ e2e-cel-critical: e2e-set-image prep-e2e ## ## Run critical cel e2e tests. That 
 .PHONY: e2e-prerelease
 e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease e2e tests (e.g. default ProfileBundles and Profiles per architecture).
 	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/prerelease $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-deployment
+e2e-deployment: e2e-set-image prep-e2e ## Run deployment end-to-end tests.
+	# SKIP_MCP_SETUP: deployment tests validate operator-level behavior (e.g., TLS
+	# profile adherence) and don't require MachineConfigPool setup or teardown.
+	# Skipping MCP avoids node convergence waits that increase overall test time.
+	@SKIP_MCP_SETUP=true CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
 
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.

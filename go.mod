@@ -9,6 +9,7 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v0.0.0-20260521125114-09730f85d883
 	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a
+	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
 	k8s.io/apimachinery v0.35.5
 	k8s.io/client-go v0.35.5
 	open-cluster-management.io/api v0.15.0
