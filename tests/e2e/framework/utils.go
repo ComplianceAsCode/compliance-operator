@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	igntypes "github.com/coreos/ignition/v2/config/v3_2/types"
 	"golang.org/x/mod/semver"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -33,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -846,6 +848,193 @@ func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedS
 		scanPVC.Name, *scanPVC.Spec.StorageClassName, scanPVC.Spec.AccessModes)
 
 	return nil
+}
+
+// APIResourceCollectorContainer is the name of the api-resource-collector
+// init container in a platform scan pod.
+const APIResourceCollectorContainer = "api-resource-collector"
+
+// machineConfigRoleLabel is the label a MachineConfigPool matches on to decide
+// which MachineConfigs it renders.
+const machineConfigRoleLabel = "machineconfiguration.openshift.io/role"
+
+// CreateLoadMachineConfigs creates count MachineConfigs named "<prefix><n>",
+// each carrying payloadBytes of Ignition file content, and returns the names
+// of the ones it created, including when it fails part way through.
+//
+// The MachineConfigs carry role, which no MachineConfigPool selects, so the
+// MachineConfigOperator renders nothing from them and no node reboots. They
+// exist only to give the api-resource-collector a large MachineConfig list to
+// fetch.
+func (f *Framework) CreateLoadMachineConfigs(t *testing.T, count int, prefix, role string, payloadBytes int) ([]string, error) {
+	rawIgn, err := loadIgnitionConfig(payloadBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	created := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		name := fmt.Sprintf("%s%03d", prefix, i)
+		mc := &mcfgv1.MachineConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   name,
+				Labels: map[string]string{machineConfigRoleLabel: role},
+			},
+			Spec: mcfgv1.MachineConfigSpec{
+				Config: runtime.RawExtension{Raw: rawIgn},
+			},
+		}
+		err := f.Client.Create(context.TODO(), mc, nil)
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return created, fmt.Errorf("failed to create MachineConfig %s: %w", name, err)
+		}
+		created = append(created, name)
+	}
+
+	t.Logf("Created %d MachineConfigs of ~%d KiB each under role %s", len(created), payloadBytes/1024, role)
+	return created, nil
+}
+
+// DeleteLoadMachineConfigs deletes the named MachineConfigs. Failures are
+// logged rather than fatal so a cleanup defer doesn't mask the test's result.
+func (f *Framework) DeleteLoadMachineConfigs(t *testing.T, names []string) {
+	for _, name := range names {
+		mc := &mcfgv1.MachineConfig{ObjectMeta: metav1.ObjectMeta{Name: name}}
+		if err := f.Client.Delete(context.TODO(), mc); err != nil && !apierrors.IsNotFound(err) {
+			t.Logf("Warning: failed to delete MachineConfig %s: %v", name, err)
+		}
+	}
+	t.Logf("Deleted %d MachineConfigs", len(names))
+}
+
+// loadIgnitionConfig builds an Ignition config holding a single file of
+// payloadBytes, marshalled as the raw JSON a MachineConfig's Spec.Config takes.
+func loadIgnitionConfig(payloadBytes int) ([]byte, error) {
+	// A "data:," URL takes the rest of itself literally, so the payload needs
+	// no encoding and costs what it weighs here.
+	source := "data:," + strings.Repeat("a", payloadBytes)
+	mode := 0644
+	ign := igntypes.Config{
+		Ignition: igntypes.Ignition{Version: "3.2.0"},
+		Storage: igntypes.Storage{
+			Files: []igntypes.File{
+				{
+					Node: igntypes.Node{Path: "/etc/compliance-operator-e2e-load"},
+					FileEmbedded1: igntypes.FileEmbedded1{
+						Mode:     &mode,
+						Contents: igntypes.Resource{Source: &source},
+					},
+				},
+			},
+		},
+	}
+
+	rawIgn, err := json.Marshal(ign)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Ignition config: %w", err)
+	}
+	return rawIgn, nil
+}
+
+// FindInitContainerStatus returns the status of pod's init container called
+// name, or nil when the kubelet hasn't reported one yet.
+func FindInitContainerStatus(pod *corev1.Pod, name string) *corev1.ContainerStatus {
+	for i := range pod.Status.InitContainerStatuses {
+		if pod.Status.InitContainerStatuses[i].Name == name {
+			return &pod.Status.InitContainerStatuses[i]
+		}
+	}
+	return nil
+}
+
+// oomKilled reports whether a container was OOMKilled, either as its current
+// result or as the reason the kubelet is restarting it, and describes it.
+//
+// Not every runtime labels the kill: some report only SIGKILL (exit code
+// 137), which for a container nobody else is killing means the same thing.
+func oomKilled(status *corev1.ContainerStatus) (bool, string) {
+	const sigkillExitCode = 137
+
+	for _, state := range []*corev1.ContainerStateTerminated{
+		status.State.Terminated,
+		status.LastTerminationState.Terminated,
+	} {
+		if state == nil {
+			continue
+		}
+		if state.Reason == "OOMKilled" {
+			return true, fmt.Sprintf("exit code %d after %d restart(s)", state.ExitCode, status.RestartCount)
+		}
+		if state.ExitCode == sigkillExitCode {
+			return true, fmt.Sprintf("SIGKILL, reported as %q, after %d restart(s)", state.Reason, status.RestartCount)
+		}
+	}
+	return false, ""
+}
+
+// WaitForAPIResourceCollector waits for the api-resource-collector init
+// container of scanName's platform scan pod to run to completion, and returns
+// the pod it ran in.
+//
+// Scan pods restart on failure, so an OOMKilled collector would otherwise
+// surface only as the scan never reaching DONE, long after the fact. This
+// reports the OOMKill as soon as the kubelet records it.
+func (f *Framework) WaitForAPIResourceCollector(scanName string, timeout, interval time.Duration) (*corev1.Pod, error) {
+	var collectorPod *corev1.Pod
+
+	err := wait.PollUntilContextTimeout(context.TODO(), interval, timeout, true, func(ctx context.Context) (bool, error) {
+		pods, err := f.GetPodsForScan(scanName)
+		if err != nil {
+			// The scan pod may not have been created yet.
+			return false, nil
+		}
+
+		for i := range pods {
+			pod := &pods[i]
+			status := FindInitContainerStatus(pod, APIResourceCollectorContainer)
+			if status == nil {
+				continue
+			}
+			if killed, detail := oomKilled(status); killed {
+				return false, fmt.Errorf("%s in pod %s was OOMKilled (%s)",
+					APIResourceCollectorContainer, pod.Name, detail)
+			}
+			term := status.State.Terminated
+			if term == nil {
+				continue
+			}
+			if term.ExitCode != 0 {
+				return false, fmt.Errorf("%s in pod %s exited with code %d (%s)",
+					APIResourceCollectorContainer, pod.Name, term.ExitCode, term.Reason)
+			}
+			collectorPod = pod
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return collectorPod, nil
+}
+
+// GetContainerLogs returns the logs of a container in a pod in the operator
+// namespace.
+func (f *Framework) GetContainerLogs(podName, containerName string) (string, error) {
+	req := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).GetLogs(podName, &corev1.PodLogOptions{
+		Container: containerName,
+	})
+	stream, err := req.Stream(context.TODO())
+	if err != nil {
+		return "", fmt.Errorf("failed to stream logs for %s/%s: %w", podName, containerName, err)
+	}
+	defer stream.Close()
+
+	out, err := io.ReadAll(stream)
+	if err != nil {
+		return "", fmt.Errorf("failed to read logs for %s/%s: %w", podName, containerName, err)
+	}
+	return string(out), nil
 }
 
 // generatePodOverrides returns JSON pod spec overrides for running a command in a temporary pod

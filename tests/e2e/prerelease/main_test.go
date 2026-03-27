@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -237,5 +238,91 @@ func TestProfilesOnArch(t *testing.T) {
 		if err := f.WaitForProfileExists(profileName, 5*time.Minute, 10*time.Second); err != nil {
 			t.Errorf("profile %s not found: %v", profileName, err)
 		}
+	}
+}
+
+// TestAPIResourceCollectorHandlesLargeMachineConfigs verifies that the
+// api-resource-collector survives a cluster carrying a large MachineConfig
+// list.
+//
+// The collector reads every API path the content asks for into memory and
+// runs under a 202Mi limit, which makes it the component that runs out of
+// memory first in a large environment. What keeps it bounded on the
+// MachineConfig list is mcStreamer: it pages through MachineConfigs and drops
+// each one's Ignition file contents before collecting it. That paging exists
+// because the collector used to be OOMKilled fetching the MachineConfigs the
+// PCI-DSS profile examines.
+//
+// This test gives the collector far more MachineConfig content than it could
+// hold unpaged, so losing either protection shows up as an OOMKill rather
+// than as a quiet pass.
+func TestAPIResourceCollectorHandlesLargeMachineConfigs(t *testing.T) {
+	f := framework.Global
+
+	const (
+		mcCount = 60
+		// Comfortably under the ~1.5Mi the API server accepts for one object.
+		mcPayloadBytes = 900 * 1024
+		// No MachineConfigPool selects this role, so the MachineConfigOperator
+		// renders nothing from these MachineConfigs and no node reboots.
+		mcRole   = "e2e-collector-load"
+		mcPrefix = "99-e2e-collector-load-"
+		scanName = "collector-load-scan"
+		// The one path mcStreamer handles; everything else is fetched whole.
+		mcListPath = "/apis/machineconfiguration.openshift.io/v1/machineconfigs"
+	)
+
+	mcNames, err := f.CreateLoadMachineConfigs(t, mcCount, mcPrefix, mcRole, mcPayloadBytes)
+	defer f.DeleteLoadMachineConfigs(t, mcNames)
+	if err != nil {
+		t.Fatalf("Failed to create load MachineConfigs: %v", err)
+	}
+	t.Logf("Cluster now carries ~%d MiB of MachineConfig content", mcCount*mcPayloadBytes/(1024*1024))
+
+	scan := &compv1alpha1.ComplianceScan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceScanSpec{
+			ScanType: compv1alpha1.ScanTypePlatform,
+			Profile:  "xccdf_org.ssgproject.content_profile_cis",
+			Content:  framework.OcpContentFile,
+			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+				// Keep the scan pod around once the scan is done, so its init
+				// container status and logs can still be read.
+				Debug: true,
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), scan, nil); err != nil {
+		t.Fatalf("Failed to create scan: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), scan)
+
+	collectorPod, err := f.WaitForAPIResourceCollector(scanName, 15*time.Minute, 5*time.Second)
+	if err != nil {
+		t.Fatalf("api-resource-collector did not complete with %d MachineConfigs: %v", mcCount, err)
+	}
+	t.Logf("api-resource-collector completed in pod %s", collectorPod.Name)
+
+	// Guard the premise. If the content stops asking for the whole
+	// MachineConfig list, the load above never reaches the collector and this
+	// test would keep passing without exercising anything.
+	logs, err := f.GetContainerLogs(collectorPod.Name, framework.APIResourceCollectorContainer)
+	if err != nil {
+		t.Fatalf("Failed to read api-resource-collector logs: %v", err)
+	}
+	// Match the whole logged URI. The list path is a prefix of the paths that
+	// name a single MachineConfig, and those are fetched whole by uriStreamer,
+	// which is not what this test is about.
+	if !strings.Contains(logs, fmt.Sprintf("Fetching URI: '%s'", mcListPath)) {
+		t.Fatalf("api-resource-collector never fetched %s, so the %d MachineConfigs did not reach it. "+
+			"The profile's content no longer requests the whole MachineConfig list, and this test "+
+			"needs to be pointed at content that does.", mcListPath, mcCount)
+	}
+
+	if err := f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone); err != nil {
+		t.Fatalf("Scan did not finish: %v", err)
 	}
 }
