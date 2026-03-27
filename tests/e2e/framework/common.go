@@ -4078,3 +4078,18 @@ curl -k -s -G "https://prometheus-k8s.openshift-monitoring.svc:9091/api/v1/query
 	}
 	return fmt.Errorf("%s still present in ALERTS query output", alertName)
 }
+// GetComplianceOperatorPod finds the compliance operator pod
+func (f *Framework) GetComplianceOperatorPod() (*corev1.Pod, error) {
+	var pods corev1.PodList
+	lo := &client.ListOptions{
+		Namespace:     f.OperatorNamespace,
+		LabelSelector: labels.SelectorFromSet(map[string]string{"name": "compliance-operator"}),
+	}
+	if err := f.Client.List(context.TODO(), &pods, lo); err != nil {
+		return nil, err
+	}
+	if len(pods.Items) == 0 {
+		return nil, fmt.Errorf("no compliance operator pod found")
+	}
+	return &pods.Items[0], nil
+}
