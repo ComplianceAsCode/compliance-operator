@@ -622,7 +622,7 @@ e2e-cis-profile: e2e-set-image prep-e2e ## Run CIS profile end-to-end tests.
 
 .PHONY: e2e-prerelease
 e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease tests (tests not directly related to CO code but needed before release).
-	@$(GO) test ./tests/e2e/prerelease $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+	@$(GO) test ./tests/e2e/prerelease -timeout 60m $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
