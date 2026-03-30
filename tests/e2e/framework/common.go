@@ -3229,4 +3229,212 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 	}
 	return nil
-}	
+}
+
+// CreateKubeletConfigWithInsecureCiphers creates a KubeletConfig with insecure tlsCipherSuites
+// to simulate incorrect configuration for testing auto-remediation (test cases 46100, 46302, 54323, 66793).
+func CreateKubeletConfigWithInsecureCiphers(f *Framework, name, poolName string) error {
+	kubeletConfig := map[string]interface{}{
+		"apiVersion": "machineconfiguration.openshift.io/v1",
+		"kind":       "KubeletConfig",
+		"metadata": map[string]interface{}{
+			"name": name,
+		},
+		"spec": map[string]interface{}{
+			"machineConfigPoolSelector": map[string]interface{}{
+				"matchLabels": map[string]interface{}{
+					"pools.operator.machineconfiguration.openshift.io/" + poolName: "",
+				},
+			},
+			"kubeletConfig": map[string]interface{}{
+				"tlsCipherSuites": []interface{}{
+					// Set weak/insecure ciphers that should fail the check
+					"TLS_RSA_WITH_AES_128_GCM_SHA256",
+					"TLS_RSA_WITH_AES_256_CBC_SHA",
+				},
+			},
+		},
+	}
+
+	obj := &unstructured.Unstructured{Object: kubeletConfig}
+	return f.Client.Create(context.TODO(), obj, nil)
+}
+
+// GetKubeletConfigCiphers retrieves the tlsCipherSuites from a KubeletConfig
+func GetKubeletConfigCiphers(f *Framework, name string) ([]string, error) {
+	kubeletConfig := &unstructured.Unstructured{}
+	kubeletConfig.SetAPIVersion("machineconfiguration.openshift.io/v1")
+	kubeletConfig.SetKind("KubeletConfig")
+	kubeletConfig.SetName(name)
+
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name}, kubeletConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	spec, found, err := unstructured.NestedMap(kubeletConfig.Object, "spec", "kubeletConfig")
+	if err != nil || !found {
+		return []string{}, nil
+	}
+
+	ciphersInterface, found := spec["tlsCipherSuites"]
+	if !found {
+		return []string{}, nil
+	}
+
+	ciphersList, ok := ciphersInterface.([]interface{})
+	if !ok {
+		return []string{}, fmt.Errorf("tlsCipherSuites is not a list")
+	}
+
+	ciphers := make([]string, 0, len(ciphersList))
+	for _, c := range ciphersList {
+		if cipherStr, ok := c.(string); ok {
+			ciphers = append(ciphers, cipherStr)
+		}
+	}
+
+	return ciphers, nil
+}
+
+// DeleteKubeletConfig deletes a KubeletConfig object
+func DeleteKubeletConfig(f *Framework, name string) {
+	kubeletConfig := &unstructured.Unstructured{}
+	kubeletConfig.SetAPIVersion("machineconfiguration.openshift.io/v1")
+	kubeletConfig.SetKind("KubeletConfig")
+	kubeletConfig.SetName(name)
+
+	err := f.Client.Delete(context.TODO(), kubeletConfig)
+	if err != nil && !apierrors.IsNotFound(err) {
+		log.Printf("Warning: Failed to delete KubeletConfig %s: %s", name, err)
+	}
+}
+
+// WaitForMachineConfigPoolUpdate waits for a specific MachineConfigPool to complete updating
+func WaitForMachineConfigPoolUpdate(f *Framework, poolName string) error {
+	log.Printf("Waiting for MachineConfigPool %s to update (this may take 10-20 minutes)", poolName)
+
+	err := wait.Poll(30*time.Second, 30*time.Minute, func() (bool, error) {
+		currentMCP := &mcfgv1.MachineConfigPool{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, currentMCP)
+		if err != nil {
+			return false, err
+		}
+
+		// Check if MachineConfigPool is updated and ready
+		// MCP is updated when:
+		// 1. UpdatedMachineCount matches MachineCount
+		// 2. No machines are degraded
+		// 3. The Updated condition is True
+		for _, condition := range currentMCP.Status.Conditions {
+			if condition.Type == mcfgv1.MachineConfigPoolUpdated && condition.Status == core.ConditionTrue {
+				if currentMCP.Status.UpdatedMachineCount == currentMCP.Status.MachineCount &&
+					currentMCP.Status.DegradedMachineCount == 0 {
+					log.Printf("MachineConfigPool %s is updated: %d/%d machines updated",
+						currentMCP.Name, currentMCP.Status.UpdatedMachineCount, currentMCP.Status.MachineCount)
+					return true, nil
+				}
+			}
+		}
+
+		log.Printf("MachineConfigPool %s updating: %d/%d machines updated, %d degraded",
+			currentMCP.Name, currentMCP.Status.UpdatedMachineCount,
+			currentMCP.Status.MachineCount, currentMCP.Status.DegradedMachineCount)
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("timeout waiting for MachineConfigPool %s to update: %w", poolName, err)
+	}
+
+	log.Printf("MachineConfigPool %s updated successfully", poolName)
+	return nil
+}
+
+// WaitForMachineConfigPoolsUpdated waits for all MachineConfigPools to complete updating
+func WaitForMachineConfigPoolsUpdated(f *Framework) error {
+	mcpList := &mcfgv1.MachineConfigPoolList{}
+	err := f.Client.List(context.TODO(), mcpList)
+	if err != nil {
+		return fmt.Errorf("failed to list MachineConfigPools: %w", err)
+	}
+
+	log.Printf("Waiting for %d MachineConfigPools to update (this may take 10-20 minutes)", len(mcpList.Items))
+
+	for _, mcp := range mcpList.Items {
+		err := WaitForMachineConfigPoolUpdate(f, mcp.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Printf("All MachineConfigPools updated successfully")
+	return nil
+}
+
+// WaitForRemediationsToBeApplied waits for all remediations from a suite to be applied
+func WaitForRemediationsToBeApplied(f *Framework, suiteName string) error {
+	log.Printf("Waiting for remediations from suite %s to be applied", suiteName)
+
+	return wait.Poll(10*time.Second, 5*time.Minute, func() (bool, error) {
+		remList := &compv1alpha1.ComplianceRemediationList{}
+		labelSelector, err := labels.Parse(compv1alpha1.SuiteLabel + "=" + suiteName)
+		if err != nil {
+			return false, fmt.Errorf("failed to parse label selector: %w", err)
+		}
+		opts := &client.ListOptions{
+			LabelSelector: labelSelector,
+			Namespace:     f.OperatorNamespace,
+		}
+		err = f.Client.List(context.TODO(), remList, opts)
+		if err != nil {
+			return false, fmt.Errorf("failed to get remediation list: %w", err)
+		}
+
+		if len(remList.Items) == 0 {
+			log.Printf("No remediations found for suite %s yet", suiteName)
+			return false, nil
+		}
+
+		allApplied := true
+		for _, rem := range remList.Items {
+			if rem.Spec.Apply {
+				if rem.Status.ApplicationState != compv1alpha1.RemediationApplied {
+					log.Printf("Remediation %s not yet applied (state: %s)", rem.Name, rem.Status.ApplicationState)
+					allApplied = false
+				}
+			}
+		}
+
+		if allApplied {
+			log.Printf("All %d remediations applied", len(remList.Items))
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
+// GetCheckResultsFromScan retrieves all check results from a scan and populates the provided map
+func GetCheckResultsFromScan(f *Framework, scanName string, results map[string]compv1alpha1.ComplianceCheckStatus) error {
+	checkList := &compv1alpha1.ComplianceCheckResultList{}
+	labelSelector, err := labels.Parse(compv1alpha1.ComplianceScanLabel + "=" + scanName)
+	if err != nil {
+		return fmt.Errorf("failed to parse label selector: %w", err)
+	}
+	opts := &client.ListOptions{
+		LabelSelector: labelSelector,
+		Namespace:     f.OperatorNamespace,
+	}
+	err = f.Client.List(context.TODO(), checkList, opts)
+	if err != nil {
+		return fmt.Errorf("failed to list check results: %w", err)
+	}
+
+	for _, check := range checkList.Items {
+		// Extract the rule name from the check name
+		// Check names are typically in format: scanname-rulename
+		ruleName := strings.TrimPrefix(check.Name, scanName+"-")
+		results[ruleName] = check.Status
+	}
+
+	return nil
+}

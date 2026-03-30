@@ -620,6 +620,10 @@ e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 e2e-cis-profile: e2e-set-image prep-e2e ## Run CIS profile end-to-end tests.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/cis_profiles_test $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
+.PHONY: e2e-prerelease
+e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease tests (tests not directly related to CO code but needed before release).
+	@$(GO) test ./tests/e2e/prerelease $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
 .PHONY: e2e-rosa
