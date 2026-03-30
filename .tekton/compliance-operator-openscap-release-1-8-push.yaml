@@ -66,10 +66,6 @@ spec:
       name: dockerfile
       type: string
     - default: "false"
-      description: Force rebuild image
-      name: rebuild
-      type: string
-    - default: "false"
       description: Skip checks against built image
       name: skip-checks
       type: string
@@ -132,13 +128,6 @@ spec:
       value: $(tasks.clone-repository.results.commit)
     tasks:
     - name: init
-      params:
-      - name: image-url
-        value: $(params.output-image)
-      - name: rebuild
-        value: $(params.rebuild)
-      - name: skip-checks
-        value: $(params.skip-checks)
       taskRef:
         params:
         - name: name
@@ -169,11 +158,6 @@ spec:
         - name: kind
           value: task
         resolver: bundles
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values:
-        - "true"
       workspaces:
       - name: basic-auth
         workspace: git-auth
@@ -252,11 +236,6 @@ spec:
         - name: kind
           value: task
         resolver: bundles
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values:
-        - "true"
     - name: build-image-index
       params:
       - name: IMAGE
@@ -283,11 +262,6 @@ spec:
         - name: kind
           value: task
         resolver: bundles
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values:
-        - "true"
     - name: build-source-image
       params:
       - name: BINARY_IMAGE
@@ -310,10 +284,6 @@ spec:
           value: task
         resolver: bundles
       when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values:
-        - "true"
       - input: $(params.build-source-image)
         operator: in
         values:
