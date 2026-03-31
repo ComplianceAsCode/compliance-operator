@@ -3230,3 +3230,18 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 	}
 	return nil
 }	
+// GetComplianceOperatorPod finds the compliance operator pod
+func (f *Framework) GetComplianceOperatorPod() (*corev1.Pod, error) {
+	var pods corev1.PodList
+	lo := &client.ListOptions{
+		Namespace:     f.OperatorNamespace,
+		LabelSelector: labels.SelectorFromSet(map[string]string{"name": "compliance-operator"}),
+	}
+	if err := f.Client.List(context.TODO(), &pods, lo); err != nil {
+		return nil, err
+	}
+	if len(pods.Items) == 0 {
+		return nil, fmt.Errorf("no compliance operator pod found")
+	}
+	return &pods.Items[0], nil
+}

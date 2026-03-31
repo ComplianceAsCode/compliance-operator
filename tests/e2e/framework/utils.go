@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -718,4 +720,159 @@ func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedS
 		scanPVC.Name, *scanPVC.Spec.StorageClassName, scanPVC.Spec.AccessModes)
 
 	return nil
+}
+
+// GetPodMemoryUsageMi gets the current memory usage of a pod in Mi
+// Uses the Kubernetes resource metrics API to get current memory usage
+func (f *Framework) GetPodMemoryUsageMi(pod *corev1.Pod) (float64, error) {
+	// Get pod metrics from the metrics.k8s.io API
+	// This requires the metrics server to be running in the cluster
+	metricsRaw, err := f.KubeClient.Discovery().RESTClient().
+		Get().
+		AbsPath("/apis/metrics.k8s.io/v1beta1/namespaces/" + pod.Namespace + "/pods/" + pod.Name).
+		DoRaw(context.TODO())
+
+	if err != nil {
+		log.Printf("Warning: Could not get pod metrics from metrics API: %v", err)
+		// Fall back to checking container resource limits as a proxy
+		for _, container := range pod.Spec.Containers {
+			if container.Resources.Requests != nil {
+				if mem, ok := container.Resources.Requests[corev1.ResourceMemory]; ok {
+					memMi := float64(mem.Value()) / (1024 * 1024)
+					log.Printf("Using memory request as baseline: %.2f Mi", memMi)
+					return memMi, nil
+				}
+			}
+		}
+		return 0, fmt.Errorf("metrics API unavailable and no memory request found: %w", err)
+	}
+
+	// Parse the metrics response
+	// The response format is similar to Pod but with usage information
+	// Example: {"containers":[{"name":"container","usage":{"memory":"123Mi"}}]}
+	var metricsObj map[string]interface{}
+	err = json.Unmarshal(metricsRaw, &metricsObj)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse metrics response: %w", err)
+	}
+
+	// Extract memory usage from the first container
+	containers, ok := metricsObj["containers"].([]interface{})
+	if !ok || len(containers) == 0 {
+		return 0, fmt.Errorf("no container metrics found")
+	}
+
+	firstContainer, ok := containers[0].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("invalid container metrics format")
+	}
+
+	usage, ok := firstContainer["usage"].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("no usage data in metrics")
+	}
+
+	memoryStr, ok := usage["memory"].(string)
+	if !ok {
+		return 0, fmt.Errorf("no memory usage in metrics")
+	}
+
+	// Parse memory string (e.g., "123Mi" or "456Ki")
+	quantity, err := resource.ParseQuantity(memoryStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse memory quantity %s: %w", memoryStr, err)
+	}
+
+	// Convert to Mi
+	memMi := float64(quantity.Value()) / (1024 * 1024)
+	return memMi, nil
+}
+
+// CreateTestNamespaces creates test namespaces in batches
+func (f *Framework) CreateTestNamespaces(t *testing.T, count int, prefix string) []string {
+	t.Logf("Creating %d test namespaces...", count)
+	var createdNs []string
+	var mu sync.Mutex
+
+	// Create namespaces in batches to avoid overwhelming the API server
+	batchSize := 50
+	for i := 0; i < count; i += batchSize {
+		end := i + batchSize
+		if end > count {
+			end = count
+		}
+
+		var wg sync.WaitGroup
+		for j := i; j < end; j++ {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				nsName := fmt.Sprintf("%s%d", prefix, index)
+
+				// Create namespace
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: nsName,
+					},
+				}
+				err := f.Client.Create(context.TODO(), ns, nil)
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					t.Errorf("Failed to create namespace %s: %v", nsName, err)
+					return
+				}
+
+				mu.Lock()
+				createdNs = append(createdNs, nsName)
+				mu.Unlock()
+			}(j)
+		}
+		wg.Wait()
+
+		// Add a small delay between batches
+		if end < count {
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	t.Logf("Successfully created %d namespaces", len(createdNs))
+	return createdNs
+}
+
+// CleanupTestNamespaces deletes test namespaces
+func (f *Framework) CleanupTestNamespaces(t *testing.T, namespaces []string) {
+	t.Logf("Cleaning up %d test namespaces...", len(namespaces))
+
+	// Delete in batches
+	batchSize := 50
+	for i := 0; i < len(namespaces); i += batchSize {
+		end := i + batchSize
+		if end > len(namespaces) {
+			end = len(namespaces)
+		}
+
+		var wg sync.WaitGroup
+		for j := i; j < end; j++ {
+			wg.Add(1)
+			go func(nsName string) {
+				defer wg.Done()
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: nsName,
+					},
+				}
+				err := f.Client.Delete(context.TODO(), ns)
+				if err != nil && !apierrors.IsNotFound(err) {
+					t.Logf("Warning: Failed to delete namespace %s: %v", nsName, err)
+				}
+			}(namespaces[j])
+		}
+		wg.Wait()
+
+		// Add a small delay between batches
+		if end < len(namespaces) {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	t.Logf("Cleanup completed")
 }
