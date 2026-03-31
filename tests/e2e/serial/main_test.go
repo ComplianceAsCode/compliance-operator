@@ -16,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -2559,9 +2560,9 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
 
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
-		t.Fatal(err) 
+		t.Fatal(err)
 	}
-    
+
 	if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
 		t.Fatal(err)
 	}
@@ -2579,7 +2580,7 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 	if err := f.Client.Update(context.TODO(), scanSettingUpdate); err != nil {
 		t.Fatalf("failed to update ScanSetting: %s", err)
 	}
-	
+
 	// Clear metadata to ensure clean recreation of the ssb
 	scanSettingBinding.ObjectMeta = metav1.ObjectMeta{
 		Name:      bindingName,
@@ -2615,7 +2616,222 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 			t.Fatalf("suite left PENDING state (expected to remain PENDING for 30s): phase=%s", suite.Status.Phase)
 		}
 		time.Sleep(framework.RetryInterval)
+	}
 }
+
+// TestPCIDSSApiChecksWithLargeMachineConfigScale tests that the PCI-DSS api-checks pod
+// doesn't crash when dealing with a large number (150) of MachineConfigs.
+// This is a stress test to ensure the compliance operator can handle environments
+// with many MachineConfigs without the scanner pods entering CrashLoopBackOff.
+func TestPCIDSSApiChecksWithLargeMachineConfigScale(t *testing.T) {
+	f := framework.Global
+	const (
+		mcCount  = 150
+		mcPrefix = "e2e-stress-mc-"
+	)
+
+	// Skip on ROSA platform as MachineConfigPool operations are not supported
+	if f.Platform == "rosa" {
+		t.Skip("Skipping test on ROSA platform - MachineConfigPool not supported")
+	}
+
+	suiteName := "pci-dss-stress-test"
+	scanSettingName := "stress-test-setting"
+	poolName := framework.TestPoolName // Use existing e2e pool
+
+	// Create 150 MachineConfigs concurrently to simulate a large-scale environment
+	log.Printf("Creating %d MachineConfigs concurrently\n", mcCount)
+	mcList := make([]*mcfgv1.MachineConfig, mcCount)
+
+	// Use a channel to collect errors
+	errChan := make(chan error, mcCount)
+
+	for i := 0; i < mcCount; i++ {
+		mcList[i] = &mcfgv1.MachineConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("%s%d", mcPrefix, i),
+				Labels: map[string]string{
+					"machineconfiguration.openshift.io/role": poolName,
+				},
+			},
+			Spec: mcfgv1.MachineConfigSpec{
+				Config: k8sruntime.RawExtension{
+					Raw: []byte(fmt.Sprintf(`{
+						"ignition": {"version": "3.2.0"},
+						"storage": {
+							"files": [{
+								"path": "/etc/e2e-test-%d",
+								"contents": {"source": "data:,test%d"},
+								"mode": 420
+							}]
+						}
+					}`, i, i)),
+				},
+			},
+		}
+
+		// Create MachineConfigs concurrently
+		go func(mc *mcfgv1.MachineConfig) {
+			if err := f.Client.Create(context.TODO(), mc, nil); err != nil {
+				errChan <- fmt.Errorf("failed to create MachineConfig %s: %w", mc.Name, err)
+			} else {
+				errChan <- nil
+			}
+		}(mcList[i])
+	}
+
+	// Wait for all MachineConfig creations to complete
+	for i := 0; i < mcCount; i++ {
+		if err := <-errChan; err != nil {
+			t.Fatalf("Error creating MachineConfigs: %s", err)
+		}
+	}
+	log.Printf("Successfully created %d MachineConfigs\n", mcCount)
+
+	// Defer cleanup of all MachineConfigs
+	defer func() {
+		log.Printf("Cleaning up %d MachineConfigs\n", mcCount)
+		for _, mc := range mcList {
+			if err := f.Client.Delete(context.TODO(), mc); err != nil && !apierrors.IsNotFound(err) {
+				log.Printf("WARNING: failed to delete MachineConfig %s: %s", mc.Name, err)
+			}
+		}
+
+		// Wait for MachineConfigPool to stabilize after deleting MachineConfigs
+		// This prevents the framework cleanup from hanging when removing the pool
+		log.Printf("Waiting for MachineConfigPool %s to stabilize after MC deletion\n", poolName)
+		err := wait.PollImmediate(framework.RetryInterval, 10*time.Minute, func() (bool, error) {
+			pool := &mcfgv1.MachineConfigPool{}
+			if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, pool); err != nil {
+				if apierrors.IsNotFound(err) {
+					// Pool was already deleted, that's fine
+					return true, nil
+				}
+				return false, err
+			}
+
+			// Check if the pool is updated and stable
+			for _, c := range pool.Status.Conditions {
+				if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == corev1.ConditionTrue {
+					log.Printf("MachineConfigPool %s is stable after cleanup\n", poolName)
+					return true, nil
+				}
+			}
+			return false, nil
+		})
+		if err != nil {
+			log.Printf("WARNING: MachineConfigPool failed to stabilize after cleanup: %s\n", err)
+		}
+	}()
+
+	// Wait for MachineConfigPool to update with all the configs
+	log.Printf("Waiting for MachineConfigPool %s to process the MachineConfigs\n", poolName)
+	err := wait.PollImmediate(framework.RetryInterval, 10*time.Minute, func() (bool, error) {
+		pool := &mcfgv1.MachineConfigPool{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, pool); err != nil {
+			return false, err
+		}
+
+		// Check if the pool is updated
+		for _, c := range pool.Status.Conditions {
+			if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == corev1.ConditionTrue {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Fatalf("MachineConfigPool failed to update: %s", err)
+	}
+
+	// Create ScanSetting
+	log.Printf("Creating ScanSetting %s\n", scanSettingName)
+	scanSetting := &compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug: true,
+		},
+		Roles: []string{poolName},
+	}
+	err = f.Client.Create(context.TODO(), scanSetting, nil)
+	if err != nil {
+		t.Fatalf("failed to create ScanSetting: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), scanSetting)
+
+	// Create ScanSettingBinding with PCI-DSS profiles
+	log.Printf("Creating ScanSettingBinding %s with PCI-DSS profiles\n", suiteName)
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-pci-dss-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-pci-dss",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("failed to create ScanSettingBinding: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for the scan to complete
+	// The key test here is that the api-checks pod doesn't crash with CrashLoopBackOff
+	// when processing a large number of MachineConfigs
+	log.Printf("Waiting for ComplianceSuite %s to complete (this validates api-checks pod stability)\n", suiteName)
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatalf("Suite did not reach DONE state: %s", err)
+	}
+
+	// Get the suite to iterate over scans
+	suite := &compv1alpha1.ComplianceSuite{}
+	suiteKey := types.NamespacedName{Name: suiteName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), suiteKey, suite); err != nil {
+		t.Fatalf("failed to get ComplianceSuite: %s", err)
+	}
+
+	// Check pods for each scan in the suite
+	for _, scanWrapper := range suite.Spec.Scans {
+		pods, err := f.GetPodsForScan(scanWrapper.Name)
+		if err != nil {
+			t.Fatalf("failed to get pods for scan %s: %s", scanWrapper.Name, err)
+		}
+
+		// Verify no pods are in CrashLoopBackOff
+		for _, pod := range pods {
+			for _, containerStatus := range pod.Status.ContainerStatuses {
+				if containerStatus.State.Waiting != nil &&
+					containerStatus.State.Waiting.Reason == "CrashLoopBackOff" {
+					t.Fatalf("Pod %s container %s is in CrashLoopBackOff state",
+						pod.Name, containerStatus.Name)
+				}
+			}
+		}
+	}
+
+	log.Printf("Test completed successfully - PCI-DSS api-checks pods handled %d MachineConfigs without crashing\n", mcCount)
 }
 
 func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
