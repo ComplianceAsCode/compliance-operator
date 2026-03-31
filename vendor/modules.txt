@@ -1187,13 +1187,13 @@ google.golang.org/api/option
 google.golang.org/api/option/internaloption
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-# google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217
-## explicit; go 1.24.0
+# google.golang.org/genproto/googleapis/api v0.0.0-20260330182312-d5a96adf58d8
+## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
-## explicit; go 1.24.0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c
+## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
@@ -1275,7 +1275,7 @@ google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
-# google.golang.org/protobuf v1.36.10
+# google.golang.org/protobuf v1.36.11
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
