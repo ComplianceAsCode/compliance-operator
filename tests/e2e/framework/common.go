@@ -3230,3 +3230,308 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 	}
 	return nil
 }
+
+// WaitForMachineConfigPoolUpdated waits for a MachineConfigPool to complete an update cycle.
+// It first waits for the Updated condition to become False (indicating update/reboot started),
+// then waits for it to become True again (indicating update/reboot completed).
+func (f *Framework) WaitForMachineConfigPoolUpdated(poolName string) error {
+	if f.Platform == "rosa" {
+		log.Printf("Bypassing MachineConfigPool update check on %s", f.Platform)
+		return nil
+	}
+
+	// First, get the initial state
+	pool := mcfgv1.MachineConfigPool{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, &pool)
+	if err != nil {
+		return fmt.Errorf("failed to find Machine Config Pool %s: %w", poolName, err)
+	}
+
+	// Check initial state of MachineConfigPoolUpdated condition
+	initialUpdated := false
+	for _, c := range pool.Status.Conditions {
+		if c.Type == mcfgv1.MachineConfigPoolUpdated {
+			initialUpdated = (c.Status == core.ConditionTrue)
+			break
+		}
+	}
+
+	// If the pool is already updated (True), wait for it to start updating (False)
+	if initialUpdated {
+		log.Printf("Machine Config Pool %s is currently updated. Waiting for update to start...\n", poolName)
+		err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+			pool := mcfgv1.MachineConfigPool{}
+			err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, &pool)
+			if err != nil {
+				log.Printf("failed to find Machine Config Pool %s\n", poolName)
+				return false, err
+			}
+
+			for _, c := range pool.Status.Conditions {
+				if c.Type == mcfgv1.MachineConfigPoolUpdated {
+					if c.Status == core.ConditionFalse {
+						log.Printf("Machine Config Pool %s update started (Updated=False)\n", poolName)
+						return true, nil
+					}
+					break
+				}
+			}
+
+			log.Printf("Machine Config Pool %s still updated, waiting for update to start...\n", poolName)
+			return false, nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed waiting for Machine Config Pool %s to start updating: %w", poolName, err)
+		}
+	} else {
+		log.Printf("Machine Config Pool %s is already updating (Updated=False). Waiting for update to complete...\n", poolName)
+	}
+
+	// Now wait for the update to complete (Updated=True)
+	err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		pool := mcfgv1.MachineConfigPool{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, &pool)
+		if err != nil {
+			log.Printf("failed to find Machine Config Pool %s\n", poolName)
+			return false, err
+		}
+
+		for _, c := range pool.Status.Conditions {
+			if c.Type == mcfgv1.MachineConfigPoolUpdated {
+				if c.Status == core.ConditionTrue {
+					return true, nil
+				}
+				log.Printf("Machine Config Pool %s has not finished updating yet (Updated=%s)... retrying\n", poolName, c.Status)
+				return false, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed waiting for Machine Config Pool %s to be updated: %w", poolName, err)
+	}
+
+	log.Printf("Machine Config Pool %s is updated\n", poolName)
+	return nil
+}
+
+// WaitForNodeToMatchMachineConfigPool waits until the node's machine-config annotations show
+// desiredConfig matching the pool's rendered configuration (status.configuration.name, else
+// spec.configuration.name), currentConfig == desiredConfig, and state Done. Use this after
+// moving a node into a pool (e.g. removing a custom role label so it rejoins worker) and
+// before deleting that custom MachineConfigPool.
+func (f *Framework) WaitForNodeToMatchMachineConfigPool(poolName, nodeName string) error {
+	if f.Platform == "rosa" {
+		return nil
+	}
+	return wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		pool := &mcfgv1.MachineConfigPool{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, pool); err != nil {
+			return false, err
+		}
+		target := pool.Status.Configuration.Name
+		if target == "" {
+			target = pool.Spec.Configuration.Name
+		}
+		if target == "" {
+			log.Printf("MachineConfigPool %s has no configuration name yet; retrying\n", poolName)
+			return false, nil
+		}
+		node := &core.Node{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: nodeName}, node); err != nil {
+			return false, err
+		}
+		cur := node.Annotations["machineconfiguration.openshift.io/currentConfig"]
+		des := node.Annotations["machineconfiguration.openshift.io/desiredConfig"]
+		st := node.Annotations["machineconfiguration.openshift.io/state"]
+		if des != target || cur != des || st != "Done" {
+			log.Printf("waiting for node %s to match pool %s: desired=%s want=%s current=%s state=%s\n",
+				nodeName, poolName, des, target, cur, st)
+			return false, nil
+		}
+		log.Printf("node %s matches MachineConfigPool %s (%s)\n", nodeName, poolName, target)
+		return true, nil
+	})
+}
+
+// GetClusterArchitecture returns the cluster architecture ("amd64", "arm64", "s390x", "ppc64le")
+// or "multi" when nodes have mixed architectures.
+func (f *Framework) GetClusterArchitecture() (string, error) {
+	nodeList := &corev1.NodeList{}
+	if err := f.Client.List(context.TODO(), nodeList); err != nil {
+		return "", err
+	}
+	seen := map[string]struct{}{}
+	for i := range nodeList.Items {
+		arch := strings.ToLower(nodeList.Items[i].Status.NodeInfo.Architecture)
+		if arch == "" {
+			continue
+		}
+		seen[arch] = struct{}{}
+	}
+	if len(seen) == 0 {
+		return "", fmt.Errorf("no node architecture found")
+	}
+	if len(seen) > 1 {
+		return "multi", nil
+	}
+	for arch := range seen {
+		return arch, nil
+	}
+	return "", fmt.Errorf("unable to determine architecture")
+}
+
+// GetOneRhcosWorkerNodeName returns one worker node labeled with os_id=rhcos (or rhel fallback).
+func (f *Framework) GetOneRhcosWorkerNodeName() (string, error) {
+	selectorRhcos := "node-role.kubernetes.io/edge!=,node-role.kubernetes.io/worker=,node.openshift.io/os_id=rhcos"
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: selectorRhcos})
+	if err != nil {
+		return "", err
+	}
+	if len(nodes.Items) > 0 {
+		return nodes.Items[0].Name, nil
+	}
+
+	selectorRhel := "node-role.kubernetes.io/edge!=,node-role.kubernetes.io/worker=,node.openshift.io/os_id=rhel"
+	nodes, err = f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: selectorRhel})
+	if err != nil {
+		return "", err
+	}
+	if len(nodes.Items) == 0 {
+		return "", fmt.Errorf("no rhcos/rhel worker node found")
+	}
+	return nodes.Items[0].Name, nil
+}
+
+// GetOneRhcosWorkerNodeForCustomMCP returns an RHCOS/RHEL worker that does not have the
+// framework e2e MachineConfigPool role (see SetUp createMachineConfigPool). That node is
+// reserved for the shared e2e pool; labeling it again for another custom MCP (e.g. wrscan)
+// makes it match multiple pools and commonly leaves machineconfiguration.openshift.io/state
+// Degraded, which breaks WaitForNodesToBeReady after remediation.
+func (f *Framework) GetOneRhcosWorkerNodeForCustomMCP() (string, error) {
+	e2eRoleLabel := fmt.Sprintf("node-role.kubernetes.io/%s", TestPoolName)
+
+	tryList := func(labelSelector string) ([]corev1.Node, error) {
+		nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector})
+		if err != nil {
+			return nil, err
+		}
+		return nodes.Items, nil
+	}
+
+	selectNode := func(nodes []corev1.Node) (string, bool) {
+		for i := range nodes {
+			if _, hasE2E := nodes[i].Labels[e2eRoleLabel]; hasE2E {
+				continue
+			}
+			return nodes[i].Name, true
+		}
+		return "", false
+	}
+
+	rhcosNodes, err := tryList("node-role.kubernetes.io/edge!=,node-role.kubernetes.io/worker=,node.openshift.io/os_id=rhcos")
+	if err != nil {
+		return "", err
+	}
+	if name, ok := selectNode(rhcosNodes); ok {
+		return name, nil
+	}
+
+	rhelNodes, err := tryList("node-role.kubernetes.io/edge!=,node-role.kubernetes.io/worker=,node.openshift.io/os_id=rhel")
+	if err != nil {
+		return "", err
+	}
+	if name, ok := selectNode(rhelNodes); ok {
+		return name, nil
+	}
+
+	if len(rhcosNodes)+len(rhelNodes) > 0 {
+		return "", fmt.Errorf("no worker found outside framework %s MachineConfigPool (need a worker not labeled %s)", TestPoolName, e2eRoleLabel)
+	}
+	return "", fmt.Errorf("no rhcos/rhel worker node found")
+}
+
+// SetNodeRoleLabel sets node-role.kubernetes.io/<role>="" on a node.
+func (f *Framework) SetNodeRoleLabel(nodeName, role string) error {
+	node := &corev1.Node{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: nodeName}, node); err != nil {
+		return err
+	}
+	nodeCopy := node.DeepCopy()
+	if nodeCopy.Labels == nil {
+		nodeCopy.Labels = map[string]string{}
+	}
+	nodeCopy.Labels[fmt.Sprintf("node-role.kubernetes.io/%s", role)] = ""
+	return f.Client.Update(context.TODO(), nodeCopy)
+}
+
+// RemoveNodeRoleLabel removes node-role.kubernetes.io/<role> from a node.
+func (f *Framework) RemoveNodeRoleLabel(nodeName, role string) error {
+	node := &corev1.Node{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: nodeName}, node); err != nil {
+		return err
+	}
+	nodeCopy := node.DeepCopy()
+	delete(nodeCopy.Labels, fmt.Sprintf("node-role.kubernetes.io/%s", role))
+	return f.Client.Update(context.TODO(), nodeCopy)
+}
+
+// EnsureMachineConfigPoolForRole creates a MachineConfigPool if it doesn't exist.
+func (f *Framework) EnsureMachineConfigPoolForRole(poolName, role string) error {
+	pool := &mcfgv1.MachineConfigPool{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, pool)
+	if err == nil {
+		return nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	poolLabels := map[string]string{
+		fmt.Sprintf("pools.operator.machineconfiguration.openshift.io/%s", role): "",
+	}
+	nodeLabel := map[string]string{
+		fmt.Sprintf("node-role.kubernetes.io/%s", role): "",
+	}
+	newPool := &mcfgv1.MachineConfigPool{
+		ObjectMeta: metav1.ObjectMeta{Name: poolName, Labels: poolLabels},
+		Spec: mcfgv1.MachineConfigPoolSpec{
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: nodeLabel,
+			},
+			MachineConfigSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      mcfgv1.MachineConfigRoleLabelKey,
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"worker", role},
+					},
+				},
+			},
+		},
+	}
+	return f.Client.Create(context.TODO(), newPool, nil)
+}
+
+// SetSuiteRemediationsApply updates spec.apply for all remediations belonging to a suite.
+func (f *Framework) SetSuiteRemediationsApply(namespace, suiteName string, apply bool) error {
+	list := &compv1alpha1.ComplianceRemediationList{}
+	if err := f.Client.List(
+		context.TODO(),
+		list,
+		client.InNamespace(namespace),
+		client.MatchingLabels{compv1alpha1.SuiteLabel: suiteName},
+	); err != nil {
+		return err
+	}
+
+	for i := range list.Items {
+		rem := &list.Items[i]
+		remCopy := rem.DeepCopy()
+		remCopy.Spec.Apply = apply
+		if err := f.Client.Update(context.TODO(), remCopy); err != nil {
+			return fmt.Errorf("update remediation %s: %w", rem.Name, err)
+		}
+	}
+	return nil
+}
