@@ -170,7 +170,7 @@ github.com/beorn7/perks/quantile
 # github.com/blang/semver/v4 v4.0.0
 ## explicit; go 1.14
 github.com/blang/semver/v4
-# github.com/ccojocar/zxcvbn-go v1.0.2
+# github.com/ccojocar/zxcvbn-go v1.0.4
 ## explicit; go 1.20
 github.com/ccojocar/zxcvbn-go
 github.com/ccojocar/zxcvbn-go/adjacency
