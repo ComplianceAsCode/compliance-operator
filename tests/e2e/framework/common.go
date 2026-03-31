@@ -3229,4 +3229,111 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 	}
 	return nil
-}	
+}
+
+// NonControlNamespacesRegex returns namespaces joined by "|" after excluding:
+// - default
+// - kube-*
+// - openshift*
+func (f *Framework) NonControlNamespacesRegex() (string, error) {
+	nsList := &corev1.NamespaceList{}
+	if err := f.Client.List(context.TODO(), nsList); err != nil {
+		return "", err
+	}
+	filtered := make([]string, 0, len(nsList.Items))
+	for i := range nsList.Items {
+		name := nsList.Items[i].Name
+		if name == "default" {
+			continue
+		}
+		if strings.HasPrefix(name, "kube-") {
+			continue
+		}
+		if strings.HasPrefix(name, "openshift") {
+			continue
+		}
+		filtered = append(filtered, name)
+	}
+	return strings.Join(filtered, "|"), nil
+}
+
+// WaitForCheckResultStatus polls until the ComplianceCheckResult reaches the expected status.
+func (f *Framework) WaitForCheckResultStatus(checkName string, expected compv1alpha1.ComplianceCheckStatus) error {
+	return wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		ccr := &compv1alpha1.ComplianceCheckResult{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      checkName,
+			Namespace: f.OperatorNamespace,
+		}, ccr)
+		if err != nil {
+			return false, nil
+		}
+		return ccr.Status == expected, nil
+	})
+}
+
+// Architecture represents cluster node architecture.
+type Architecture int
+
+const (
+	ArchAMD64 Architecture = iota
+	ArchARM64
+	ArchPPC64LE
+	ArchS390X
+	ArchMULTI
+	ArchUNKNOWN
+)
+
+func (a Architecture) String() string {
+	switch a {
+	case ArchAMD64:
+		return "amd64"
+	case ArchARM64:
+		return "arm64"
+	case ArchPPC64LE:
+		return "ppc64le"
+	case ArchS390X:
+		return "s390x"
+	case ArchMULTI:
+		return "multi"
+	default:
+		return "unknown"
+	}
+}
+
+// ClusterArchitecture returns node architecture, or ArchMULTI if mixed.
+func (f *Framework) ClusterArchitecture() Architecture {
+	nodeList := &corev1.NodeList{}
+	if err := f.Client.List(context.TODO(), nodeList); err != nil {
+		log.Printf("failed to list nodes for architecture: %v", err)
+		return ArchUNKNOWN
+	}
+	archSet := make(map[string]struct{})
+	for i := range nodeList.Items {
+		arch := strings.ToLower(nodeList.Items[i].Status.NodeInfo.Architecture)
+		if arch != "" {
+			archSet[arch] = struct{}{}
+		}
+	}
+	if len(archSet) == 0 {
+		return ArchUNKNOWN
+	}
+	if len(archSet) > 1 {
+		return ArchMULTI
+	}
+	for arch := range archSet {
+		switch arch {
+		case "amd64":
+			return ArchAMD64
+		case "arm64":
+			return ArchARM64
+		case "ppc64le":
+			return ArchPPC64LE
+		case "s390x":
+			return ArchS390X
+		default:
+			return ArchUNKNOWN
+		}
+	}
+	return ArchUNKNOWN
+}
