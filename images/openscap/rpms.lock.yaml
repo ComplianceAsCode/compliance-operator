@@ -4,13 +4,13 @@ lockfileVendor: redhat
 arches:
 - arch: aarch64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libxslt-1.1.34-13.el9_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libxslt-1.1.34-14.el9_7.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 248330
-    checksum: sha256:973e5e7144917cb7c9e0552a444159004b330346dc5212d744312304dfdd4610
+    size: 251669
+    checksum: sha256:2b1fc002c4f57960df438791f7dfb5d4defa964f1afc73c3556451bc7f5ea01c
     name: libxslt
-    evr: 1.1.34-13.el9_6
-    sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
+    evr: 1.1.34-14.el9_7.1
+    sourcerpm: libxslt-1.1.34-14.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 2118389
@@ -123,13 +123,13 @@ arches:
     name: libeconf
     evr: 0.4.1-4.el9
     sourcerpm: libeconf-0.4.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libfdisk-2.37.4-21.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libfdisk-2.37.4-21.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 153926
-    checksum: sha256:e39cadb3e0cfd498fa1f37ec76d5f28af35a29b23c4ab163a21d0abc868e156f
+    size: 156277
+    checksum: sha256:c3373716e1a6bd9f4efeacb66b11dfe8c96e8b988462a61fbb2426a608e32bb4
     name: libfdisk
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libpwquality-1.4.4-8.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 125712
@@ -193,27 +193,27 @@ arches:
     name: systemd-rpm-macros
     evr: 252-55.el9_7.7
     sourcerpm: systemd-252-55.el9_7.7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/u/util-linux-2.37.4-21.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/u/util-linux-2.37.4-21.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 2391248
-    checksum: sha256:82bd3fae04690f35c634e8cd6ad14faacfe3db2bb398f98fb6c8d50df961978c
+    size: 2388428
+    checksum: sha256:00ec97a5869f54e74f5c2187739954ad807d528a6e9f7a9079271d34e5890b53
     name: util-linux
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9.aarch64.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 476169
-    checksum: sha256:e1d6b36eaaa048d6cb22799d3c463c95d0aadf5dac83fdcf05e9c047eb396406
+    size: 472668
+    checksum: sha256:6c64ae44f7b363099c14c54e6baf8fbeec666818bd60d3fea6ff247df1420370
     name: util-linux-core
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-13.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-14.el9_7.1.src.rpm
     repoid: rhel-9-for-aarch64-appstream-source-rpms
-    size: 3555712
-    checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
+    size: 3567277
+    checksum: sha256:52dfaf51f4dd59eeaf60b6b0c1a4ef41c83001f29568cd9d3521696ba3e50c3d
     name: libxslt
-    evr: 1.1.34-13.el9_6
+    evr: 1.1.34-14.el9_7.1
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-aarch64-appstream-source-rpms
     size: 14017583
@@ -322,22 +322,22 @@ arches:
     checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
     evr: 252-55.el9_7.7
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9_7.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
-    size: 6281028
-    checksum: sha256:cde2d6a98345d49de9d225fc3acf7542fb35fde32832f1361415486a7839c222
+    size: 6285412
+    checksum: sha256:023c096f5d669249836bc5d5a445a96ce86b7bbc0b52a1321c371d208df69a57
     name: util-linux
-    evr: 2.37.4-21.el9
+    evr: 2.37.4-21.el9_7
   module_metadata: []
 - arch: ppc64le
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/l/libxslt-1.1.34-13.el9_6.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/l/libxslt-1.1.34-14.el9_7.1.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
-    size: 268687
-    checksum: sha256:59218c6016f5f208dffe832833a193c330fb7853237c8435662fbc00e0327276
+    size: 272058
+    checksum: sha256:c07405af5c0110256e0ec1ab4f9a344155d1d0056ab545df729c4291b8292e09
     name: libxslt
-    evr: 1.1.34-13.el9_6
-    sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
+    evr: 1.1.34-14.el9_7.1
+    sourcerpm: libxslt-1.1.34-14.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
     size: 2208728
@@ -450,13 +450,13 @@ arches:
     name: libeconf
     evr: 0.4.1-4.el9
     sourcerpm: libeconf-0.4.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libfdisk-2.37.4-21.el9.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libfdisk-2.37.4-21.el9_7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 174570
-    checksum: sha256:966d0ccb94752aecca93368a9541e2dc2bb30db9f2cc6aeb6ab524e32b39b1bb
+    size: 176639
+    checksum: sha256:4c772f1872f91203182ffec334b60d8c11a1d5dcca283e203af0a564cbab9458
     name: libfdisk
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libpwquality-1.4.4-8.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
     size: 128350
@@ -527,27 +527,27 @@ arches:
     name: systemd-rpm-macros
     evr: 252-55.el9_7.7
     sourcerpm: systemd-252-55.el9_7.7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/u/util-linux-2.37.4-21.el9.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/u/util-linux-2.37.4-21.el9_7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 2428895
-    checksum: sha256:768413a8cb1df625f0f092355493ddf456c3a491a107108cc165ad44695071cf
+    size: 2424397
+    checksum: sha256:f8fb64127696c7c7856fddc98e9b6642b2d603487363eda8d72f449e7efe39c9
     name: util-linux
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9.ppc64le.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9_7.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 499376
-    checksum: sha256:14407b96054d10be6e5b6a7c8d167283caa6b821113bbc6872c4c90fd7da6b1f
+    size: 495317
+    checksum: sha256:d9a5aee7efe2b85b531648bd8d0aa53a0e02d2dbe2f77881b7072ac9390eeb2c
     name: util-linux-core
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-13.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-14.el9_7.1.src.rpm
     repoid: rhel-9-for-ppc64le-appstream-source-rpms
-    size: 3555712
-    checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
+    size: 3567277
+    checksum: sha256:52dfaf51f4dd59eeaf60b6b0c1a4ef41c83001f29568cd9d3521696ba3e50c3d
     name: libxslt
-    evr: 1.1.34-13.el9_6
+    evr: 1.1.34-14.el9_7.1
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-ppc64le-appstream-source-rpms
     size: 14017583
@@ -662,22 +662,22 @@ arches:
     checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
     evr: 252-55.el9_7.7
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9_7.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 6281028
-    checksum: sha256:cde2d6a98345d49de9d225fc3acf7542fb35fde32832f1361415486a7839c222
+    size: 6285412
+    checksum: sha256:023c096f5d669249836bc5d5a445a96ce86b7bbc0b52a1321c371d208df69a57
     name: util-linux
-    evr: 2.37.4-21.el9
+    evr: 2.37.4-21.el9_7
   module_metadata: []
 - arch: s390x
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/l/libxslt-1.1.34-13.el9_6.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/l/libxslt-1.1.34-14.el9_7.1.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
-    size: 243361
-    checksum: sha256:619e7668ac0470ad0330307bd083a9c36e59616c55c5173cf1a7898e589b37a3
+    size: 247051
+    checksum: sha256:8b22a204421446c6c45361ee28f5c394da79088a9998676d73c15a81c0225d55
     name: libxslt
-    evr: 1.1.34-13.el9_6
-    sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
+    evr: 1.1.34-14.el9_7.1
+    sourcerpm: libxslt-1.1.34-14.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
     size: 2115966
@@ -790,13 +790,13 @@ arches:
     name: libeconf
     evr: 0.4.1-4.el9
     sourcerpm: libeconf-0.4.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libfdisk-2.37.4-21.el9.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libfdisk-2.37.4-21.el9_7.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 155164
-    checksum: sha256:c01f1bae10e4686dec4780db84252047488c3be4289ca3c84cab4009f1aa5487
+    size: 155697
+    checksum: sha256:0fd99f51b377f1f178ffc8c6e17ecfd0d34c73bf9ab59000a38ed229bf8c9d06
     name: libfdisk
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libpwquality-1.4.4-8.el9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
     size: 125703
@@ -860,27 +860,27 @@ arches:
     name: systemd-rpm-macros
     evr: 252-55.el9_7.7
     sourcerpm: systemd-252-55.el9_7.7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/u/util-linux-2.37.4-21.el9.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/u/util-linux-2.37.4-21.el9_7.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 2336453
-    checksum: sha256:444dc662176b0fc44159d7e77480b41848bd0210ba8378fe840bfa20d49627c0
+    size: 2326731
+    checksum: sha256:c235f80ddea8e310263f766987e3b157ea0cc06e36f55ca9e0ec31607c2fc4c5
     name: util-linux
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9.s390x.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9_7.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 471978
-    checksum: sha256:788f076154306f98c818f1997a3f54ffd9b3420564dda0b8afa56a851b537e79
+    size: 468076
+    checksum: sha256:6c361b6341c1d06f7e6f9c1253dc487ab883cb83f88f8007dc4ec60d7703da2b
     name: util-linux-core
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-13.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-14.el9_7.1.src.rpm
     repoid: rhel-9-for-s390x-appstream-source-rpms
-    size: 3555712
-    checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
+    size: 3567277
+    checksum: sha256:52dfaf51f4dd59eeaf60b6b0c1a4ef41c83001f29568cd9d3521696ba3e50c3d
     name: libxslt
-    evr: 1.1.34-13.el9_6
+    evr: 1.1.34-14.el9_7.1
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-s390x-appstream-source-rpms
     size: 14017583
@@ -989,22 +989,22 @@ arches:
     checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
     evr: 252-55.el9_7.7
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9_7.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 6281028
-    checksum: sha256:cde2d6a98345d49de9d225fc3acf7542fb35fde32832f1361415486a7839c222
+    size: 6285412
+    checksum: sha256:023c096f5d669249836bc5d5a445a96ce86b7bbc0b52a1321c371d208df69a57
     name: util-linux
-    evr: 2.37.4-21.el9
+    evr: 2.37.4-21.el9_7
   module_metadata: []
 - arch: x86_64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libxslt-1.1.34-13.el9_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libxslt-1.1.34-14.el9_7.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 250837
-    checksum: sha256:b22bb9f995e96b2b00711760c57fe4e93b4328815de61c39d53717b6a61f6d8c
+    size: 254259
+    checksum: sha256:d92873a046c78ae6837d8b23deecbfa1d6376b81bf587382e89ed345c1d5bad5
     name: libxslt
-    evr: 1.1.34-13.el9_6
-    sourcerpm: libxslt-1.1.34-13.el9_6.src.rpm
+    evr: 1.1.34-14.el9_7.1
+    sourcerpm: libxslt-1.1.34-14.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/o/openscap-1.3.13-1.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 2147593
@@ -1117,13 +1117,13 @@ arches:
     name: libeconf
     evr: 0.4.1-4.el9
     sourcerpm: libeconf-0.4.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libfdisk-2.37.4-21.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libfdisk-2.37.4-21.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 159417
-    checksum: sha256:81c7676b72b85d8b5822888c510952ec0996b3d89bf8cddaf76dba31bc72a4a1
+    size: 161481
+    checksum: sha256:833ea0e100e0404affc6d103db64b8aa685e73886f2651c4073d0f3cd35a42e0
     name: libfdisk
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libpwquality-1.4.4-8.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 126104
@@ -1187,27 +1187,27 @@ arches:
     name: systemd-rpm-macros
     evr: 252-55.el9_7.7
     sourcerpm: systemd-252-55.el9_7.7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/u/util-linux-2.37.4-21.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/u/util-linux-2.37.4-21.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 2395065
-    checksum: sha256:61c795084ae4b7745b904347d4643110cd62558fce2978bd4f025ff83524e55f
+    size: 2382589
+    checksum: sha256:35bdc67c40e276a8b775be673a55b24862755ad9c6a8a8d685c2543431711e9d
     name: util-linux
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9.x86_64.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/u/util-linux-core-2.37.4-21.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 480619
-    checksum: sha256:36389814fcec56d9b9d4bd1a4a63efb1cefa00bc8bacab73f89ef8f8be04b1cd
+    size: 475071
+    checksum: sha256:ac86e01cb061c529b3becdb824e7f62d5ca70f6984f7f775f5355ec13dcbc087
     name: util-linux-core
-    evr: 2.37.4-21.el9
-    sourcerpm: util-linux-2.37.4-21.el9.src.rpm
+    evr: 2.37.4-21.el9_7
+    sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-13.el9_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/l/libxslt-1.1.34-14.el9_7.1.src.rpm
     repoid: rhel-9-for-x86_64-appstream-source-rpms
-    size: 3555712
-    checksum: sha256:c56b2595a736692ae40af40759c7ce7a29fd8871f69c15359f6772e6570d1d72
+    size: 3567277
+    checksum: sha256:52dfaf51f4dd59eeaf60b6b0c1a4ef41c83001f29568cd9d3521696ba3e50c3d
     name: libxslt
-    evr: 1.1.34-13.el9_6
+    evr: 1.1.34-14.el9_7.1
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/o/openscap-1.3.13-1.el9_7.src.rpm
     repoid: rhel-9-for-x86_64-appstream-source-rpms
     size: 14017583
@@ -1316,10 +1316,10 @@ arches:
     checksum: sha256:c3ec3a6af5ab03b57450f24d12297eaf66191292c699cec4f52ee47688159d9c
     name: systemd
     evr: 252-55.el9_7.7
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/u/util-linux-2.37.4-21.el9_7.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 6281028
-    checksum: sha256:cde2d6a98345d49de9d225fc3acf7542fb35fde32832f1361415486a7839c222
+    size: 6285412
+    checksum: sha256:023c096f5d669249836bc5d5a445a96ce86b7bbc0b52a1321c371d208df69a57
     name: util-linux
-    evr: 2.37.4-21.el9
+    evr: 2.37.4-21.el9_7
   module_metadata: []
