@@ -160,15 +160,16 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
+    createdAt: "2026-04-02T21:16:58Z"
     must-gather-image: ghcr.io/complianceascode/must-gather-ocp:latest
-    olm.skipRange: '>=0.1.17 <1.8.0-dev'
+    olm.skipRange: '>=0.1.17 <1.10.0-dev'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
     operators.openshift.io/infrastructure-features: '["disconnected", "fips", "proxy-aware"]'
     operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift
       Container Platform", "OpenShift Platform Plus"]'
-    operators.operatorframework.io/builder: operator-sdk-v1.19.0+git
-    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    operators.operatorframework.io/builder: operator-sdk-v1.42.2
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/ComplianceAsCode/compliance-operator
     support: Red Hat Inc.
   labels:
@@ -176,7 +177,7 @@ metadata:
     operatorframework.io/arch.arm64: supported
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
-  name: compliance-operator.v1.8.0-dev
+  name: compliance-operator.v1.10.0-dev
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -187,21 +188,24 @@ spec:
       kind: ComplianceCheckResult
       name: compliancecheckresults.compliance.openshift.io
       version: v1alpha1
-    - description: ComplianceRemediation represents a remediation that can be applied
-        to the cluster to fix the found issues.
+    - description: |-
+        ComplianceRemediation represents a remediation that can be applied to the
+        cluster to fix the found issues.
       displayName: Compliance Remediation
       kind: ComplianceRemediation
       name: complianceremediations.compliance.openshift.io
       version: v1alpha1
-    - description: ComplianceScan represents a scan with a certain configuration that
-        will be applied to objects of a certain entity in the host. These could be
-        nodes that apply to a certain nodeSelector, or the cluster itself.
+    - description: |-
+        ComplianceScan represents a scan with a certain configuration that will be
+        applied to objects of a certain entity in the host. These could be nodes
+        that apply to a certain nodeSelector, or the cluster itself.
       displayName: Compliance Scan
       kind: ComplianceScan
       name: compliancescans.compliance.openshift.io
       version: v1alpha1
-    - description: ComplianceSuite represents a set of scans that will be applied
-        to the cluster. These should help deployers achieve a certain compliance target.
+    - description: |-
+        ComplianceSuite represents a set of scans that will be applied to the
+        cluster. These should help deployers achieve a certain compliance target.
       displayName: Compliance Suite
       kind: ComplianceSuite
       name: compliancesuites.compliance.openshift.io
@@ -1741,4 +1745,4 @@ spec:
   - image: ghcr.io/complianceascode/k8scontent:latest
     name: profile
   replaces: compliance-operator.v1.7.1
-  version: 1.8.0-dev
+  version: 1.10.0-dev
