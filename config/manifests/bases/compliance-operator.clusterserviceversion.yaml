@@ -174,7 +174,7 @@ metadata:
     operatorframework.io/arch.arm64: supported
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
-  name: compliance-operator.v1.8.0-dev
+  name: compliance-operator.v1.10.0-dev
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
