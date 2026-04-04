@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	// configv1 "github.com/openshift/api/config/v1"
-	// "github.com/openshift/api/features"
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
-	// metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -56,10 +56,26 @@ func GetEnabledDisabledFeatures(features featuregates.FeatureGate) ([]string, []
 // GCP -> FeatureGateManagedBootImages
 // AWS -> FeatureGateManagedBootImagesAWS
 func IsBootImageControllerRequired(ctx *ControllerContext) bool {
-	// Feature gates FeatureGateManagedBootImagesAWS and FeatureGateManagedBootImages
-	// have been removed from the newer OpenShift API. This function is not used by
-	// compliance-operator. Returning false to maintain compatibility.
-	// TODO: Update machine-config-operator to a compatible version.
-	_ = ctx // Silence unused parameter warning
+	configClient := ctx.ClientBuilder.ConfigClientOrDie("ensure-boot-image-infra-client")
+	infra, err := configClient.ConfigV1().Infrastructures().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("unable to get infrastructures for boot image controller startup: %v", err)
+		return false
+	}
+	if infra.Status.PlatformStatus == nil {
+		klog.Errorf("unable to get infra.Status.PlatformStatus for boot image controller startup: %v", err)
+		return false
+	}
+	fg, err := ctx.FeatureGateAccess.CurrentFeatureGates()
+	if err != nil {
+		klog.Errorf("unable to get features for boot image controller startup: %v", err)
+		return false
+	}
+	switch infra.Status.PlatformStatus.Type {
+	case configv1.AWSPlatformType:
+		return fg.Enabled(features.FeatureGateManagedBootImagesAWS)
+	case configv1.GCPPlatformType:
+		return fg.Enabled(features.FeatureGateManagedBootImages)
+	}
 	return false
 }
