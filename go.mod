@@ -96,7 +96,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/nxadm/tail v1.4.8 // indirect
+	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/openshift/api v0.0.1
 	github.com/openshift/library-go v0.0.0-20260326200317-12d8376369b7
 	github.com/openshift/machine-config-operator v0.0.1-0.20250401081735-9026ff2d802e
