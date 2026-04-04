@@ -89,7 +89,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/imdario/mergo v0.3.16 // indirect
+	github.com/imdario/mergo v1.0.2 // indirect
 	github.com/itchyny/gojq v0.12.18
 	github.com/jaytaylor/html2text v0.0.0-20260303211410-1a4bdc82ecec
 	github.com/json-iterator/go v1.1.12 // indirect
