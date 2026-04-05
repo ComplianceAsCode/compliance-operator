@@ -28,7 +28,6 @@ const (
 	CheckTypeNone     = ""
 )
 
-
 type RulePayload struct {
 	// The ID of the Rule
 	ID string `json:"id"`

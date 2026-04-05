@@ -25,6 +25,14 @@ cloud.google.com/go/auth/internal/trustboundary
 # cloud.google.com/go/compute/metadata v0.9.0
 ## explicit; go 1.24.0
 cloud.google.com/go/compute/metadata
+# github.com/Azure/ARO-RP v0.0.0-20250602035759-0693f32d5ccc
+## explicit; go 1.22.9
+github.com/Azure/ARO-RP/pkg/operator/apis/aro.openshift.io/v1alpha1
+github.com/Azure/ARO-RP/pkg/operator/apis/preview.aro.openshift.io/v1alpha1
+github.com/Azure/ARO-RP/pkg/operator/clientset/versioned
+github.com/Azure/ARO-RP/pkg/operator/clientset/versioned/scheme
+github.com/Azure/ARO-RP/pkg/operator/clientset/versioned/typed/aro.openshift.io/v1alpha1
+github.com/Azure/ARO-RP/pkg/operator/clientset/versioned/typed/preview.aro.openshift.io/v1alpha1
 # github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19
 ## explicit; go 1.23.0
 github.com/ComplianceAsCode/compliance-sdk/pkg/fetchers
@@ -417,7 +425,7 @@ github.com/modern-go/reflect2
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
-# github.com/nxadm/tail v1.4.8
+# github.com/nxadm/tail v1.4.11
 ## explicit; go 1.13
 github.com/nxadm/tail
 github.com/nxadm/tail/ratelimiter
@@ -527,7 +535,6 @@ github.com/openshift/api/console
 github.com/openshift/api/console/v1
 github.com/openshift/api/etcd
 github.com/openshift/api/etcd/v1alpha1
-github.com/openshift/api/features
 github.com/openshift/api/helm
 github.com/openshift/api/helm/v1beta1
 github.com/openshift/api/image
@@ -613,6 +620,11 @@ github.com/openshift/client-go/image/applyconfigurations/internal
 github.com/openshift/client-go/image/clientset/versioned
 github.com/openshift/client-go/image/clientset/versioned/scheme
 github.com/openshift/client-go/image/clientset/versioned/typed/image/v1
+github.com/openshift/client-go/image/informers/externalversions
+github.com/openshift/client-go/image/informers/externalversions/image
+github.com/openshift/client-go/image/informers/externalversions/image/v1
+github.com/openshift/client-go/image/informers/externalversions/internalinterfaces
+github.com/openshift/client-go/image/listers/image/v1
 github.com/openshift/client-go/machine/applyconfigurations/internal
 github.com/openshift/client-go/machine/applyconfigurations/machine/v1
 github.com/openshift/client-go/machine/applyconfigurations/machine/v1beta1
@@ -655,6 +667,16 @@ github.com/openshift/client-go/operator/informers/externalversions/operator/v1
 github.com/openshift/client-go/operator/informers/externalversions/operator/v1alpha1
 github.com/openshift/client-go/operator/listers/operator/v1
 github.com/openshift/client-go/operator/listers/operator/v1alpha1
+github.com/openshift/client-go/route/applyconfigurations/internal
+github.com/openshift/client-go/route/applyconfigurations/route/v1
+github.com/openshift/client-go/route/clientset/versioned
+github.com/openshift/client-go/route/clientset/versioned/scheme
+github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
+github.com/openshift/client-go/route/informers/externalversions
+github.com/openshift/client-go/route/informers/externalversions/internalinterfaces
+github.com/openshift/client-go/route/informers/externalversions/route
+github.com/openshift/client-go/route/informers/externalversions/route/v1
+github.com/openshift/client-go/route/listers/route/v1
 # github.com/openshift/library-go v0.0.0-20260326200317-12d8376369b7
 ## explicit; go 1.25.0
 github.com/openshift/library-go/pkg/apiserver/jsonpatch
@@ -678,12 +700,14 @@ github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 github.com/openshift/library-go/pkg/operator/resource/resourceread
 github.com/openshift/library-go/pkg/operator/resourcesynccontroller
 github.com/openshift/library-go/pkg/operator/v1helpers
-# github.com/openshift/machine-config-operator v0.0.1-0.20250401081735-9026ff2d802e
-## explicit; go 1.23.0
+# github.com/openshift/machine-config-operator v0.0.1-0.20260402190815-ec284905f7c9
+## explicit; go 1.25.3
 github.com/openshift/machine-config-operator/internal/clients
 github.com/openshift/machine-config-operator/pkg/apihelpers
+github.com/openshift/machine-config-operator/pkg/controller/build/constants
 github.com/openshift/machine-config-operator/pkg/controller/common
 github.com/openshift/machine-config-operator/pkg/daemon/constants
+github.com/openshift/machine-config-operator/pkg/secrets
 github.com/openshift/machine-config-operator/pkg/version
 # github.com/pborman/uuid v1.2.1
 ## explicit
@@ -1595,6 +1619,9 @@ k8s.io/kube-openapi/pkg/spec3
 k8s.io/kube-openapi/pkg/util
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/validation/spec
+# k8s.io/kubectl v0.35.0
+## explicit; go 1.25.0
+k8s.io/kubectl/pkg/scheme
 # k8s.io/pod-security-admission v0.35.3
 ## explicit; go 1.25.0
 k8s.io/pod-security-admission/api
