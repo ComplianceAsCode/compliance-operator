@@ -3,11 +3,13 @@ package framework
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -3245,6 +3247,212 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 		if !matched {
 			return fmt.Errorf("nodeName '%s' not found in <fact name=\"urn:xccdf:fact:identifier\"> tag in ConfigMap %s/%s", nodeName, foundCM.Namespace, foundCM.Name)
+		}
+	}
+	return nil
+}
+
+// RegisterComplianceResourceSchemes registers Compliance Operator and framework-related API types.
+// Call after cluster CRDs exist (for example after an OLM Subscription installs the operator CSV).
+func (f *Framework) RegisterComplianceResourceSchemes() error {
+	return f.addFrameworks()
+}
+
+// InitRosa73945FrameworkWithoutManifest switches to the project root and ensures the operator namespace exists.
+// Used when E2E_SKIP_FRAMEWORK_SETUP=true to install the operator via Subscription instead of YAML manifests.
+func (f *Framework) InitRosa73945FrameworkWithoutManifest() error {
+	log.Printf("switching to %s directory for ROSA 73945 OLM setup", f.projectRoot)
+	if err := os.Chdir(f.projectRoot); err != nil {
+		return fmt.Errorf("failed to change directory to project root: %w", err)
+	}
+	return f.ensureTestNamespaceExists()
+}
+
+func ocApplyYAMLString(yamlStr string) error {
+	ocPath, err := exec.LookPath("oc")
+	if err != nil {
+		return fmt.Errorf("oc binary not found: %w", err)
+	}
+	cmd := exec.Command(ocPath, "apply", "-f", "-")
+	cmd.Stdin = strings.NewReader(yamlStr)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("oc apply: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// InstallComplianceOperatorSubscriptionRosa73945 applies an OperatorGroup and Subscription with
+// PLATFORM=rosa in spec.config.env and a worker nodeSelector, matching TC 73945 / subscription_hypershift_env.
+func (f *Framework) InstallComplianceOperatorSubscriptionRosa73945(channel, catalogSource, catalogSourceNamespace string) error {
+	ns := f.OperatorNamespace
+	yamlDoc := fmt.Sprintf(`apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  targetNamespaces:
+  - %s
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: compliance-operator
+  namespace: %s
+spec:
+  channel: %s
+  installPlanApproval: Automatic
+  name: compliance-operator
+  source: %s
+  sourceNamespace: %s
+  config:
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    env:
+    - name: PLATFORM
+      value: rosa
+`, ns, ns, ns, ns, channel, catalogSource, catalogSourceNamespace)
+
+	if err := ocApplyYAMLString(yamlDoc); err != nil {
+		return err
+	}
+	retryInterval := 5 * time.Second
+	timeout := 30 * time.Minute
+	return f.WaitForDeployment("compliance-operator", 1, retryInterval, timeout)
+}
+
+// SkipRosa73945Preconditions returns a skip reason if the cluster is not suitable for TC 73945, or "" if OK.
+// Expects Platform=rosa, hosted control plane (External topology), single-arch amd64 workers, and CatalogSource present.
+func (f *Framework) SkipRosa73945Preconditions(catalogSourceName, catalogSourceNamespace string) (string, error) {
+	if f.Platform != "rosa" {
+		return fmt.Sprintf("platform is %q (need --platform rosa)", f.Platform), nil
+	}
+	if f.OperatorNamespace != "openshift-compliance" {
+		return fmt.Sprintf("operator namespace is %q (set %s=openshift-compliance for TC 73945)", f.OperatorNamespace, TestOperatorNamespaceEnv), nil
+	}
+
+	// Use oc (not the dynamic client): before RegisterComplianceResourceSchemes, config.openshift.io
+	// types are not registered on the framework scheme.
+	infraOut, err := runOCandGetOutput([]string{
+		"get", "infrastructure", "cluster", "-o", "jsonpath={.status.controlPlaneTopology}",
+	})
+	if err != nil {
+		return "", fmt.Errorf("get infrastructure controlPlaneTopology: %w", err)
+	}
+	topology := strings.TrimSpace(infraOut)
+	if topology != string(configv1.ExternalTopologyMode) {
+		return fmt.Sprintf("ControlPlaneTopology is %q (ROSA HCP expects %q)", topology, configv1.ExternalTopologyMode), nil
+	}
+
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	if len(nodes.Items) == 0 {
+		return "no nodes in cluster", nil
+	}
+	for _, n := range nodes.Items {
+		arch := n.Labels[corev1.LabelArchStable]
+		if arch != "" && arch != "amd64" {
+			return fmt.Sprintf("node %s has arch %q (TC 73945 expects single-arch amd64)", n.Name, arch), nil
+		}
+	}
+
+	out, err := runOCandGetOutput([]string{
+		"get", "catalogsources", catalogSourceName, "-n", catalogSourceNamespace,
+		"-o", "jsonpath={.metadata.name}",
+	})
+	if err != nil || strings.TrimSpace(out) == "" {
+		return fmt.Sprintf("CatalogSource %s/%s not found or not readable", catalogSourceNamespace, catalogSourceName), nil
+	}
+
+	return "", nil
+}
+
+// AssertSubscriptionConfigEnvContainsPlatformRosa checks that the compliance-operator Subscription's
+// spec.config.env includes PLATFORM=rosa (substring match on serialized env).
+func (f *Framework) AssertSubscriptionConfigEnvContainsPlatformRosa() error {
+	out, err := runOCandGetOutput([]string{
+		"get", "subscription", "compliance-operator", "-n", f.OperatorNamespace,
+		"-o", "jsonpath={.spec.config.env}",
+	})
+	if err != nil {
+		return fmt.Errorf("get subscription config env: %w", err)
+	}
+	if !strings.Contains(out, "rosa") {
+		return fmt.Errorf("expected subscription spec.config.env to contain PLATFORM rosa; got: %s", strings.TrimSpace(out))
+	}
+	return nil
+}
+
+// AssertScanSettingRolesJSON checks default ScanSetting roles match exactly ["worker"] (JSON array form).
+func (f *Framework) AssertScanSettingRolesJSON(scanSettingName string) error {
+	ss := &compv1alpha1.ScanSetting{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanSettingName, Namespace: f.OperatorNamespace}, ss)
+	if err != nil {
+		return fmt.Errorf("get ScanSetting %s: %w", scanSettingName, err)
+	}
+	b, err := json.Marshal(ss.Roles)
+	if err != nil {
+		return err
+	}
+	if string(b) != `["worker"]` {
+		return fmt.Errorf("ScanSetting %s roles want [\"worker\"] as JSON, got %s", scanSettingName, string(b))
+	}
+	return nil
+}
+
+// AssertScanSettingDoesNotExist fails if a ScanSetting exists with the given name.
+func (f *Framework) AssertScanSettingDoesNotExist(name string) error {
+	ss := &compv1alpha1.ScanSetting{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: f.OperatorNamespace}, ss)
+	if err == nil {
+		return fmt.Errorf("ScanSetting %s exists but must not", name)
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("get ScanSetting %s: %w", name, err)
+	}
+	return nil
+}
+
+// AssertProfileDoesNotExist fails if a Profile exists with the given name.
+func (f *Framework) AssertProfileDoesNotExist(name string) error {
+	p := &compv1alpha1.Profile{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: f.OperatorNamespace}, p)
+	if err == nil {
+		return fmt.Errorf("Profile %s exists but must not", name)
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("get Profile %s: %w", name, err)
+	}
+	return nil
+}
+
+// AssertSuiteScanExitCodesContainSubstring checks each ComplianceScan labeled for the suite
+// has a result ConfigMap whose exit-code data contains the given substring (e.g. "2" for non-compliant).
+func (f *Framework) AssertSuiteScanExitCodesContainSubstring(suiteName, wantSubstring string) error {
+	scanList := &compv1alpha1.ComplianceScanList{}
+	sel, err := labels.Parse(compv1alpha1.SuiteLabel + "=" + suiteName)
+	if err != nil {
+		return err
+	}
+	if err := f.Client.List(context.TODO(), scanList, &client.ListOptions{
+		Namespace:     f.OperatorNamespace,
+		LabelSelector: sel,
+	}); err != nil {
+		return fmt.Errorf("list scans for suite %s: %w", suiteName, err)
+	}
+	if len(scanList.Items) == 0 {
+		return fmt.Errorf("no ComplianceScans for suite label %s", suiteName)
+	}
+	for _, scan := range scanList.Items {
+		code, _, err := f.GetScanExitCodeAndErrorMsg(scan.Name, f.OperatorNamespace)
+		if err != nil {
+			return fmt.Errorf("scan %s: %w", scan.Name, err)
+		}
+		if !strings.Contains(strings.TrimSpace(code), wantSubstring) {
+			return fmt.Errorf("scan %s exit-code %q does not contain %q", scan.Name, code, wantSubstring)
 		}
 	}
 	return nil
