@@ -5317,6 +5317,7 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 	suiteName := "test-scheduled-suite-timeout-fail"
 
 	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	workerScanWithRetryName := fmt.Sprintf("%s-workers-scan-retry", suiteName)
 	selectWorkers := map[string]string{
 		"node-role.kubernetes.io/worker": "",
 	}
@@ -5349,6 +5350,24 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 						},
 					},
 				},
+				{
+					Name: workerScanWithRetryName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							MaxRetryOnTimeout: 1,
+							RawResultStorage: compv1alpha1.RawResultStorageSettings{
+								Rotation: 1,
+							},
+							Timeout: "1s",
+							Debug:   true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -5364,6 +5383,8 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Test point 1: Verify timeout behavior without retry (MaxRetryOnTimeout: 0)
 	scan := &compv1alpha1.ComplianceScan{}
 	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: workerScanName, Namespace: f.OperatorNamespace}, scan)
 	if err != nil {
@@ -5371,6 +5392,24 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 	}
 	if _, ok := scan.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; !ok {
 		t.Fatal("The scan should have the timeout annotation")
+	}
+
+	// Test point 2: Verify timeout behavior with retry (MaxRetryOnTimeout: 1)
+	scanWithRetry := &compv1alpha1.ComplianceScan{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: workerScanWithRetryName, Namespace: f.OperatorNamespace}, scanWithRetry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := scanWithRetry.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; !ok {
+		t.Fatal("The scan with retry should have the timeout annotation")
+	}
+	// Verify that the retry mechanism worked: CurrentIndex should be 1 (initial + 1 retry)
+	if scanWithRetry.Status.CurrentIndex != 1 {
+		t.Fatalf("Expected CurrentIndex to be 1 (initial scan + 1 retry), got %d", scanWithRetry.Status.CurrentIndex)
+	}
+	// Verify error message indicates timeout
+	if !strings.Contains(scanWithRetry.Status.ErrorMessage, "Timeout") && !strings.Contains(scanWithRetry.Status.ErrorMessage, "timeout") {
+		t.Fatalf("Expected error message to contain 'Timeout', got: %s", scanWithRetry.Status.ErrorMessage)
 	}
 }
 
