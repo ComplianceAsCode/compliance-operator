@@ -14,7 +14,7 @@ import (
 
 // Konflux pull specs used across multiple functions
 var (
-	konfluxOperatorPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:ef4a592f20ef7665b98abd9e7f680f5b87baf7ccc8897ca5b60e78aa8bdfeab1"
+	konfluxOperatorPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:38c6ea1d15427f63aa155c85c699ac7d8359ae71b8c7c56fec4e4997968bed56"
 
 	konfluxContentPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:0acf3a33d24b4ed4fdc5fca8933015869f64818361da2534d0da0ddf839579a9"
 
