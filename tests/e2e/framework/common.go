@@ -3249,3 +3249,354 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 	}
 	return nil
 }
+
+// ResourceSnapshot stores detailed information about compliance operator resources for comparison
+// It tracks not just counts, but the actual resource names so we can identify what was added/removed
+type ResourceSnapshot struct {
+	RuleNames     []string
+	VariableNames []string
+	ProfileNames  []string
+}
+
+// ResourceDiff represents the difference between two resource snapshots
+type ResourceDiff struct {
+	AddedRules     []string
+	RemovedRules   []string
+	AddedVariables []string
+	RemovedVariables []string
+	AddedProfiles  []string
+	RemovedProfiles []string
+}
+
+// HasChanges returns true if there are any differences
+func (d *ResourceDiff) HasChanges() bool {
+	return len(d.AddedRules) > 0 || len(d.RemovedRules) > 0 ||
+		len(d.AddedVariables) > 0 || len(d.RemovedVariables) > 0 ||
+		len(d.AddedProfiles) > 0 || len(d.RemovedProfiles) > 0
+}
+
+// String returns a human-readable representation of the diff
+func (d *ResourceDiff) String() string {
+	var result string
+
+	if len(d.RemovedRules) > 0 {
+		result += fmt.Sprintf("  Removed Rules (%d): %v\n", len(d.RemovedRules), d.RemovedRules)
+	}
+	if len(d.AddedRules) > 0 {
+		result += fmt.Sprintf("  Added Rules (%d): %v\n", len(d.AddedRules), d.AddedRules)
+	}
+
+	if len(d.RemovedVariables) > 0 {
+		result += fmt.Sprintf("  Removed Variables (%d): %v\n", len(d.RemovedVariables), d.RemovedVariables)
+	}
+	if len(d.AddedVariables) > 0 {
+		result += fmt.Sprintf("  Added Variables (%d): %v\n", len(d.AddedVariables), d.AddedVariables)
+	}
+
+	if len(d.RemovedProfiles) > 0 {
+		result += fmt.Sprintf("  Removed Profiles (%d): %v\n", len(d.RemovedProfiles), d.RemovedProfiles)
+	}
+	if len(d.AddedProfiles) > 0 {
+		result += fmt.Sprintf("  Added Profiles (%d): %v\n", len(d.AddedProfiles), d.AddedProfiles)
+	}
+
+	if result == "" {
+		return "  No changes detected\n"
+	}
+	return result
+}
+
+// ResourceCounts stores counts of compliance operator resources for backward compatibility
+type ResourceCounts struct {
+	Rules     int
+	Variables int
+	Profiles  int
+}
+
+// GetResourceSnapshot captures the current state of all compliance operator resources in a namespace
+func (f *Framework) GetResourceSnapshot(namespace string) (*ResourceSnapshot, error) {
+	listOptions := &client.ListOptions{
+		Namespace: namespace,
+	}
+
+	snapshot := &ResourceSnapshot{
+		RuleNames:     []string{},
+		VariableNames: []string{},
+		ProfileNames:  []string{},
+	}
+
+	// Get Rules
+	ruleList := &compv1alpha1.RuleList{}
+	if err := f.Client.List(context.TODO(), ruleList, listOptions); err != nil {
+		return nil, fmt.Errorf("failed to list rules: %w", err)
+	}
+	for _, rule := range ruleList.Items {
+		snapshot.RuleNames = append(snapshot.RuleNames, rule.Name)
+	}
+
+	// Get Variables
+	varList := &compv1alpha1.VariableList{}
+	if err := f.Client.List(context.TODO(), varList, listOptions); err != nil {
+		return nil, fmt.Errorf("failed to list variables: %w", err)
+	}
+	for _, variable := range varList.Items {
+		snapshot.VariableNames = append(snapshot.VariableNames, variable.Name)
+	}
+
+	// Get Profiles
+	profileList := &compv1alpha1.ProfileList{}
+	if err := f.Client.List(context.TODO(), profileList, listOptions); err != nil {
+		return nil, fmt.Errorf("failed to list profiles: %w", err)
+	}
+	for _, profile := range profileList.Items {
+		snapshot.ProfileNames = append(snapshot.ProfileNames, profile.Name)
+	}
+
+	log.Printf("Captured resource snapshot for namespace %s: %d rules, %d variables, %d profiles",
+		namespace, len(snapshot.RuleNames), len(snapshot.VariableNames), len(snapshot.ProfileNames))
+
+	return snapshot, nil
+}
+
+// ToCounts converts a ResourceSnapshot to ResourceCounts for backward compatibility
+func (s *ResourceSnapshot) ToCounts() *ResourceCounts {
+	return &ResourceCounts{
+		Rules:     len(s.RuleNames),
+		Variables: len(s.VariableNames),
+		Profiles:  len(s.ProfileNames),
+	}
+}
+
+// ComputeDiff computes the difference between two snapshots
+func ComputeResourceDiff(before, after *ResourceSnapshot) *ResourceDiff {
+	diff := &ResourceDiff{
+		AddedRules:       findAdded(before.RuleNames, after.RuleNames),
+		RemovedRules:     findRemoved(before.RuleNames, after.RuleNames),
+		AddedVariables:   findAdded(before.VariableNames, after.VariableNames),
+		RemovedVariables: findRemoved(before.VariableNames, after.VariableNames),
+		AddedProfiles:    findAdded(before.ProfileNames, after.ProfileNames),
+		RemovedProfiles:  findRemoved(before.ProfileNames, after.ProfileNames),
+	}
+	return diff
+}
+
+// findAdded returns elements that are in 'after' but not in 'before'
+func findAdded(before, after []string) []string {
+	beforeSet := make(map[string]bool)
+	for _, item := range before {
+		beforeSet[item] = true
+	}
+
+	var added []string
+	for _, item := range after {
+		if !beforeSet[item] {
+			added = append(added, item)
+		}
+	}
+	return added
+}
+
+// findRemoved returns elements that are in 'before' but not in 'after'
+func findRemoved(before, after []string) []string {
+	afterSet := make(map[string]bool)
+	for _, item := range after {
+		afterSet[item] = true
+	}
+
+	var removed []string
+	for _, item := range before {
+		if !afterSet[item] {
+			removed = append(removed, item)
+		}
+	}
+	return removed
+}
+
+// GetOperatorResourceCount returns the count of a specific resource type in a namespace
+// Deprecated: Use GetResourceSnapshot for detailed tracking
+func (f *Framework) GetOperatorResourceCount(resourceType, namespace string) (int, error) {
+	snapshot, err := f.GetResourceSnapshot(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	switch resourceType {
+	case "rules":
+		return len(snapshot.RuleNames), nil
+	case "variables":
+		return len(snapshot.VariableNames), nil
+	case "profiles":
+		return len(snapshot.ProfileNames), nil
+	default:
+		return 0, fmt.Errorf("unsupported resource type: %s", resourceType)
+	}
+}
+
+// GetAllResourceCounts returns counts for all compliance operator resources
+func (f *Framework) GetAllResourceCounts(namespace string) (*ResourceCounts, error) {
+	rulesCount, err := f.GetOperatorResourceCount("rules", namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	variablesCount, err := f.GetOperatorResourceCount("variables", namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	profilesCount, err := f.GetOperatorResourceCount("profiles", namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := &ResourceCounts{
+		Rules:     rulesCount,
+		Variables: variablesCount,
+		Profiles:  profilesCount,
+	}
+
+	log.Printf("Resource counts in namespace %s: Rules=%d, Variables=%d, Profiles=%d",
+		namespace, counts.Rules, counts.Variables, counts.Profiles)
+
+	return counts, nil
+}
+
+// CheckMachineConfigPoolStatus validates that a MachineConfigPool is healthy
+// It checks that the pool is not paused, not degraded, not updating, and all machines are ready
+func (f *Framework) CheckMachineConfigPoolStatus(poolName string) error {
+	pool := &mcfgv1.MachineConfigPool{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: poolName}, pool)
+	if err != nil {
+		return fmt.Errorf("failed to get MachineConfigPool %s: %w", poolName, err)
+	}
+
+	log.Printf("Checking MachineConfigPool %s status:", poolName)
+	log.Printf("  Paused: %v", pool.Spec.Paused)
+	log.Printf("  MachineCount: %d", pool.Status.MachineCount)
+	log.Printf("  ReadyMachineCount: %d", pool.Status.ReadyMachineCount)
+	log.Printf("  UnavailableMachineCount: %d", pool.Status.UnavailableMachineCount)
+	log.Printf("  DegradedMachineCount: %d", pool.Status.DegradedMachineCount)
+
+	if pool.Spec.Paused {
+		return fmt.Errorf("MachineConfigPool %s is paused", poolName)
+	}
+
+	if pool.Status.DegradedMachineCount > 0 {
+		return fmt.Errorf("MachineConfigPool %s has %d degraded machines", poolName, pool.Status.DegradedMachineCount)
+	}
+
+	if pool.Status.UnavailableMachineCount > 0 {
+		return fmt.Errorf("MachineConfigPool %s has %d unavailable machines", poolName, pool.Status.UnavailableMachineCount)
+	}
+
+	// Check if pool is updating
+	for _, condition := range pool.Status.Conditions {
+		if condition.Type == mcfgv1.MachineConfigPoolUpdating && condition.Status == core.ConditionTrue {
+			return fmt.Errorf("MachineConfigPool %s is currently updating", poolName)
+		}
+	}
+
+	if pool.Status.MachineCount != pool.Status.ReadyMachineCount {
+		return fmt.Errorf("MachineConfigPool %s: not all machines are ready (ready: %d, total: %d)",
+			poolName, pool.Status.ReadyMachineCount, pool.Status.MachineCount)
+	}
+
+	log.Printf("MachineConfigPool %s is healthy", poolName)
+	return nil
+}
+
+// WaitForMachineConfigPoolToBeHealthy waits for a MachineConfigPool to become healthy
+func (f *Framework) WaitForMachineConfigPoolToBeHealthy(poolName string, timeout time.Duration) error {
+	log.Printf("Waiting for MachineConfigPool %s to be healthy (timeout: %v)", poolName, timeout)
+
+	return wait.Poll(10*time.Second, timeout, func() (bool, error) {
+		err := f.CheckMachineConfigPoolStatus(poolName)
+		if err != nil {
+			log.Printf("MachineConfigPool %s not healthy yet: %v", poolName, err)
+			return false, nil
+		}
+		return true, nil
+	})
+}
+
+// CompareResourceCounts compares two ResourceCounts and returns an error if the counts decreased
+// Deprecated: Use CompareResourceSnapshots for detailed diff information
+func (f *Framework) CompareResourceCounts(before, after *ResourceCounts, operationName string) error {
+	log.Printf("Comparing resource counts %s:", operationName)
+	log.Printf("  Rules: before=%d, after=%d", before.Rules, after.Rules)
+	log.Printf("  Variables: before=%d, after=%d", before.Variables, after.Variables)
+	log.Printf("  Profiles: before=%d, after=%d", before.Profiles, after.Profiles)
+
+	if after.Rules < before.Rules {
+		return fmt.Errorf("rules count decreased after %s: before=%d, after=%d", operationName, before.Rules, after.Rules)
+	}
+
+	if after.Variables < before.Variables {
+		return fmt.Errorf("variables count decreased after %s: before=%d, after=%d", operationName, before.Variables, after.Variables)
+	}
+
+	if after.Profiles < before.Profiles {
+		return fmt.Errorf("profiles count decreased after %s: before=%d, after=%d", operationName, before.Profiles, after.Profiles)
+	}
+
+	log.Printf("Resource counts validation passed %s", operationName)
+	return nil
+}
+
+// CompareResourceSnapshots compares two snapshots and returns detailed diff with error if resources were removed
+func (f *Framework) CompareResourceSnapshots(before, after *ResourceSnapshot, operationName string) (*ResourceDiff, error) {
+	diff := ComputeResourceDiff(before, after)
+
+	log.Printf("Resource comparison %s:", operationName)
+	log.Printf("  Rules: before=%d, after=%d", len(before.RuleNames), len(after.RuleNames))
+	log.Printf("  Variables: before=%d, after=%d", len(before.VariableNames), len(after.VariableNames))
+	log.Printf("  Profiles: before=%d, after=%d", len(before.ProfileNames), len(after.ProfileNames))
+
+	if diff.HasChanges() {
+		log.Printf("Detected changes:\n%s", diff.String())
+	} else {
+		log.Printf("No changes detected")
+	}
+
+	// Fail if resources were removed
+	var errors []string
+	if len(diff.RemovedRules) > 0 {
+		errors = append(errors, fmt.Sprintf("%d rules were removed: %v", len(diff.RemovedRules), diff.RemovedRules))
+	}
+	if len(diff.RemovedVariables) > 0 {
+		errors = append(errors, fmt.Sprintf("%d variables were removed: %v", len(diff.RemovedVariables), diff.RemovedVariables))
+	}
+	if len(diff.RemovedProfiles) > 0 {
+		errors = append(errors, fmt.Sprintf("%d profiles were removed: %v", len(diff.RemovedProfiles), diff.RemovedProfiles))
+	}
+
+	if len(errors) > 0 {
+		return diff, fmt.Errorf("resource validation failed after %s:\n  %s", operationName, strings.Join(errors, "\n  "))
+	}
+
+	log.Printf("Resource validation passed %s", operationName)
+	return diff, nil
+}
+
+// ValidateResourceStability is a convenience method that captures snapshots before/after an operation
+// and validates that resources remain stable
+func (f *Framework) ValidateResourceStability(namespace string, operationName string, operation func() error) (*ResourceDiff, error) {
+	log.Printf("Capturing resource snapshot before %s", operationName)
+	before, err := f.GetResourceSnapshot(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snapshot before %s: %w", operationName, err)
+	}
+
+	log.Printf("Executing %s", operationName)
+	if err := operation(); err != nil {
+		return nil, fmt.Errorf("%s failed: %w", operationName, err)
+	}
+
+	log.Printf("Capturing resource snapshot after %s", operationName)
+	after, err := f.GetResourceSnapshot(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snapshot after %s: %w", operationName, err)
+	}
+
+	return f.CompareResourceSnapshots(before, after, operationName)
+}
