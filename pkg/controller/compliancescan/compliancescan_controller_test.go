@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -421,6 +425,204 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 				Expect(err).To(BeNil())
 				Expect(compliancescaninstance.Status.Phase).To(Equal(compv1alpha1.PhaseRunning))
 			})
+			It("should create scan pods with the runtime SSH config init container", func() {
+				_, err := reconciler.phaseLaunchingHandler(handler, logger)
+				Expect(err).To(BeNil())
+
+				pods := &corev1.PodList{}
+				err = reconciler.Client.List(context.TODO(), pods, client.MatchingLabels{
+					compv1alpha1.ComplianceScanLabel: compliancescaninstance.Name,
+				})
+				Expect(err).To(BeNil())
+				Expect(pods.Items).ToNot(BeEmpty())
+
+				for _, pod := range pods.Items {
+					var initContainer *corev1.Container
+					for i := range pod.Spec.InitContainers {
+						if pod.Spec.InitContainers[i].Name == RuntimeSSHConfigInitContainer {
+							initContainer = &pod.Spec.InitContainers[i]
+							break
+						}
+					}
+					Expect(initContainer).ToNot(BeNil(),
+						"expected init container %s in pod %s", RuntimeSSHConfigInitContainer, pod.Name)
+
+					var hasRuntimeVol, hasHostVol bool
+					for _, vm := range initContainer.VolumeMounts {
+						if vm.Name == RuntimeConfigVolumeName && vm.MountPath == RuntimeConfigFolder {
+							hasRuntimeVol = true
+						}
+						if vm.Name == "host" && vm.MountPath == "/host" {
+							hasHostVol = true
+						}
+					}
+					Expect(hasRuntimeVol).To(BeTrue(), "expected runtime config volume mount in pod %s", pod.Name)
+					Expect(hasHostVol).To(BeTrue(), "expected host volume mount in pod %s", pod.Name)
+
+					var scanner *corev1.Container
+					for i := range pod.Spec.Containers {
+						if pod.Spec.Containers[i].Name == OpenSCAPScanContainerName {
+							scanner = &pod.Spec.Containers[i]
+							break
+						}
+					}
+					Expect(scanner).ToNot(BeNil())
+
+					var readOnlyMount bool
+					for _, vm := range scanner.VolumeMounts {
+						if vm.Name == RuntimeConfigVolumeName && vm.MountPath == RuntimeConfigFolder && vm.ReadOnly {
+							readOnlyMount = true
+							break
+						}
+					}
+					Expect(readOnlyMount).To(BeTrue(),
+						"expected runtime config volume to be mounted read-only in scanner container of pod %s", pod.Name)
+				}
+			})
+
+			// runInitScript runs a script that mirrors the init container logic
+			// using the provided sshdBin path instead of chroot /host/usr/sbin/sshd.
+			// Uses terminationLog as a stand-in for /dev/termination-log (not writable in tests).
+			// Returns combined stdout/stderr output and any exec error.
+			runInitScript := func(runtimeDir, configPath, sshdBin, terminationLog string) (string, error) {
+				script := fmt.Sprintf(`mkdir -p %[1]s && \
+if [ -x %[3]s ]; then \
+  %[3]s -T > /tmp/sshd_out 2>/tmp/sshd_err; \
+  SSHD_EXIT=$?; \
+  if [ $SSHD_EXIT -eq 0 ] && [ -s /tmp/sshd_out ]; then \
+    tr '[:upper:]' '[:lower:]' < /tmp/sshd_out > %[2]s && \
+    chmod 644 %[2]s 2>/dev/null || true; \
+    echo "INFO: Successfully generated effective SSH configuration"; \
+  else \
+    MSG="sshd -T failed (exit code: $SSHD_EXIT). $(cat /tmp/sshd_err 2>/dev/null)"; \
+    echo "WARNING: $MSG"; \
+    echo "$MSG" > %[4]s; \
+  fi; \
+else \
+  echo "INFO: sshd not found at %[3]s, skipping runtime SSH config generation"; \
+fi`, runtimeDir, configPath, sshdBin, terminationLog)
+				cmd := exec.Command("bash", "-c", script)
+				out, err := cmd.CombinedOutput()
+				return string(out), err
+			}
+
+			// Observed on RHCOS 9.6 node:
+			//   - sshd binary missing:  no output, pod exits 0, no config file created
+			//   - sshd -T bad config:   exit 255, stderr e.g. "line 1: Bad configuration option: InvalidDirective"
+			//                           no config file created, termination message written
+			//   - sshd -T valid config: exit 0, 94 lines of lowercase effective config
+
+			It("should not create config file when sshd binary does not exist", func() {
+				tmpDir, err := os.MkdirTemp("", "sshd-test-*")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(tmpDir)
+
+				runtimeDir := filepath.Join(tmpDir, "runtime")
+				configPath := filepath.Join(runtimeDir, "sshd_effective_config")
+				terminationLog := filepath.Join(tmpDir, "termination-log")
+
+				output, err := runInitScript(runtimeDir, configPath,
+					filepath.Join(tmpDir, "usr", "sbin", "sshd"), terminationLog)
+				Expect(err).ToNot(HaveOccurred(), "script must not crash, output: %s", output)
+				Expect(output).To(ContainSubstring("sshd not found"))
+
+				// Config file should NOT be created
+				_, err = os.Stat(configPath)
+				Expect(os.IsNotExist(err)).To(BeTrue(), "config file should not exist when sshd is missing")
+
+				// No termination message for missing binary (this is expected, not an error)
+				_, err = os.Stat(terminationLog)
+				Expect(os.IsNotExist(err)).To(BeTrue(), "no termination message for missing sshd")
+			})
+
+			It("should not create config file and write termination message when sshd -T fails (exit 255)", func() {
+				tmpDir, err := os.MkdirTemp("", "sshd-test-*")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(tmpDir)
+
+				runtimeDir := filepath.Join(tmpDir, "runtime")
+				configPath := filepath.Join(runtimeDir, "sshd_effective_config")
+				terminationLog := filepath.Join(tmpDir, "termination-log")
+
+				// Fake sshd that mimics real sshd behavior with a bad drop-in config:
+				//   exit 255, stderr shows file:line and "Bad configuration option"
+				sshdDir := filepath.Join(tmpDir, "usr", "sbin")
+				Expect(os.MkdirAll(sshdDir, 0755)).To(Succeed())
+				fakeSshd := filepath.Join(sshdDir, "sshd")
+				Expect(os.WriteFile(fakeSshd, []byte(
+					"#!/bin/sh\n"+
+						"echo '/etc/ssh/sshd_config.d/99-bad.conf: line 1: Bad configuration option: InvalidDirective' >&2\n"+
+						"echo '/etc/ssh/sshd_config.d/99-bad.conf: terminating, 1 bad configuration options' >&2\n"+
+						"exit 255\n",
+				), 0755)).To(Succeed())
+
+				output, err := runInitScript(runtimeDir, configPath, fakeSshd, terminationLog)
+				Expect(err).ToNot(HaveOccurred(), "script must not crash, output: %s", output)
+				Expect(output).To(ContainSubstring("WARNING:"))
+				Expect(output).To(ContainSubstring("sshd -T failed (exit code: 255)"))
+				Expect(output).To(ContainSubstring("Bad configuration option: InvalidDirective"))
+
+				// Config file should NOT be created
+				_, err = os.Stat(configPath)
+				Expect(os.IsNotExist(err)).To(BeTrue(), "config file should not exist when sshd -T fails")
+
+				// Termination message should contain the error details
+				termMsg, err := os.ReadFile(terminationLog)
+				Expect(err).ToNot(HaveOccurred(), "termination log should exist")
+				Expect(string(termMsg)).To(ContainSubstring("sshd -T failed (exit code: 255)"))
+				Expect(string(termMsg)).To(ContainSubstring("Bad configuration option: InvalidDirective"))
+			})
+
+			It("should generate lowercase effective config when sshd -T succeeds", func() {
+				tmpDir, err := os.MkdirTemp("", "sshd-test-*")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(tmpDir)
+
+				runtimeDir := filepath.Join(tmpDir, "runtime")
+				configPath := filepath.Join(runtimeDir, "sshd_effective_config")
+				terminationLog := filepath.Join(tmpDir, "termination-log")
+
+				// Fake sshd that outputs config matching real RHCOS sshd -T output
+				sshdDir := filepath.Join(tmpDir, "usr", "sbin")
+				Expect(os.MkdirAll(sshdDir, 0755)).To(Succeed())
+				fakeSshd := filepath.Join(sshdDir, "sshd")
+				Expect(os.WriteFile(fakeSshd, []byte(
+					"#!/bin/sh\n"+
+						"echo 'Port 22'\n"+
+						"echo 'AddressFamily any'\n"+
+						"echo 'PermitRootLogin no'\n"+
+						"echo 'PasswordAuthentication no'\n"+
+						"echo 'GSSAPIAuthentication yes'\n"+
+						"echo 'ClientAliveInterval 180'\n"+
+						"echo 'UsePAM yes'\n"+
+						"echo 'X11Forwarding yes'\n",
+				), 0755)).To(Succeed())
+
+				output, err := runInitScript(runtimeDir, configPath, fakeSshd, terminationLog)
+				Expect(err).ToNot(HaveOccurred(), "script must not crash, output: %s", output)
+				Expect(output).To(ContainSubstring("Successfully generated effective SSH configuration"))
+
+				content, err := os.ReadFile(configPath)
+				Expect(err).ToNot(HaveOccurred())
+				contentStr := strings.TrimSpace(string(content))
+				// All values must be lowercased
+				Expect(contentStr).To(ContainSubstring("port 22"))
+				Expect(contentStr).To(ContainSubstring("addressfamily any"))
+				Expect(contentStr).To(ContainSubstring("permitrootlogin no"))
+				Expect(contentStr).To(ContainSubstring("passwordauthentication no"))
+				Expect(contentStr).To(ContainSubstring("gssapiauthentication yes"))
+				Expect(contentStr).To(ContainSubstring("clientaliveinterval 180"))
+				Expect(contentStr).To(ContainSubstring("usepam yes"))
+				Expect(contentStr).To(ContainSubstring("x11forwarding yes"))
+
+				info, err := os.Stat(configPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.Size()).To(BeNumerically(">", 0), "config file should not be empty")
+
+				// No termination message on success
+				_, err = os.Stat(terminationLog)
+				Expect(os.IsNotExist(err)).To(BeTrue(), "no termination message on success")
+			})
 		})
 	})
 
@@ -677,3 +879,4 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 		})
 	})
 })
+
