@@ -68,6 +68,25 @@ func scanLimits(scanInstance *compv1alpha1.ComplianceScan, defaultMem, defaultCp
 	return &limits
 }
 
+func runtimeSSHConfigCommand() string {
+	return fmt.Sprintf(`mkdir -p %[1]s && \
+if [ -x /host/usr/sbin/sshd ]; then \
+  chroot /host /usr/sbin/sshd -T > /tmp/sshd_out 2>/tmp/sshd_err; \
+  SSHD_EXIT=$?; \
+  if [ $SSHD_EXIT -eq 0 ] && [ -s /tmp/sshd_out ]; then \
+    tr '[:upper:]' '[:lower:]' < /tmp/sshd_out > %[2]s && \
+    chmod 644 %[2]s 2>/dev/null || true; \
+    echo "INFO: Successfully generated effective SSH configuration"; \
+  else \
+    MSG="sshd -T failed (exit code: $SSHD_EXIT). $(cat /tmp/sshd_err 2>/dev/null)"; \
+    echo "WARNING: $MSG"; \
+    echo "$MSG" > /dev/termination-log; \
+  fi; \
+else \
+  echo "INFO: sshd not found at /host/usr/sbin/sshd, skipping runtime SSH config generation"; \
+fi`, RuntimeConfigFolder, RuntimeSSHConfigPath)
+}
+
 func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.Node, logger logr.Logger) *corev1.Pod {
 
 	podName := getPodForNodeName(scanInstance.Name, node.Name)
@@ -137,7 +156,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					},
 					ImagePullPolicy: corev1.PullAlways,
 					SecurityContext: &corev1.SecurityContext{
-						Privileged:             &trueVal,
+						Privileged:             &trueP,
 						ReadOnlyRootFilesystem: &trueP,
 					},
 					Resources: corev1.ResourceRequirements{
@@ -159,6 +178,40 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 							Name:      "kubeletconfig",
 							ReadOnly:  true,
 							MountPath: KubeletConfigMapPath,
+						},
+					},
+				},
+				{
+					Name:  RuntimeSSHConfigInitContainer,
+					Image: utils.GetComponentImage(utils.OPERATOR),
+					Command: []string{
+						"sh",
+						"-c",
+						runtimeSSHConfigCommand(),
+					},
+					ImagePullPolicy: corev1.PullAlways,
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:             &trueP,
+						ReadOnlyRootFilesystem: &falseP,
+					},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("10Mi"),
+							corev1.ResourceCPU:    resource.MustParse("10m"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("50Mi"),
+							corev1.ResourceCPU:    resource.MustParse("50m"),
+						},
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host",
+							MountPath: "/host",
+						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
 						},
 					},
 				},
@@ -255,6 +308,11 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						{
 							Name:      "kubeletconfig",
 							MountPath: KubeletConfigMapPath,
+							ReadOnly:  true,
+						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
 							ReadOnly:  true,
 						},
 					},
