@@ -310,7 +310,7 @@ func (f *Framework) addFrameworks() error {
 	}
 
 	// MCO objects
-	if f.Platform != "rosa" {
+	if f.Platform != "rosa" && f.Platform != "HyperShift" {
 		mcoObjs := [2]dynclient.ObjectList{
 			&mcfgv1.MachineConfigPoolList{},
 			&mcfgv1.MachineConfigList{},
@@ -630,7 +630,7 @@ func (f *Framework) GetReadyProfileBundle(name, namespace string) (*compv1alpha1
 }
 
 func (f *Framework) updateScanSettingsForDebug() error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -652,7 +652,7 @@ func (f *Framework) updateScanSettingsForDebug() error {
 }
 
 func (f *Framework) ensureE2EScanSettings() error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -682,7 +682,7 @@ func (f *Framework) ensureE2EScanSettings() error {
 }
 
 func (f *Framework) deleteScanSettings(name string) error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -700,7 +700,7 @@ func (f *Framework) deleteScanSettings(name string) error {
 }
 
 func (f *Framework) createMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -835,7 +835,7 @@ func (f *Framework) validatingAdmissionPolicyExists(name string) (bool, error) {
 }
 
 func (f *Framework) createInvalidMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -897,7 +897,7 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 }
 
 func (f *Framework) cleanUpMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing MachineConfigPool cleanup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -915,7 +915,7 @@ func (f *Framework) cleanUpMachineConfigPool(n string) error {
 }
 
 func (f *Framework) restoreNodeLabelsForPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.Platform == "rosa" || f.Platform == "HyperShift" {
 		fmt.Printf("bypassing node label restoration because MachineConfigPools are not supported on %s\n", f.Platform)
 		return nil
 	}
