@@ -19,7 +19,9 @@ import (
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -729,4 +731,166 @@ func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedS
 		scanPVC.Name, *scanPVC.Spec.StorageClassName, scanPVC.Spec.AccessModes)
 
 	return nil
+}
+
+// GetClusterAPIServer fetches the APIServer "cluster" resource.
+func (f *Framework) GetClusterAPIServer() (*configv1.APIServer, error) {
+	apiServer := &configv1.APIServer{}
+	key := types.NamespacedName{Name: "cluster"}
+	if err := f.Client.Get(context.TODO(), key, apiServer); err != nil {
+		return nil, fmt.Errorf("failed to get APIServer cluster resource: %w", err)
+	}
+	return apiServer, nil
+}
+
+// GetExpectedMinTLSVersion returns the expected minimum TLS version string
+// (e.g., "TLSv1.2", "TLSv1.3") for the metrics endpoint based on the
+// cluster's APIServer TLS configuration and adherence policy.
+func (f *Framework) GetExpectedMinTLSVersion(apiServer *configv1.APIServer) string {
+	profile := extractTLSProfileForTest(apiServer)
+	spec, err := tlspkg.GetTLSProfileSpec(profile)
+	if err != nil {
+		// Fall back to Intermediate defaults if profile resolution fails.
+		spec = *configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+	}
+	switch spec.MinTLSVersion {
+	case configv1.VersionTLS10:
+		return "TLSv1.0"
+	case configv1.VersionTLS11:
+		return "TLSv1.1"
+	case configv1.VersionTLS12:
+		return "TLSv1.2"
+	case configv1.VersionTLS13:
+		return "TLSv1.3"
+	default:
+		return "TLSv1.2"
+	}
+}
+
+// AssertMetricsEndpointMinTLSVersion uses curl to connect to the metrics
+// endpoint and verifies the TLS connection uses the expected minimum version.
+func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion string) error {
+	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
+	curlCMD := fmt.Sprintf("curl -vks %s 2>&1 | grep 'SSL connection'", endpoint)
+
+	ocPath, err := exec.LookPath("oc")
+	if err != nil {
+		return fmt.Errorf("oc not found: %w", err)
+	}
+
+	var lastErr error
+	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		// #nosec G204
+		cmd := exec.Command(ocPath,
+			"run", "--rm", "-i", "--restart=Never",
+			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"-n", f.OperatorNamespace, "tls-version-test",
+			"--", "bash", "-c", curlCMD,
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			lastErr = fmt.Errorf("curl command failed: %v, output: %s", err, string(out))
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+
+		output := string(out)
+		if !strings.Contains(output, expectedMinTLSVersion) {
+			lastErr = fmt.Errorf("expected TLS version %s in output, got: %s", expectedMinTLSVersion, output)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+		return true, nil
+	})
+	if timeouterr != nil {
+		if lastErr != nil {
+			return lastErr
+		}
+		return timeouterr
+	}
+	return nil
+}
+
+// extractTLSProfileForTest mirrors the operator's logic for determining
+// which TLS profile to use based on the APIServer adherence policy.
+func extractTLSProfileForTest(apiServer *configv1.APIServer) *configv1.TLSSecurityProfile {
+	switch apiServer.Spec.TLSAdherence {
+	case configv1.TLSAdherencePolicyStrictAllComponents:
+		if apiServer.Spec.TLSSecurityProfile != nil {
+			return apiServer.Spec.TLSSecurityProfile
+		}
+		return &configv1.TLSSecurityProfile{
+			Type: configv1.TLSProfileIntermediateType,
+		}
+	default:
+		// When adherence is not strict, the operator uses secure defaults
+		// (Intermediate profile from library-go's SecureTLSConfig).
+		return &configv1.TLSSecurityProfile{
+			Type: configv1.TLSProfileIntermediateType,
+		}
+	}
+}
+
+// GetOperatorPods returns the compliance-operator pods in the operator namespace.
+func (f *Framework) GetOperatorPods() ([]corev1.Pod, error) {
+	podList, err := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods: %w", err)
+	}
+	var operatorPods []corev1.Pod
+	for _, pod := range podList.Items {
+		if strings.Contains(pod.Name, "compliance-operator") &&
+			!strings.Contains(pod.Name, "compliance-operator-result") {
+			operatorPods = append(operatorPods, pod)
+		}
+	}
+	return operatorPods, nil
+}
+
+// WaitForOperatorPodRestart waits until the operator pod has a different UID
+// than the one provided, indicating the pod has been restarted.
+func (f *Framework) WaitForOperatorPodRestart(originalPodUID types.UID) error {
+	return wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		pods, err := f.GetOperatorPods()
+		if err != nil {
+			log.Printf("Error getting operator pods: %v... retrying\n", err)
+			return false, nil
+		}
+		for _, pod := range pods {
+			if pod.UID != originalPodUID && pod.Status.Phase == corev1.PodRunning {
+				log.Printf("Operator pod restarted: new UID %s\n", pod.UID)
+				return true, nil
+			}
+		}
+		log.Println("Waiting for operator pod to restart...")
+		return false, nil
+	})
+}
+
+// IsOCPVersionAtLeast checks whether the cluster is running at least the
+// specified OCP version (e.g. 4, 22 for OCP 4.22). Returns false if the
+// ClusterVersion resource cannot be fetched or has no history.
+func (f *Framework) IsOCPVersionAtLeast(major, minor int) (bool, error) {
+	clusterVersion := &configv1.ClusterVersion{}
+	key := types.NamespacedName{Name: "version"}
+	if err := f.Client.Get(context.TODO(), key, clusterVersion); err != nil {
+		return false, fmt.Errorf("failed to get ClusterVersion: %w", err)
+	}
+	if len(clusterVersion.Status.History) == 0 {
+		return false, fmt.Errorf("ClusterVersion has no history entries")
+	}
+	version := clusterVersion.Status.History[0].Version
+	parts := strings.SplitN(version, ".", 3)
+	if len(parts) < 2 {
+		return false, fmt.Errorf("unexpected version format: %s", version)
+	}
+	clusterMajor, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return false, fmt.Errorf("failed to parse major version from %s: %w", version, err)
+	}
+	clusterMinor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return false, fmt.Errorf("failed to parse minor version from %s: %w", version, err)
+	}
+	return clusterMajor > major || (clusterMajor == major && clusterMinor >= minor), nil
 }

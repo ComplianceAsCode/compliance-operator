@@ -7,6 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
+	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v1.5.2
 	open-cluster-management.io/api v0.15.0
@@ -96,10 +97,10 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/nxadm/tail v1.4.8 // indirect
+	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/openshift/api v0.0.1
 	github.com/openshift/library-go v0.0.0-20260326200317-12d8376369b7
-	github.com/openshift/machine-config-operator v0.0.1-0.20250401081735-9026ff2d802e
+	github.com/openshift/machine-config-operator v0.0.1-0.20260318184635-455e155e12da
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.90.1
@@ -143,6 +144,7 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-RP v0.0.0-20250602035759-0693f32d5ccc // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
 	github.com/coreos/fcct v0.5.0 // indirect
@@ -186,6 +188,7 @@ require (
 	golang.org/x/tools v0.43.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	k8s.io/kube-aggregator v0.35.1 // indirect
+	k8s.io/kubectl v0.35.0 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 )
 
