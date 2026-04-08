@@ -3260,12 +3260,12 @@ type ResourceSnapshot struct {
 
 // ResourceDiff represents the difference between two resource snapshots
 type ResourceDiff struct {
-	AddedRules     []string
-	RemovedRules   []string
-	AddedVariables []string
+	AddedRules       []string
+	RemovedRules     []string
+	AddedVariables   []string
 	RemovedVariables []string
-	AddedProfiles  []string
-	RemovedProfiles []string
+	AddedProfiles    []string
+	RemovedProfiles  []string
 }
 
 // HasChanges returns true if there are any differences

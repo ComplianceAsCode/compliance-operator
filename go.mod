@@ -7,6 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.36.2
+	github.com/operator-framework/api v0.17.1
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.1
 	open-cluster-management.io/api v0.15.0

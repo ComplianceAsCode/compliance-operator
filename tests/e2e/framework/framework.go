@@ -12,6 +12,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	olmapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/pborman/uuid"
 	extscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -151,6 +152,9 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 	}
 	if err := extscheme.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("failed to add api extensions scheme to runtime scheme: %w", err)
+	}
+	if err := olmapi.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("failed to add OLM scheme to runtime scheme: %w", err)
 	}
 
 	cachedDiscoveryClient := cached.NewMemCacheClient(kubeclient.Discovery())
