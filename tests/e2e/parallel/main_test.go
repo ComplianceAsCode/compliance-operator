@@ -5611,6 +5611,11 @@ func TestRuleVariableAnnotation(t *testing.T) {
 			expectedVariable: "var-statefulset-limit-namespaces-exempt-regex",
 			description:      "StatefulSet resource limit namespace exemption variable",
 		},
+		{
+			ruleName:         "ocp4-api-server-request-timeout",
+			expectedVariable: "var-api-min-request-timeout",
+			description:      "API server request timeout variable",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -5637,6 +5642,27 @@ func TestRuleVariableAnnotation(t *testing.T) {
 			if variableAnnotation != tc.expectedVariable {
 				t.Fatalf("Rule %s has incorrect variable annotation.\nExpected: %s\nGot: %s\nDescription: %s",
 					tc.ruleName, tc.expectedVariable, variableAnnotation, tc.description)
+			}
+
+			if tc.expectedVariable == "var-api-min-request-timeout" {
+				prefix, _, ok := strings.Cut(tc.ruleName, "-")
+				if !ok {
+					t.Fatalf("rule name %q has no product prefix", tc.ruleName)
+				}
+				variableCRName := prefix + "-" + tc.expectedVariable
+				v := &compv1alpha1.Variable{}
+				err = f.Client.Get(context.TODO(), types.NamespacedName{
+					Name:      variableCRName,
+					Namespace: f.OperatorNamespace,
+				}, v)
+				if err != nil {
+					t.Fatalf("Failed to get Variable %s: %v", variableCRName, err)
+				}
+				const wantDefault = "3600"
+				if v.Value != wantDefault {
+					t.Fatalf("Variable %s default Value: want %q, got %q", variableCRName, wantDefault, v.Value)
+				}
+				t.Logf("Variable %s has expected default value %s", variableCRName, wantDefault)
 			}
 
 			t.Logf("Rule %s correctly has variable annotation: %s", tc.ruleName, tc.expectedVariable)
