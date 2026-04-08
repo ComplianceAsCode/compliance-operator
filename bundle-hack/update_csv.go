@@ -16,7 +16,7 @@ import (
 var (
 	konfluxOperatorPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:38c6ea1d15427f63aa155c85c699ac7d8359ae71b8c7c56fec4e4997968bed56"
 
-	konfluxContentPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:0acf3a33d24b4ed4fdc5fca8933015869f64818361da2534d0da0ddf839579a9"
+	konfluxContentPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:15bd6ce2f889c41eb83b1d4ccfb4a904becee3e4cb55b43eb0991c045ff1dbf0"
 
 	konfluxOpenscapPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:463785a9048ce6e966118e1fe0181909e62f8aeef5fb5ffe146960cb5c9cbeb3"
 
