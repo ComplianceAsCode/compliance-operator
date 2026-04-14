@@ -700,7 +700,7 @@ github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 github.com/openshift/library-go/pkg/operator/resource/resourceread
 github.com/openshift/library-go/pkg/operator/resourcesynccontroller
 github.com/openshift/library-go/pkg/operator/v1helpers
-# github.com/openshift/machine-config-operator v0.0.1-0.20260402190815-ec284905f7c9
+# github.com/openshift/machine-config-operator v0.0.1-0.20260410020757-449e78f7ec94
 ## explicit; go 1.25.3
 github.com/openshift/machine-config-operator/internal/clients
 github.com/openshift/machine-config-operator/pkg/apihelpers
