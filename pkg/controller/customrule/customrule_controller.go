@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
-	"github.com/ComplianceAsCode/compliance-sdk/pkg/scanner"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/utils/celvalidation"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,10 +68,10 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	// Validate and compile CEL expression using SDK's RuleBuilder
-	// Basic field validation is already handled by kubebuilder annotations
 	var validationErr error
-	if err := r.validateCELExpressionWithBuilder(rule); err != nil {
+	if err := rule.Validate(); err != nil {
+		validationErr = fmt.Errorf("CustomRule validation failed: %w", err)
+	} else if err := celvalidation.ValidateCELRule(rule.Name, &rule.Spec.RulePayload); err != nil {
 		validationErr = err
 	}
 
@@ -104,59 +104,6 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// validateCELExpressionWithBuilder validates the CEL expression using SDK's validation
-func (r *CustomRuleReconciler) validateCELExpressionWithBuilder(rule *v1alpha1.CustomRule) error {
-	if err := rule.Validate(); err != nil {
-		return fmt.Errorf("CustomRule validation failed: %w", err)
-	}
-
-	// Use the SDK's validation functionality directly
-	// Convert CustomRule inputs to SDK inputs for validation
-	inputs := make([]scanner.Input, 0, len(rule.Spec.CustomRulePayload.Inputs))
-	for _, input := range rule.Spec.CustomRulePayload.Inputs {
-		spec := &input.KubernetesInputSpec
-
-		// Create a Kubernetes input using the SDK's constructor
-		// The CustomRule's KubernetesInputSpec implements the interface
-		sdkInput := &scanner.InputImpl{
-			InputName: input.Name,
-			InputType: scanner.InputTypeKubernetes,
-			InputSpec: spec,
-		}
-		inputs = append(inputs, sdkInput)
-	}
-
-	// Use the new validation API to validate the CEL expression
-	err := scanner.CompileCELExpression(rule.Spec.CustomRulePayload.Expression, inputs)
-	if err != nil {
-		return fmt.Errorf("CEL expression validation failed: %w", err)
-	}
-
-	// Also use RuleBuilder for additional validation
-	builder := scanner.NewRuleBuilder(rule.Name, scanner.RuleTypeCEL)
-	for _, input := range inputs {
-		builder.WithInput(input)
-	}
-	builder.SetCelExpression(rule.Spec.CustomRulePayload.Expression)
-
-	// Add metadata if available
-	if rule.Spec.Description != "" || rule.Spec.Title != "" {
-		metadata := &scanner.RuleMetadata{
-			Name:        rule.Spec.Title,
-			Description: rule.Spec.Description,
-		}
-		builder.WithMetadata(metadata)
-	}
-
-	// Try to build the rule - this provides additional structural validation
-	_, buildErr := builder.BuildCelRule()
-	if buildErr != nil {
-		return fmt.Errorf("rule building validation failed: %w", buildErr)
-	}
-
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager

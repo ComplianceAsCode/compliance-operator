@@ -9,6 +9,8 @@ import (
 
 // CSISnapshotControllerSpecApplyConfiguration represents a declarative configuration of the CSISnapshotControllerSpec type for use
 // with apply.
+//
+// CSISnapshotControllerSpec is the specification of the desired behavior of the CSISnapshotController operator.
 type CSISnapshotControllerSpecApplyConfiguration struct {
 	OperatorSpecApplyConfiguration `json:",inline"`
 }
@@ -23,7 +25,7 @@ func CSISnapshotControllerSpec() *CSISnapshotControllerSpecApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ManagementState field is set to the value of the last call.
 func (b *CSISnapshotControllerSpecApplyConfiguration) WithManagementState(value operatorv1.ManagementState) *CSISnapshotControllerSpecApplyConfiguration {
-	b.ManagementState = &value
+	b.OperatorSpecApplyConfiguration.ManagementState = &value
 	return b
 }
 
@@ -31,7 +33,7 @@ func (b *CSISnapshotControllerSpecApplyConfiguration) WithManagementState(value 
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogLevel field is set to the value of the last call.
 func (b *CSISnapshotControllerSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLevel) *CSISnapshotControllerSpecApplyConfiguration {
-	b.LogLevel = &value
+	b.OperatorSpecApplyConfiguration.LogLevel = &value
 	return b
 }
 
@@ -39,7 +41,7 @@ func (b *CSISnapshotControllerSpecApplyConfiguration) WithLogLevel(value operato
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the OperatorLogLevel field is set to the value of the last call.
 func (b *CSISnapshotControllerSpecApplyConfiguration) WithOperatorLogLevel(value operatorv1.LogLevel) *CSISnapshotControllerSpecApplyConfiguration {
-	b.OperatorLogLevel = &value
+	b.OperatorSpecApplyConfiguration.OperatorLogLevel = &value
 	return b
 }
 
@@ -47,7 +49,7 @@ func (b *CSISnapshotControllerSpecApplyConfiguration) WithOperatorLogLevel(value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UnsupportedConfigOverrides field is set to the value of the last call.
 func (b *CSISnapshotControllerSpecApplyConfiguration) WithUnsupportedConfigOverrides(value runtime.RawExtension) *CSISnapshotControllerSpecApplyConfiguration {
-	b.UnsupportedConfigOverrides = &value
+	b.OperatorSpecApplyConfiguration.UnsupportedConfigOverrides = &value
 	return b
 }
 
@@ -55,6 +57,6 @@ func (b *CSISnapshotControllerSpecApplyConfiguration) WithUnsupportedConfigOverr
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedConfig field is set to the value of the last call.
 func (b *CSISnapshotControllerSpecApplyConfiguration) WithObservedConfig(value runtime.RawExtension) *CSISnapshotControllerSpecApplyConfiguration {
-	b.ObservedConfig = &value
+	b.OperatorSpecApplyConfiguration.ObservedConfig = &value
 	return b
 }

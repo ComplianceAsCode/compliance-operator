@@ -3,21 +3,28 @@
 package v1
 
 import (
-	apimachineconfigurationv1 "github.com/openshift/api/machineconfiguration/v1"
+	machineconfigurationv1 "github.com/openshift/api/machineconfiguration/v1"
 	internal "github.com/openshift/client-go/machineconfiguration/applyconfigurations/internal"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // MachineOSBuildApplyConfiguration represents a declarative configuration of the MachineOSBuild type for use
 // with apply.
+//
+// MachineOSBuild describes a build process managed and deployed by the MCO
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 type MachineOSBuildApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
-	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *MachineOSBuildSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *MachineOSBuildStatusApplyConfiguration `json:"status,omitempty"`
+	metav1.TypeMetaApplyConfiguration `json:",inline"`
+	// metadata is the standard object metadata.
+	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
+	// spec describes the configuration of the machine os build.
+	// It is immutable once set.
+	Spec *MachineOSBuildSpecApplyConfiguration `json:"spec,omitempty"`
+	// status describes the last observed state of this machine os build.
+	Status *MachineOSBuildStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // MachineOSBuild constructs a declarative configuration of the MachineOSBuild type for use with
@@ -30,29 +37,14 @@ func MachineOSBuild(name string) *MachineOSBuildApplyConfiguration {
 	return b
 }
 
-// ExtractMachineOSBuild extracts the applied configuration owned by fieldManager from
-// machineOSBuild. If no managedFields are found in machineOSBuild for fieldManager, a
-// MachineOSBuildApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractMachineOSBuildFrom extracts the applied configuration owned by fieldManager from
+// machineOSBuild for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // machineOSBuild must be a unmodified MachineOSBuild API object that was retrieved from the Kubernetes API.
-// ExtractMachineOSBuild provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractMachineOSBuildFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractMachineOSBuild(machineOSBuild *apimachineconfigurationv1.MachineOSBuild, fieldManager string) (*MachineOSBuildApplyConfiguration, error) {
-	return extractMachineOSBuild(machineOSBuild, fieldManager, "")
-}
-
-// ExtractMachineOSBuildStatus is the same as ExtractMachineOSBuild except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractMachineOSBuildStatus(machineOSBuild *apimachineconfigurationv1.MachineOSBuild, fieldManager string) (*MachineOSBuildApplyConfiguration, error) {
-	return extractMachineOSBuild(machineOSBuild, fieldManager, "status")
-}
-
-func extractMachineOSBuild(machineOSBuild *apimachineconfigurationv1.MachineOSBuild, fieldManager string, subresource string) (*MachineOSBuildApplyConfiguration, error) {
+func ExtractMachineOSBuildFrom(machineOSBuild *machineconfigurationv1.MachineOSBuild, fieldManager string, subresource string) (*MachineOSBuildApplyConfiguration, error) {
 	b := &MachineOSBuildApplyConfiguration{}
 	err := managedfields.ExtractInto(machineOSBuild, internal.Parser().Type("com.github.openshift.api.machineconfiguration.v1.MachineOSBuild"), fieldManager, b, subresource)
 	if err != nil {
@@ -65,11 +57,33 @@ func extractMachineOSBuild(machineOSBuild *apimachineconfigurationv1.MachineOSBu
 	return b, nil
 }
 
+// ExtractMachineOSBuild extracts the applied configuration owned by fieldManager from
+// machineOSBuild. If no managedFields are found in machineOSBuild for fieldManager, a
+// MachineOSBuildApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// machineOSBuild must be a unmodified MachineOSBuild API object that was retrieved from the Kubernetes API.
+// ExtractMachineOSBuild provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractMachineOSBuild(machineOSBuild *machineconfigurationv1.MachineOSBuild, fieldManager string) (*MachineOSBuildApplyConfiguration, error) {
+	return ExtractMachineOSBuildFrom(machineOSBuild, fieldManager, "")
+}
+
+// ExtractMachineOSBuildStatus extracts the applied configuration owned by fieldManager from
+// machineOSBuild for the status subresource.
+func ExtractMachineOSBuildStatus(machineOSBuild *machineconfigurationv1.MachineOSBuild, fieldManager string) (*MachineOSBuildApplyConfiguration, error) {
+	return ExtractMachineOSBuildFrom(machineOSBuild, fieldManager, "status")
+}
+
+func (b MachineOSBuildApplyConfiguration) IsApplyConfiguration() {}
+
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithKind(value string) *MachineOSBuildApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -77,7 +91,7 @@ func (b *MachineOSBuildApplyConfiguration) WithKind(value string) *MachineOSBuil
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithAPIVersion(value string) *MachineOSBuildApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -86,7 +100,7 @@ func (b *MachineOSBuildApplyConfiguration) WithAPIVersion(value string) *Machine
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithName(value string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -95,7 +109,7 @@ func (b *MachineOSBuildApplyConfiguration) WithName(value string) *MachineOSBuil
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithGenerateName(value string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -104,7 +118,7 @@ func (b *MachineOSBuildApplyConfiguration) WithGenerateName(value string) *Machi
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithNamespace(value string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -113,7 +127,7 @@ func (b *MachineOSBuildApplyConfiguration) WithNamespace(value string) *MachineO
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithUID(value types.UID) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -122,7 +136,7 @@ func (b *MachineOSBuildApplyConfiguration) WithUID(value types.UID) *MachineOSBu
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithResourceVersion(value string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -131,25 +145,25 @@ func (b *MachineOSBuildApplyConfiguration) WithResourceVersion(value string) *Ma
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithGeneration(value int64) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *MachineOSBuildApplyConfiguration) WithCreationTimestamp(value metav1.Time) *MachineOSBuildApplyConfiguration {
+func (b *MachineOSBuildApplyConfiguration) WithCreationTimestamp(value apismetav1.Time) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *MachineOSBuildApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *MachineOSBuildApplyConfiguration {
+func (b *MachineOSBuildApplyConfiguration) WithDeletionTimestamp(value apismetav1.Time) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -158,7 +172,7 @@ func (b *MachineOSBuildApplyConfiguration) WithDeletionTimestamp(value metav1.Ti
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *MachineOSBuildApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -168,11 +182,11 @@ func (b *MachineOSBuildApplyConfiguration) WithDeletionGracePeriodSeconds(value 
 // overwriting an existing map entries in Labels field with the same key.
 func (b *MachineOSBuildApplyConfiguration) WithLabels(entries map[string]string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -183,11 +197,11 @@ func (b *MachineOSBuildApplyConfiguration) WithLabels(entries map[string]string)
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *MachineOSBuildApplyConfiguration) WithAnnotations(entries map[string]string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -195,13 +209,13 @@ func (b *MachineOSBuildApplyConfiguration) WithAnnotations(entries map[string]st
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *MachineOSBuildApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *MachineOSBuildApplyConfiguration {
+func (b *MachineOSBuildApplyConfiguration) WithOwnerReferences(values ...*metav1.OwnerReferenceApplyConfiguration) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -212,14 +226,14 @@ func (b *MachineOSBuildApplyConfiguration) WithOwnerReferences(values ...*v1.Own
 func (b *MachineOSBuildApplyConfiguration) WithFinalizers(values ...string) *MachineOSBuildApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
 	return b
 }
 
 func (b *MachineOSBuildApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
-		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
+		b.ObjectMetaApplyConfiguration = &metav1.ObjectMetaApplyConfiguration{}
 	}
 }
 
@@ -239,8 +253,24 @@ func (b *MachineOSBuildApplyConfiguration) WithStatus(value *MachineOSBuildStatu
 	return b
 }
 
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *MachineOSBuildApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *MachineOSBuildApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
 // GetName retrieves the value of the Name field in the declarative configuration.
 func (b *MachineOSBuildApplyConfiguration) GetName() *string {
 	b.ensureObjectMetaApplyConfigurationExists()
-	return b.Name
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *MachineOSBuildApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

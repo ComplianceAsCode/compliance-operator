@@ -106,6 +106,11 @@ func (f *Framework) SetUp() error {
 		return err
 	}
 
+	if os.Getenv("SKIP_MCP_SETUP") != "" {
+		log.Println("SKIP_MCP_SETUP is set, skipping e2e ScanSettings and MachineConfigPool setup")
+		return nil
+	}
+
 	err = f.updateScanSettingsForDebug()
 	if err != nil {
 		return fmt.Errorf("failed to set scan setting bindings to debug: %w", err)
@@ -154,28 +159,31 @@ func (f *Framework) TearDown() error {
 		return fmt.Errorf("failed to cleanup ocp4 profile bundle: %w", err)
 	}
 
-	err = f.deleteScanSettings("e2e-default")
-	if err != nil {
-		return err
-	}
-	err = f.deleteScanSettings("e2e-default-auto-apply")
-	if err != nil {
-		return err
-	}
-
-	// unlabel nodes
-	err = f.restoreNodeLabelsForPool("e2e")
-	if err != nil {
-		return err
-	}
-	err = f.cleanUpMachineConfigPool("e2e")
-	if err != nil {
-		return err
-	}
-	// e2e-invalid mcp
-	err = f.cleanUpMachineConfigPool("e2e-invalid")
-	if err != nil {
-		return err
+	if os.Getenv("SKIP_MCP_SETUP") != "" {
+		log.Println("SKIP_MCP_SETUP is set, skipping e2e ScanSettings and MachineConfigPool cleanup")
+	} else {
+		err = f.deleteScanSettings("e2e-default")
+		if err != nil {
+			return err
+		}
+		err = f.deleteScanSettings("e2e-default-auto-apply")
+		if err != nil {
+			return err
+		}
+		// unlabel nodes
+		err = f.restoreNodeLabelsForPool("e2e")
+		if err != nil {
+			return err
+		}
+		err = f.cleanUpMachineConfigPool("e2e")
+		if err != nil {
+			return err
+		}
+		// e2e-invalid mcp
+		err = f.cleanUpMachineConfigPool("e2e-invalid")
+		if err != nil {
+			return err
+		}
 	}
 
 	// Clean up these resources explicitly in this method because it's guaranteed to run
