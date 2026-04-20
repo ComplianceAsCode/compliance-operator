@@ -1076,7 +1076,38 @@ func (r *ReconcileComplianceScan) deleteKubeletConfigConfigMaps(instance *compv1
 // returns true if the pod is still running, false otherwise
 func isPodRunningInNode(r *ReconcileComplianceScan, scanInstance *compv1alpha1.ComplianceScan, node *corev1.Node, timeout time.Duration, logger logr.Logger) (bool, error) {
 	podName := getPodForNodeName(scanInstance.Name, node.Name)
-	return isPodRunning(r, podName, common.GetComplianceOperatorNamespace(), timeout, logger)
+	running, err := isPodRunning(r, podName, common.GetComplianceOperatorNamespace(), timeout, logger)
+	if !running && err == nil {
+		// Pod finished successfully — check init container termination messages
+		// for warnings (e.g. sshd config failures) and surface them as events.
+		checkInitContainerWarnings(r, scanInstance, podName, logger)
+	}
+	return running, err
+}
+
+// checkInitContainerWarnings inspects init container termination messages and
+// emits warning events on the ComplianceScan for any that reported issues.
+func checkInitContainerWarnings(r *ReconcileComplianceScan, scan *compv1alpha1.ComplianceScan, podName string, logger logr.Logger) {
+	pod := &corev1.Pod{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      podName,
+		Namespace: common.GetComplianceOperatorNamespace(),
+	}, pod)
+	if err != nil {
+		return
+	}
+	for i := range pod.Status.InitContainerStatuses {
+		status := &pod.Status.InitContainerStatuses[i]
+		if status.State.Terminated != nil && status.State.Terminated.Message != "" {
+			logger.Info("Init container reported warning",
+				"container", status.Name,
+				"message", status.State.Terminated.Message,
+				"pod", podName)
+			r.Recorder.Eventf(scan, corev1.EventTypeWarning, "InitContainerWarning",
+				"Init container %q in pod %s: %s",
+				status.Name, podName, status.State.Terminated.Message)
+		}
+	}
 }
 
 // returns true if the pod is still running, false otherwise

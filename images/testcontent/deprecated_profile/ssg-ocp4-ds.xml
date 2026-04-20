@@ -23986,10 +23986,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83815-1" source="CCE"/>
             <oval-def:reference ref_id="kubelet_anonymous_auth" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.anonymous.enabled' all: value equals 'false'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.anonymous.enabled' all: value equals 'false'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.anonymous.enabled' all" test_ref="oval:ssg-test_kubelet_anonymous_auth:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.anonymous.enabled' all" test_ref="oval:ssg-test_kubelet_anonymous_auth:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_authorization_mode:def:1" version="1" class="compliance">
@@ -24000,10 +24000,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83593-4" source="CCE"/>
             <oval-def:reference ref_id="kubelet_authorization_mode" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authorization.mode' all: value equals 'AlwaysAllow'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authorization.mode' all: value equals 'AlwaysAllow'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authorization.mode' all" test_ref="oval:ssg-test_kubelet_authorization_mode:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authorization.mode' all" test_ref="oval:ssg-test_kubelet_authorization_mode:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_configure_client_ca:def:1" version="1" class="compliance">
@@ -24014,10 +24014,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83724-5" source="CCE"/>
             <oval-def:reference ref_id="kubelet_configure_client_ca" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.x509.clientCAFile' all: value equals '/etc/kubernetes/kubelet-ca.crt'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.x509.clientCAFile' all: value equals '/etc/kubernetes/kubelet-ca.crt'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.x509.clientCAFile' all" test_ref="oval:ssg-test_kubelet_configure_client_ca:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.authentication.x509.clientCAFile' all" test_ref="oval:ssg-test_kubelet_configure_client_ca:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_configure_event_creation:def:1" version="1" class="compliance">
@@ -24028,10 +24028,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83576-9" source="CCE"/>
             <oval-def:reference ref_id="kubelet_configure_event_creation" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.eventRecordQPS' all: value equals '0'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.eventRecordQPS' all: value equals '0'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.eventRecordQPS' all" test_ref="oval:ssg-test_kubelet_configure_event_creation:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.eventRecordQPS' all" test_ref="oval:ssg-test_kubelet_configure_event_creation:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_configure_tls_cert:def:1" version="1" class="compliance">
@@ -24057,10 +24057,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-86030-4" source="CCE"/>
             <oval-def:reference ref_id="kubelet_configure_tls_cipher_suites" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsCipherSuites[:]' all: </oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsCipherSuites[:]' all: </oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsCipherSuites[:]' all" test_ref="oval:ssg-test_kubelet_configure_tls_cipher_suites:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsCipherSuites[:]' all" test_ref="oval:ssg-test_kubelet_configure_tls_cipher_suites:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_configure_tls_cipher_suites_ingresscontroller:def:1" version="1" class="compliance">
@@ -24128,10 +24128,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-86623-6" source="CCE"/>
             <oval-def:reference ref_id="kubelet_configure_tls_min_version" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsMinVersion' all: </oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsMinVersion' all: </oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsMinVersion' all" test_ref="oval:ssg-test_kubelet_configure_tls_min_version:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.tlsMinVersion' all" test_ref="oval:ssg-test_kubelet_configure_tls_min_version:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_disable_readonly_port:def:1" version="1" class="compliance">
@@ -24157,10 +24157,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83838-3" source="CCE"/>
             <oval-def:reference ref_id="kubelet_enable_cert_rotation" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.rotateCertificates' all: value equals 'true'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.rotateCertificates' all: value equals 'true'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.rotateCertificates' all" test_ref="oval:ssg-test_kubelet_enable_cert_rotation:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.rotateCertificates' all" test_ref="oval:ssg-test_kubelet_enable_cert_rotation:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_enable_client_cert_rotation:def:1" version="1" class="compliance">
@@ -24171,10 +24171,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83352-5" source="CCE"/>
             <oval-def:reference ref_id="kubelet_enable_client_cert_rotation" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.featureGates.RotateKubeletClientCertificate' all: value equals 'false'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.featureGates.RotateKubeletClientCertificate' all: value equals 'false'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.featureGates.RotateKubeletClientCertificate' all" test_ref="oval:ssg-test_kubelet_enable_client_cert_rotation:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.featureGates.RotateKubeletClientCertificate' all" test_ref="oval:ssg-test_kubelet_enable_client_cert_rotation:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_enable_iptables_util_chains:def:1" version="1" class="compliance">
@@ -24185,10 +24185,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83775-7" source="CCE"/>
             <oval-def:reference ref_id="kubelet_enable_iptables_util_chains" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.makeIPTablesUtilChains' all: value equals 'true'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.makeIPTablesUtilChains' all: value equals 'true'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.makeIPTablesUtilChains' all" test_ref="oval:ssg-test_kubelet_enable_iptables_util_chains:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.makeIPTablesUtilChains' all" test_ref="oval:ssg-test_kubelet_enable_iptables_util_chains:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_enable_protect_kernel_defaults:def:1" version="1" class="compliance">
@@ -24198,10 +24198,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
               <oval-def:platform>Red Hat OpenShift Container Platform 4</oval-def:platform>
             </oval-def:affected>
             <oval-def:reference ref_id="kubelet_enable_protect_kernel_defaults" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.protectKernelDefaults' all: value equals 'true'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.protectKernelDefaults' all: value equals 'true'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.protectKernelDefaults' all" test_ref="oval:ssg-test_kubelet_enable_protect_kernel_defaults:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.protectKernelDefaults' all" test_ref="oval:ssg-test_kubelet_enable_protect_kernel_defaults:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_enable_protect_kernel_sysctl_kernel_keys_root_maxbytes:def:1" version="3" class="compliance">
@@ -24476,10 +24476,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-83356-6" source="CCE"/>
             <oval-def:reference ref_id="kubelet_enable_server_cert_rotation" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.serverTLSBootstrap' all: value equals 'true'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.serverTLSBootstrap' all: value equals 'true'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.serverTLSBootstrap' all" test_ref="oval:ssg-test_kubelet_enable_server_cert_rotation:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.serverTLSBootstrap' all" test_ref="oval:ssg-test_kubelet_enable_server_cert_rotation:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_enable_streaming_connections:def:1" version="1" class="compliance">
@@ -24490,10 +24490,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84097-5" source="CCE"/>
             <oval-def:reference ref_id="kubelet_enable_streaming_connections" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.streamingConnectionIdleTimeout' all: value equals '0s'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.streamingConnectionIdleTimeout' all: value equals '0s'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.streamingConnectionIdleTimeout' all" test_ref="oval:ssg-test_kubelet_enable_streaming_connections:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.streamingConnectionIdleTimeout' all" test_ref="oval:ssg-test_kubelet_enable_streaming_connections:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_enable_streaming_connections_deprecated:def:1" version="1" class="compliance">
@@ -24517,10 +24517,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84144-5" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_hard_imagefs_available" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.available']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.available']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_available:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_available:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:def:1" version="1" class="compliance">
@@ -24531,10 +24531,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84147-8" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_hard_imagefs_inodesfree" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['imagefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_hard_memory_available:def:1" version="1" class="compliance">
@@ -24545,10 +24545,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84135-3" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_hard_memory_available" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['memory.available']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['memory.available']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['memory.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_memory_available:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['memory.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_memory_available:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_hard_nodefs_available:def:1" version="1" class="compliance">
@@ -24559,10 +24559,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84138-7" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_hard_nodefs_available" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.available']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.available']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_available:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_available:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:def:1" version="1" class="compliance">
@@ -24573,10 +24573,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84141-1" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_hard_nodefs_inodesfree" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionHard['nodefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_soft_imagefs_available:def:1" version="1" class="compliance">
@@ -24587,10 +24587,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84127-0" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_soft_imagefs_available" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.available']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.available']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_available:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_available:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:def:1" version="1" class="compliance">
@@ -24601,10 +24601,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84132-0" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_soft_imagefs_inodesfree" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['imagefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_soft_memory_available:def:1" version="1" class="compliance">
@@ -24615,10 +24615,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84222-9" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_soft_memory_available" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['memory.available']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['memory.available']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['memory.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_memory_available:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['memory.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_memory_available:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_soft_nodefs_available:def:1" version="1" class="compliance">
@@ -24629,10 +24629,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84119-7" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_soft_nodefs_available" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.available']' all: </oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.available']' all: </oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_available:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.available']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_available:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:def:1" version="1" class="compliance">
@@ -24643,10 +24643,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
             </oval-def:affected>
             <oval-def:reference ref_id="CCE-84123-9" source="CCE"/>
             <oval-def:reference ref_id="kubelet_eviction_thresholds_set_soft_nodefs_inodesfree" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.inodesFree']' all: value equals '^.+$'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.evictionSoft['nodefs.inodesFree']' all" test_ref="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-kubelet_read_only_port_secured:def:1" version="1" class="compliance">
@@ -24656,10 +24656,10 @@ critical for OpenShift security.</xccdf-1.2:rationale>
               <oval-def:platform>Red Hat OpenShift Container Platform 4</oval-def:platform>
             </oval-def:affected>
             <oval-def:reference ref_id="kubelet_read_only_port_secured" source="ssg"/>
-            <oval-def:description>In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.readOnlyPort' all: value equals '0'</oval-def:description>
+            <oval-def:description>In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.readOnlyPort' all: value equals '0'</oval-def:description>
           </oval-def:metadata>
           <oval-def:criteria operator="AND">
-            <oval-def:criterion comment="In the YAML/JSON file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.readOnlyPort' all" test_ref="oval:ssg-test_kubelet_read_only_port_secured:tst:1"/>
+            <oval-def:criterion comment="In the YAML/JSON file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' at path '.kubeletconfig.readOnlyPort' all" test_ref="oval:ssg-test_kubelet_read_only_port_secured:tst:1"/>
           </oval-def:criteria>
         </oval-def:definition>
         <oval-def:definition id="oval:ssg-luks_enabled_on_all_nodes:def:1" version="1" class="compliance">
@@ -26559,19 +26559,19 @@ critical for OpenShift security.</xccdf-1.2:rationale>
         <unix:file_test id="oval:ssg-test_file_for_kubeadmin_removed:tst:1" version="1" check="all" comment="Find the file to be checked ('/api/v1/namespaces/kube-system/secrets/kubeadmin')." check_existence="only_one_exists" state_operator="AND">
           <unix:object object_ref="oval:ssg-object_file_for_kubeadmin_removed:obj:1"/>
         </unix:file_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_anonymous_auth:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.authentication.anonymous.enabled'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_anonymous_auth:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.authentication.anonymous.enabled'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_anonymous_auth:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_anonymous_auth:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_authorization_mode:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.authorization.mode'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_authorization_mode:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.authorization.mode'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_authorization_mode:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_authorization_mode:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_client_ca:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.authentication.x509.clientCAFile'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_client_ca:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.authentication.x509.clientCAFile'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_configure_client_ca:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_configure_client_ca:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_event_creation:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.eventRecordQPS'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_event_creation:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.eventRecordQPS'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_configure_event_creation:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_configure_event_creation:ste:1"/>
         </ind:yamlfilecontent_test>
@@ -26582,7 +26582,7 @@ critical for OpenShift security.</xccdf-1.2:rationale>
         <unix:file_test id="oval:ssg-test_file_for_kubelet_configure_tls_cert:tst:1" version="1" check="all" comment="Find the file to be checked ('/api/v1/namespaces/openshift-kube-apiserver/configmaps/config#e5500055b4aa2fcf00dc09ad0e66e44b6b42d67f8d53d1e72ff81b32f0e09865')." check_existence="only_one_exists" state_operator="AND">
           <unix:object object_ref="oval:ssg-object_file_for_kubelet_configure_tls_cert:obj:1"/>
         </unix:file_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_tls_cipher_suites:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.tlsCipherSuites[:]'." check_existence="only_one_exists" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_tls_cipher_suites:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.tlsCipherSuites[:]'." check_existence="only_one_exists" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_configure_tls_cipher_suites:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_configure_tls_cipher_suites:ste:1"/>
         </ind:yamlfilecontent_test>
@@ -26614,7 +26614,7 @@ critical for OpenShift security.</xccdf-1.2:rationale>
         <unix:file_test id="oval:ssg-test_file_for_kubelet_configure_tls_key:tst:1" version="1" check="all" comment="Find the file to be checked ('/api/v1/namespaces/openshift-kube-apiserver/configmaps/config#1e2b7c1158e0b9a602cb20d62c82b4660907bb57b63dac11c6c7c64211c49c69')." check_existence="only_one_exists" state_operator="AND">
           <unix:object object_ref="oval:ssg-object_file_for_kubelet_configure_tls_key:obj:1"/>
         </unix:file_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_tls_min_version:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.tlsMinVersion'." check_existence="only_one_exists" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_configure_tls_min_version:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.tlsMinVersion'." check_existence="only_one_exists" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_configure_tls_min_version:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_configure_tls_min_version:ste:1"/>
         </ind:yamlfilecontent_test>
@@ -26625,19 +26625,19 @@ critical for OpenShift security.</xccdf-1.2:rationale>
         <unix:file_test id="oval:ssg-test_file_for_kubelet_disable_readonly_port:tst:1" version="1" check="all" comment="Find the file to be checked ('/api/v1/namespaces/openshift-kube-apiserver/configmaps/config#54842ba5cf821644f2727625c1518eba2de6e6b7ae318043d0bf7ccc9570e430')." check_existence="only_one_exists" state_operator="AND">
           <unix:object object_ref="oval:ssg-object_file_for_kubelet_disable_readonly_port:obj:1"/>
         </unix:file_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_cert_rotation:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.rotateCertificates'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_cert_rotation:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.rotateCertificates'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_enable_cert_rotation:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_cert_rotation:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_client_cert_rotation:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.featureGates.RotateKubeletClientCertificate'." check_existence="any_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_client_cert_rotation:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.featureGates.RotateKubeletClientCertificate'." check_existence="any_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_enable_client_cert_rotation:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_client_cert_rotation:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_iptables_util_chains:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.makeIPTablesUtilChains'." check_existence="only_one_exists" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_iptables_util_chains:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.makeIPTablesUtilChains'." check_existence="only_one_exists" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_enable_iptables_util_chains:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_iptables_util_chains:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_protect_kernel_defaults:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.protectKernelDefaults'." check_existence="only_one_exists" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_protect_kernel_defaults:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.protectKernelDefaults'." check_existence="only_one_exists" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_enable_protect_kernel_defaults:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_protect_kernel_defaults:ste:1"/>
         </ind:yamlfilecontent_test>
@@ -26731,11 +26731,11 @@ critical for OpenShift security.</xccdf-1.2:rationale>
           <ind:object object_ref="oval:ssg-object_static_usr_lib_sysctld_kubelet_enable_protect_kernel_sysctl_vm_panic_on_oom:obj:1"/>
           <ind:state state_ref="oval:ssg-state_static_sysctld_kubelet_enable_protect_kernel_sysctl_vm_panic_on_oom:ste:1"/>
         </ind:textfilecontent54_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_server_cert_rotation:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.serverTLSBootstrap'." check_existence="only_one_exists" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_server_cert_rotation:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.serverTLSBootstrap'." check_existence="only_one_exists" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_enable_server_cert_rotation:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_server_cert_rotation:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_streaming_connections:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.streamingConnectionIdleTimeout'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_enable_streaming_connections:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.streamingConnectionIdleTimeout'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_enable_streaming_connections:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_streaming_connections:ste:1"/>
         </ind:yamlfilecontent_test>
@@ -26743,47 +26743,47 @@ critical for OpenShift security.</xccdf-1.2:rationale>
           <ind:object object_ref="oval:ssg-object_kubelet_enable_streaming_connections_deprecated:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_enable_streaming_connections_deprecated:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_available:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['imagefs.available']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_available:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['imagefs.available']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_hard_imagefs_available:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_hard_imagefs_available:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['imagefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['imagefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_hard_imagefs_inodesfree:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_memory_available:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['memory.available']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_memory_available:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['memory.available']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_hard_memory_available:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_hard_memory_available:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_available:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['nodefs.available']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_available:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['nodefs.available']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_hard_nodefs_available:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_hard_nodefs_available:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['nodefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionHard['nodefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_hard_nodefs_inodesfree:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_available:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['imagefs.available']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_available:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['imagefs.available']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_soft_imagefs_available:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_soft_imagefs_available:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['imagefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['imagefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_soft_imagefs_inodesfree:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_memory_available:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['memory.available']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_memory_available:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['memory.available']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_soft_memory_available:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_soft_memory_available:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_available:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['nodefs.available']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_available:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['nodefs.available']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_soft_nodefs_available:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_soft_nodefs_available:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['nodefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.evictionSoft['nodefs.inodesFree']'." check_existence="all_exist" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_eviction_thresholds_set_soft_nodefs_inodesfree:ste:1"/>
         </ind:yamlfilecontent_test>
-        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_read_only_port_secured:tst:1" version="1" check="all" comment="In the file '/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.readOnlyPort'." check_existence="only_one_exists" state_operator="AND">
+        <ind:yamlfilecontent_test id="oval:ssg-test_kubelet_read_only_port_secured:tst:1" version="1" check="all" comment="In the file '/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig' find only one object at path '.kubeletconfig.readOnlyPort'." check_existence="only_one_exists" state_operator="AND">
           <ind:object object_ref="oval:ssg-object_kubelet_read_only_port_secured:obj:1"/>
           <ind:state state_ref="oval:ssg-state_kubelet_read_only_port_secured:ste:1"/>
         </ind:yamlfilecontent_test>
@@ -31986,16 +31986,16 @@ critical for OpenShift security.</xccdf-1.2:rationale>
           </oval-def:concat>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_anonymous_auth_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_authorization_mode_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_configure_client_ca_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_configure_event_creation_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_configure_tls_cert_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
           <oval-def:concat>
@@ -32004,7 +32004,7 @@ critical for OpenShift security.</xccdf-1.2:rationale>
           </oval-def:concat>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_configure_tls_cipher_suites_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:external_variable id="oval:ssg-var_kubelet_tls_cipher_suites_regex:var:1" version="1" datatype="string" comment="variable"/>
         <oval-def:local_variable id="oval:ssg-kubelet_configure_tls_cipher_suites_ingresscontroller_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
@@ -32032,7 +32032,7 @@ critical for OpenShift security.</xccdf-1.2:rationale>
           </oval-def:concat>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_configure_tls_min_version_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:external_variable id="oval:ssg-var_kubelet_tls_min_version_regex:var:1" version="1" datatype="string" comment="variable"/>
         <oval-def:local_variable id="oval:ssg-kubelet_disable_readonly_port_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
@@ -32042,60 +32042,60 @@ critical for OpenShift security.</xccdf-1.2:rationale>
           </oval-def:concat>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_cert_rotation_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_client_cert_rotation_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_iptables_util_chains_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_protect_kernel_defaults_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_server_cert_rotation_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_streaming_connections_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_enable_streaming_connections_deprecated_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
           <oval-def:literal_component>/etc/kubernetes/kubelet.conf</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:external_variable id="oval:ssg-var_streaming_connection_timeouts:var:1" version="1" datatype="string" comment="variable"/>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_hard_imagefs_available_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_hard_imagefs_inodesfree_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_hard_memory_available_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_hard_nodefs_available_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_hard_nodefs_inodesfree_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_soft_imagefs_available_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_soft_imagefs_inodesfree_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_soft_memory_available_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_soft_nodefs_available_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:external_variable id="oval:ssg-var_event_record_qps:var:1" version="1" datatype="string" comment="variable"/>
         <oval-def:local_variable id="oval:ssg-kubelet_eviction_thresholds_set_soft_nodefs_inodesfree_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-kubelet_read_only_port_secured_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
-          <oval-def:literal_component>/etc/kubernetes/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
+          <oval-def:literal_component>/var/run/compliance-operator/kubeletconfig/openscap-kubeletconfig</oval-def:literal_component>
         </oval-def:local_variable>
         <oval-def:local_variable id="oval:ssg-luks_enabled_on_all_nodes_file_location:var:1" version="1" datatype="string" comment="The actual path of the file to scan.">
           <oval-def:concat>

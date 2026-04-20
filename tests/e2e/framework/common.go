@@ -199,6 +199,25 @@ func (f *Framework) CreateProfileBundle(pbName string, baselineImage string, con
 	return origPb, nil
 }
 
+func (f *Framework) CreateProfileBundleWithCEL(pbName, baselineImage, contentFile, celContentFile string) (*compv1alpha1.ProfileBundle, error) {
+	origPb := &compv1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ProfileBundleSpec{
+			ContentImage:   baselineImage,
+			ContentFile:    contentFile,
+			CELContentFile: celContentFile,
+		},
+	}
+	log.Printf("Creating ProfileBundle %s with CEL content %s", pbName, celContentFile)
+	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+		return nil, err
+	}
+	return origPb, nil
+}
+
 func (f *Framework) cleanUpProfileBundle(p string) error {
 	pb := &compv1alpha1.ProfileBundle{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1216,6 +1235,16 @@ func (f *Framework) WaitForCustomRuleStatus(namespace, name string, targetPhase 
 // waitForScanStatus will poll until the compliancescan that we're lookingfor reaches a certain status, or until
 // a timeout is reached.
 func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatus compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, targetComplianceStatus)
+}
+
+// WaitForSuiteScansStatusAnyResult is like WaitForSuiteScansStatus but accepts
+// multiple acceptable compliance results, succeeding if any of them match.
+func (f *Framework) WaitForSuiteScansStatusAnyResult(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, acceptableResults ...compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, acceptableResults...)
+}
+
+func (f *Framework) waitForSuiteScansStatusMulti(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, acceptableResults ...compv1alpha1.ComplianceScanStatusResult) error {
 	suite := &compv1alpha1.ComplianceSuite{}
 	var lastErr error
 	// retry and ignore errors until timeout
@@ -1271,13 +1300,22 @@ func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus
 		}
 
 		// The suite is now done, make sure the compliance status is expected
-		if suite.Status.Result != targetComplianceStatus {
-			return false, fmt.Errorf("expecting %s got %s", targetComplianceStatus, suite.Status.Result)
+		matched := false
+		for _, acceptable := range acceptableResults {
+			if suite.Status.Result == acceptable {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, fmt.Errorf("expecting one of %v got %s", acceptableResults, suite.Status.Result)
 		}
 
 		// If we were expecting an error, there's no use checking the scans
-		if targetComplianceStatus == compv1alpha1.ResultError {
-			return true, nil
+		for _, acceptable := range acceptableResults {
+			if acceptable == compv1alpha1.ResultError && suite.Status.Result == compv1alpha1.ResultError {
+				return true, nil
+			}
 		}
 
 		// Now as a sanity check make sure that the scan statuses match the aggregated
@@ -1762,6 +1800,38 @@ func (f *Framework) WaitForComplianceSuiteDeletion(name, namespace string) error
 	})
 	if err != nil {
 		return fmt.Errorf("ComplianceSuite %s may not have been fully cleaned up: %w", name, err)
+	}
+	return nil
+}
+
+const suiteDeletionTimeout = 180 * time.Second
+
+// WaitForSuiteScansCleanup polls until no ComplianceScans belonging to the suite/ScanSettingBinding (same name) remain in the namespace.
+func (f *Framework) WaitForSuiteScansCleanup(suiteOrBindingName, namespace string) error {
+	return wait.Poll(RetryInterval, suiteDeletionTimeout, func() (bool, error) {
+		var scanList compv1alpha1.ComplianceScanList
+		err := f.Client.List(context.TODO(), &scanList, client.InNamespace(namespace), client.MatchingLabels{
+			compv1alpha1.SuiteLabel: suiteOrBindingName,
+		})
+		if err != nil {
+			return false, err
+		}
+		if len(scanList.Items) == 0 {
+			return true, nil
+		}
+		log.Printf("Waiting for %d ComplianceScan(s) for suite %s/%s to be deleted\n", len(scanList.Items), namespace, suiteOrBindingName)
+		return false, nil
+	})
+}
+
+// DeleteScanSettingBindingAndWaitForCleanup deletes the given ScanSettingBinding and waits for all ComplianceScans
+// belonging to that binding (same name as the suite) to be removed.
+func (f *Framework) DeleteScanSettingBindingAndWaitForCleanup(ssb *compv1alpha1.ScanSettingBinding) error {
+	if err := f.Client.Delete(context.TODO(), ssb); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete ScanSettingBinding %s/%s: %w", ssb.Namespace, ssb.Name, err)
+	}
+	if err := f.WaitForSuiteScansCleanup(ssb.Name, ssb.Namespace); err != nil {
+		return fmt.Errorf("wait for ComplianceScans for suite %s/%s to cleanup (timeout %s): %w", ssb.Namespace, ssb.Name, suiteDeletionTimeout, err)
 	}
 	return nil
 }
@@ -3143,6 +3213,7 @@ func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, ti
 	return nil
 }
 
+// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result
 // check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result
 func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.Node, configMaps []core.ConfigMap) error {
 	for _, node := range nodes {
