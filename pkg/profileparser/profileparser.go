@@ -39,6 +39,7 @@ var log = logf.Log.WithName("profileparser")
 
 type ParserConfig struct {
 	DataStreamPath   string
+	CELContentPath   string
 	ProfileBundleKey types.NamespacedName
 	Client           runtimeclient.Client
 	Scheme           *k8sruntime.Scheme
@@ -391,6 +392,9 @@ func parseProfileFromNode(profileRoot *xmlquery.Node, pb *cmpv1alpha1.ProfileBun
 			},
 		}
 
+		// XCCDF profiles use the OpenSCAP scanner
+		p.Annotations[cmpv1alpha1.ScannerTypeAnnotation] = string(cmpv1alpha1.ScannerTypeOpenSCAP)
+
 		annotateWithNonce(&p, nonce)
 		annotateWithStatus(&p, status)
 
@@ -702,6 +706,7 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 				RulePayload: cmpv1alpha1.RulePayload{
 					ID:             id,
 					Title:          title.InnerText(),
+					ScannerType:    cmpv1alpha1.ScannerTypeOpenSCAP,
 					AvailableFixes: nil,
 				},
 			}

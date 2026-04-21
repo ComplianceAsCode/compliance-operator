@@ -656,6 +656,12 @@ image-to-cluster: image openscap-image namespace openshift-user  ## Builds and p
 	$(eval IMG = image-registry.openshift-image-registry.svc:5000/openshift/$(APP_NAME):$(TAG))
 	$(eval OPENSCAP_IMAGE = image-registry.openshift-image-registry.svc:5000/openshift/$(OPENSCAP_NAME):$(OPENSCAP_TAG))
 
+.PHONY: cel-bundle
+cel-bundle:  ## Regenerate the CEL content bundle from individual rule/profile files
+	$(GO) test -run TestBundleToFile ./pkg/celcontent/ -count=1
+	$(GO) run ./cmd/cel-bundler/... -rules tests/data/cel-rules -profiles tests/data/cel-profiles -output tests/data/cel-content-test.yaml
+	cp tests/data/cel-content-test.yaml images/testcontent/cel_content/cel-content.yaml
+
 .PHONY: e2e-content-images
 e2e-content-images:  ## Build the e2e-content-image
 	RUNTIME=$(RUNTIME) images/testcontent/broken-content.sh build ${E2E_BROKEN_CONTENT_IMAGE_PATH}
