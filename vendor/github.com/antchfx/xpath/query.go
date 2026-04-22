@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
+	"strconv"
 )
 
 // The return type of the XPath expression.
@@ -146,6 +147,7 @@ type ancestorQuery struct {
 	name     string
 	iterator func() NodeNavigator
 	table    map[uint64]bool
+	pos      int
 
 	Self      bool
 	Input     query
@@ -163,6 +165,8 @@ func (a *ancestorQuery) Select(t iterator) NodeNavigator {
 			if node == nil {
 				return nil
 			}
+			// Reset position for a new input context node
+			a.pos = 0
 			first := true
 			node = node.Copy()
 			a.iterator = func() NodeNavigator {
@@ -185,6 +189,8 @@ func (a *ancestorQuery) Select(t iterator) NodeNavigator {
 			node_id := getHashCode(node.Copy())
 			if _, ok := a.table[node_id]; !ok {
 				a.table[node_id] = true
+				// Increase position for each matched node in current input context
+				a.pos++
 				return node
 			}
 		}
@@ -195,6 +201,8 @@ func (a *ancestorQuery) Select(t iterator) NodeNavigator {
 func (a *ancestorQuery) Evaluate(t iterator) interface{} {
 	a.Input.Evaluate(t)
 	a.iterator = nil
+	// Reset the table when re-evaluating to ensure clean state
+	a.table = nil
 	return a
 }
 
@@ -212,6 +220,13 @@ func (a *ancestorQuery) ValueType() resultType {
 
 func (a *ancestorQuery) Properties() queryProp {
 	return queryProps.Position | queryProps.Count | queryProps.Cached | queryProps.Merge | queryProps.Reverse
+}
+
+// position returns the ordinal of the current matched node within the axis
+// traversal for the current input context node. This is required so numeric
+// predicates like [1] or [2] on the ancestor axis resolve in axis order.
+func (a *ancestorQuery) position() int {
+	return a.pos
 }
 
 // attributeQuery is an XPath attribute node query.(@*)
@@ -816,6 +831,8 @@ func (f *filterQuery) Select(t iterator) NodeNavigator {
 
 func (f *filterQuery) Evaluate(t iterator) interface{} {
 	f.Input.Evaluate(t)
+	// Reset the position map when re-evaluating to ensure clean state
+	f.positmap = nil
 	return f
 }
 
@@ -968,15 +985,6 @@ type logicalQuery struct {
 }
 
 func (l *logicalQuery) Select(t iterator) NodeNavigator {
-	// When a XPath expr is logical expression.
-	node := t.Current().Copy()
-	val := l.Evaluate(t)
-	switch val.(type) {
-	case bool:
-		if val.(bool) == true {
-			return node
-		}
-	}
 	return nil
 }
 
@@ -1364,19 +1372,23 @@ func getHashCode(n NodeNavigator) uint64 {
 	var sb bytes.Buffer
 	switch n.NodeType() {
 	case AttributeNode, TextNode, CommentNode:
-		sb.WriteString(fmt.Sprintf("%s=%s", n.LocalName(), n.Value()))
+		sb.WriteString(n.LocalName())
+		sb.WriteByte('=')
+		sb.WriteString(n.Value())
 		// https://github.com/antchfx/htmlquery/issues/25
 		d := 1
 		for n.MoveToPrevious() {
 			d++
 		}
-		sb.WriteString(fmt.Sprintf("-%d", d))
+		sb.WriteByte('-')
+		sb.WriteString(strconv.Itoa(d))
 		for n.MoveToParent() {
 			d = 1
 			for n.MoveToPrevious() {
 				d++
 			}
-			sb.WriteString(fmt.Sprintf("-%d", d))
+			sb.WriteByte('-')
+			sb.WriteString(strconv.Itoa(d))
 		}
 	case ElementNode:
 		sb.WriteString(n.Prefix() + n.LocalName())
@@ -1384,14 +1396,16 @@ func getHashCode(n NodeNavigator) uint64 {
 		for n.MoveToPrevious() {
 			d++
 		}
-		sb.WriteString(fmt.Sprintf("-%d", d))
+		sb.WriteByte('-')
+		sb.WriteString(strconv.Itoa(d))
 
 		for n.MoveToParent() {
 			d = 1
 			for n.MoveToPrevious() {
 				d++
 			}
-			sb.WriteString(fmt.Sprintf("-%d", d))
+			sb.WriteByte('-')
+			sb.WriteString(strconv.Itoa(d))
 		}
 	}
 	h := fnv.New64a()

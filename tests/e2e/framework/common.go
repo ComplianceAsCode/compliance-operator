@@ -199,6 +199,25 @@ func (f *Framework) CreateProfileBundle(pbName string, baselineImage string, con
 	return origPb, nil
 }
 
+func (f *Framework) CreateProfileBundleWithCEL(pbName, baselineImage, contentFile, celContentFile string) (*compv1alpha1.ProfileBundle, error) {
+	origPb := &compv1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ProfileBundleSpec{
+			ContentImage:   baselineImage,
+			ContentFile:    contentFile,
+			CELContentFile: celContentFile,
+		},
+	}
+	log.Printf("Creating ProfileBundle %s with CEL content %s", pbName, celContentFile)
+	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+		return nil, err
+	}
+	return origPb, nil
+}
+
 func (f *Framework) cleanUpProfileBundle(p string) error {
 	pb := &compv1alpha1.ProfileBundle{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1216,6 +1235,16 @@ func (f *Framework) WaitForCustomRuleStatus(namespace, name string, targetPhase 
 // waitForScanStatus will poll until the compliancescan that we're lookingfor reaches a certain status, or until
 // a timeout is reached.
 func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatus compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, targetComplianceStatus)
+}
+
+// WaitForSuiteScansStatusAnyResult is like WaitForSuiteScansStatus but accepts
+// multiple acceptable compliance results, succeeding if any of them match.
+func (f *Framework) WaitForSuiteScansStatusAnyResult(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, acceptableResults ...compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, acceptableResults...)
+}
+
+func (f *Framework) waitForSuiteScansStatusMulti(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, acceptableResults ...compv1alpha1.ComplianceScanStatusResult) error {
 	suite := &compv1alpha1.ComplianceSuite{}
 	var lastErr error
 	// retry and ignore errors until timeout
@@ -1271,13 +1300,22 @@ func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus
 		}
 
 		// The suite is now done, make sure the compliance status is expected
-		if suite.Status.Result != targetComplianceStatus {
-			return false, fmt.Errorf("expecting %s got %s", targetComplianceStatus, suite.Status.Result)
+		matched := false
+		for _, acceptable := range acceptableResults {
+			if suite.Status.Result == acceptable {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, fmt.Errorf("expecting one of %v got %s", acceptableResults, suite.Status.Result)
 		}
 
 		// If we were expecting an error, there's no use checking the scans
-		if targetComplianceStatus == compv1alpha1.ResultError {
-			return true, nil
+		for _, acceptable := range acceptableResults {
+			if acceptable == compv1alpha1.ResultError && suite.Status.Result == compv1alpha1.ResultError {
+				return true, nil
+			}
 		}
 
 		// Now as a sanity check make sure that the scan statuses match the aggregated
@@ -3175,7 +3213,7 @@ func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, ti
 	return nil
 }
 
-// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result 
+// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result
 func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.Node, configMaps []core.ConfigMap) error {
 	for _, node := range nodes {
 		nodeName := node.Name

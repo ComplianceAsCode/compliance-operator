@@ -222,11 +222,11 @@ type ControllerCertificate struct {
 
 	// notBefore is the lower boundary for validity
 	// +optional
-	NotBefore *metav1.Time `json:"notBefore"`
+	NotBefore *metav1.Time `json:"notBefore,omitempty"`
 
 	// notAfter is the upper boundary for validity
 	// +optional
-	NotAfter *metav1.Time `json:"notAfter"`
+	NotAfter *metav1.Time `json:"notAfter,omitempty"`
 
 	// bundleFile is the larger bundle a cert comes from
 	// +required
@@ -323,7 +323,7 @@ type MachineConfigSpec struct {
 
 	// config is a Ignition Config object.
 	// +optional
-	Config runtime.RawExtension `json:"config"`
+	Config runtime.RawExtension `json:"config,omitempty"`
 
 	// kernelArguments contains a list of kernel arguments to be added
 	// +listType=atomic
@@ -446,12 +446,39 @@ type MachineConfigPoolSpec struct {
 	// Resolving these failures is the responsibility of the user. The admin
 	// should be proactive in ensuring adequate storage and proper image
 	// authentication exists in advance.
-	// +openshift:enable:FeatureGate=PinnedImages
 	// +optional
 	// +listType=map
 	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=100
 	PinnedImageSets []PinnedImageSetRef `json:"pinnedImageSets,omitempty"`
+
+	// osImageStream specifies an OS stream to be used for the pool.
+	//
+	// This field can be optionally set to a known OSImageStream name to change the
+	// OS and Extension images with a well-known, tested, release-provided set of images.
+	// This enables a streamlined way of switching the pool's node OS to a different version
+	// than the cluster default, such as transitioning to a major RHEL version.
+	//
+	// When set, the referenced stream overrides the cluster-wide OS
+	// images for the pool with the OS and Extensions associated to stream.
+	// When omitted, the pool uses the cluster-wide default OS images.
+	//
+	// +openshift:enable:FeatureGate=OSStreams
+	// +optional
+	OSImageStream OSImageStreamReference `json:"osImageStream,omitempty,omitzero"`
+}
+
+type OSImageStreamReference struct {
+	// name is a required reference to an OSImageStream to be used for the pool.
+	//
+	// It must be a valid RFC 1123 subdomain between 1 and 253 characters in length,
+	// consisting of lowercase alphanumeric characters, hyphens ('-'), and periods ('.').
+	//
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:XValidation:rule="!format.dns1123Subdomain().validate(self).hasValue()",message="a RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character."
+	Name string `json:"name,omitempty"`
 }
 
 type PinnedImageSetRef struct {
@@ -461,7 +488,6 @@ type PinnedImageSetRef struct {
 	// consists of alphanumeric characters and hyphens (-), must begin and end
 	// with an alphanumeric character, and is at most 63 characters in length.
 	// The total length of the name must not exceed 253 characters.
-	// +openshift:enable:FeatureGate=PinnedImages
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*$`
@@ -512,11 +538,17 @@ type MachineConfigPoolStatus struct {
 	CertExpirys []CertExpiry `json:"certExpirys"`
 
 	// poolSynchronizersStatus is the status of the machines managed by the pool synchronizers.
-	// +openshift:enable:FeatureGate=PinnedImages
 	// +listType=map
 	// +listMapKey=poolSynchronizerType
 	// +optional
 	PoolSynchronizersStatus []PoolSynchronizerStatus `json:"poolSynchronizersStatus,omitempty"`
+
+	// osImageStream specifies the last updated OSImageStream for the pool.
+	//
+	// When omitted, the pool is using the cluster-wide default OS images.
+	// +openshift:enable:FeatureGate=OSStreams
+	// +optional
+	OSImageStream OSImageStreamReference `json:"osImageStream,omitempty,omitzero"`
 }
 
 // +kubebuilder:validation:XValidation:rule="self.machineCount >= self.updatedMachineCount", message="machineCount must be greater than or equal to updatedMachineCount"
@@ -598,7 +630,7 @@ type MachineConfigPoolCondition struct {
 
 	// status of the condition, one of ('True', 'False', 'Unknown').
 	// +optional
-	Status corev1.ConditionStatus `json:"status"`
+	Status corev1.ConditionStatus `json:"status,omitempty"`
 
 	// lastTransitionTime is the timestamp corresponding to the last status
 	// change of this condition.
@@ -636,15 +668,17 @@ const (
 	// MachineConfigPoolRenderDegraded means the rendered configuration for the pool cannot be generated because of an error
 	MachineConfigPoolRenderDegraded MachineConfigPoolConditionType = "RenderDegraded"
 
+	// MachineConfigPoolImageBuildDegraded means the image build for the pool was not successful
+	// This condition is only used when Image Mode is enabled for the pool
+	MachineConfigPoolImageBuildDegraded MachineConfigPoolConditionType = "ImageBuildDegraded"
+
 	// MachineConfigPoolPinnedImageSetsDegraded means the pinned image sets for the pool cannot be populated because of an error
-	// +openshift:enable:FeatureGate=PinnedImages
 	MachineConfigPoolPinnedImageSetsDegraded MachineConfigPoolConditionType = "PinnedImageSetsDegraded"
 
 	// MachineConfigPoolSynchronizerDegraded means the pool synchronizer can not be updated because of an error
-	// +openshift:enable:FeatureGate=PinnedImages
 	MachineConfigPoolSynchronizerDegraded MachineConfigPoolConditionType = "PoolSynchronizerDegraded"
 
-	// MachineConfigPoolDegraded is the overall status of the pool based, today, on whether we fail with NodeDegraded or RenderDegraded
+	// MachineConfigPoolDegraded is the overall status of the pool based, today, on whether we fail with NodeDegraded, RenderDegraded, or ImageBuildDegraded
 	MachineConfigPoolDegraded MachineConfigPoolConditionType = "Degraded"
 
 	MachineConfigPoolBuildPending MachineConfigPoolConditionType = "BuildPending"
@@ -731,6 +765,7 @@ type KubeletConfigStatus struct {
 
 	// conditions represents the latest available observations of current state.
 	// +optional
+	// +listType=atomic
 	Conditions []KubeletConfigCondition `json:"conditions"`
 }
 
@@ -742,7 +777,7 @@ type KubeletConfigCondition struct {
 
 	// status of the condition, one of True, False, Unknown.
 	// +optional
-	Status corev1.ConditionStatus `json:"status"`
+	Status corev1.ConditionStatus `json:"status,omitempty"`
 
 	// lastTransitionTime is the time of the last update to the current status object.
 	// +optional
@@ -844,19 +879,128 @@ type ContainerRuntimeConfiguration struct {
 	// +optional
 	OverlaySize *resource.Quantity `json:"overlaySize,omitempty"`
 
-	// defaultRuntime is the name of the OCI runtime to be used as the default.
+	// defaultRuntime is the name of the OCI runtime to be used as the default for containers.
+	// Allowed values are `runc` and `crun`.
+	// When set to `runc`, OpenShift will use runc to execute the container
+	// When set to `crun`, OpenShift will use crun to execute the container
+	// When omitted, this means no opinion and the platform is left to choose a reasonable default,
+	// which is subject to change over time. Currently, the default is `crun`.
+	// +kubebuilder:validation:Enum=crun;runc
 	// +optional
 	DefaultRuntime ContainerRuntimeDefaultRuntime `json:"defaultRuntime,omitempty"`
+
+	// additionalLayerStores configures additional read-only container image layer store locations for Open Container Initiative (OCI) images.
+	//
+	// Layers are checked in order: additional stores first, then the default location.
+	// Stores are read-only.
+	// Maximum of 5 stores allowed.
+	// Each path must be unique.
+	//
+	// When omitted, only the default layer location is used.
+	// When specified, at least one store must be provided.
+	//
+	// +openshift:enable:FeatureGate=AdditionalStorageConfig
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=5
+	// +kubebuilder:validation:XValidation:rule="self.all(x, self.exists_one(y, x.path == y.path))",message="additionalLayerStores must not contain duplicate paths"
+	AdditionalLayerStores []AdditionalLayerStore `json:"additionalLayerStores,omitempty"`
+
+	// additionalImageStores configures additional read-only container image store locations for Open Container Initiative (OCI) images.
+	//
+	// Images are checked in order: additional stores first, then the default location.
+	// Stores are read-only.
+	// Maximum of 10 stores allowed.
+	// Each path must be unique.
+	//
+	// When omitted, only the default image location is used.
+	// When specified, at least one store must be provided.
+	//
+	// +openshift:enable:FeatureGate=AdditionalStorageConfig
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=10
+	// +kubebuilder:validation:XValidation:rule="self.all(x, self.exists_one(y, x.path == y.path))",message="additionalImageStores must not contain duplicate paths"
+	AdditionalImageStores []AdditionalImageStore `json:"additionalImageStores,omitempty"`
+
+	// additionalArtifactStores configures additional read-only artifact storage locations for Open Container Initiative (OCI) artifacts.
+	//
+	// Artifacts are checked in order: additional stores first, then the default location (/var/lib/containers/storage/artifacts).
+	// Stores are read-only.
+	// Maximum of 10 stores allowed.
+	// Each path must be unique.
+	//
+	// When omitted, only the default artifact location is used.
+	// When specified, at least one store must be provided.
+	//
+	// +openshift:enable:FeatureGate=AdditionalStorageConfig
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=10
+	// +kubebuilder:validation:XValidation:rule="self.all(x, self.exists_one(y, x.path == y.path))",message="additionalArtifactStores must not contain duplicate paths"
+	AdditionalArtifactStores []AdditionalArtifactStore `json:"additionalArtifactStores,omitempty"`
 }
 
 type ContainerRuntimeDefaultRuntime string
 
+// These constants are used in the Machine Config Operator (MCO)
 const (
 	ContainerRuntimeDefaultRuntimeEmpty   = ""
 	ContainerRuntimeDefaultRuntimeRunc    = "runc"
 	ContainerRuntimeDefaultRuntimeCrun    = "crun"
-	ContainerRuntimeDefaultRuntimeDefault = ContainerRuntimeDefaultRuntimeRunc
+	ContainerRuntimeDefaultRuntimeDefault = ContainerRuntimeDefaultRuntimeCrun
 )
+
+// StorePath is an absolute filesystem path used by additional container storage configurations.
+// The path must be between 1 and 256 characters long, begin with a forward slash, and only contain
+// the characters a-z, A-Z, 0-9, '/', '.', '_', and '-'. Consecutive forward slashes are not permitted.
+// +kubebuilder:validation:MinLength=1
+// +kubebuilder:validation:MaxLength=256
+// +kubebuilder:validation:XValidation:rule="self.matches('^/[a-zA-Z0-9/._-]+$')",message="path must be absolute and contain only alphanumeric characters, '/', '.', '_', and '-'"
+// +kubebuilder:validation:XValidation:rule="!self.contains('//')",message="path must not contain consecutive forward slashes"
+type StorePath string
+
+// AdditionalLayerStore defines a read-only storage location for Open Container Initiative (OCI) container image layers.
+type AdditionalLayerStore struct {
+	// path specifies the absolute location of the additional layer store.
+	// The path must exist on the node before configuration is applied.
+	// When a container image is requested, layers found at this location will be used instead of
+	// retrieving from the registry.
+	// The path is required and must be between 1 and 256 characters long, begin with a forward slash,
+	// and only contain the characters a-z, A-Z, 0-9, '/', '.', '_', and '-'.
+	// Consecutive forward slashes are not permitted.
+	// +required
+	Path StorePath `json:"path,omitempty"`
+}
+
+// AdditionalImageStore defines an additional read-only storage location for Open Container Initiative (OCI) images.
+type AdditionalImageStore struct {
+	// path specifies the absolute location of the additional image store.
+	// The path must exist on the node before configuration is applied.
+	// When a container image is requested, images found at this location will be used instead of
+	// retrieving from the registry.
+	// The path is required and must be between 1 and 256 characters long, begin with a forward slash,
+	// and only contain the characters a-z, A-Z, 0-9, '/', '.', '_', and '-'.
+	// Consecutive forward slashes are not permitted.
+	// +required
+	Path StorePath `json:"path,omitempty"`
+}
+
+// AdditionalArtifactStore defines an additional read-only storage location for Open Container Initiative (OCI) artifacts.
+type AdditionalArtifactStore struct {
+	// path specifies the absolute location of the additional artifact store.
+	// The path must exist on the node before configuration is applied.
+	// When an artifact is requested, artifacts found at this location will be used instead of
+	// retrieving from the registry.
+	// The path is required and must be between 1 and 256 characters long, begin with a forward slash,
+	// and only contain the characters a-z, A-Z, 0-9, '/', '.', '_', and '-'.
+	// Consecutive forward slashes are not permitted.
+	// +required
+	Path StorePath `json:"path,omitempty"`
+}
 
 // ContainerRuntimeConfigStatus defines the observed state of a ContainerRuntimeConfig
 type ContainerRuntimeConfigStatus struct {
@@ -878,7 +1022,7 @@ type ContainerRuntimeConfigCondition struct {
 
 	// status of the condition, one of True, False, Unknown.
 	// +optional
-	Status corev1.ConditionStatus `json:"status"`
+	Status corev1.ConditionStatus `json:"status,omitempty"`
 
 	// lastTransitionTime is the time of the last update to the current status object.
 	// +nullable

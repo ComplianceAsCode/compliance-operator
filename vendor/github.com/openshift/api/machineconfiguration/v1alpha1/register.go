@@ -24,14 +24,10 @@ var (
 // Adds the list of known types to api.Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(GroupVersion,
-		&MachineConfigNode{},
-		&MachineConfigNodeList{},
-		&PinnedImageSet{},
-		&PinnedImageSetList{},
-		&MachineOSConfig{},
-		&MachineOSConfigList{},
-		&MachineOSBuild{},
-		&MachineOSBuildList{},
+		&OSImageStream{},
+		&OSImageStreamList{},
+		&InternalReleaseImage{},
+		&InternalReleaseImageList{},
 	)
 	metav1.AddToGroupVersion(scheme, GroupVersion)
 	return nil
