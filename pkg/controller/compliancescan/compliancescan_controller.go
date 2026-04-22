@@ -957,7 +957,7 @@ func (r *ReconcileComplianceScan) scanDeleteHandler(instance *compv1alpha1.Compl
 		scanToBeDeleted := instance.DeepCopy()
 
 		scanTypeHandler, err := getScanTypeHandler(r, scanToBeDeleted, logger)
-		if err != nil && !goerrors.Is(err, compv1alpha1.ErrUnkownScanType) {
+		if err != nil && !goerrors.Is(err, compv1alpha1.ErrUnknownScanType) {
 			return reconcile.Result{}, err
 		}
 
