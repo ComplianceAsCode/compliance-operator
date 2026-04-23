@@ -29,13 +29,13 @@ func IsKubeletConfig(obj *unstructured.Unstructured) bool {
 	return IsKind(obj, "KubeletConfig")
 }
 
-func HaveOutdatedRemediations(client runtimeclient.Client) (error, bool) {
+func HaveOutdatedRemediations(ctx context.Context, client runtimeclient.Client) (error, bool) {
 	remList := &compv1alpha1.ComplianceRemediationList{}
 	listOpts := runtimeclient.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labels.Set{compv1alpha1.OutdatedRemediationLabel: ""}),
 	}
 
-	if err := client.List(context.TODO(), remList, &listOpts); err != nil {
+	if err := client.List(ctx, remList, &listOpts); err != nil {
 		return err, false
 	}
 
