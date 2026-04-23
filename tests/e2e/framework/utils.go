@@ -409,13 +409,24 @@ func runOCandGetOutput(arg []string) (string, error) {
 
 	cmd := exec.Command(ocPath, arg...)
 	out, err := cmd.CombinedOutput()
+	outStr := string(out)
 	if err != nil {
-		return "", fmt.Errorf("Failed to run oc command: %v", err)
+		return outStr, fmt.Errorf("Failed to run oc command: %v", err)
 	}
-	return string(out), nil
+	return outStr, nil
 }
 
-// createServiceAccount creates a service account
+const openshiftMonitoringNamespace = "openshift-monitoring"
+
+// ErrAlertManagerRBACUnavailable is returned by SetupRBACForMetricsTest when the AlertManager
+// RoleBinding cannot be created (e.g. no suitable Role in openshift-monitoring). Callers may skip.
+var ErrAlertManagerRBACUnavailable = errors.New("AlertManager RBAC unavailable")
+
+// alertManagerRoleNames: Role names in openshift-monitoring for AlertManager API access (view first, then edit).
+var alertManagerRoleNames = []string{"monitoring-alertmanager-view", "monitoring-alertmanager-edit"}
+
+// SetupRBACForMetricsTest creates a SA and binds cluster-monitoring-view plus an AlertManager Role in openshift-monitoring (view or edit).
+// No custom ClusterRole/Role is created.
 func (f *Framework) SetupRBACForMetricsTest() error {
 	_, err := runOCandGetOutput([]string{
 		"create", "sa", PromethusTestSA, "-n", f.OperatorNamespace})
@@ -426,13 +437,41 @@ func (f *Framework) SetupRBACForMetricsTest() error {
 	_, err = runOCandGetOutput([]string{
 		"adm", "policy", "add-cluster-role-to-user", "cluster-monitoring-view", "-z", PromethusTestSA, "-n", f.OperatorNamespace})
 	if err != nil {
-		return fmt.Errorf("Failed to add cluster role to user: %v", err)
+		return fmt.Errorf("Failed to add cluster-monitoring-view role: %v", err)
 	}
-	return nil
+
+	roleBindingName := "compliance-e2e-" + PromethusTestSA + "-alertmanager-view"
+	var lastErr error
+	var lastOut string
+	for _, roleName := range alertManagerRoleNames {
+		out, createErr := runOCandGetOutput([]string{
+			"create", "rolebinding", roleBindingName,
+			"--role=" + roleName,
+			"--serviceaccount=" + f.OperatorNamespace + ":" + PromethusTestSA,
+			"-n", openshiftMonitoringNamespace,
+		})
+		if createErr == nil {
+			return nil
+		}
+		lastErr = createErr
+		lastOut = out
+	}
+	errMsg := fmt.Sprintf("tried roles %v in %s: %v", alertManagerRoleNames, openshiftMonitoringNamespace, lastErr)
+	if strings.TrimSpace(lastOut) != "" {
+		errMsg += "; oc output: " + strings.TrimSpace(lastOut)
+	}
+	return fmt.Errorf("%w (%s)", ErrAlertManagerRBACUnavailable, errMsg)
 }
 
-// CleanupRBACForMetricsTest deletes the service account
+// CleanUpRBACForMetricsTest removes the cluster role binding, the rolebinding in openshift-monitoring, and the service account.
 func (f *Framework) CleanUpRBACForMetricsTest() error {
+	runOCandGetOutput([]string{
+		"adm", "policy", "remove-cluster-role-from-user", "cluster-monitoring-view", "-z", PromethusTestSA, "-n", f.OperatorNamespace})
+
+	roleBindingName := "compliance-e2e-" + PromethusTestSA + "-alertmanager-view"
+	runOCandGetOutput([]string{
+		"delete", "rolebinding", roleBindingName, "-n", openshiftMonitoringNamespace, "--ignore-not-found=true"})
+
 	_, err := runOCandGetOutput([]string{
 		"delete", "sa", PromethusTestSA, "-n", f.OperatorNamespace})
 	if err != nil {
@@ -458,11 +497,16 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]PrometheusTarget, error)
 		// Clear slice in case of a retry
 		metricsTargets = nil
 
+		podOverrides, err := generatePodOverrides(prometheusCommand)
+		if err != nil {
+			return false, err
+		}
+
 		out, err := runOCandGetOutput([]string{
-			"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
+			"run", "--rm", "-i", "--restart=Never", "--image=" + FedoraTestImage,
 			"-n", namespace,
-			"--overrides={\"spec\": {\"serviceAccountName\": \"" + PromethusTestSA + "\"}}",
-			"metrics-test", "--", "bash", "-c", prometheusCommand,
+			"--overrides=" + podOverrides,
+			"metrics-test",
 		})
 
 		if err != nil {
@@ -729,4 +773,266 @@ func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedS
 		scanPVC.Name, *scanPVC.Spec.StorageClassName, scanPVC.Spec.AccessModes)
 
 	return nil
+}
+
+// generatePodOverrides returns JSON pod spec overrides for running a command in a temporary pod
+// (e.g. for metrics or AlertManager API calls). command is the bash -c argument.
+func generatePodOverrides(command string) (string, error) {
+	m := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"serviceAccountName": PromethusTestSA,
+			"securityContext": map[string]interface{}{
+				"runAsNonRoot": true,
+				"seccompProfile": map[string]interface{}{"type": "RuntimeDefault"},
+			},
+			"containers": []map[string]interface{}{
+				{
+					"name":    "test",
+					"image":   FedoraTestImage,
+					"command": []string{"bash", "-c", command},
+					"securityContext": map[string]interface{}{
+						"allowPrivilegeEscalation": false,
+						"runAsNonRoot":             true,
+						"capabilities":             map[string]interface{}{"drop": []string{"ALL"}},
+						"seccompProfile":           map[string]interface{}{"type": "RuntimeDefault"},
+					},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("marshal pod overrides: %w", err)
+	}
+	return string(b), nil
+}
+
+// AssertAlertManagerAlertExists checks that an alert exists in AlertManager with the specified
+// label name and description string.
+func (f *Framework) AssertAlertManagerAlertExists(labelName, expectedDescription string, timeout time.Duration) error {
+	apiVersion, err := f.getAlertManagerAPIVersion()
+	if err != nil {
+		return fmt.Errorf("failed to determine AlertManager API version: %w", err)
+	}
+
+	alertManagerURL, err := f.getAlertManagerURL()
+	if err != nil {
+		return fmt.Errorf("failed to get AlertManager URL: %w", err)
+	}
+
+	const alertManagerCommand = `
+		TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) && 
+		{ curl -k -s -w "\nHTTP_CODE:%%{http_code}" https://%s/api/%s/alerts \
+		  --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+		  -H "Authorization: Bearer $TOKEN"; }
+	`
+	command := fmt.Sprintf(alertManagerCommand, alertManagerURL, apiVersion)
+	namespace := f.OperatorNamespace
+
+	var lastErr error
+	timeouterr := wait.Poll(RetryInterval, timeout, func() (bool, error) {
+		podOverrides, err := generatePodOverrides(command)
+		if err != nil {
+			return false, err
+		}
+
+		out, err := runOCandGetOutput([]string{
+			"run", "--rm", "-i", "--restart=Never", "--image=" + FedoraTestImage,
+			"-n", namespace,
+			"--overrides=" + podOverrides,
+			"alertmanager-test",
+		})
+
+		if err != nil {
+			lastErr = fmt.Errorf("error getting AlertManager output: %v", err)
+			ocOut := out
+			if len(ocOut) > 600 {
+				ocOut = ocOut[:600] + "...[truncated]"
+			}
+			return false, nil
+		}
+
+		outStr := string(out)
+		outTrimmed := trimAlertManagerOutput(outStr)
+		if outTrimmed == "" {
+			lastErr = fmt.Errorf("empty output from AlertManager command")
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+
+		// Parse the AlertManager API response
+		// For v1 API, alerts are in data.alerts array
+		// For v2 API, alerts are directly in an array
+		var alerts []struct {
+			Labels      map[string]string      `json:"labels"`
+			Annotations map[string]string      `json:"annotations"`
+			Status      struct{ State string } `json:"status"`
+		}
+
+		// Try parsing as v2 format first (direct array)
+		err = json.Unmarshal([]byte(outTrimmed), &alerts)
+		if err != nil {
+			// Try parsing as v1 format (wrapped in data object)
+			var v1Response struct {
+				Data struct {
+					Alerts []struct {
+						Labels      map[string]string      `json:"labels"`
+						Annotations map[string]string      `json:"annotations"`
+						Status      struct{ State string } `json:"status"`
+					} `json:"alerts"`
+				} `json:"data"`
+			}
+			if err2 := json.Unmarshal([]byte(outTrimmed), &v1Response); err2 == nil {
+				alerts = v1Response.Data.Alerts
+			} else {
+				lastErr = fmt.Errorf("error unmarshalling AlertManager JSON: %v", err)
+				log.Printf("%v... retrying\n", lastErr)
+				return false, nil
+			}
+		}
+
+		// Check if any alert has the expected label name and description
+		for _, alert := range alerts {
+			if alert.Labels != nil {
+				// Check if the alert has a label with value matching the suite name
+				if nameValue, found := alert.Labels["name"]; found && nameValue == labelName {
+					if alert.Annotations != nil {
+						description, found := alert.Annotations["description"]
+						if found && strings.Contains(description, expectedDescription) {
+							return true, nil
+						}
+					}
+				}
+			}
+		}
+
+		lastErr = fmt.Errorf("alert with label name=%s and description containing '%s' not found in AlertManager", labelName, expectedDescription)
+		log.Printf("%v... retrying\n", lastErr)
+		return false, nil
+	})
+
+	if timeouterr != nil {
+		if lastErr != nil {
+			return fmt.Errorf("failed to find alert in AlertManager: %w", lastErr)
+		}
+		return fmt.Errorf("timed out waiting for alert in AlertManager: %w", timeouterr)
+	}
+
+	return nil
+}
+
+// trimAlertManagerOutput extracts JSON from AlertManager API output. The command appends
+// "\nHTTP_CODE:NNN" (possibly followed by more text like "pod ... deleted"). We require
+// HTTP 200 before returning body; otherwise return "" so callers retry. Uses bracket/brace
+// counting to find the matching closing delimiter so nested or in-string '['/']' do not break parsing.
+func trimAlertManagerOutput(out string) string {
+	// Split on HTTP_CODE: body is everything before it, status code is the digits immediately after "HTTP_CODE:"
+	body := out
+	if idx := strings.Index(out, "HTTP_CODE:"); idx != -1 {
+		body = out[:idx]
+		codeStr := out[idx+len("HTTP_CODE:"):]
+		// Code may be "200" or "200pod \"...\" deleted" — take only leading digits
+		var digits strings.Builder
+		for _, r := range codeStr {
+			if r >= '0' && r <= '9' {
+				digits.WriteRune(r)
+			} else {
+				break
+			}
+		}
+		if digits.Len() == 0 {
+			return ""
+		}
+		if code, err := strconv.Atoi(digits.String()); err != nil || code != 200 {
+			return ""
+		}
+	}
+
+	// Find JSON start: first '[' or v1 API object
+	jsonStart := strings.Index(body, "[")
+	if jsonStart == -1 {
+		dataStart := strings.Index(body, `{"data"`)
+		if dataStart != -1 {
+			jsonStart = dataStart
+		} else {
+			return ""
+		}
+	}
+
+	if jsonStart < len(body) && body[jsonStart] == '[' {
+		// Find matching ']' by bracket count so nested or in-content '['/']' are handled
+		depth := 0
+		for i := jsonStart; i < len(body); i++ {
+			switch body[i] {
+			case '[':
+				depth++
+			case ']':
+				depth--
+				if depth == 0 {
+					return body[jsonStart : i+1]
+				}
+			}
+		}
+		return ""
+	}
+	// v1 API: object starting with {"data"; find matching '}'
+	depth := 0
+	for i := jsonStart; i < len(body); i++ {
+		switch body[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return body[jsonStart : i+1]
+			}
+		}
+	}
+	return ""
+}
+
+// getAlertManagerAPIVersion determines the AlertManager API version based on cluster version
+// Returns "v1" for OCP < 4.17, "v2" for OCP >= 4.17
+func (f *Framework) getAlertManagerAPIVersion() (string, error) {
+	version, err := runOCandGetOutput([]string{
+		"get", "clusterversion/version", "-ojsonpath={.status.desired.version}",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get cluster version: %w", err)
+	}
+
+	version = strings.TrimSpace(version)
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid version format: %s", version)
+	}
+
+	major := parts[0]
+	minorStr := parts[1]
+	minor, err := strconv.Atoi(minorStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse minor version: %w", err)
+	}
+
+	if major == "4" && minor >= 17 {
+		return "v2", nil
+	} else if major == "4" && minor < 17 {
+		return "v1", nil
+	}
+
+	return "", fmt.Errorf("unknown version %s.%s", major, minorStr)
+}
+
+// getAlertManagerURL gets the AlertManager route URL
+func (f *Framework) getAlertManagerURL() (string, error) {
+	// Try to get route first
+	route, err := runOCandGetOutput([]string{
+		"get", "route", "alertmanager-main", "-n", "openshift-monitoring", "-o=jsonpath={.spec.host}",
+	})
+	if err == nil && strings.TrimSpace(route) != "" {
+		return strings.TrimSpace(route), nil
+	}
+
+	// Fallback to service URL
+	return "alertmanager-main.openshift-monitoring.svc.cluster.local:9093", nil
 }
