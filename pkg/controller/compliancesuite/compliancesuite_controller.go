@@ -392,7 +392,7 @@ func (r *ReconcileComplianceSuite) generateEventsForSuite(suite *compv1alpha1.Co
 			compv1alpha1.ComplianceCheckInconsistentLabel)
 	}
 
-	err, haveOutdatedRems := utils.HaveOutdatedRemediations(r.Client)
+	err, haveOutdatedRems := utils.HaveOutdatedRemediations(context.TODO(), r.Client)
 	if err != nil {
 		logger.Info("Could not check if there exist any obsolete remediations", "Suite.Name", suite.Name)
 	}
