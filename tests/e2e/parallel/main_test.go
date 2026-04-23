@@ -3342,7 +3342,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Invalid ScannerType Rule",
 				Description: "This rule has invalid scannerType",
 				Severity:    "low",
-				CheckType:   "Platform", // Valid checkType
+				CheckType:   "Platform",                       // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3383,7 +3383,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Valid Rule",
 				Description: "This rule has valid checkType and scannerType",
 				Severity:    "low",
-				CheckType:   "Platform", // Valid checkType
+				CheckType:   "Platform",                  // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -6053,4 +6053,127 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 	t.Logf("XCCDF scan %s produced %d check results", xccdfProfileName, len(xccdfChecks.Items))
 
 	t.Log("Mixed CEL + XCCDF scan test completed successfully")
+}
+
+// TestResultServerSAAndSecurityContext tests that resultserver uses a separate service account
+// with correct security context settings
+func TestResultServerSAAndSecurityContext(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	suiteName := framework.GetObjNameFromTest(t)
+	scanName := fmt.Sprintf("%s-scan", suiteName)
+
+	// Get the compliance-operator pod to extract expected security context values
+	pods, err := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "name=compliance-operator",
+	})
+	if err != nil {
+		t.Fatalf("failed to list compliance-operator pods: %s", err)
+	}
+	if len(pods.Items) == 0 {
+		t.Fatal("no compliance-operator pods found")
+	}
+
+	operatorSC := pods.Items[0].Spec.SecurityContext
+	if operatorSC == nil {
+		t.Fatal("compliance-operator pod has no security context")
+	}
+	if operatorSC.FSGroup == nil {
+		t.Fatal("compliance-operator pod has no fsGroup")
+	}
+	if operatorSC.SELinuxOptions == nil {
+		t.Fatal("compliance-operator pod has no seLinuxOptions")
+	}
+
+	expectedFSGroup := *operatorSC.FSGroup
+	expectedSELinuxLevel := operatorSC.SELinuxOptions.Level
+
+	suite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: map[string]string{
+							"node-role.kubernetes.io/master": "",
+						},
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: scanName,
+				},
+			},
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), suite, nil); err != nil {
+		t.Fatalf("failed to create suite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), suite)
+	if err := f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseRunning); err != nil {
+		t.Fatalf("failed waiting for scan to reach RUNNING phase: %s", err)
+	}
+
+	// Wait for the resultserver pod to appear (with retry)
+	var rsPod corev1.Pod
+	err = wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		rsPods, listErr := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("compliance.openshift.io/scan-name=%s,workload=resultserver", scanName),
+		})
+		if listErr != nil {
+			return false, listErr
+		}
+		if len(rsPods.Items) == 0 {
+			// Pod not found yet, retry
+			return false, nil
+		}
+		rsPod = rsPods.Items[0]
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("failed to find resultserver pod: %s", err)
+	}
+
+	// Verify the resultserver pod uses the correct service account
+	expectedServiceAccount := "resultserver"
+	if rsPod.Spec.ServiceAccountName != expectedServiceAccount {
+		t.Fatalf("service account mismatch: expected %s, got %s", expectedServiceAccount, rsPod.Spec.ServiceAccountName)
+	}
+
+	// Verify all security context fields match expected values
+	rsSC := rsPod.Spec.SecurityContext
+	if rsSC == nil {
+		t.Fatal("resultserver pod has no security context")
+	}
+	if rsSC.FSGroup == nil || *rsSC.FSGroup != expectedFSGroup {
+		t.Fatalf("fsGroup mismatch: expected %d, got %v", expectedFSGroup, rsSC.FSGroup)
+	}
+	if rsSC.RunAsNonRoot == nil || !*rsSC.RunAsNonRoot {
+		t.Fatal("runAsNonRoot must be true")
+	}
+	if rsSC.RunAsUser == nil || *rsSC.RunAsUser != int64(expectedFSGroup) {
+		t.Fatalf("runAsUser mismatch: expected %d, got %v", expectedFSGroup, rsSC.RunAsUser)
+	}
+	if rsSC.SELinuxOptions == nil || rsSC.SELinuxOptions.Level != expectedSELinuxLevel {
+		t.Fatalf("seLinuxOptions.Level mismatch: expected %s, got %v", expectedSELinuxLevel, rsSC.SELinuxOptions)
+	}
+	if rsSC.SeccompProfile == nil || rsSC.SeccompProfile.Type != "RuntimeDefault" {
+		t.Fatalf("seccompProfile.Type mismatch: expected RuntimeDefault, got %v", rsSC.SeccompProfile)
+	}
+
+	// Wait for the scan to complete
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatalf("failed waiting for scan to complete: %s", err)
+	}
 }
