@@ -709,7 +709,7 @@ func (r *ReconcileComplianceRemediation) verifyAndCompleteKC(obj *unstructured.U
 		}
 		// We need to get name of original kubelet config that used to generate this kubeletconfig machine config
 		// if we can't find owner of generated mc, we will create custom kubeletconfig instead
-		kubeletConfig, err := utils.GetKCFromMC(kubeletMC, r.Client)
+		kubeletConfig, err := utils.GetKCFromMC(context.TODO(), kubeletMC, r.Client)
 		if err != nil {
 			return fmt.Errorf("couldn't get kubelet config from machine config: %w", err)
 		}
