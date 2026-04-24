@@ -1234,8 +1234,10 @@ func (f *Framework) WaitForCustomRuleStatus(namespace, name string, targetPhase 
 
 // waitForScanStatus will poll until the compliancescan that we're lookingfor reaches a certain status, or until
 // a timeout is reached.
-func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatus compv1alpha1.ComplianceScanStatusResult) error {
-	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, targetComplianceStatus)
+// The targetComplianceStatuses parameter accepts one or more acceptable compliance statuses.
+// If multiple statuses are provided, the function will return successfully if any of them match.
+func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatuses ...compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, targetComplianceStatuses...)
 }
 
 // WaitForSuiteScansStatusAnyResult is like WaitForSuiteScansStatus but accepts
