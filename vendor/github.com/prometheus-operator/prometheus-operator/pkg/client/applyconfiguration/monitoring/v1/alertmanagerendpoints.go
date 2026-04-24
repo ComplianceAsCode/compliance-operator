@@ -28,7 +28,7 @@ type AlertmanagerEndpointsApplyConfiguration struct {
 	Namespace                     *string                              `json:"namespace,omitempty"`
 	Name                          *string                              `json:"name,omitempty"`
 	Port                          *intstr.IntOrString                  `json:"port,omitempty"`
-	Scheme                        *string                              `json:"scheme,omitempty"`
+	Scheme                        *monitoringv1.Scheme                 `json:"scheme,omitempty"`
 	PathPrefix                    *string                              `json:"pathPrefix,omitempty"`
 	TLSConfig                     *TLSConfigApplyConfiguration         `json:"tlsConfig,omitempty"`
 	BasicAuth                     *BasicAuthApplyConfiguration         `json:"basicAuth,omitempty"`
@@ -76,7 +76,7 @@ func (b *AlertmanagerEndpointsApplyConfiguration) WithPort(value intstr.IntOrStr
 // WithScheme sets the Scheme field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Scheme field is set to the value of the last call.
-func (b *AlertmanagerEndpointsApplyConfiguration) WithScheme(value string) *AlertmanagerEndpointsApplyConfiguration {
+func (b *AlertmanagerEndpointsApplyConfiguration) WithScheme(value monitoringv1.Scheme) *AlertmanagerEndpointsApplyConfiguration {
 	b.Scheme = &value
 	return b
 }
@@ -133,7 +133,7 @@ func (b *AlertmanagerEndpointsApplyConfiguration) WithSigv4(value *Sigv4ApplyCon
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyURL field is set to the value of the last call.
 func (b *AlertmanagerEndpointsApplyConfiguration) WithProxyURL(value string) *AlertmanagerEndpointsApplyConfiguration {
-	b.ProxyURL = &value
+	b.ProxyConfigApplyConfiguration.ProxyURL = &value
 	return b
 }
 
@@ -141,7 +141,7 @@ func (b *AlertmanagerEndpointsApplyConfiguration) WithProxyURL(value string) *Al
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NoProxy field is set to the value of the last call.
 func (b *AlertmanagerEndpointsApplyConfiguration) WithNoProxy(value string) *AlertmanagerEndpointsApplyConfiguration {
-	b.NoProxy = &value
+	b.ProxyConfigApplyConfiguration.NoProxy = &value
 	return b
 }
 
@@ -149,7 +149,7 @@ func (b *AlertmanagerEndpointsApplyConfiguration) WithNoProxy(value string) *Ale
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyFromEnvironment field is set to the value of the last call.
 func (b *AlertmanagerEndpointsApplyConfiguration) WithProxyFromEnvironment(value bool) *AlertmanagerEndpointsApplyConfiguration {
-	b.ProxyFromEnvironment = &value
+	b.ProxyConfigApplyConfiguration.ProxyFromEnvironment = &value
 	return b
 }
 
@@ -158,11 +158,11 @@ func (b *AlertmanagerEndpointsApplyConfiguration) WithProxyFromEnvironment(value
 // If called multiple times, the entries provided by each call will be put on the ProxyConnectHeader field,
 // overwriting an existing map entries in ProxyConnectHeader field with the same key.
 func (b *AlertmanagerEndpointsApplyConfiguration) WithProxyConnectHeader(entries map[string][]corev1.SecretKeySelector) *AlertmanagerEndpointsApplyConfiguration {
-	if b.ProxyConnectHeader == nil && len(entries) > 0 {
-		b.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
+	if b.ProxyConfigApplyConfiguration.ProxyConnectHeader == nil && len(entries) > 0 {
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
 	}
 	for k, v := range entries {
-		b.ProxyConnectHeader[k] = v
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader[k] = v
 	}
 	return b
 }

@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
+	apioperatorv1 "github.com/openshift/api/operator/v1"
 	versioned "github.com/openshift/client-go/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/operator/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/operator/listers/operator/v1"
+	operatorv1 "github.com/openshift/client-go/operator/listers/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // IngressControllers.
 type IngressControllerInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.IngressControllerLister
+	Lister() operatorv1.IngressControllerLister
 }
 
 type ingressControllerInformer struct {
@@ -41,21 +41,33 @@ func NewIngressControllerInformer(client versioned.Interface, namespace string, 
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredIngressControllerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1().IngressControllers(namespace).List(context.TODO(), options)
+				return client.OperatorV1().IngressControllers(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1().IngressControllers(namespace).Watch(context.TODO(), options)
+				return client.OperatorV1().IngressControllers(namespace).Watch(context.Background(), options)
 			},
-		},
-		&operatorv1.IngressController{},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1().IngressControllers(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1().IngressControllers(namespace).Watch(ctx, options)
+			},
+		}, client),
+		&apioperatorv1.IngressController{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *ingressControllerInformer) defaultInformer(client versioned.Interface, 
 }
 
 func (f *ingressControllerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1.IngressController{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1.IngressController{}, f.defaultInformer)
 }
 
-func (f *ingressControllerInformer) Lister() v1.IngressControllerLister {
-	return v1.NewIngressControllerLister(f.Informer().GetIndexer())
+func (f *ingressControllerInformer) Lister() operatorv1.IngressControllerLister {
+	return operatorv1.NewIngressControllerLister(f.Informer().GetIndexer())
 }

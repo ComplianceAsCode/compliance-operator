@@ -32,6 +32,7 @@ func init() {
 
 func defineProfileParserFlags(cmd *cobra.Command) {
 	cmd.Flags().String("ds-path", "/content/ssg-ocp4-ds.xml", "Path to the datastream xml file")
+	cmd.Flags().String("cel-path", "", "Path to the CEL content YAML file (optional)")
 	cmd.Flags().String("name", "", "Name of the ProfileBundle object")
 	cmd.Flags().String("namespace", "", "Namespace of the ProfileBundle object")
 
@@ -49,6 +50,7 @@ func newParserConfig(cmd *cobra.Command) *profileparser.ParserConfig {
 	flags.AddGoFlagSet(flag.CommandLine)
 
 	pcfg.DataStreamPath = getValidStringArg(cmd, "ds-path")
+	pcfg.CELContentPath, _ = cmd.Flags().GetString("cel-path")
 	pcfg.ProfileBundleKey.Name = getValidStringArg(cmd, "name")
 	pcfg.ProfileBundleKey.Namespace = getValidStringArg(cmd, "namespace")
 
@@ -141,17 +143,26 @@ func runProfileParser(cmd *cobra.Command, args []string) {
 	}
 
 	err = profileparser.ParseBundle(contentDom, pb, pcfg)
-
-	// The err variable might be nil, this is fine, it'll just update the status
-	// to valid
-	updateProfileBundleStatus(pcfg, pb, err)
-
 	if err != nil {
-		cmdLog.Error(err, "Parsing the bundle failed, will restart the container")
+		updateProfileBundleStatus(pcfg, pb, err)
+		cmdLog.Error(err, "Parsing the XCCDF bundle failed, will restart the container")
 		os.Exit(1)
 	}
 
 	if closeErr := contentFile.Close(); closeErr != nil {
-		cmdLog.Error(err, "Couldn't close the content file")
+		cmdLog.Error(closeErr, "Couldn't close the content file")
 	}
+
+	// Parse CEL content if provided
+	if pcfg.CELContentPath != "" {
+		celErr := profileparser.ParseCELBundle(pcfg.CELContentPath, pb, pcfg)
+		if celErr != nil {
+			updateProfileBundleStatus(pcfg, pb, celErr)
+			cmdLog.Error(celErr, "Parsing the CEL bundle failed, will restart the container")
+			os.Exit(1)
+		}
+	}
+
+	// Both XCCDF and CEL parsing succeeded
+	updateProfileBundleStatus(pcfg, pb, nil)
 }
