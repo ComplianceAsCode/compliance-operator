@@ -719,6 +719,30 @@ func getMetricResults(namespace string) (string, error) {
 	return string(out), nil
 }
 
+// WaitForMetricOutputContainsAll polls the operator metrics-co scrape (same path as getMetricResults)
+// until the response body contains every substring.
+func WaitForMetricOutputContainsAll(namespace string, substrings []string, timeout, interval time.Duration) error {
+	var lastMiss string
+	err := wait.Poll(interval, timeout, func() (bool, error) {
+		out, gerr := getMetricResults(namespace)
+		if gerr != nil {
+			lastMiss = gerr.Error()
+			return false, nil
+		}
+		for _, s := range substrings {
+			if !strings.Contains(out, s) {
+				lastMiss = fmt.Sprintf("missing substring %q", s)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("wait for metric substrings: %w (last: %s)", err, lastMiss)
+	}
+	return nil
+}
+
 func getTestMetricsCMD(namespace string) string {
 	var curlCMD = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
 	return curlCMD + fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", namespace)
