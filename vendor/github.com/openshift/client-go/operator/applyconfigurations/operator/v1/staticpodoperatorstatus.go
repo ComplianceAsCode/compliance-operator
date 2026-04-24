@@ -4,10 +4,15 @@ package v1
 
 // StaticPodOperatorStatusApplyConfiguration represents a declarative configuration of the StaticPodOperatorStatus type for use
 // with apply.
+//
+// StaticPodOperatorStatus is status for controllers that manage static pods.  There are different needs because individual
+// node status must be tracked.
 type StaticPodOperatorStatusApplyConfiguration struct {
 	OperatorStatusApplyConfiguration `json:",inline"`
-	LatestAvailableRevisionReason    *string                        `json:"latestAvailableRevisionReason,omitempty"`
-	NodeStatuses                     []NodeStatusApplyConfiguration `json:"nodeStatuses,omitempty"`
+	// latestAvailableRevisionReason describe the detailed reason for the most recent deployment
+	LatestAvailableRevisionReason *string `json:"latestAvailableRevisionReason,omitempty"`
+	// nodeStatuses track the deployment values and errors across individual nodes
+	NodeStatuses []NodeStatusApplyConfiguration `json:"nodeStatuses,omitempty"`
 }
 
 // StaticPodOperatorStatusApplyConfiguration constructs a declarative configuration of the StaticPodOperatorStatus type for use with
@@ -20,7 +25,7 @@ func StaticPodOperatorStatus() *StaticPodOperatorStatusApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedGeneration field is set to the value of the last call.
 func (b *StaticPodOperatorStatusApplyConfiguration) WithObservedGeneration(value int64) *StaticPodOperatorStatusApplyConfiguration {
-	b.ObservedGeneration = &value
+	b.OperatorStatusApplyConfiguration.ObservedGeneration = &value
 	return b
 }
 
@@ -32,7 +37,7 @@ func (b *StaticPodOperatorStatusApplyConfiguration) WithConditions(values ...*Op
 		if values[i] == nil {
 			panic("nil value passed to WithConditions")
 		}
-		b.Conditions = append(b.Conditions, *values[i])
+		b.OperatorStatusApplyConfiguration.Conditions = append(b.OperatorStatusApplyConfiguration.Conditions, *values[i])
 	}
 	return b
 }
@@ -41,7 +46,7 @@ func (b *StaticPodOperatorStatusApplyConfiguration) WithConditions(values ...*Op
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Version field is set to the value of the last call.
 func (b *StaticPodOperatorStatusApplyConfiguration) WithVersion(value string) *StaticPodOperatorStatusApplyConfiguration {
-	b.Version = &value
+	b.OperatorStatusApplyConfiguration.Version = &value
 	return b
 }
 
@@ -49,7 +54,7 @@ func (b *StaticPodOperatorStatusApplyConfiguration) WithVersion(value string) *S
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ReadyReplicas field is set to the value of the last call.
 func (b *StaticPodOperatorStatusApplyConfiguration) WithReadyReplicas(value int32) *StaticPodOperatorStatusApplyConfiguration {
-	b.ReadyReplicas = &value
+	b.OperatorStatusApplyConfiguration.ReadyReplicas = &value
 	return b
 }
 
@@ -57,7 +62,7 @@ func (b *StaticPodOperatorStatusApplyConfiguration) WithReadyReplicas(value int3
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LatestAvailableRevision field is set to the value of the last call.
 func (b *StaticPodOperatorStatusApplyConfiguration) WithLatestAvailableRevision(value int32) *StaticPodOperatorStatusApplyConfiguration {
-	b.LatestAvailableRevision = &value
+	b.OperatorStatusApplyConfiguration.LatestAvailableRevision = &value
 	return b
 }
 
@@ -69,7 +74,7 @@ func (b *StaticPodOperatorStatusApplyConfiguration) WithGenerations(values ...*G
 		if values[i] == nil {
 			panic("nil value passed to WithGenerations")
 		}
-		b.Generations = append(b.Generations, *values[i])
+		b.OperatorStatusApplyConfiguration.Generations = append(b.OperatorStatusApplyConfiguration.Generations, *values[i])
 	}
 	return b
 }

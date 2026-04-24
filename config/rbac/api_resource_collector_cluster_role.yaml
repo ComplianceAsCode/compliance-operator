@@ -815,6 +815,8 @@ rules:
       - tailoredprofiles
       - customrules
       - variables
+      - profiles
+      - rules
     verbs:
       - get
       - list
