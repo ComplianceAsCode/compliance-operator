@@ -889,45 +889,22 @@ func TestAutoRemediate(t *testing.T) {
 		log.Printf("Check %s is PASS\n", checkName)
 	}
 
-	// The test should not leave junk around, let's remove all MCs and wait
+	// The test should not leave junk around, let's unapply all remediations and wait
 	// for the nodes to stabilize again.
-	// Delete MCs one at a time and wait for pool to stabilize after each deletion
-	// to avoid timeout when deleting multiple MCs simultaneously
-	log.Printf("Removing %d applied machine config(s) one at a time\n", len(appliedRemediations))
-	dummyAction := func() error {
-		return nil
-	}
+	// Unapply remediations one at a time and wait for pool to stabilize after each
+	// to avoid timeout when unapplying multiple remediations simultaneously
+	log.Printf("Unapplying %d remediation(s) one at a time\n", len(appliedRemediations))
 
 	for i, rem := range appliedRemediations {
-		mcfgToBeDeleted := rem.Spec.Current.Object.DeepCopy()
-		mcName := rem.GetMcName()
-		mcfgToBeDeleted.SetName(mcName)
-
-		log.Printf("Deleting MachineConfig %d/%d: %s\n", i+1, len(appliedRemediations), mcName)
-		err = f.Client.Delete(context.TODO(), mcfgToBeDeleted)
+		log.Printf("Unapplying remediation %d/%d: %s\n", i+1, len(appliedRemediations), rem.Name)
+		err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, rem.Name, framework.TestPoolName)
 		if err != nil {
-			t.Fatalf("Failed to delete MachineConfig %s: %s", mcName, err)
+			t.Fatalf("Failed to unapply remediation %s: %s", rem.Name, err)
 		}
-		log.Printf("Deleted MachineConfig %s, waiting for pool to stabilize\n", mcName)
-
-		// Wait for this specific MC to be removed from the pool before continuing
-		poolHasNoMc := func(pool *mcfgv1.MachineConfigPool) (bool, error) {
-			for _, mc := range pool.Status.Configuration.Source {
-				if mc.Name == mcName {
-					return false, nil
-				}
-			}
-			return true, nil
-		}
-
-		err = f.WaitForMachinePoolUpdate(framework.TestPoolName, dummyAction, poolHasNoMc, nil)
-		if err != nil {
-			t.Fatalf("failed waiting for pool to stabilize after deleting MachineConfig %s: %s", mcName, err)
-		}
-		log.Printf("Pool stabilized after deleting MachineConfig %s\n", mcName)
+		log.Printf("Successfully unapplied remediation %s\n", rem.Name)
 	}
 
-	log.Printf("Successfully deleted all MachineConfigs and pool has stabilized")
+	log.Printf("Successfully unapplied all remediations and pool has stabilized")
 
 	// ..as well as the nodes
 	f.WaitForNodesToBeReady()
