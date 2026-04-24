@@ -639,7 +639,90 @@ func TestTolerations(t *testing.T) {
 	}
 	defer removeTaintClosure()
 
-	suiteName := framework.GetObjNameFromTest(t)
+	// Test Phase 1: Automatic toleration injection (without explicit tolerations)
+	// This verifies that the Compliance Operator automatically adds tolerations
+	// to scan pods, allowing them to run on tainted nodes without user configuration.
+	suiteNameAuto := framework.GetObjNameFromTest(t) + "-auto"
+	scanNameAuto := suiteNameAuto
+	suiteAuto := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteNameAuto,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: map[string]string{
+							// Schedule scan in this specific host
+							corev1.LabelHostname: taintedNode.Labels[corev1.LabelHostname],
+						},
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+							//No ScanTolerations specified - testing automatic injection
+						},
+					},
+					Name: scanNameAuto,
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), suiteAuto, nil); err != nil {
+		t.Fatalf("failed to create suite %s: %s", suiteNameAuto, err)
+	}
+	defer f.Client.Delete(context.TODO(), suiteAuto)
+
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteNameAuto, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("automatic toleration test failed: %s", err)
+	}
+
+	// Verify that scanner pods have the expected tolerations (Phase 1 - automatic)
+	scannerPodsAuto, err := f.GetPodsForScan(scanNameAuto)
+	if err != nil {
+		t.Fatalf("failed to get scanner pods: %s", err)
+	}
+	if len(scannerPodsAuto) == 0 {
+		t.Fatal("no scanner pods found for automatic toleration test")
+	}
+
+	// Check that scanner pods contain tolerations that allow them to run on tainted nodes
+	// This can be either a wildcard toleration (empty key with Operator: Exists) or
+	// a specific toleration matching the taint key
+	foundTolerationAuto := false
+	for _, pod := range scannerPodsAuto {
+		t.Logf("Checking pod %s for tolerations", pod.Name)
+		for _, toleration := range pod.Spec.Tolerations {
+			t.Logf("  Found toleration - Key: %s, Operator: %s, Effect: %s, Value: %s",
+				toleration.Key, toleration.Operator, toleration.Effect, toleration.Value)
+			// Check for wildcard toleration (tolerates all taints)
+			if toleration.Key == "" && toleration.Operator == corev1.TolerationOpExists {
+				t.Logf("  Found wildcard toleration - pod can run on any tainted node")
+				foundTolerationAuto = true
+				break
+			}
+			// Check for specific toleration matching the taint
+			if toleration.Key == taintKey && toleration.Effect == corev1.TaintEffectNoSchedule {
+				t.Logf("  Found specific toleration for taint key %s", taintKey)
+				foundTolerationAuto = true
+				break
+			}
+		}
+		if foundTolerationAuto {
+			break
+		}
+	}
+	if !foundTolerationAuto {
+		t.Fatalf("scanner pods do not contain toleration that allows running on tainted node (expected wildcard or specific toleration for taint key %s)", taintKey)
+	}
+
+	// Test Phase 2: Explicit toleration configuration
+	// This verifies that user-provided tolerations are respected and work correctly.
+	suiteName := framework.GetObjNameFromTest(t) + "-explicit"
 	scanName := suiteName
 	suite := &compv1alpha1.ComplianceSuite{
 		ObjectMeta: metav1.ObjectMeta{
@@ -681,7 +764,39 @@ func TestTolerations(t *testing.T) {
 
 	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("explicit toleration test failed: %s", err)
+	}
+
+	// Verify that scanner pods have the expected tolerations (Phase 2 - explicit)
+	scannerPods, err := f.GetPodsForScan(scanName)
+	if err != nil {
+		t.Fatalf("failed to get scanner pods: %s", err)
+	}
+	if len(scannerPods) == 0 {
+		t.Fatal("no scanner pods found for explicit toleration test")
+	}
+
+	// Check that scanner pods contain the expected toleration
+	// For explicit configuration, we verify the specific toleration was applied
+	foundToleration := false
+	for _, pod := range scannerPods {
+		t.Logf("Checking pod %s for tolerations", pod.Name)
+		for _, toleration := range pod.Spec.Tolerations {
+			t.Logf("  Found toleration - Key: %s, Operator: %s, Effect: %s, Value: %s",
+				toleration.Key, toleration.Operator, toleration.Effect, toleration.Value)
+			// Check for the specific toleration matching the taint
+			if toleration.Key == taintKey && toleration.Effect == corev1.TaintEffectNoSchedule {
+				t.Logf("  Found explicit toleration for taint key %s", taintKey)
+				foundToleration = true
+				break
+			}
+		}
+		if foundToleration {
+			break
+		}
+	}
+	if !foundToleration {
+		t.Fatalf("scanner pods do not contain expected toleration for taint key %s (explicit configuration)", taintKey)
 	}
 }
 
