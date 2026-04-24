@@ -252,6 +252,43 @@ func (r *ReconcileProfileBundle) Reconcile(ctx context.Context, request reconcil
 	// Pod already exists and its init container at least ran - don't requeue
 	reqLogger.Info("Skip reconcile: Workload already up-to-date", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 
+	// If the ProfileBundle is still pending, the profileparser hasn't
+	// finished updating the status yet.
+	if instance.Status.DataStreamStatus == compliancev1alpha1.DataStreamPending {
+		// Check if the profileparser init container already completed.
+		// If the pod is Running and the profileparser finished, it means
+		// the profileparser ran for a previous content configuration and
+		// won't run again. This can happen when the operator restarts
+		// after updating the Deployment but before the rollout completes,
+		// leaving the old pod as the only one. Force a new rollout so
+		// the profileparser re-runs with the current content.
+		if profileparserCompleted(relevantPod) {
+			reqLogger.Info("ProfileBundle pending but profileparser already completed, forcing rollout",
+				"Pod.Name", relevantPod.Name, "Pod.Phase", relevantPod.Status.Phase)
+			updatedDepl := found.DeepCopy()
+			if updatedDepl.Spec.Template.Annotations == nil {
+				updatedDepl.Spec.Template.Annotations = make(map[string]string)
+			}
+			updatedDepl.Spec.Template.Annotations["compliance.openshift.io/restart"] = time.Now().Format(time.RFC3339)
+			err = r.Client.Update(context.TODO(), updatedDepl)
+			if err != nil {
+				reqLogger.Error(err, "Couldn't force profileparser rollout")
+				return reconcile.Result{}, err
+			}
+		}
+
+		// Requeue using the workqueue's built-in rate limiter, which
+		// applies exponential backoff automatically. This avoids
+		// flooding the logs when the ProfileBundle is stuck pending
+		// (e.g., due to a bad content image).
+		//
+		// See the TypedReconciler interface documentation for details:
+		// sigs.k8s.io/controller-runtime/pkg/reconcile/reconcile.go
+		reqLogger.Info("ProfileBundle still pending, requeueing to check status",
+			"Pod.Name", relevantPod.Name, "Pod.Phase", relevantPod.Status.Phase)
+		return reconcile.Result{Requeue: true}, nil
+	}
+
 	// Handle upgrades
 	if instance.Status.DataStreamStatus == compliancev1alpha1.DataStreamValid &&
 		instance.Status.Conditions.GetCondition("Ready") == nil {
@@ -369,6 +406,30 @@ func getISTagNamespace(ref reference.DockerImageReference) string {
 	return common.GetComplianceOperatorNamespace()
 }
 
+// contentCopyCommand builds the shell command for the content-container init container.
+// It copies the XCCDF content file and optionally the CEL content file.
+func contentCopyCommand(pb *compliancev1alpha1.ProfileBundle) string {
+	cmd := fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", pb.Spec.ContentFile))
+	if pb.Spec.CELContentFile != "" {
+		cmd += fmt.Sprintf(" && cp %s /content | /bin/true", path.Join("/", pb.Spec.CELContentFile))
+	}
+	return cmd
+}
+
+// profileparserCommand builds the command arguments for the profileparser init container.
+func profileparserCommand(pb *compliancev1alpha1.ProfileBundle) []string {
+	cmd := []string{
+		"compliance-operator", "profileparser",
+		"--name", pb.Name,
+		"--namespace", pb.Namespace,
+		"--ds-path", path.Join("/content", pb.Spec.ContentFile),
+	}
+	if pb.Spec.CELContentFile != "" {
+		cmd = append(cmd, "--cel-path", path.Join("/content", pb.Spec.CELContentFile))
+	}
+	return cmd
+}
+
 func getWorkloadLabels(pb *compliancev1alpha1.ProfileBundle) map[string]string {
 	return map[string]string{
 		"profile-bundle": pb.Name,
@@ -433,7 +494,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 							Command: []string{
 								"sh",
 								"-c",
-								fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", pb.Spec.ContentFile)),
+								contentCopyCommand(pb),
 							},
 							ImagePullPolicy: corev1.PullAlways,
 							SecurityContext: &corev1.SecurityContext{
@@ -482,12 +543,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 									corev1.ResourceCPU:    resource.MustParse("100m"),
 								},
 							},
-							Command: []string{
-								"compliance-operator", "profileparser",
-								"--name", pb.Name,
-								"--namespace", pb.Namespace,
-								"--ds-path", path.Join("/content", pb.Spec.ContentFile),
-							},
+							Command: profileparserCommand(pb),
 							Env: []corev1.EnvVar{
 								corev1.EnvVar{Name: "PLATFORM", Value: utils.GetPlatform()},
 								corev1.EnvVar{Name: "CONTROL_PLANE_TOPOLOGY", Value: utils.GetControlPlaneTopology()},
@@ -574,6 +630,17 @@ func podStartupError(pod *corev1.Pod) bool {
 		}
 	}
 
+	return false
+}
+
+// profileparserCompleted returns true if the profileparser init container
+// has already terminated successfully.
+func profileparserCompleted(pod *corev1.Pod) bool {
+	for _, initStatus := range pod.Status.InitContainerStatuses {
+		if initStatus.Name == "profileparser" {
+			return initStatus.State.Terminated != nil && initStatus.State.Terminated.ExitCode == 0
+		}
+	}
 	return false
 }
 

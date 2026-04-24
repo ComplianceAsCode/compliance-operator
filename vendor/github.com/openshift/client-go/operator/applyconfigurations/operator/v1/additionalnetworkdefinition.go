@@ -3,16 +3,29 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // AdditionalNetworkDefinitionApplyConfiguration represents a declarative configuration of the AdditionalNetworkDefinition type for use
 // with apply.
+//
+// AdditionalNetworkDefinition configures an extra network that is available but not
+// created by default. Instead, pods must request them by name.
+// type must be specified, along with exactly one "Config" that matches the type.
 type AdditionalNetworkDefinitionApplyConfiguration struct {
-	Type                *v1.NetworkType                        `json:"type,omitempty"`
-	Name                *string                                `json:"name,omitempty"`
-	Namespace           *string                                `json:"namespace,omitempty"`
-	RawCNIConfig        *string                                `json:"rawCNIConfig,omitempty"`
+	// type is the type of network
+	// The supported values are NetworkTypeRaw, NetworkTypeSimpleMacvlan
+	Type *operatorv1.NetworkType `json:"type,omitempty"`
+	// name is the name of the network. This will be populated in the resulting CRD
+	// This must be unique.
+	Name *string `json:"name,omitempty"`
+	// namespace is the namespace of the network. This will be populated in the resulting CRD
+	// If not given the network will be created in the default namespace.
+	Namespace *string `json:"namespace,omitempty"`
+	// rawCNIConfig is the raw CNI configuration json to create in the
+	// NetworkAttachmentDefinition CRD
+	RawCNIConfig *string `json:"rawCNIConfig,omitempty"`
+	// simpleMacvlanConfig configures the macvlan interface in case of type:NetworkTypeSimpleMacvlan
 	SimpleMacvlanConfig *SimpleMacvlanConfigApplyConfiguration `json:"simpleMacvlanConfig,omitempty"`
 }
 
@@ -25,7 +38,7 @@ func AdditionalNetworkDefinition() *AdditionalNetworkDefinitionApplyConfiguratio
 // WithType sets the Type field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Type field is set to the value of the last call.
-func (b *AdditionalNetworkDefinitionApplyConfiguration) WithType(value v1.NetworkType) *AdditionalNetworkDefinitionApplyConfiguration {
+func (b *AdditionalNetworkDefinitionApplyConfiguration) WithType(value operatorv1.NetworkType) *AdditionalNetworkDefinitionApplyConfiguration {
 	b.Type = &value
 	return b
 }

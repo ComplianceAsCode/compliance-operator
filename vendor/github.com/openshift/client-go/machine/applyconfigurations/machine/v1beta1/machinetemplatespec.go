@@ -8,9 +8,15 @@ import (
 
 // MachineTemplateSpecApplyConfiguration represents a declarative configuration of the MachineTemplateSpec type for use
 // with apply.
+//
+// MachineTemplateSpec describes the data needed to create a Machine from a template
 type MachineTemplateSpecApplyConfiguration struct {
+	// Standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	*ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                          *MachineSpecApplyConfiguration `json:"spec,omitempty"`
+	// Specification of the desired behavior of the machine.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+	Spec *MachineSpecApplyConfiguration `json:"spec,omitempty"`
 }
 
 // MachineTemplateSpecApplyConfiguration constructs a declarative configuration of the MachineTemplateSpec type for use with
@@ -24,7 +30,7 @@ func MachineTemplateSpec() *MachineTemplateSpecApplyConfiguration {
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *MachineTemplateSpecApplyConfiguration) WithName(value string) *MachineTemplateSpecApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -33,7 +39,7 @@ func (b *MachineTemplateSpecApplyConfiguration) WithName(value string) *MachineT
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *MachineTemplateSpecApplyConfiguration) WithGenerateName(value string) *MachineTemplateSpecApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -42,7 +48,7 @@ func (b *MachineTemplateSpecApplyConfiguration) WithGenerateName(value string) *
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *MachineTemplateSpecApplyConfiguration) WithNamespace(value string) *MachineTemplateSpecApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -52,11 +58,11 @@ func (b *MachineTemplateSpecApplyConfiguration) WithNamespace(value string) *Mac
 // overwriting an existing map entries in Labels field with the same key.
 func (b *MachineTemplateSpecApplyConfiguration) WithLabels(entries map[string]string) *MachineTemplateSpecApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -67,11 +73,11 @@ func (b *MachineTemplateSpecApplyConfiguration) WithLabels(entries map[string]st
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *MachineTemplateSpecApplyConfiguration) WithAnnotations(entries map[string]string) *MachineTemplateSpecApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -85,7 +91,7 @@ func (b *MachineTemplateSpecApplyConfiguration) WithOwnerReferences(values ...*v
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }

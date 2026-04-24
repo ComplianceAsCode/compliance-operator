@@ -3,14 +3,22 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // IngressControllerHTTPHeaderActionUnionApplyConfiguration represents a declarative configuration of the IngressControllerHTTPHeaderActionUnion type for use
 // with apply.
+//
+// IngressControllerHTTPHeaderActionUnion specifies an action to take on an HTTP header.
 type IngressControllerHTTPHeaderActionUnionApplyConfiguration struct {
-	Type *v1.IngressControllerHTTPHeaderActionType         `json:"type,omitempty"`
-	Set  *IngressControllerSetHTTPHeaderApplyConfiguration `json:"set,omitempty"`
+	// type defines the type of the action to be applied on the header.
+	// Possible values are Set or Delete.
+	// Set allows you to set HTTP request and response headers.
+	// Delete allows you to delete HTTP request and response headers.
+	Type *operatorv1.IngressControllerHTTPHeaderActionType `json:"type,omitempty"`
+	// set specifies how the HTTP header should be set.
+	// This field is required when type is Set and forbidden otherwise.
+	Set *IngressControllerSetHTTPHeaderApplyConfiguration `json:"set,omitempty"`
 }
 
 // IngressControllerHTTPHeaderActionUnionApplyConfiguration constructs a declarative configuration of the IngressControllerHTTPHeaderActionUnion type for use with
@@ -22,7 +30,7 @@ func IngressControllerHTTPHeaderActionUnion() *IngressControllerHTTPHeaderAction
 // WithType sets the Type field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Type field is set to the value of the last call.
-func (b *IngressControllerHTTPHeaderActionUnionApplyConfiguration) WithType(value v1.IngressControllerHTTPHeaderActionType) *IngressControllerHTTPHeaderActionUnionApplyConfiguration {
+func (b *IngressControllerHTTPHeaderActionUnionApplyConfiguration) WithType(value operatorv1.IngressControllerHTTPHeaderActionType) *IngressControllerHTTPHeaderActionUnionApplyConfiguration {
 	b.Type = &value
 	return b
 }

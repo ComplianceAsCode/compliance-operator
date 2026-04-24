@@ -3,19 +3,26 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/machineconfiguration/v1"
+	machineconfigurationv1 "github.com/openshift/api/machineconfiguration/v1"
 )
 
 // PoolSynchronizerStatusApplyConfiguration represents a declarative configuration of the PoolSynchronizerStatus type for use
 // with apply.
 type PoolSynchronizerStatusApplyConfiguration struct {
-	PoolSynchronizerType    *v1.PoolSynchronizerType `json:"poolSynchronizerType,omitempty"`
-	MachineCount            *int64                   `json:"machineCount,omitempty"`
-	UpdatedMachineCount     *int64                   `json:"updatedMachineCount,omitempty"`
-	ReadyMachineCount       *int64                   `json:"readyMachineCount,omitempty"`
-	AvailableMachineCount   *int64                   `json:"availableMachineCount,omitempty"`
-	UnavailableMachineCount *int64                   `json:"unavailableMachineCount,omitempty"`
-	ObservedGeneration      *int64                   `json:"observedGeneration,omitempty"`
+	// poolSynchronizerType describes the type of the pool synchronizer.
+	PoolSynchronizerType *machineconfigurationv1.PoolSynchronizerType `json:"poolSynchronizerType,omitempty"`
+	// machineCount is the number of machines that are managed by the node synchronizer.
+	MachineCount *int64 `json:"machineCount,omitempty"`
+	// updatedMachineCount is the number of machines that have been updated by the node synchronizer.
+	UpdatedMachineCount *int64 `json:"updatedMachineCount,omitempty"`
+	// readyMachineCount is the number of machines managed by the node synchronizer that are in a ready state.
+	ReadyMachineCount *int64 `json:"readyMachineCount,omitempty"`
+	// availableMachineCount is the number of machines managed by the node synchronizer which are available.
+	AvailableMachineCount *int64 `json:"availableMachineCount,omitempty"`
+	// unavailableMachineCount is the number of machines managed by the node synchronizer but are unavailable.
+	UnavailableMachineCount *int64 `json:"unavailableMachineCount,omitempty"`
+	// observedGeneration is the last generation change that has been applied.
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
 }
 
 // PoolSynchronizerStatusApplyConfiguration constructs a declarative configuration of the PoolSynchronizerStatus type for use with
@@ -27,7 +34,7 @@ func PoolSynchronizerStatus() *PoolSynchronizerStatusApplyConfiguration {
 // WithPoolSynchronizerType sets the PoolSynchronizerType field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the PoolSynchronizerType field is set to the value of the last call.
-func (b *PoolSynchronizerStatusApplyConfiguration) WithPoolSynchronizerType(value v1.PoolSynchronizerType) *PoolSynchronizerStatusApplyConfiguration {
+func (b *PoolSynchronizerStatusApplyConfiguration) WithPoolSynchronizerType(value machineconfigurationv1.PoolSynchronizerType) *PoolSynchronizerStatusApplyConfiguration {
 	b.PoolSynchronizerType = &value
 	return b
 }

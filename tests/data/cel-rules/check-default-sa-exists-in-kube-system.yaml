@@ -1,0 +1,34 @@
+name: check-default-sa-exists-in-kube-system
+id: check_default_sa_exists_in_kube_system
+title: Default ServiceAccount must exist in kube-system
+description: |-
+  The kube-system namespace must contain a default ServiceAccount.
+  This ensures the namespace is properly initialised and the Kubernetes
+  control-plane can schedule workloads that rely on the default
+  service account token.
+rationale: |-
+  A missing default ServiceAccount in kube-system indicates a
+  misconfigured or tampered control-plane namespace, which can
+  prevent core components from starting.
+severity: medium
+checkType: Platform
+expression: |
+  serviceaccounts.items.exists(sa,
+      sa.metadata.name == 'default'
+  )
+inputs:
+  - name: serviceaccounts
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: serviceaccounts
+      resourceNamespace: kube-system
+failureReason: |-
+  The default ServiceAccount does not exist in the kube-system namespace.
+instructions: |-
+  Run 'oc get serviceaccount default -n kube-system' and verify
+  that the default ServiceAccount exists.
+controls:
+  NIST-800-53:
+    - "CM-6"
+  CIS-OCP:
+    - "5.1.5"

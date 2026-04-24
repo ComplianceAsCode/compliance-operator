@@ -6,7 +6,12 @@ package v1
 // with apply.
 type KubeAPIServerStatusApplyConfiguration struct {
 	StaticPodOperatorStatusApplyConfiguration `json:",inline"`
-	ServiceAccountIssuers                     []ServiceAccountIssuerStatusApplyConfiguration `json:"serviceAccountIssuers,omitempty"`
+	// serviceAccountIssuers tracks history of used service account issuers.
+	// The item without expiration time represents the currently used service account issuer.
+	// The other items represents service account issuers that were used previously and are still being trusted.
+	// The default expiration for the items is set by the platform and it defaults to 24h.
+	// see: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection
+	ServiceAccountIssuers []ServiceAccountIssuerStatusApplyConfiguration `json:"serviceAccountIssuers,omitempty"`
 }
 
 // KubeAPIServerStatusApplyConfiguration constructs a declarative configuration of the KubeAPIServerStatus type for use with
@@ -19,7 +24,7 @@ func KubeAPIServerStatus() *KubeAPIServerStatusApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedGeneration field is set to the value of the last call.
 func (b *KubeAPIServerStatusApplyConfiguration) WithObservedGeneration(value int64) *KubeAPIServerStatusApplyConfiguration {
-	b.ObservedGeneration = &value
+	b.OperatorStatusApplyConfiguration.ObservedGeneration = &value
 	return b
 }
 
@@ -31,7 +36,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithConditions(values ...*Operat
 		if values[i] == nil {
 			panic("nil value passed to WithConditions")
 		}
-		b.Conditions = append(b.Conditions, *values[i])
+		b.OperatorStatusApplyConfiguration.Conditions = append(b.OperatorStatusApplyConfiguration.Conditions, *values[i])
 	}
 	return b
 }
@@ -40,7 +45,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithConditions(values ...*Operat
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Version field is set to the value of the last call.
 func (b *KubeAPIServerStatusApplyConfiguration) WithVersion(value string) *KubeAPIServerStatusApplyConfiguration {
-	b.Version = &value
+	b.OperatorStatusApplyConfiguration.Version = &value
 	return b
 }
 
@@ -48,7 +53,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithVersion(value string) *KubeA
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ReadyReplicas field is set to the value of the last call.
 func (b *KubeAPIServerStatusApplyConfiguration) WithReadyReplicas(value int32) *KubeAPIServerStatusApplyConfiguration {
-	b.ReadyReplicas = &value
+	b.OperatorStatusApplyConfiguration.ReadyReplicas = &value
 	return b
 }
 
@@ -56,7 +61,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithReadyReplicas(value int32) *
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LatestAvailableRevision field is set to the value of the last call.
 func (b *KubeAPIServerStatusApplyConfiguration) WithLatestAvailableRevision(value int32) *KubeAPIServerStatusApplyConfiguration {
-	b.LatestAvailableRevision = &value
+	b.OperatorStatusApplyConfiguration.LatestAvailableRevision = &value
 	return b
 }
 
@@ -68,7 +73,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithGenerations(values ...*Gener
 		if values[i] == nil {
 			panic("nil value passed to WithGenerations")
 		}
-		b.Generations = append(b.Generations, *values[i])
+		b.OperatorStatusApplyConfiguration.Generations = append(b.OperatorStatusApplyConfiguration.Generations, *values[i])
 	}
 	return b
 }
@@ -77,7 +82,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithGenerations(values ...*Gener
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LatestAvailableRevisionReason field is set to the value of the last call.
 func (b *KubeAPIServerStatusApplyConfiguration) WithLatestAvailableRevisionReason(value string) *KubeAPIServerStatusApplyConfiguration {
-	b.LatestAvailableRevisionReason = &value
+	b.StaticPodOperatorStatusApplyConfiguration.LatestAvailableRevisionReason = &value
 	return b
 }
 
@@ -89,7 +94,7 @@ func (b *KubeAPIServerStatusApplyConfiguration) WithNodeStatuses(values ...*Node
 		if values[i] == nil {
 			panic("nil value passed to WithNodeStatuses")
 		}
-		b.NodeStatuses = append(b.NodeStatuses, *values[i])
+		b.StaticPodOperatorStatusApplyConfiguration.NodeStatuses = append(b.StaticPodOperatorStatusApplyConfiguration.NodeStatuses, *values[i])
 	}
 	return b
 }
