@@ -199,6 +199,25 @@ func (f *Framework) CreateProfileBundle(pbName string, baselineImage string, con
 	return origPb, nil
 }
 
+func (f *Framework) CreateProfileBundleWithCEL(pbName, baselineImage, contentFile, celContentFile string) (*compv1alpha1.ProfileBundle, error) {
+	origPb := &compv1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pbName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ProfileBundleSpec{
+			ContentImage:   baselineImage,
+			ContentFile:    contentFile,
+			CELContentFile: celContentFile,
+		},
+	}
+	log.Printf("Creating ProfileBundle %s with CEL content %s", pbName, celContentFile)
+	if err := f.Client.Create(context.TODO(), origPb, nil); err != nil {
+		return nil, err
+	}
+	return origPb, nil
+}
+
 func (f *Framework) cleanUpProfileBundle(p string) error {
 	pb := &compv1alpha1.ProfileBundle{
 		ObjectMeta: metav1.ObjectMeta{
@@ -244,7 +263,7 @@ func (f *Framework) createFromYAMLString(y string) error {
 	return nil
 }
 
-func (f *Framework) waitForScanCleanup() error {
+func (f *Framework) WaitForScanCleanup() error {
 	timeouterr := wait.Poll(time.Second*5, time.Minute*2, func() (bool, error) {
 		var scans compv1alpha1.ComplianceScanList
 		f.Client.List(context.TODO(), &scans, &dynclient.ListOptions{})
@@ -845,7 +864,7 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 		// This pool is still "invalid" for testing as no nodes match this selector
 		p.Spec.NodeSelector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"node-role.kubernetes.io/e2e-invalid": "",
+				"node-role.kubernetes.io/" + testInvalidPoolName: "",
 			},
 		}
 		p.Spec.MachineConfigSelector = &metav1.LabelSelector{
@@ -1219,6 +1238,16 @@ func (f *Framework) WaitForCustomRuleStatus(namespace, name string, targetPhase 
 // waitForScanStatus will poll until the compliancescan that we're lookingfor reaches a certain status, or until
 // a timeout is reached.
 func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, targetComplianceStatus compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, targetComplianceStatus)
+}
+
+// WaitForSuiteScansStatusAnyResult is like WaitForSuiteScansStatus but accepts
+// multiple acceptable compliance results, succeeding if any of them match.
+func (f *Framework) WaitForSuiteScansStatusAnyResult(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, acceptableResults ...compv1alpha1.ComplianceScanStatusResult) error {
+	return f.waitForSuiteScansStatusMulti(namespace, name, targetStatus, acceptableResults...)
+}
+
+func (f *Framework) waitForSuiteScansStatusMulti(namespace, name string, targetStatus compv1alpha1.ComplianceScanStatusPhase, acceptableResults ...compv1alpha1.ComplianceScanStatusResult) error {
 	suite := &compv1alpha1.ComplianceSuite{}
 	var lastErr error
 	// retry and ignore errors until timeout
@@ -1274,13 +1303,22 @@ func (f *Framework) WaitForSuiteScansStatus(namespace, name string, targetStatus
 		}
 
 		// The suite is now done, make sure the compliance status is expected
-		if suite.Status.Result != targetComplianceStatus {
-			return false, fmt.Errorf("expecting %s got %s", targetComplianceStatus, suite.Status.Result)
+		matched := false
+		for _, acceptable := range acceptableResults {
+			if suite.Status.Result == acceptable {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, fmt.Errorf("expecting one of %v got %s", acceptableResults, suite.Status.Result)
 		}
 
 		// If we were expecting an error, there's no use checking the scans
-		if targetComplianceStatus == compv1alpha1.ResultError {
-			return true, nil
+		for _, acceptable := range acceptableResults {
+			if acceptable == compv1alpha1.ResultError && suite.Status.Result == compv1alpha1.ResultError {
+				return true, nil
+			}
 		}
 
 		// Now as a sanity check make sure that the scan statuses match the aggregated
@@ -1522,6 +1560,54 @@ func (f *Framework) AssertProfileGUIDMatches(name, namespace, expectedGUID strin
 	return nil
 }
 
+// AssertAllProfilesHaveGUID checks that all profiles in the namespace have the profile-guid label
+func (f *Framework) AssertAllProfilesHaveGUID(namespace string) error {
+	profileList := &compv1alpha1.ProfileList{}
+	lo := &client.ListOptions{
+		Namespace: namespace,
+	}
+	err := f.Client.List(context.TODO(), profileList, lo)
+	if err != nil {
+		return fmt.Errorf("failed to list profiles: %w", err)
+	}
+	for _, profile := range profileList.Items {
+		guid, exists := profile.Labels[compv1alpha1.ProfileGuidLabel]
+		if !exists {
+			return fmt.Errorf("Profile %s does not have label %s", profile.Name, compv1alpha1.ProfileGuidLabel)
+		}
+		if guid == "" {
+			return fmt.Errorf("Profile %s has empty %s label", profile.Name, compv1alpha1.ProfileGuidLabel)
+		}
+	}
+	return nil
+}
+
+// AssertResultsGUIDMatches checks that all ComplianceCheckResults for a scan have the expected GUID.
+func (f *Framework) AssertResultsGUIDMatches(scanName, namespace, expectedGUID string) error {
+	ccrList := &compv1alpha1.ComplianceCheckResultList{}
+	defer f.logContainerOutput(namespace, scanName)
+	lo := &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(map[string]string{
+			compv1alpha1.ComplianceScanLabel: scanName,
+		}),
+		Namespace: namespace,
+	}
+	err := f.Client.List(context.TODO(), ccrList, lo)
+	if err != nil {
+		return err
+	}
+	if len(ccrList.Items) == 0 {
+		return fmt.Errorf("no ComplianceCheckResults found for scan %s in namespace %s", scanName, namespace)
+	}
+	for i := range ccrList.Items {
+		ccr := &ccrList.Items[i]
+		if ccr.Labels[compv1alpha1.ProfileGuidLabel] != expectedGUID {
+			return fmt.Errorf("expected GUID %s for ComplianceCheckResult %s (scan %s), got %s", expectedGUID, ccr.Name, scanName, ccr.Labels[compv1alpha1.ProfileGuidLabel])
+		}
+	}
+	return nil
+}
+
 func (f *Framework) AssertScanIsNonCompliant(name, namespace string) error {
 	cs := &compv1alpha1.ComplianceScan{}
 	defer f.logContainerOutput(namespace, name)
@@ -1698,6 +1784,61 @@ func (f *Framework) AssertComplianceSuiteDoesNotExist(name, namespace string) er
 	return fmt.Errorf("Failed to assert ComplianceSuite %s does not exist.", name)
 }
 
+// WaitForComplianceSuiteDeletion waits for a ComplianceSuite to be deleted.
+// This is useful for cleanup after deleting a ScanSettingBinding, as the suite
+// should be cascade-deleted. Returns nil when the suite is deleted, or an error
+// if the timeout is reached.
+func (f *Framework) WaitForComplianceSuiteDeletion(name, namespace string) error {
+	suiteKey := types.NamespacedName{Name: name, Namespace: namespace}
+	suite := &compv1alpha1.ComplianceSuite{}
+	err := wait.Poll(RetryInterval, 120*time.Second, func() (bool, error) {
+		err := f.Client.Get(context.TODO(), suiteKey, suite)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("ComplianceSuite %s may not have been fully cleaned up: %w", name, err)
+	}
+	return nil
+}
+
+const suiteDeletionTimeout = 180 * time.Second
+
+// WaitForSuiteScansCleanup polls until no ComplianceScans belonging to the suite/ScanSettingBinding (same name) remain in the namespace.
+func (f *Framework) WaitForSuiteScansCleanup(suiteOrBindingName, namespace string) error {
+	return wait.Poll(RetryInterval, suiteDeletionTimeout, func() (bool, error) {
+		var scanList compv1alpha1.ComplianceScanList
+		err := f.Client.List(context.TODO(), &scanList, client.InNamespace(namespace), client.MatchingLabels{
+			compv1alpha1.SuiteLabel: suiteOrBindingName,
+		})
+		if err != nil {
+			return false, err
+		}
+		if len(scanList.Items) == 0 {
+			return true, nil
+		}
+		log.Printf("Waiting for %d ComplianceScan(s) for suite %s/%s to be deleted\n", len(scanList.Items), namespace, suiteOrBindingName)
+		return false, nil
+	})
+}
+
+// DeleteScanSettingBindingAndWaitForCleanup deletes the given ScanSettingBinding and waits for all ComplianceScans
+// belonging to that binding (same name as the suite) to be removed.
+func (f *Framework) DeleteScanSettingBindingAndWaitForCleanup(ssb *compv1alpha1.ScanSettingBinding) error {
+	if err := f.Client.Delete(context.TODO(), ssb); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete ScanSettingBinding %s/%s: %w", ssb.Namespace, ssb.Name, err)
+	}
+	if err := f.WaitForSuiteScansCleanup(ssb.Name, ssb.Namespace); err != nil {
+		return fmt.Errorf("wait for ComplianceScans for suite %s/%s to cleanup (timeout %s): %w", ssb.Namespace, ssb.Name, suiteDeletionTimeout, err)
+	}
+	return nil
+}
+
 func (f *Framework) AssertScanSettingBindingConditionIsReady(name string, namespace string) error {
 	ssb := &compv1alpha1.ScanSettingBinding{}
 	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, ssb)
@@ -1771,6 +1912,45 @@ func (f *Framework) GetConfigMapsFromScan(scaninstance *compv1alpha1.ComplianceS
 		return configmaps.Items, err
 	}
 	return configmaps.Items, nil
+}
+
+// GetScanExitCodeAndErrorMsg retrieves the exit code and error message from a scan's ConfigMaps
+// Returns exit code as a string, error message as a string, and an error if any occurred
+// If no ConfigMaps exist or if exit-code/error-msg are not found, returns empty strings
+func (f *Framework) GetScanExitCodeAndErrorMsg(scanName, namespace string) (string, string, error) {
+	// Get the scan
+	scan := &compv1alpha1.ComplianceScan{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: scanName, Namespace: namespace}, scan)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get scan %s: %w", scanName, err)
+	}
+
+	// Get ConfigMaps from the scan
+	configMaps, err := f.GetConfigMapsFromScan(scan)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get ConfigMaps from scan %s: %w", scanName, err)
+	}
+
+	var exitCode string
+	var errorMsg string
+
+	// Look for exit-code in ConfigMaps
+	for _, cm := range configMaps {
+		if code, ok := cm.Data["exit-code"]; ok {
+			exitCode = code
+			break
+		}
+	}
+
+	// Look for error-msg in ConfigMaps
+	for _, cm := range configMaps {
+		if msg, ok := cm.Data["error-msg"]; ok {
+			errorMsg = msg
+			break
+		}
+	}
+
+	return exitCode, errorMsg, nil
 }
 
 func (f *Framework) GetPodsForScan(scanName string) ([]core.Pod, error) {
@@ -3011,4 +3191,64 @@ func (f *Framework) AssertRuleIsNodeType(ruleName, namespace string) error {
 
 func (f *Framework) AssertRuleIsPlatformType(ruleName, namespace string) error {
 	return f.assertRuleType(ruleName, namespace, "Platform")
+}
+
+// waitForNamespaceDeletion waits until a namespace is fully deleted from the cluster
+func (f *Framework) waitForNamespaceDeletion(namespace string, retryInterval, timeout time.Duration) error {
+	err := wait.Poll(retryInterval, timeout, func() (bool, error) {
+		_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			// Namespace is deleted
+			return true, nil
+		}
+		if err != nil {
+			log.Printf("Error checking namespace %s deletion status: %v, retrying...", namespace, err)
+			return false, nil
+		}
+		log.Printf("Waiting for namespace %s to be fully deleted...", namespace)
+		return false, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("namespace %s was not deleted within timeout: %w", namespace, err)
+	}
+	log.Printf("Namespace %s successfully deleted and cleaned up", namespace)
+	return nil
+}
+
+// check if node names appear in <target> & fact:identifier elements of complianceScan XCCDF format result
+func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.Node, configMaps []core.ConfigMap) error {
+	for _, node := range nodes {
+		nodeName := node.Name
+		var foundCM *core.ConfigMap
+		var results string
+		for i := range configMaps {
+			cm := &configMaps[i]
+			cmResults, ok := cm.Data["results"]
+			if !ok {
+				continue
+			}
+			targetPattern := fmt.Sprintf(`<target>\s*%s\s*</target>`, regexp.QuoteMeta(nodeName))
+			matched, err := regexp.MatchString(targetPattern, cmResults)
+			if err == nil && matched {
+				foundCM = cm
+				results = cmResults
+				break
+			}
+		}
+
+		if foundCM == nil {
+			return fmt.Errorf("no ConfigMap found containing nodeName '%s' in <target> tag", nodeName)
+		}
+
+		identifierPattern := fmt.Sprintf(`<fact\s+name="urn:xccdf:fact:identifier"[^>]*>\s*%s\s*</fact>`, regexp.QuoteMeta(nodeName))
+		matched, err := regexp.MatchString(identifierPattern, results)
+		if err != nil {
+			return fmt.Errorf("error matching identifier pattern in ConfigMap %s/%s: %w", foundCM.Namespace, foundCM.Name, err)
+		}
+		if !matched {
+			return fmt.Errorf("nodeName '%s' not found in <fact name=\"urn:xccdf:fact:identifier\"> tag in ConfigMap %s/%s", nodeName, foundCM.Namespace, foundCM.Name)
+		}
+	}
+	return nil
 }

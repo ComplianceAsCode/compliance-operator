@@ -3,13 +3,20 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/machine/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
 )
 
 // ControlPlaneMachineSetStrategyApplyConfiguration represents a declarative configuration of the ControlPlaneMachineSetStrategy type for use
 // with apply.
+//
+// ControlPlaneMachineSetStrategy defines the strategy for applying updates to the
+// Control Plane Machines managed by the ControlPlaneMachineSet.
 type ControlPlaneMachineSetStrategyApplyConfiguration struct {
-	Type *v1.ControlPlaneMachineSetStrategyType `json:"type,omitempty"`
+	// type defines the type of update strategy that should be
+	// used when updating Machines owned by the ControlPlaneMachineSet.
+	// Valid values are "RollingUpdate" and "OnDelete".
+	// The current default value is "RollingUpdate".
+	Type *machinev1.ControlPlaneMachineSetStrategyType `json:"type,omitempty"`
 }
 
 // ControlPlaneMachineSetStrategyApplyConfiguration constructs a declarative configuration of the ControlPlaneMachineSetStrategy type for use with
@@ -21,7 +28,7 @@ func ControlPlaneMachineSetStrategy() *ControlPlaneMachineSetStrategyApplyConfig
 // WithType sets the Type field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Type field is set to the value of the last call.
-func (b *ControlPlaneMachineSetStrategyApplyConfiguration) WithType(value v1.ControlPlaneMachineSetStrategyType) *ControlPlaneMachineSetStrategyApplyConfiguration {
+func (b *ControlPlaneMachineSetStrategyApplyConfiguration) WithType(value machinev1.ControlPlaneMachineSetStrategyType) *ControlPlaneMachineSetStrategyApplyConfiguration {
 	b.Type = &value
 	return b
 }

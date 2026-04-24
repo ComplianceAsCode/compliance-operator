@@ -491,26 +491,9 @@ var _ = Describe("ComplianceSuiteController", func() {
 					},
 				},
 			}
-			kcPayload := `{"apiVersion": "machineconfiguration.openshift.io/v1","kind": "KubeletConfig","spec": {"kubeletConfig": {"streamingConnectionIdleTimeout": "0s","something": "0s"}}}`
+			kcPayload := `{"apiVersion": "machineconfiguration.openshift.io/v1","kind": "KubeletConfig","spec": {"kubeletConfig": {"streamingConnectionIdleTimeout": "0s"}}}`
 
-			renderdKC := `
-			{
-				"ignition": {
-					"version": "3.2.0"
-				},
-				"storage": {
-					"files": [
-						{
-							"contents": {
-								"source": "data:text/plain,%7B%0A%20%20%22kind%22%3A%20%22KubeletConfiguration%22%2C%0A%20%20%22apiVersion%22%3A%20%22kubelet.config.k8s.io%2Fv1beta1%22%2C%0A%20%20%22staticPodPath%22%3A%20%22%2Fetc%2Fkubernetes%2Fmanifests%22%2C%0A%20%20%22syncFrequency%22%3A%20%220s%22%2C%0A%20%20%22fileCheckFrequency%22%3A%20%220s%22%2C%0A%20%20%22httpCheckFrequency%22%3A%20%220s%22%2C%0A%20%20%22tlsCipherSuites%22%3A%20%5B%0A%20%20%20%20%22TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256%22%2C%0A%20%20%20%20%22TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256%22%2C%0A%20%20%20%20%22TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384%22%2C%0A%20%20%20%20%22TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384%22%2C%0A%20%20%20%20%22TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256%22%2C%0A%20%20%20%20%22TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256%22%0A%20%20%5D%2C%0A%20%20%22tlsMinVersion%22%3A%20%22VersionTLS12%22%2C%0A%20%20%22rotateCertificates%22%3A%20true%2C%0A%20%20%22serverTLSBootstrap%22%3A%20true%2C%0A%20%20%22authentication%22%3A%20%7B%0A%20%20%20%20%22x509%22%3A%20%7B%0A%20%20%20%20%20%20%22clientCAFile%22%3A%20%22%2Fetc%2Fkubernetes%2Fkubelet-ca.crt%22%0A%20%20%20%20%7D%2C%0A%20%20%20%20%22webhook%22%3A%20%7B%0A%20%20%20%20%20%20%22cacheTTL%22%3A%20%220s%22%0A%20%20%20%20%7D%2C%0A%20%20%20%20%22anonymous%22%3A%20%7B%0A%20%20%20%20%20%20%22enabled%22%3A%20false%0A%20%20%20%20%7D%0A%20%20%7D%2C%0A%20%20%22authorization%22%3A%20%7B%0A%20%20%20%20%22webhook%22%3A%20%7B%0A%20%20%20%20%20%20%22cacheAuthorizedTTL%22%3A%20%220s%22%2C%0A%20%20%20%20%20%20%22cacheUnauthorizedTTL%22%3A%20%220s%22%0A%20%20%20%20%7D%0A%20%20%7D%2C%0A%20%20%22clusterDomain%22%3A%20%22cluster.local%22%2C%0A%20%20%22clusterDNS%22%3A%20%5B%0A%20%20%20%20%22172.30.0.10%22%0A%20%20%5D%2C%0A%20%20%22streamingConnectionIdleTimeout%22%3A%20%220s%22%2C%0A%20%20%22nodeStatusUpdateFrequency%22%3A%20%220s%22%2C%0A%20%20%22nodeStatusReportFrequency%22%3A%20%220s%22%2C%0A%20%20%22imageMinimumGCAge%22%3A%20%220s%22%2C%0A%20%20%22volumeStatsAggPeriod%22%3A%20%220s%22%2C%0A%20%20%22systemCgroups%22%3A%20%22%2Fsystem.slice%22%2C%0A%20%20%22cgroupRoot%22%3A%20%22%2F%22%2C%0A%20%20%22cgroupDriver%22%3A%20%22systemd%22%2C%0A%20%20%22cpuManagerReconcilePeriod%22%3A%20%220s%22%2C%0A%20%20%22runtimeRequestTimeout%22%3A%20%220s%22%2C%0A%20%20%22maxPods%22%3A%20250%2C%0A%20%20%22kubeAPIQPS%22%3A%2050%2C%0A%20%20%22kubeAPIBurst%22%3A%20100%2C%0A%20%20%22serializeImagePulls%22%3A%20false%2C%0A%20%20%22evictionPressureTransitionPeriod%22%3A%20%220s%22%2C%0A%20%20%22featureGates%22%3A%20%7B%0A%20%20%20%20%22APIPriorityAndFairness%22%3A%20true%2C%0A%20%20%20%20%22CSIMigrationAWS%22%3A%20false%2C%0A%20%20%20%20%22CSIMigrationAzureDisk%22%3A%20false%2C%0A%20%20%20%20%22CSIMigrationAzureFile%22%3A%20false%2C%0A%20%20%20%20%22CSIMigrationGCE%22%3A%20false%2C%0A%20%20%20%20%22CSIMigrationOpenStack%22%3A%20false%2C%0A%20%20%20%20%22CSIMigrationvSphere%22%3A%20false%2C%0A%20%20%20%20%22DownwardAPIHugePages%22%3A%20true%2C%0A%20%20%20%20%22LegacyNodeRoleBehavior%22%3A%20false%2C%0A%20%20%20%20%22NodeDisruptionExclusion%22%3A%20true%2C%0A%20%20%20%20%22PodSecurity%22%3A%20true%2C%0A%20%20%20%20%22RotateKubeletServerCertificate%22%3A%20true%2C%0A%20%20%20%20%22ServiceNodeExclusion%22%3A%20true%2C%0A%20%20%20%20%22SupportPodPidsLimit%22%3A%20true%0A%20%20%7D%2C%0A%20%20%22memorySwap%22%3A%20%7B%7D%2C%0A%20%20%22containerLogMaxSize%22%3A%20%2250Mi%22%2C%0A%20%20%22systemReserved%22%3A%20%7B%0A%20%20%20%20%22ephemeral-storage%22%3A%20%221Gi%22%0A%20%20%7D%2C%0A%20%20%22logging%22%3A%20%7B%0A%20%20%20%20%22flushFrequency%22%3A%200%2C%0A%20%20%20%20%22verbosity%22%3A%200%2C%0A%20%20%20%20%22options%22%3A%20%7B%0A%20%20%20%20%20%20%22json%22%3A%20%7B%0A%20%20%20%20%20%20%20%20%22infoBufferSize%22%3A%20%220%22%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%2C%0A%20%20%22shutdownGracePeriod%22%3A%20%220s%22%2C%0A%20%20%22shutdownGracePeriodCriticalPods%22%3A%20%220s%22%0A%7D%0A"
-							},
-							"mode": 420,
-							"overwrite": true,
-							"path": "/etc/kubernetes/kubelet.conf"
-						}
-					]
-				}
-			}`
+			renderdKC := `{"ignition":{"version":"3.2.0"}}`
 			//prepare machine config for testing
 			kcOwnerRef := metav1.OwnerReference{
 				APIVersion: "machineconfiguration.openshift.io/v1",
@@ -537,11 +520,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 			err = reconciler.Client.Create(ctx, mc)
 			Expect(err).To(BeNil())
 
-			existingKCPayload := `
-			{
-				"streamingConnectionIdleTimeout": "0s"
-			}
-			`
+			existingKCPayload := `{}`
 			existingKCObj := &mcfgv1.KubeletConfig{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "KubeletConfig",
@@ -734,26 +713,9 @@ var _ = Describe("ComplianceSuiteController", func() {
 					},
 				},
 			}
-			kcPayload := `{"apiVersion": "machineconfiguration.openshift.io/v1","kind": "KubeletConfig","spec": {"kubeletConfig": {"streamingConnectionIdleTimeout": "0s","something": "0s"}}}`
+			kcPayload := `{"apiVersion": "machineconfiguration.openshift.io/v1","kind": "KubeletConfig","spec": {"kubeletConfig": {"streamingConnectionIdleTimeout": "0s"}}}`
 
-			renderdKC := `
-				{
-					"ignition": {
-						"version": "3.2.0"
-					},
-					"storage": {
-						"files": [
-							{
-								"contents": {
-									"source": "data:text/plain;charset=utf-8;base64,ewogICJraW5kIjogIkt1YmVsZXRDb25maWd1cmF0aW9uIiwKICAiYXBpVmVyc2lvbiI6ICJrdWJlbGV0LmNvbmZpZy5rOHMuaW8vdjFiZXRhMSIsCiAgInN0YXRpY1BvZFBhdGgiOiAiL2V0Yy9rdWJlcm5ldGVzL21hbmlmZXN0cyIsCiAgInN5bmNGcmVxdWVuY3kiOiAiMHMiLAogICJmaWxlQ2hlY2tGcmVxdWVuY3kiOiAiMHMiLAogICJodHRwQ2hlY2tGcmVxdWVuY3kiOiAiMHMiLAogICJ0bHNDaXBoZXJTdWl0ZXMiOiBbCiAgICAiVExTX0VDREhFX0VDRFNBX1dJVEhfQUVTXzEyOF9HQ01fU0hBMjU2IiwKICAgICJUTFNfRUNESEVfUlNBX1dJVEhfQUVTXzEyOF9HQ01fU0hBMjU2IiwKICAgICJUTFNfRUNESEVfRUNEU0FfV0lUSF9BRVNfMjU2X0dDTV9TSEEzODQiLAogICAgIlRMU19FQ0RIRV9SU0FfV0lUSF9BRVNfMjU2X0dDTV9TSEEzODQiLAogICAgIlRMU19FQ0RIRV9FQ0RTQV9XSVRIX0NIQUNIQTIwX1BPTFkxMzA1X1NIQTI1NiIsCiAgICAiVExTX0VDREhFX1JTQV9XSVRIX0NIQUNIQTIwX1BPTFkxMzA1X1NIQTI1NiIKICBdLAogICJ0bHNNaW5WZXJzaW9uIjogIlZlcnNpb25UTFMxMiIsCiAgInJvdGF0ZUNlcnRpZmljYXRlcyI6IHRydWUsCiAgInNlcnZlclRMU0Jvb3RzdHJhcCI6IHRydWUsCiAgImF1dGhlbnRpY2F0aW9uIjogewogICAgIng1MDkiOiB7CiAgICAgICJjbGllbnRDQUZpbGUiOiAiL2V0Yy9rdWJlcm5ldGVzL2t1YmVsZXQtY2EuY3J0IgogICAgfSwKICAgICJ3ZWJob29rIjogewogICAgICAiY2FjaGVUVEwiOiAiMHMiCiAgICB9LAogICAgImFub255bW91cyI6IHsKICAgICAgImVuYWJsZWQiOiBmYWxzZQogICAgfQogIH0sCiAgImF1dGhvcml6YXRpb24iOiB7CiAgICAid2ViaG9vayI6IHsKICAgICAgImNhY2hlQXV0aG9yaXplZFRUTCI6ICIwcyIsCiAgICAgICJjYWNoZVVuYXV0aG9yaXplZFRUTCI6ICIwcyIKICAgIH0KICB9LAogICJjbHVzdGVyRG9tYWluIjogImNsdXN0ZXIubG9jYWwiLAogICJjbHVzdGVyRE5TIjogWwogICAgIjE3Mi4zMC4wLjEwIgogIF0sCiAgInN0cmVhbWluZ0Nvbm5lY3Rpb25JZGxlVGltZW91dCI6ICIwcyIsCiAgIm5vZGVTdGF0dXNVcGRhdGVGcmVxdWVuY3kiOiAiMHMiLAogICJub2RlU3RhdHVzUmVwb3J0RnJlcXVlbmN5IjogIjBzIiwKICAiaW1hZ2VNaW5pbXVtR0NBZ2UiOiAiMHMiLAogICJ2b2x1bWVTdGF0c0FnZ1BlcmlvZCI6ICIwcyIsCiAgInN5c3RlbUNncm91cHMiOiAiL3N5c3RlbS5zbGljZSIsCiAgImNncm91cFJvb3QiOiAiLyIsCiAgImNncm91cERyaXZlciI6ICJzeXN0ZW1kIiwKICAiY3B1TWFuYWdlclJlY29uY2lsZVBlcmlvZCI6ICIwcyIsCiAgInJ1bnRpbWVSZXF1ZXN0VGltZW91dCI6ICIwcyIsCiAgIm1heFBvZHMiOiAyNTAsCiAgImt1YmVBUElRUFMiOiA1MCwKICAia3ViZUFQSUJ1cnN0IjogMTAwLAogICJzZXJpYWxpemVJbWFnZVB1bGxzIjogZmFsc2UsCiAgImV2aWN0aW9uUHJlc3N1cmVUcmFuc2l0aW9uUGVyaW9kIjogIjBzIiwKICAiZmVhdHVyZUdhdGVzIjogewogICAgIkFQSVByaW9yaXR5QW5kRmFpcm5lc3MiOiB0cnVlLAogICAgIkNTSU1pZ3JhdGlvbkFXUyI6IGZhbHNlLAogICAgIkNTSU1pZ3JhdGlvbkF6dXJlRGlzayI6IGZhbHNlLAogICAgIkNTSU1pZ3JhdGlvbkF6dXJlRmlsZSI6IGZhbHNlLAogICAgIkNTSU1pZ3JhdGlvbkdDRSI6IGZhbHNlLAogICAgIkNTSU1pZ3JhdGlvbk9wZW5TdGFjayI6IGZhbHNlLAogICAgIkNTSU1pZ3JhdGlvbnZTcGhlcmUiOiBmYWxzZSwKICAgICJEb3dud2FyZEFQSUh1Z2VQYWdlcyI6IHRydWUsCiAgICAiTGVnYWN5Tm9kZVJvbGVCZWhhdmlvciI6IGZhbHNlLAogICAgIk5vZGVEaXNydXB0aW9uRXhjbHVzaW9uIjogdHJ1ZSwKICAgICJQb2RTZWN1cml0eSI6IHRydWUsCiAgICAiUm90YXRlS3ViZWxldFNlcnZlckNlcnRpZmljYXRlIjogdHJ1ZSwKICAgICJTZXJ2aWNlTm9kZUV4Y2x1c2lvbiI6IHRydWUsCiAgICAiU3VwcG9ydFBvZFBpZHNMaW1pdCI6IHRydWUKICB9LAogICJtZW1vcnlTd2FwIjoge30sCiAgImNvbnRhaW5lckxvZ01heFNpemUiOiAiNTBNaSIsCiAgInN5c3RlbVJlc2VydmVkIjogewogICAgImVwaGVtZXJhbC1zdG9yYWdlIjogIjFHaSIKICB9LAogICJsb2dnaW5nIjogewogICAgImZsdXNoRnJlcXVlbmN5IjogMCwKICAgICJ2ZXJib3NpdHkiOiAwLAogICAgIm9wdGlvbnMiOiB7CiAgICAgICJqc29uIjogewogICAgICAgICJpbmZvQnVmZmVyU2l6ZSI6ICIwIgogICAgICB9CiAgICB9CiAgfSwKICAic2h1dGRvd25HcmFjZVBlcmlvZCI6ICIwcyIsCiAgInNodXRkb3duR3JhY2VQZXJpb2RDcml0aWNhbFBvZHMiOiAiMHMiCn0K"
-								},
-								"mode": 420,
-								"overwrite": true,
-								"path": "/etc/kubernetes/kubelet.conf"
-							}
-						]
-					}
-				}`
+			renderdKC := `{"ignition":{"version":"3.2.0"}}`
 			//prepare machine config for testing
 			kcOwnerRef := metav1.OwnerReference{
 				APIVersion: "machineconfiguration.openshift.io/v1",
@@ -780,11 +742,7 @@ var _ = Describe("ComplianceSuiteController", func() {
 			err = reconciler.Client.Create(ctx, mc)
 			Expect(err).To(BeNil())
 
-			existingKCPayload := `
-				{
-					"streamingConnectionIdleTimeout": "0s"
-				}
-				`
+			existingKCPayload := `{}`
 			existingKCObj := &mcfgv1.KubeletConfig{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "KubeletConfig",
