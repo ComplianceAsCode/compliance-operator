@@ -174,7 +174,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.21 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/olekukonko/tablewriter v1.1.4 // indirect
-	github.com/openshift/client-go v0.0.1 // indirect
+	github.com/openshift/client-go v3.9.0+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
