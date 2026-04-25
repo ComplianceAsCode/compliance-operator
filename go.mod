@@ -146,7 +146,7 @@ require (
 	github.com/Azure/ARO-RP v0.0.0-20250602035759-0693f32d5ccc // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
-	github.com/coreos/fcct v0.5.0 // indirect
+	github.com/coreos/fcct v0.27.0 // indirect
 	github.com/coreos/go-json v0.0.0-20230131223807-18775e0fb4fb // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
