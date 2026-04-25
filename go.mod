@@ -185,7 +185,7 @@ require (
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
-	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
+	gopkg.in/evanphx/json-patch.v5 v5.9.11 // indirect
 	k8s.io/kube-aggregator v0.35.1 // indirect
 	k8s.io/kubectl v0.35.0 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
