@@ -46,7 +46,7 @@ github.com/antchfx/xmlquery
 # github.com/antchfx/xpath v1.3.6
 ## explicit; go 1.14
 github.com/antchfx/xpath
-# github.com/anthropics/anthropic-sdk-go v1.26.0
+# github.com/anthropics/anthropic-sdk-go v1.38.0
 ## explicit; go 1.23.0
 github.com/anthropics/anthropic-sdk-go
 github.com/anthropics/anthropic-sdk-go/internal
@@ -73,12 +73,18 @@ github.com/antlr4-go/antlr/v4
 # github.com/aws/aws-sdk-go-v2 v1.41.1
 ## explicit; go 1.23
 github.com/aws/aws-sdk-go-v2/aws/arn
+# github.com/bahlo/generic-list-go v0.2.0
+## explicit; go 1.18
+github.com/bahlo/generic-list-go
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
 # github.com/blang/semver/v4 v4.0.0
 ## explicit; go 1.14
 github.com/blang/semver/v4
+# github.com/buger/jsonparser v1.1.2
+## explicit; go 1.13
+github.com/buger/jsonparser
 # github.com/ccojocar/zxcvbn-go v1.0.4
 ## explicit; go 1.20
 github.com/ccojocar/zxcvbn-go
@@ -390,6 +396,9 @@ github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
+# github.com/invopop/jsonschema v0.13.0
+## explicit; go 1.18
+github.com/invopop/jsonschema
 # github.com/itchyny/gojq v0.12.18
 ## explicit; go 1.24.0
 github.com/itchyny/gojq
@@ -404,6 +413,10 @@ github.com/jaytaylor/html2text
 github.com/json-iterator/go
 # github.com/klauspost/compress v1.18.5
 ## explicit; go 1.24
+# github.com/mailru/easyjson v0.9.0
+## explicit; go 1.20
+github.com/mailru/easyjson/buffer
+github.com/mailru/easyjson/jwriter
 # github.com/mattn/go-colorable v0.1.14
 ## explicit; go 1.18
 github.com/mattn/go-colorable
@@ -813,6 +826,9 @@ github.com/tidwall/sjson
 # github.com/vincent-petithory/dataurl v1.0.0
 ## explicit
 github.com/vincent-petithory/dataurl
+# github.com/wk8/go-ordered-map/v2 v2.1.8
+## explicit; go 1.18
+github.com/wk8/go-ordered-map/v2
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
