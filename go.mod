@@ -151,7 +151,7 @@ require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
-	github.com/coreos/ign-converter v0.0.0-20241125185625-2f773079ca81 // indirect
+	github.com/coreos/ign-converter v0.0.0-20260420141348-5351d3e16080 // indirect
 	github.com/coreos/ignition v0.35.0 // indirect
 	github.com/coreos/vcontext v0.0.0-20260306102053-7a68b5426c74 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
