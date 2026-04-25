@@ -487,9 +487,10 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openai/openai-go/v3 v3.28.0
+# github.com/openai/openai-go/v3 v3.32.0
 ## explicit; go 1.22
 github.com/openai/openai-go/v3
+github.com/openai/openai-go/v3/auth
 github.com/openai/openai-go/v3/conversations
 github.com/openai/openai-go/v3/internal
 github.com/openai/openai-go/v3/internal/apierror
