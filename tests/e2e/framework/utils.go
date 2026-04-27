@@ -21,6 +21,7 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 	imagev1 "github.com/openshift/api/image/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -399,6 +400,48 @@ func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version strin
 		return fmt.Errorf("metric endpoint is not using %s", version)
 	}
 	return nil
+}
+
+func (f *Framework) SetScanSettingSuspend(scanSettingName string, suspend bool) error {
+	ss := &compv1alpha1.ScanSetting{}
+	key := types.NamespacedName{Name: scanSettingName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), key, ss); err != nil {
+		return err
+	}
+	updated := ss.DeepCopy()
+	updated.Suspend = suspend
+	return f.Client.Update(context.TODO(), updated)
+}
+
+func (f *Framework) GetCronJobLastSuccessfulTime(cronJobName string) (string, error) {
+	job := &batchv1.CronJob{}
+	key := types.NamespacedName{Name: cronJobName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), key, job); err != nil {
+		return "", err
+	}
+	if job.Status.LastSuccessfulTime == nil {
+		return "", nil
+	}
+	return job.Status.LastSuccessfulTime.UTC().Format(time.RFC3339Nano), nil
+}
+
+func (f *Framework) WaitForCronJobLastSuccessfulTime(cronJobName string, timeout time.Duration) (string, error) {
+	lastSuccessfulTime := ""
+	err := wait.Poll(RetryInterval, timeout, func() (bool, error) {
+		current, err := f.GetCronJobLastSuccessfulTime(cronJobName)
+		if err != nil {
+			return false, err
+		}
+		if current == "" {
+			return false, nil
+		}
+		lastSuccessfulTime = current
+		return true, nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return lastSuccessfulTime, nil
 }
 
 func runOCandGetOutput(arg []string) (string, error) {

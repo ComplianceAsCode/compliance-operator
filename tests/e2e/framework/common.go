@@ -3,6 +3,7 @@ package framework
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -3248,4 +3249,176 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 	}
 	return nil
+}
+
+// GetClusterArchitecture returns cluster architecture string (or "multi" when mixed).
+func (f *Framework) GetClusterArchitecture() (string, error) {
+	nodeList := &corev1.NodeList{}
+	if err := f.Client.List(context.TODO(), nodeList); err != nil {
+		return "", err
+	}
+	seen := map[string]struct{}{}
+	for i := range nodeList.Items {
+		arch := strings.ToLower(nodeList.Items[i].Status.NodeInfo.Architecture)
+		if arch != "" {
+			seen[arch] = struct{}{}
+		}
+	}
+	if len(seen) == 0 {
+		return "", fmt.Errorf("no nodes with architecture found")
+	}
+	if len(seen) > 1 {
+		return "multi", nil
+	}
+	for arch := range seen {
+		return arch, nil
+	}
+	return "", fmt.Errorf("cannot determine architecture")
+}
+
+func compareVersion(v1, v2 string) int {
+	s1 := strings.Split(v1, ".")
+	s2 := strings.Split(v2, ".")
+	maxLen := len(s1)
+	if len(s2) > maxLen {
+		maxLen = len(s2)
+	}
+	for i := 0; i < maxLen; i++ {
+		a := 0
+		b := 0
+		if i < len(s1) {
+			part := regexp.MustCompile(`[^0-9]`).ReplaceAllString(s1[i], "")
+			if part != "" {
+				a, _ = strconv.Atoi(part)
+			}
+		}
+		if i < len(s2) {
+			part := regexp.MustCompile(`[^0-9]`).ReplaceAllString(s2[i], "")
+			if part != "" {
+				b, _ = strconv.Atoi(part)
+			}
+		}
+		if a > b {
+			return 1
+		}
+		if a < b {
+			return -1
+		}
+	}
+	return 0
+}
+
+func (f *Framework) GetInstalledComplianceOperatorCSV() (string, error) {
+	out, err := runOCandGetOutput([]string{
+		"get", "csv", "-n", f.OperatorNamespace,
+		"-l", "operators.coreos.com/compliance-operator." + f.OperatorNamespace + "=",
+		"-o", "jsonpath={.items[0].metadata.name}",
+	})
+	if err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(strings.Trim(out, "'"))
+	if name == "" {
+		return "", fmt.Errorf("installed CSV not found in namespace %s", f.OperatorNamespace)
+	}
+	return name, nil
+}
+
+// IsComplianceOperatorUpgradable checks if catalog/channel advertises newer CSV than installed.
+func (f *Framework) IsComplianceOperatorUpgradable(catalogSource, channel string) (bool, error) {
+	oldCSV, err := f.GetInstalledComplianceOperatorCSV()
+	if err != nil {
+		return false, err
+	}
+	oldVersion := strings.TrimPrefix(oldCSV, "compliance-operator.v")
+
+	out, err := runOCandGetOutput([]string{
+		"get", "packagemanifest", "-n", "openshift-marketplace",
+		"-l", fmt.Sprintf("catalog=%s", catalogSource),
+		"-o", "json",
+	})
+	if err != nil {
+		return false, err
+	}
+	var pm struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				Channels []struct {
+					Name       string `json:"name"`
+					CurrentCSV string `json:"currentCSV"`
+				} `json:"channels"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &pm); err != nil {
+		return false, err
+	}
+	for _, item := range pm.Items {
+		if item.Metadata.Name != "compliance-operator" {
+			continue
+		}
+		for _, ch := range item.Status.Channels {
+			if ch.Name != channel {
+				continue
+			}
+			curVersion := strings.TrimPrefix(ch.CurrentCSV, "compliance-operator.v")
+			return compareVersion(curVersion, oldVersion) == 1, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *Framework) PatchComplianceOperatorSubscriptionSource(source string) error {
+	_, err := runOCandGetOutput([]string{
+		"patch", "subscription", "compliance-operator", "-n", f.OperatorNamespace,
+		"--type", "merge", "-p", fmt.Sprintf(`{"spec":{"source":"%s"}}`, source),
+	})
+	return err
+}
+
+func (f *Framework) WaitForComplianceOperatorCSVUpgrade(oldCSV string) error {
+	return wait.PollImmediate(10*time.Second, Timeout, func() (bool, error) {
+		curCSVOut, err := runOCandGetOutput([]string{
+			"get", "subscription", "compliance-operator", "-n", f.OperatorNamespace,
+			"-o", "jsonpath={.status.currentCSV}",
+		})
+		if err != nil {
+			return false, nil
+		}
+		curCSV := strings.TrimSpace(curCSVOut)
+		if curCSV == "" || curCSV == oldCSV {
+			return false, nil
+		}
+		phaseOut, err := runOCandGetOutput([]string{
+			"get", "csv", curCSV, "-n", f.OperatorNamespace,
+			"-o", "jsonpath={.status.phase}",
+		})
+		if err != nil {
+			return false, nil
+		}
+		return strings.Contains(strings.TrimSpace(phaseOut), "Succeeded"), nil
+	})
+}
+
+func (f *Framework) AssertComplianceOperatorPodRunning() error {
+	pods, err := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "name=compliance-operator",
+	})
+	if err != nil {
+		return err
+	}
+	if len(pods.Items) == 0 {
+		return fmt.Errorf("no compliance-operator pod found in %s", f.OperatorNamespace)
+	}
+	if pods.Items[0].Status.Phase != corev1.PodRunning {
+		return fmt.Errorf("compliance-operator pod phase is %s", pods.Items[0].Status.Phase)
+	}
+	return nil
+}
+
+func (f *Framework) EnsureE2ESchemes() error {
+	return f.addFrameworks()
 }
