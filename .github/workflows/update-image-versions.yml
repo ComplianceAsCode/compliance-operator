@@ -1,0 +1,110 @@
+name: Update image versions
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  REGISTRY: ghcr.io/complianceascode
+  IMAGES_FILE: pkg/utils/images.go
+
+jobs:
+  update-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Get latest compliance-operator release with published images
+        id: co-release
+        run: |
+          CO_TAG=$(SEMVER_ONLY=true .github/scripts/find-latest-image.sh \
+            ComplianceAsCode/compliance-operator \
+            "$REGISTRY/compliance-operator" \
+            "$REGISTRY/openscap-ocp")
+          echo "tag=$CO_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest k8scontent revision
+        id: k8scontent-release
+        run: |
+          K8S_TAG=$(skopeo inspect --override-arch amd64 --override-os linux \
+            "docker://$REGISTRY/k8scontent:latest" \
+            | jq -r '.Labels["org.opencontainers.image.revision"]')
+
+          if [ -z "$K8S_TAG" ] || [ "$K8S_TAG" = "null" ]; then
+            echo "Failed to get k8scontent revision from :latest"
+            exit 1
+          fi
+
+          echo "Verifying k8scontent:${K8S_TAG} exists..."
+          skopeo inspect --override-arch amd64 --override-os linux \
+            "docker://$REGISTRY/k8scontent:${K8S_TAG}" > /dev/null
+
+          echo "tag=$K8S_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check for version changes
+        id: check
+        run: |
+          CO_TAG="${{ steps.co-release.outputs.tag }}"
+          K8S_TAG="${{ steps.k8scontent-release.outputs.tag }}"
+
+          OPENSCAP_CUR=$(grep 'openscap-ocp:' "$IMAGES_FILE" | sed 's/.*openscap-ocp:\([^"]*\).*/\1/')
+          OPERATOR_CUR=$(grep 'compliance-operator:' "$IMAGES_FILE" | sed 's/.*compliance-operator:\([^"]*\).*/\1/')
+          K8S_CUR=$(grep 'k8scontent:' "$IMAGES_FILE" | sed 's/.*k8scontent:\([^"]*\).*/\1/')
+
+          echo "Current:  openscap-ocp=$OPENSCAP_CUR  compliance-operator=$OPERATOR_CUR  k8scontent=$K8S_CUR"
+          echo "Resolved: openscap-ocp=$CO_TAG  compliance-operator=$CO_TAG  k8scontent=$K8S_TAG"
+
+          echo "openscap=$OPENSCAP_CUR" >> "$GITHUB_OUTPUT"
+          echo "operator=$OPERATOR_CUR" >> "$GITHUB_OUTPUT"
+          echo "k8scontent=$K8S_CUR" >> "$GITHUB_OUTPUT"
+
+          CHANGED="false"
+          if [ "$CO_TAG" != "$OPENSCAP_CUR" ] || [ "$CO_TAG" != "$OPERATOR_CUR" ] || [ "$K8S_TAG" != "$K8S_CUR" ]; then
+            CHANGED="true"
+          fi
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Update image versions
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          CO_TAG="${{ steps.co-release.outputs.tag }}"
+          K8S_TAG="${{ steps.k8scontent-release.outputs.tag }}"
+
+          sed -i 's|openscap-ocp:[^"]*|openscap-ocp:'"${CO_TAG}"'|' "$IMAGES_FILE"
+          sed -i 's|compliance-operator:[^"]*|compliance-operator:'"${CO_TAG}"'|' "$IMAGES_FILE"
+          sed -i 's|k8scontent:[^"]*|k8scontent:'"${K8S_TAG}"'|' "$IMAGES_FILE"
+
+          echo "Updated $IMAGES_FILE:"
+          grep -A2 'componentDefaults' "$IMAGES_FILE" | tail -5
+
+      - name: Create pull request
+        if: steps.check.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: |
+            Update container image versions
+
+            openscap-ocp: ${{ steps.check.outputs.openscap }} -> ${{ steps.co-release.outputs.tag }}
+            compliance-operator: ${{ steps.check.outputs.operator }} -> ${{ steps.co-release.outputs.tag }}
+            k8scontent: ${{ steps.check.outputs.k8scontent }} -> ${{ steps.k8scontent-release.outputs.tag }}
+          title: "Update container image versions"
+          body: |
+            Automated update of pinned container image versions in `pkg/utils/images.go`.
+
+            | Image | Previous | New |
+            |-------|----------|-----|
+            | openscap-ocp | `${{ steps.check.outputs.openscap }}` | `${{ steps.co-release.outputs.tag }}` |
+            | compliance-operator | `${{ steps.check.outputs.operator }}` | `${{ steps.co-release.outputs.tag }}` |
+            | k8scontent | `${{ steps.check.outputs.k8scontent }}` | `${{ steps.k8scontent-release.outputs.tag }}` |
+          branch: automated/update-image-versions
+          delete-branch: true
