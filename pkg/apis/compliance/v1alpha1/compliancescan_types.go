@@ -48,9 +48,9 @@ const ScanFinalizer = "scan.finalizers.compliance.openshift.io"
 const DefaultRawStorageSize = "1Gi"
 const DefaultStorageRotation = 3
 
-var ErrUnkownScanType = errors.New("Unknown scan type")
+var ErrUnknownScanType = errors.New("unknown scan type")
 
-var ErrUnkownScanerType = errors.New("Unknown scanner type")
+var ErrUnknownScannerType = errors.New("unknown scanner type")
 
 // Represents the status of the compliance scan run.
 type ComplianceScanStatusPhase string
@@ -376,7 +376,7 @@ func (cs *ComplianceScan) GetScanTypeIfValid() (ComplianceScanType, error) {
 	if strings.ToLower(string(cs.Spec.ScanType)) == strings.ToLower(string(ScanTypeNode)) {
 		return ScanTypeNode, nil
 	}
-	return "", ErrUnkownScanType
+	return "", ErrUnknownScanType
 }
 
 // GetScannerTypeIfValid returns scaner type we will be using if the scan has a valid one, else it returns
@@ -389,7 +389,7 @@ func (cs *ComplianceScan) GetScannerTypeIfValid() (ScannerType, error) {
 	if strings.ToLower(string(cs.Spec.ScannerType)) == strings.ToLower(string(ScannerTypeCEL)) {
 		return ScannerTypeCEL, nil
 	}
-	return "", ErrUnkownScanerType
+	return "", ErrUnknownScannerType
 }
 
 // GetScanType get's the scan type for a scan
