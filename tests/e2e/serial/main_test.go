@@ -2877,3 +2877,76 @@ func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
 		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
 	}
 }
+
+// TestErrorMetricsPrometheusRule uses a suite intended to reach phase DONE, result ERROR:
+// real content image with a non-existent content path so OpenSCAP cannot load the data stream
+// and the scan ends DONE/ERROR.
+func TestErrorMetricsPrometheusRule(t *testing.T) {
+	f := framework.Global
+
+	ns := &corev1.Namespace{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: f.OperatorNamespace}, ns); err != nil {
+		t.Fatal(err)
+	}
+	if ns.Labels == nil || ns.Labels["openshift.io/cluster-monitoring"] != "true" {
+		t.Fatalf("namespace %s does not have openshift.io/cluster-monitoring=true", f.OperatorNamespace)
+	}
+	metricsSvc := &corev1.Service{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "metrics", Namespace: f.OperatorNamespace}, metricsSvc); err != nil {
+		t.Fatal(err)
+	}
+
+	base := framework.GetObjNameFromTest(t)
+	suiteName := base + "-test-suite"
+	scanName := base + "-scan"
+	selectWorkers := map[string]string{"node-role.kubernetes.io/worker": ""}
+
+	suite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					Name: scanName,
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      "this-file-does-not-exist.xml",
+						ContentImage: "quay.io/compliance-operator/compliance-operator-content:latest",
+						NodeSelector: selectWorkers,
+					},
+				},
+			},
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), suite, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = f.Client.Delete(context.TODO(), suite)
+	}()
+
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultError); err != nil {
+		t.Fatalf("suite %s did not reach DONE/ERROR: %v", suiteName, err)
+	}
+
+	wantScanMetric := fmt.Sprintf(`compliance_operator_compliance_scan_status_total{name="%s",phase="DONE",result="ERROR"`, scanName)
+	wantSuiteMetric := fmt.Sprintf(`compliance_operator_compliance_state{name="%s"}`, suiteName)
+	if err := framework.WaitForMetricOutputContainsAll(
+		f.OperatorNamespace,
+		[]string{wantScanMetric, wantSuiteMetric},
+		3*time.Minute,
+		framework.RetryInterval,
+	); err != nil {
+		t.Fatalf("metrics scrape (same path as getMetricResults / TestSingleScanSucceeds style): %v", err)
+	}
+
+	if err := f.AssertPrometheusRuleComplianceNonCompliantAlert(); err != nil {
+		t.Fatalf("PrometheusRule NonCompliant alert: %v", err)
+	}
+}
