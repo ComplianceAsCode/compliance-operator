@@ -1656,6 +1656,9 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      suiteName,
 			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: "Node",
+			},
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
 			Title:       "kubelet-remediation-test-node",
@@ -1708,7 +1711,17 @@ func TestKubeletConfigRemediation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Client.Delete(context.TODO(), ssb)
+	// Cleanup: Delete ScanSettingBinding first, then wait for ComplianceSuite to be cascade-deleted
+	// This ensures proper cleanup before the next test runs
+	defer func() {
+		if err := f.Client.Delete(context.TODO(), ssb); err != nil {
+			t.Fatal(err)
+			return
+		}
+		if err := f.WaitForComplianceSuiteDeletion(suiteName, f.OperatorNamespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	// Ensure that all the scans in the suite have finished and are marked as Done
 	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
@@ -1726,6 +1739,21 @@ func TestKubeletConfigRemediation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Cleanup: Unapply the remediation before test ends to prevent leaving nodes in a modified state
+	// This ensures the cluster is reset after the test completes
+	defer func() {
+		// Finally clean up by removing the remediation and waiting for the nodes to reboot one more time
+		err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, "worker")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = f.WaitForNodesToBeReady()
+		if err != nil {
+			t.Fatalf("failed waiting for nodes to reboot after unapplying MachineConfig: %s", err)
+		}
+	}()
 
 	err = f.ReRunScan(scanName, f.OperatorNamespace)
 	if err != nil {
