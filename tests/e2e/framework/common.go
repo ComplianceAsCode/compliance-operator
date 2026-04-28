@@ -32,10 +32,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 
+	"encoding/json"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	psapi "k8s.io/pod-security-admission/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	dynclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -3249,3 +3254,205 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 	}
 	return nil
 }
+
+// OAuthClientConfig holds the token settings for an OAuth client so they can be restored later.
+// Pointer fields are nil when the client did not have that field set; restore will remove the field instead of setting 0.
+type OAuthClientConfig struct {
+	Name                                string
+	AccessTokenMaxAgeSeconds            *int64
+	AccessTokenInactivityTimeoutSeconds *int64
+}
+
+// GetOAuthClientConfigs lists all OAuth clients and returns their current token config (no patching).
+func (f *Framework) GetOAuthClientConfigs() ([]OAuthClientConfig, error) {
+	return getOAuthClientConfigs(f)
+}
+
+func getOAuthClientConfigs(f *Framework) ([]OAuthClientConfig, error) {
+	oauthConfig := *f.KubeConfig
+	oauthConfig.GroupVersion = &schema.GroupVersion{Group: "oauth.openshift.io", Version: "v1"}
+	oauthConfig.APIPath = "/apis"
+	oauthConfig.NegotiatedSerializer = serializer.NewCodecFactory(runtime.NewScheme())
+	restClient, err := rest.RESTClientFor(&oauthConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST client for oauth: %w", err)
+	}
+
+	oauthClientListBytes, err := restClient.Get().
+		Resource("oauthclients").
+		Do(context.TODO()).
+		Raw()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list oauthclients: %w", err)
+	}
+
+	var oauthClientList map[string]interface{}
+	if err := json.Unmarshal(oauthClientListBytes, &oauthClientList); err != nil {
+		return nil, fmt.Errorf("failed to parse oauthclient list response: %w", err)
+	}
+
+	items, ok := oauthClientList["items"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to extract items from oauthclient list")
+	}
+
+	var configs []OAuthClientConfig
+	for _, item := range items {
+		clientObj, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		metadata, ok := clientObj["metadata"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		clientName, ok := metadata["name"].(string)
+		if !ok {
+			continue
+		}
+		var maxAge, inactivity *int64
+		if v, ok := clientObj["accessTokenMaxAgeSeconds"].(float64); ok {
+			val := int64(v)
+			maxAge = &val
+		}
+		if v, ok := clientObj["accessTokenInactivityTimeoutSeconds"].(float64); ok {
+			val := int64(v)
+			inactivity = &val
+		}
+		configs = append(configs, OAuthClientConfig{
+			Name:                                clientName,
+			AccessTokenMaxAgeSeconds:            maxAge,
+			AccessTokenInactivityTimeoutSeconds: inactivity,
+		})
+	}
+	return configs, nil
+}
+
+// UpdateOAuthClientConfigs patches every OAuth client with the given token settings and verifies the patch.
+func (f *Framework) UpdateOAuthClientConfigs(maxAgeSeconds, inactivityTimeoutSeconds int64) error {
+	return updateOAuthClientConfigs(f, maxAgeSeconds, inactivityTimeoutSeconds)
+}
+
+func updateOAuthClientConfigs(f *Framework, maxAgeSeconds, inactivityTimeoutSeconds int64) error {
+	oauthConfig := *f.KubeConfig
+	oauthConfig.GroupVersion = &schema.GroupVersion{Group: "oauth.openshift.io", Version: "v1"}
+	oauthConfig.APIPath = "/apis"
+	oauthConfig.NegotiatedSerializer = serializer.NewCodecFactory(runtime.NewScheme())
+	restClient, err := rest.RESTClientFor(&oauthConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create REST client for oauth: %w", err)
+	}
+
+	oauthClientListBytes, err := restClient.Get().
+		Resource("oauthclients").
+		Do(context.TODO()).
+		Raw()
+	if err != nil {
+		return fmt.Errorf("failed to list oauthclients: %w", err)
+	}
+
+	var oauthClientList map[string]interface{}
+	if err := json.Unmarshal(oauthClientListBytes, &oauthClientList); err != nil {
+		return fmt.Errorf("failed to parse oauthclient list response: %w", err)
+	}
+
+	items, ok := oauthClientList["items"].([]interface{})
+	if !ok {
+		return fmt.Errorf("failed to extract items from oauthclient list")
+	}
+
+	for _, item := range items {
+		clientObj, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		metadata, ok := clientObj["metadata"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		clientName, ok := metadata["name"].(string)
+		if !ok {
+			continue
+		}
+
+		patch := []byte(fmt.Sprintf(`{"accessTokenMaxAgeSeconds":%d,"accessTokenInactivityTimeoutSeconds":%d}`, maxAgeSeconds, inactivityTimeoutSeconds))
+		err = restClient.Patch(types.MergePatchType).
+			Resource("oauthclients").
+			Name(clientName).
+			Body(patch).
+			Do(context.TODO()).
+			Error()
+		if err != nil {
+			return fmt.Errorf("failed to patch oauthclient %s: %w", clientName, err)
+		}
+
+		patchedClientBytes, err := restClient.Get().
+			Resource("oauthclients").
+			Name(clientName).
+			Do(context.TODO()).
+			Raw()
+		if err != nil {
+			return fmt.Errorf("failed to get patched oauthclient %s: %w", clientName, err)
+		}
+		var patchedObj map[string]interface{}
+		if err := json.Unmarshal(patchedClientBytes, &patchedObj); err != nil {
+			return fmt.Errorf("failed to parse patched oauthclient %s: %w", clientName, err)
+		}
+		gotMaxAge, ok := patchedObj["accessTokenMaxAgeSeconds"].(float64)
+		if !ok || int64(gotMaxAge) != maxAgeSeconds {
+			return fmt.Errorf("expected accessTokenMaxAgeSeconds to be %d for oauthclient %s, got %v", maxAgeSeconds, clientName, gotMaxAge)
+		}
+		gotInactivity, ok := patchedObj["accessTokenInactivityTimeoutSeconds"].(float64)
+		if !ok || int64(gotInactivity) != inactivityTimeoutSeconds {
+			return fmt.Errorf("expected accessTokenInactivityTimeoutSeconds to be %d for oauthclient %s, got %v", inactivityTimeoutSeconds, clientName, gotInactivity)
+		}
+		log.Printf("successfully patched oauthclient %s with accessTokenMaxAgeSeconds=%d and accessTokenInactivityTimeoutSeconds=%d", clientName, maxAgeSeconds, inactivityTimeoutSeconds)
+	}
+	return nil
+}
+
+// RestoreOAuthClientConfigs patches each OAuth client back to the given configs (e.g. from GetOAuthClientConfigs).
+func (f *Framework) RestoreOAuthClientConfigs(configs []OAuthClientConfig) error {
+	if len(configs) == 0 {
+		return nil
+	}
+	oauthConfig := *f.KubeConfig
+	oauthConfig.GroupVersion = &schema.GroupVersion{Group: "oauth.openshift.io", Version: "v1"}
+	oauthConfig.APIPath = "/apis"
+	oauthConfig.NegotiatedSerializer = serializer.NewCodecFactory(runtime.NewScheme())
+	restClient, err := rest.RESTClientFor(&oauthConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create REST client for oauth: %w", err)
+	}
+
+	for _, cfg := range configs {
+		patchObj := make(map[string]interface{})
+		if cfg.AccessTokenMaxAgeSeconds != nil {
+			patchObj["accessTokenMaxAgeSeconds"] = *cfg.AccessTokenMaxAgeSeconds
+		} else {
+			patchObj["accessTokenMaxAgeSeconds"] = nil
+		}
+		if cfg.AccessTokenInactivityTimeoutSeconds != nil {
+			patchObj["accessTokenInactivityTimeoutSeconds"] = *cfg.AccessTokenInactivityTimeoutSeconds
+		} else {
+			patchObj["accessTokenInactivityTimeoutSeconds"] = nil
+		}
+		patch, err := json.Marshal(patchObj)
+		if err != nil {
+			return fmt.Errorf("marshal restore patch for oauthclient %s: %w", cfg.Name, err)
+		}
+		err = restClient.Patch(types.MergePatchType).
+			Resource("oauthclients").
+			Name(cfg.Name).
+			Body(patch).
+			Do(context.TODO()).
+			Error()
+		if err != nil {
+			return fmt.Errorf("failed to restore oauthclient %s: %w", cfg.Name, err)
+		}
+		log.Printf("restored oauthclient %s (maxAge=%v, inactivity=%v)",
+			cfg.Name, cfg.AccessTokenMaxAgeSeconds, cfg.AccessTokenInactivityTimeoutSeconds)
+	}
+	return nil
+}
+
