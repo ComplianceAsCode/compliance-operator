@@ -31,6 +31,8 @@ resources:
   - resultserver_service_account.yaml
   - resultserver_role.yaml
   - resultserver_role_binding.yaml
+  - resultserver_cluster_role.yaml
+  - resultserver_cluster_role_binding.yaml
   - leader_election_role.yaml
   - leader_election_role_binding.yaml
   - complianceremediation_editor_role.yaml
