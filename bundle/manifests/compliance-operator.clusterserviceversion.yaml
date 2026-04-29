@@ -206,7 +206,7 @@ spec:
       kind: ComplianceSuite
       name: compliancesuites.compliance.openshift.io
       version: v1alpha1
-    - description: CustomRule represents a rule that can be used with TailoredProfiles
+    - description: CustomRule represents a user-created rule for use with TailoredProfiles
         to execute arbitrary checks against the cluster.
       displayName: Custom Rule
       kind: CustomRule
@@ -1057,6 +1057,8 @@ spec:
           - tailoredprofiles
           - customrules
           - variables
+          - profiles
+          - rules
           verbs:
           - get
           - list

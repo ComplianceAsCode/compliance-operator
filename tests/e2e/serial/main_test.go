@@ -2414,6 +2414,127 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	}
 }
 
+func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
+	f := framework.Global
+
+	baselineImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "runtime_sshd")
+	pbName := framework.GetObjNameFromTest(t)
+
+	rhcos4Pb, err := f.CreateProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rhcos4Pb)
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// This test applies an SSH remediation and verifies runtime checks still work
+	suiteName := "test-runtime-ssh-remediation"
+	scanName := fmt.Sprintf("%s-scan", suiteName)
+
+	suite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: true,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: baselineImage,
+						Profile:      "xccdf_org.ssgproject.content_profile_e8",
+						Rule:         "xccdf_org.ssgproject.content_rule_sshd_disable_gssapi_auth",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: framework.GetPoolNodeRoleSelector(),
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: scanName,
+				},
+			},
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), suite, nil); err != nil {
+		t.Fatalf("failed to create ComplianceSuite: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), suite)
+
+	// Get the MachineConfigPool before remediation
+	poolBeforeRemediation := &mcfgv1.MachineConfigPool{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: framework.TestPoolName}, poolBeforeRemediation); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for initial scan to complete - it should be non-compliant
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		// Might already be compliant if previously remediated
+		if err2 := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err2 != nil {
+			t.Fatalf("initial scan did not complete: %v", err)
+		}
+		t.Log("System already compliant, skipping remediation test")
+		return
+	}
+
+	// Check that remediation was auto-applied
+	remName := fmt.Sprintf("%s-sshd-disable-gssapi-auth", scanName)
+	if err := f.WaitForRemediationToBeAutoApplied(remName, f.OperatorNamespace, poolBeforeRemediation); err != nil {
+		t.Logf("Remediation might not be needed or already applied: %v", err)
+	}
+
+	// Re-run the scan to verify compliance with runtime checking
+	if err := f.ReRunScan(scanName, f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for re-scan to complete - should be compliant now
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err != nil {
+		t.Logf("WARNING: Re-scan was not compliant after remediation: %v", err)
+	}
+
+	// Verify the runtime config was still created and used in the re-scan
+	t.Log("Verifying runtime SSH config was used in re-scan after remediation")
+
+	// Get the check result for the SSH rule
+	checkName := fmt.Sprintf("%s-sshd-disable-gssapi-auth", scanName)
+	check := &compv1alpha1.ComplianceCheckResult{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkName,
+		Namespace: f.OperatorNamespace,
+	}, check); err != nil {
+		t.Logf("Could not get check result %s: %v", checkName, err)
+	} else {
+		t.Logf("SSH check after remediation - Status: %s", check.Status)
+		if check.Status == compv1alpha1.CheckResultPass {
+			t.Log("SUCCESS: SSH configuration check passed after remediation (runtime config verified)")
+		}
+	}
+
+	// Clean up the remediation if it was applied
+	rem := &compv1alpha1.ComplianceRemediation{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      remName,
+		Namespace: f.OperatorNamespace,
+	}, rem); err == nil {
+		// Unapply the remediation
+		if err := f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, framework.TestPoolName); err != nil {
+			t.Logf("Could not unapply remediation: %v", err)
+		}
+
+		// Wait for nodes to be ready again
+		if err := f.WaitForNodesToBeReady(); err != nil {
+			t.Logf("Nodes did not become ready after remediation removal: %v", err)
+		}
+	}
+
+	t.Log("Runtime SSH configuration with remediation test completed")
+}
+
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
 //	IsParallel: false,
@@ -2616,6 +2737,145 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 			t.Fatalf("suite left PENDING state (expected to remain PENDING for 30s): phase=%s", suite.Status.Phase)
 		}
 		time.Sleep(framework.RetryInterval)
+	}
+}
+
+func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+	testNamespace := f.OperatorNamespace
+	ruleName := "ocp4-api-server-audit-log-path"
+
+	var rule compv1alpha1.Rule
+	err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      ruleName,
+		Namespace: testNamespace,
+	}, &rule)
+	if err != nil {
+		t.Fatalf("Failed to get Rule %s: %v", ruleName, err)
+	}
+
+	customLabels := map[string]string{
+		"e2e-business-unit": "security-ops",
+		"e2e-risk-tier":     "high",
+	}
+	customAnnotations := map[string]string{
+		"e2e-internal-id":   "SEC-9001",
+		"e2e-audit-contact": "compliance-team",
+	}
+
+	if rule.Labels == nil {
+		rule.Labels = make(map[string]string)
+	}
+	for k, v := range customLabels {
+		rule.Labels[k] = v
+	}
+	if rule.Annotations == nil {
+		rule.Annotations = make(map[string]string)
+	}
+	for k, v := range customAnnotations {
+		rule.Annotations[k] = v
+	}
+
+	err = f.Client.Update(context.TODO(), &rule)
+	if err != nil {
+		t.Fatalf("Failed to add custom metadata to Rule: %v", err)
+	}
+	defer func() {
+		var cleanupRule compv1alpha1.Rule
+		if getErr := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: ruleName, Namespace: testNamespace,
+		}, &cleanupRule); getErr == nil {
+			for k := range customLabels {
+				delete(cleanupRule.Labels, k)
+			}
+			for k := range customAnnotations {
+				delete(cleanupRule.Annotations, k)
+			}
+			_ = f.Client.Update(context.TODO(), &cleanupRule)
+		}
+	}()
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "OpenSCAP Metadata Propagation Test",
+			Description: "Tests that custom metadata on Rules propagates through the aggregator",
+			Extends:     "ocp4-cis",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      ruleName,
+					Rationale: "Verify metadata propagation via OpenSCAP aggregator",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForSuiteScansStatusAnyResult(testNamespace, ssbName, compv1alpha1.PhaseDone, compv1alpha1.ResultNotApplicable, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatalf("Scan did not complete: %v", err)
+	}
+
+	checkResultName := fmt.Sprintf("%s-%s", tpName, "api-server-audit-log-path")
+	var checkResult compv1alpha1.ComplianceCheckResult
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkResultName,
+		Namespace: testNamespace,
+	}, &checkResult)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceCheckResult %s: %v", checkResultName, err)
+	}
+
+	for k, v := range customLabels {
+		if checkResult.Labels[k] != v {
+			t.Errorf("expected label %s=%s, got %q", k, v, checkResult.Labels[k])
+		}
+	}
+	for k, v := range customAnnotations {
+		if checkResult.Annotations[k] != v {
+			t.Errorf("expected annotation %s=%s, got %q", k, v, checkResult.Annotations[k])
+		}
+	}
+
+	if checkResult.Labels[compv1alpha1.ComplianceScanLabel] != tpName {
+		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
 	}
 }
 

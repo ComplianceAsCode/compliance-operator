@@ -13,10 +13,18 @@ import (
 
 // ImageContentSourcePolicyApplyConfiguration represents a declarative configuration of the ImageContentSourcePolicy type for use
 // with apply.
+//
+// ImageContentSourcePolicy holds cluster-wide information about how to handle registry mirror rules.
+// When multiple policies are defined, the outcome of the behavior is defined on each field.
+//
+// Compatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.
 type ImageContentSourcePolicyApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration `json:",inline"`
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *ImageContentSourcePolicySpecApplyConfiguration `json:"spec,omitempty"`
+	// spec holds user settable values for configuration
+	Spec *ImageContentSourcePolicySpecApplyConfiguration `json:"spec,omitempty"`
 }
 
 // ImageContentSourcePolicy constructs a declarative configuration of the ImageContentSourcePolicy type for use with
@@ -29,29 +37,14 @@ func ImageContentSourcePolicy(name string) *ImageContentSourcePolicyApplyConfigu
 	return b
 }
 
-// ExtractImageContentSourcePolicy extracts the applied configuration owned by fieldManager from
-// imageContentSourcePolicy. If no managedFields are found in imageContentSourcePolicy for fieldManager, a
-// ImageContentSourcePolicyApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractImageContentSourcePolicyFrom extracts the applied configuration owned by fieldManager from
+// imageContentSourcePolicy for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // imageContentSourcePolicy must be a unmodified ImageContentSourcePolicy API object that was retrieved from the Kubernetes API.
-// ExtractImageContentSourcePolicy provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractImageContentSourcePolicyFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractImageContentSourcePolicy(imageContentSourcePolicy *operatorv1alpha1.ImageContentSourcePolicy, fieldManager string) (*ImageContentSourcePolicyApplyConfiguration, error) {
-	return extractImageContentSourcePolicy(imageContentSourcePolicy, fieldManager, "")
-}
-
-// ExtractImageContentSourcePolicyStatus is the same as ExtractImageContentSourcePolicy except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractImageContentSourcePolicyStatus(imageContentSourcePolicy *operatorv1alpha1.ImageContentSourcePolicy, fieldManager string) (*ImageContentSourcePolicyApplyConfiguration, error) {
-	return extractImageContentSourcePolicy(imageContentSourcePolicy, fieldManager, "status")
-}
-
-func extractImageContentSourcePolicy(imageContentSourcePolicy *operatorv1alpha1.ImageContentSourcePolicy, fieldManager string, subresource string) (*ImageContentSourcePolicyApplyConfiguration, error) {
+func ExtractImageContentSourcePolicyFrom(imageContentSourcePolicy *operatorv1alpha1.ImageContentSourcePolicy, fieldManager string, subresource string) (*ImageContentSourcePolicyApplyConfiguration, error) {
 	b := &ImageContentSourcePolicyApplyConfiguration{}
 	err := managedfields.ExtractInto(imageContentSourcePolicy, internal.Parser().Type("com.github.openshift.api.operator.v1alpha1.ImageContentSourcePolicy"), fieldManager, b, subresource)
 	if err != nil {
@@ -64,11 +57,27 @@ func extractImageContentSourcePolicy(imageContentSourcePolicy *operatorv1alpha1.
 	return b, nil
 }
 
+// ExtractImageContentSourcePolicy extracts the applied configuration owned by fieldManager from
+// imageContentSourcePolicy. If no managedFields are found in imageContentSourcePolicy for fieldManager, a
+// ImageContentSourcePolicyApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// imageContentSourcePolicy must be a unmodified ImageContentSourcePolicy API object that was retrieved from the Kubernetes API.
+// ExtractImageContentSourcePolicy provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractImageContentSourcePolicy(imageContentSourcePolicy *operatorv1alpha1.ImageContentSourcePolicy, fieldManager string) (*ImageContentSourcePolicyApplyConfiguration, error) {
+	return ExtractImageContentSourcePolicyFrom(imageContentSourcePolicy, fieldManager, "")
+}
+
+func (b ImageContentSourcePolicyApplyConfiguration) IsApplyConfiguration() {}
+
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithKind(value string) *ImageContentSourcePolicyApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -76,7 +85,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithKind(value string) *Ima
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithAPIVersion(value string) *ImageContentSourcePolicyApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -85,7 +94,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithAPIVersion(value string
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithName(value string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -94,7 +103,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithName(value string) *Ima
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithGenerateName(value string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -103,7 +112,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithGenerateName(value stri
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithNamespace(value string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -112,7 +121,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithNamespace(value string)
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithUID(value types.UID) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -121,7 +130,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithUID(value types.UID) *I
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithResourceVersion(value string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -130,7 +139,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithResourceVersion(value s
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithGeneration(value int64) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
@@ -139,7 +148,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithGeneration(value int64)
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithCreationTimestamp(value metav1.Time) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
@@ -148,7 +157,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithCreationTimestamp(value
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -157,7 +166,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithDeletionTimestamp(value
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -167,11 +176,11 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithDeletionGracePeriodSeco
 // overwriting an existing map entries in Labels field with the same key.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithLabels(entries map[string]string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -182,11 +191,11 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithLabels(entries map[stri
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *ImageContentSourcePolicyApplyConfiguration) WithAnnotations(entries map[string]string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -200,7 +209,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithOwnerReferences(values 
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -211,7 +220,7 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithOwnerReferences(values 
 func (b *ImageContentSourcePolicyApplyConfiguration) WithFinalizers(values ...string) *ImageContentSourcePolicyApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
 	return b
 }
@@ -230,8 +239,24 @@ func (b *ImageContentSourcePolicyApplyConfiguration) WithSpec(value *ImageConten
 	return b
 }
 
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *ImageContentSourcePolicyApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *ImageContentSourcePolicyApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
 // GetName retrieves the value of the Name field in the declarative configuration.
 func (b *ImageContentSourcePolicyApplyConfiguration) GetName() *string {
 	b.ensureObjectMetaApplyConfigurationExists()
-	return b.Name
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *ImageContentSourcePolicyApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

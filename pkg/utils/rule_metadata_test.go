@@ -382,4 +382,3 @@ func TestRuleMetadataCacheIntegration(t *testing.T) {
 	}
 
 }
-

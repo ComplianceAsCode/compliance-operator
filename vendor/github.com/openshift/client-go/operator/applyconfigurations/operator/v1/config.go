@@ -3,21 +3,30 @@
 package v1
 
 import (
-	apioperatorv1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	internal "github.com/openshift/client-go/operator/applyconfigurations/internal"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // ConfigApplyConfiguration represents a declarative configuration of the Config type for use
 // with apply.
+//
+// Config specifies the behavior of the config operator which is responsible for creating the initial configuration of other components
+// on the cluster.  The operator also handles installation, migration or synchronization of cloud configurations for AWS and Azure cloud based clusters
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 type ConfigApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
-	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *ConfigSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *ConfigStatusApplyConfiguration `json:"status,omitempty"`
+	metav1.TypeMetaApplyConfiguration `json:",inline"`
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
+	// spec is the specification of the desired behavior of the Config Operator.
+	Spec *ConfigSpecApplyConfiguration `json:"spec,omitempty"`
+	// status defines the observed status of the Config Operator.
+	Status *ConfigStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // Config constructs a declarative configuration of the Config type for use with
@@ -30,29 +39,14 @@ func Config(name string) *ConfigApplyConfiguration {
 	return b
 }
 
-// ExtractConfig extracts the applied configuration owned by fieldManager from
-// config. If no managedFields are found in config for fieldManager, a
-// ConfigApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractConfigFrom extracts the applied configuration owned by fieldManager from
+// config for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // config must be a unmodified Config API object that was retrieved from the Kubernetes API.
-// ExtractConfig provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractConfigFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractConfig(config *apioperatorv1.Config, fieldManager string) (*ConfigApplyConfiguration, error) {
-	return extractConfig(config, fieldManager, "")
-}
-
-// ExtractConfigStatus is the same as ExtractConfig except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractConfigStatus(config *apioperatorv1.Config, fieldManager string) (*ConfigApplyConfiguration, error) {
-	return extractConfig(config, fieldManager, "status")
-}
-
-func extractConfig(config *apioperatorv1.Config, fieldManager string, subresource string) (*ConfigApplyConfiguration, error) {
+func ExtractConfigFrom(config *operatorv1.Config, fieldManager string, subresource string) (*ConfigApplyConfiguration, error) {
 	b := &ConfigApplyConfiguration{}
 	err := managedfields.ExtractInto(config, internal.Parser().Type("com.github.openshift.api.operator.v1.Config"), fieldManager, b, subresource)
 	if err != nil {
@@ -65,11 +59,33 @@ func extractConfig(config *apioperatorv1.Config, fieldManager string, subresourc
 	return b, nil
 }
 
+// ExtractConfig extracts the applied configuration owned by fieldManager from
+// config. If no managedFields are found in config for fieldManager, a
+// ConfigApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// config must be a unmodified Config API object that was retrieved from the Kubernetes API.
+// ExtractConfig provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractConfig(config *operatorv1.Config, fieldManager string) (*ConfigApplyConfiguration, error) {
+	return ExtractConfigFrom(config, fieldManager, "")
+}
+
+// ExtractConfigStatus extracts the applied configuration owned by fieldManager from
+// config for the status subresource.
+func ExtractConfigStatus(config *operatorv1.Config, fieldManager string) (*ConfigApplyConfiguration, error) {
+	return ExtractConfigFrom(config, fieldManager, "status")
+}
+
+func (b ConfigApplyConfiguration) IsApplyConfiguration() {}
+
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithKind(value string) *ConfigApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -77,7 +93,7 @@ func (b *ConfigApplyConfiguration) WithKind(value string) *ConfigApplyConfigurat
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithAPIVersion(value string) *ConfigApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -86,7 +102,7 @@ func (b *ConfigApplyConfiguration) WithAPIVersion(value string) *ConfigApplyConf
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithName(value string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -95,7 +111,7 @@ func (b *ConfigApplyConfiguration) WithName(value string) *ConfigApplyConfigurat
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithGenerateName(value string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -104,7 +120,7 @@ func (b *ConfigApplyConfiguration) WithGenerateName(value string) *ConfigApplyCo
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithNamespace(value string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -113,7 +129,7 @@ func (b *ConfigApplyConfiguration) WithNamespace(value string) *ConfigApplyConfi
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithUID(value types.UID) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -122,7 +138,7 @@ func (b *ConfigApplyConfiguration) WithUID(value types.UID) *ConfigApplyConfigur
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithResourceVersion(value string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -131,25 +147,25 @@ func (b *ConfigApplyConfiguration) WithResourceVersion(value string) *ConfigAppl
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithGeneration(value int64) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *ConfigApplyConfiguration) WithCreationTimestamp(value metav1.Time) *ConfigApplyConfiguration {
+func (b *ConfigApplyConfiguration) WithCreationTimestamp(value apismetav1.Time) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *ConfigApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *ConfigApplyConfiguration {
+func (b *ConfigApplyConfiguration) WithDeletionTimestamp(value apismetav1.Time) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -158,7 +174,7 @@ func (b *ConfigApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *Con
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *ConfigApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -168,11 +184,11 @@ func (b *ConfigApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *
 // overwriting an existing map entries in Labels field with the same key.
 func (b *ConfigApplyConfiguration) WithLabels(entries map[string]string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -183,11 +199,11 @@ func (b *ConfigApplyConfiguration) WithLabels(entries map[string]string) *Config
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *ConfigApplyConfiguration) WithAnnotations(entries map[string]string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -195,13 +211,13 @@ func (b *ConfigApplyConfiguration) WithAnnotations(entries map[string]string) *C
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *ConfigApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *ConfigApplyConfiguration {
+func (b *ConfigApplyConfiguration) WithOwnerReferences(values ...*metav1.OwnerReferenceApplyConfiguration) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -212,14 +228,14 @@ func (b *ConfigApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerRefere
 func (b *ConfigApplyConfiguration) WithFinalizers(values ...string) *ConfigApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
 	return b
 }
 
 func (b *ConfigApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
-		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
+		b.ObjectMetaApplyConfiguration = &metav1.ObjectMetaApplyConfiguration{}
 	}
 }
 
@@ -239,8 +255,24 @@ func (b *ConfigApplyConfiguration) WithStatus(value *ConfigStatusApplyConfigurat
 	return b
 }
 
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *ConfigApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *ConfigApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
 // GetName retrieves the value of the Name field in the declarative configuration.
 func (b *ConfigApplyConfiguration) GetName() *string {
 	b.ensureObjectMetaApplyConfigurationExists()
-	return b.Name
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *ConfigApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

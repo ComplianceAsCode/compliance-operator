@@ -21,53 +21,16 @@ type Options struct {
 	TextOnly            bool                 // Returns only plain text
 }
 
-// PrettyTablesOptions overrides tablewriter behaviors
-type PrettyTablesOptions struct {
-	AutoFormatHeader     bool
-	AutoWrapText         bool
-	ReflowDuringAutoWrap bool
-	ColWidth             int
-	ColumnSeparator      string
-	RowSeparator         string
-	CenterSeparator      string
-	HeaderAlignment      int
-	FooterAlignment      int
-	Alignment            int
-	ColumnAlignment      []int
-	NewLine              string
-	HeaderLine           bool
-	RowLine              bool
-	AutoMergeCells       bool
-	Borders              tablewriter.Border
-}
-
-// NewPrettyTablesOptions creates PrettyTablesOptions with default settings
-func NewPrettyTablesOptions() *PrettyTablesOptions {
-	return &PrettyTablesOptions{
-		AutoFormatHeader:     true,
-		AutoWrapText:         true,
-		ReflowDuringAutoWrap: true,
-		ColWidth:             tablewriter.MAX_ROW_WIDTH,
-		ColumnSeparator:      tablewriter.COLUMN,
-		RowSeparator:         tablewriter.ROW,
-		CenterSeparator:      tablewriter.CENTER,
-		HeaderAlignment:      tablewriter.ALIGN_DEFAULT,
-		FooterAlignment:      tablewriter.ALIGN_DEFAULT,
-		Alignment:            tablewriter.ALIGN_DEFAULT,
-		ColumnAlignment:      []int{},
-		NewLine:              tablewriter.NEWLINE,
-		HeaderLine:           true,
-		RowLine:              false,
-		AutoMergeCells:       false,
-		Borders:              tablewriter.Border{Left: true, Right: true, Bottom: true, Top: true},
-	}
-}
-
 // FromHTMLNode renders text output from a pre-parsed HTML document.
 func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 	var options Options
 	if len(o) > 0 {
 		options = o[0]
+	}
+
+	if options.PrettyTables && options.PrettyTablesOptions == nil {
+		// defaults need to make explicit as they are no longer identical with tablewriter
+		options.PrettyTablesOptions = NewPrettyTablesOptions()
 	}
 
 	ctx := textifyTraverseContext{
@@ -333,31 +296,18 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 
 		buf := &bytes.Buffer{}
 		table := tablewriter.NewWriter(buf)
-		if ctx.options.PrettyTablesOptions != nil {
-			options := ctx.options.PrettyTablesOptions
-			table.SetAutoFormatHeaders(options.AutoFormatHeader)
-			table.SetAutoWrapText(options.AutoWrapText)
-			table.SetReflowDuringAutoWrap(options.ReflowDuringAutoWrap)
-			table.SetColWidth(options.ColWidth)
-			table.SetColumnSeparator(options.ColumnSeparator)
-			table.SetRowSeparator(options.RowSeparator)
-			table.SetCenterSeparator(options.CenterSeparator)
-			table.SetHeaderAlignment(options.HeaderAlignment)
-			table.SetFooterAlignment(options.FooterAlignment)
-			table.SetAlignment(options.Alignment)
-			table.SetColumnAlignment(options.ColumnAlignment)
-			table.SetNewLine(options.NewLine)
-			table.SetHeaderLine(options.HeaderLine)
-			table.SetRowLine(options.RowLine)
-			table.SetAutoMergeCells(options.AutoMergeCells)
-			table.SetBorders(options.Borders)
+		ctx.options.PrettyTablesOptions.configureTable(table)
+
+		table.Header(ctx.tableCtx.header)
+		table.Footer(ctx.tableCtx.footer)
+		if err := table.Bulk(ctx.tableCtx.body); err != nil {
+			return err
 		}
-		table.SetHeader(ctx.tableCtx.header)
-		table.SetFooter(ctx.tableCtx.footer)
-		table.AppendBulk(ctx.tableCtx.body)
 
 		// Render the table using ASCII.
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 		if err := ctx.emit(buf.String()); err != nil {
 			return err
 		}
