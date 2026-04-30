@@ -55,6 +55,12 @@ func GetPrefixedName(pbName, objName string) string {
 }
 
 func ParseBundle(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserConfig) error {
+	// Extract all XCCDF Group IDs from the datastream and store in ProfileBundle annotation
+	if err := extractAndStoreXCCDFGroups(contentDom, pb, pcfg); err != nil {
+		log.Error(err, "Failed to extract XCCDF groups")
+		// Don't fail the whole parse if group extraction fails
+	}
+
 	// One go routine per type
 	errChan := make(chan error)
 	done := make(chan string)
@@ -949,4 +955,44 @@ func appendKeyWithSep(annotations map[string]string, key, item, sep string) {
 		}
 	}
 	annotations[key] = strings.Join(append(curList, item), sep)
+}
+
+// extractAndStoreXCCDFGroups extracts all XCCDF Group IDs from the datastream
+// and stores them as a comma-separated list in the ProfileBundle annotation.
+// This allows TailoredProfiles to re-enable all groups when extending a parent profile.
+func extractAndStoreXCCDFGroups(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserConfig) error {
+	// Find all Group elements in the datastream
+	groupNodes := xmlquery.Find(contentDom, "//xccdf-1.2:Group")
+	if len(groupNodes) == 0 {
+		log.Info("No XCCDF groups found in datastream")
+		return nil
+	}
+
+	groupIDs := make([]string, 0, len(groupNodes))
+	for _, groupNode := range groupNodes {
+		id := groupNode.SelectAttr("id")
+		if id != "" {
+			groupIDs = append(groupIDs, id)
+		}
+	}
+
+	if len(groupIDs) == 0 {
+		return nil
+	}
+
+	// Store as comma-separated list in ProfileBundle annotation
+	annotations := pb.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[cmpv1alpha1.XCCDFGroupsAnnotation] = strings.Join(groupIDs, ",")
+	pb.SetAnnotations(annotations)
+
+	// Update the ProfileBundle with the new annotation
+	if err := pcfg.Client.Update(context.TODO(), pb); err != nil {
+		return fmt.Errorf("failed to update ProfileBundle with XCCDF groups: %w", err)
+	}
+
+	log.Info("Extracted XCCDF groups", "count", len(groupIDs), "profileBundle", pb.Name)
+	return nil
 }

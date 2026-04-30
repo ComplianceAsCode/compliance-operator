@@ -146,8 +146,19 @@ func getSelectElementFromCRRule(rule *cmpv1alpha1.Rule, enable bool) SelectEleme
 	}
 }
 
-func getSelections(tp *cmpv1alpha1.TailoredProfile, rules map[string]*cmpv1alpha1.Rule) []SelectElement {
+func getSelections(tp *cmpv1alpha1.TailoredProfile, rules map[string]*cmpv1alpha1.Rule, groupIDs []string) []SelectElement {
 	selections := []SelectElement{}
+
+	// When extending a profile, enable all XCCDF groups first
+	// This allows individual rules within deselected groups to be enabled
+	// Groups are enabled before rules so OpenSCAP processes them in the correct order
+	for _, groupID := range groupIDs {
+		selections = append(selections, SelectElement{
+			IDRef:    groupID,
+			Selected: true,
+		})
+	}
+
 	for _, selection := range tp.Spec.EnableRules {
 		rule := rules[selection.Name]
 		selections = append(selections, getSelectElementFromCRRule(rule, true))
@@ -200,6 +211,16 @@ func getValuesFromVariables(variables []*cmpv1alpha1.Variable) []SetValueElement
 
 // TailoredProfileToXML gets an XML string from a TailoredProfile and the corresponding Profile
 func TailoredProfileToXML(tp *cmpv1alpha1.TailoredProfile, p *cmpv1alpha1.Profile, pb *cmpv1alpha1.ProfileBundle, rules map[string]*cmpv1alpha1.Rule, variables []*cmpv1alpha1.Variable) (string, error) {
+	// Extract group IDs from ProfileBundle annotation if this TP extends a profile
+	var groupIDs []string
+	if p != nil {
+		if pb.Annotations != nil {
+			if groupsStr, ok := pb.Annotations[cmpv1alpha1.XCCDFGroupsAnnotation]; ok && groupsStr != "" {
+				groupIDs = strings.Split(groupsStr, ",")
+			}
+		}
+	}
+
 	tailoring := TailoringElement{
 		XMLNamespaceURI: XCCDFURI,
 		ID:              getTailoringID(tp),
@@ -215,7 +236,7 @@ func TailoredProfileToXML(tp *cmpv1alpha1.TailoredProfile, p *cmpv1alpha1.Profil
 		},
 		Profile: ProfileElement{
 			ID:         GetXCCDFProfileID(tp),
-			Selections: getSelections(tp, rules),
+			Selections: getSelections(tp, rules, groupIDs),
 			Values:     getValuesFromVariables(variables),
 		},
 	}
