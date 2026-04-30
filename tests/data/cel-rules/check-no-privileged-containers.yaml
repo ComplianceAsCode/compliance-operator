@@ -1,0 +1,37 @@
+name: check-no-privileged-containers
+id: check_no_privileged_containers
+title: Containers must not run in privileged mode
+description: |-
+  Privileged containers have full access to the host's devices and
+  kernel capabilities. No container should run in privileged mode
+  unless absolutely necessary and explicitly approved.
+rationale: |-
+  Privileged containers can escape container isolation and compromise
+  the entire node.
+severity: high
+checkType: Platform
+expression: |
+  pods.items.all(pod,
+      pod.spec.containers.all(container,
+          !has(container.securityContext) ||
+          !has(container.securityContext.privileged) ||
+          container.securityContext.privileged == false
+      )
+  )
+inputs:
+  - name: pods
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: pods
+failureReason: |-
+  One or more containers are running in privileged mode.
+instructions: |-
+  Run 'oc get pods -A -o json | jq '.items[] | select(.spec.containers[]
+  .securityContext.privileged==true) | .metadata.name'' and review
+  each privileged container.
+controls:
+  NIST-800-53:
+    - "AC-6(1)"
+    - "AC-6(5)"
+  CIS-OCP:
+    - "5.2.1"

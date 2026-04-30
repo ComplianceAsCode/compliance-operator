@@ -1,0 +1,279 @@
+profiles:
+- id: cis-vm-extension
+  name: cis-vm-extension
+  title: CIS Red Hat Openshift Virtual Machine Extension Benchmark
+  description: 'This profile defines a baseline that aligns to the Center for Internet
+    Security®
+
+    Red Hat OpenShift Virtual Machine Extention Benchmark™, V1.0.0.
+
+
+    This profile includes Center for Internet Security®
+
+    Red Hat OpenShift Virtual Machine Extension Benchmarks™ content.
+
+
+    Note that this part of the profile is meant to run on the Platform that
+
+    Red Hat OpenShift Container Platform runs on top of.'
+  productType: Platform
+  rules:
+  - kubevirt-enforce-trusted-tls-registries
+  - kubevirt-no-permitted-host-devices
+  - kubevirt-no-vms-overcommitting-guest-memory
+  - kubevirt-nonroot-feature-gate-is-enabled
+  - kubevirt-persistent-reservation-disabled
+rules:
+- id: kubevirt-enforce-trusted-tls-registries
+  name: kubevirt-enforce-trusted-tls-registries
+  title: Only Trusted Registries Using TLS Can Be Used
+  description: 'By only pulling container images from trusted registries using TLS,
+    organizations
+
+    can reduce the risk of introducing unknown vulnerabilities or malicious
+
+    software into their systems. This helps ensure that their applications and systems
+
+    remain secure and stable. All container image registries used by KubeVirt should
+
+    require TLS connections to protect the integrity and authenticity of images.'
+  rationale: 'When the <tt>.spec.storageImport.insecureRegistries</tt> field contains
+    entries in
+
+    the <tt>kubevirt-hyperconverged</tt> resource, KubeVirt is configured to allow
+
+    connections to container registries that do not use TLS encryption. This creates
+
+    a significant security risk as images could be intercepted or tampered with during
+
+    transit. Man-in-the-middle attacks could result in malicious images being pulled
+
+    and executed within virtual machines. To maintain security, only registries using
+
+    TLS should be permitted, and the insecureRegistries list should be empty.'
+  severity: medium
+  checkType: Platform
+  instructions: 'Run the following command to check for insecure registries:
+
+    <pre>$ oc get hyperconverged kubevirt-hyperconverged -n openshift-cnv -o jsonpath=''{.spec.storageImport.insecureRegistries}''</pre>
+
+    The output should be empty or the field should not exist.'
+  failureReason: 'There are registries not using TLS in ''.spec.storageImport.insecureRegistries''
+    in
+
+    the ''kubevirt-hyperconverged'' resource.'
+  expression: '!has(hco.spec.storageImport) ||
+
+    hco.spec.storageImport.insecureRegistries.size() == 0'
+  inputs:
+  - name: hco
+    kubernetesInputSpec:
+      apiVersion: hco.kubevirt.io/v1beta1
+      resource: hyperconvergeds
+      resourceName: kubevirt-hyperconverged
+      resourceNamespace: openshift-cnv
+- id: kubevirt-no-permitted-host-devices
+  name: kubevirt-no-permitted-host-devices
+  title: KubeVirt Must Not Permit Host Devices
+  description: 'Host devices should not be permitted to virtualization workloads unless
+
+    absolutely necessary for workload execution. Allowing host devices provides
+
+    direct access to host hardware, which can introduce security risks including
+
+    unauthorized access to sensitive hardware resources, potential for privilege
+
+    escalation, and bypass of virtualization security boundaries.
+
+
+    By default, no host devices should be trusted or permitted for use by
+
+    virtualization workloads.'
+  rationale: 'The <tt>.spec.permittedHostDevices</tt> field in the <tt>kubevirt-hyperconverged</tt>
+
+    resource controls which host devices can be used by virtualization workloads.
+
+    Permitting host devices allows virtual machines to bypass virtualization boundaries
+
+    and directly access host hardware, which introduces significant security risks.
+
+    This can lead to unauthorized access to sensitive hardware resources, privilege
+
+    escalation opportunities, and potential compromise of the host system. Unless
+
+    explicitly required, no host devices should be permitted.'
+  severity: medium
+  checkType: Platform
+  instructions: 'Run the following command to check the HyperConverged configuration:
+
+    <pre>$ oc get hyperconverged kubevirt-hyperconverged -n openshift-cnv -o jsonpath=''{.spec.permittedHostDevices}''</pre>
+
+    The output should be empty or show empty lists for both <tt>pciHostDevices</tt>
+    and <tt>mediatedDevices</tt>.'
+  failureReason: 'The ''.spec.permittedHostDevices'' field is set in the ''kubevirt-hyperconverged''
+
+    resource, allowing host devices to be used by virtualization workloads.'
+  expression: "hcoList.items.filter(h,\n    h.metadata.name == 'kubevirt-hyperconverged'\
+    \ &&\n    h.metadata.namespace == 'openshift-cnv'\n).size() == 1 &&\nhcoList.items.filter(h,\n\
+    \    h.metadata.name == 'kubevirt-hyperconverged' &&\n    h.metadata.namespace\
+    \ == 'openshift-cnv'\n).all(h,\n    !has(h.spec.permittedHostDevices) ||\n   \
+    \ h.spec.permittedHostDevices == null ||\n    (has(h.spec.permittedHostDevices.pciHostDevices)\
+    \ && size(h.spec.permittedHostDevices.pciHostDevices) == 0) &&\n    (has(h.spec.permittedHostDevices.mediatedDevices)\
+    \ && size(h.spec.permittedHostDevices.mediatedDevices) == 0)\n)"
+  inputs:
+  - name: hcoList
+    kubernetesInputSpec:
+      apiVersion: hco.kubevirt.io/v1beta1
+      resource: hyperconvergeds
+- id: kubevirt-no-vms-overcommitting-guest-memory
+  name: kubevirt-no-vms-overcommitting-guest-memory
+  title: VMs Must Not Overcommit Guest Memory
+  description: 'The <tt>overcommitGuestOverhead</tt> configuration option enables
+    the request for
+
+    additional virtual machine management memory inside the virt-launcher pod.
+
+    The overcommit feature is used to increase virtual machine density on the
+
+    node, as long as the virtual machine doesn''t request all the memory that it
+
+    would need if fully loaded. However, if the VM were to use all of the
+
+    memory it could, this would lead to the OpenShift Scheduler killing the
+
+    workload.'
+  rationale: 'When the <tt>.spec.template.spec.domain.resources.overcommitGuestOverhead</tt>
+    field is
+
+    set to <tt>true</tt> in the <tt>VirtualMachine</tt> resource, VMs are allowed
+    to
+
+    overcommit KubeVirt''s memory which may lead to guests crashing and
+
+    interrupting workloads causing malfunctions. To prevent memory-related failures
+
+    and ensure workload stability, this setting should not be enabled.'
+  severity: medium
+  checkType: Platform
+  instructions: 'Run the following command to check VirtualMachine configurations:
+
+    <pre>$ oc get virtualmachines -A -o jsonpath=''{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{":
+    "}{.spec.template.spec.domain.resources.overcommitGuestOverhead}{"\n"}{end}''</pre>
+
+    Make sure no VirtualMachine has <tt>overcommitGuestOverhead</tt> set to <tt>true</tt>.'
+  failureReason: 'The ''.spec.template.spec.domain.resources.overcommitGuestOverhead''
+    field exists and is
+
+    set to "true" in the ''VirtualMachine'' resource, allowing VMs to
+
+    overcommit KubeVirt''s memory which may lead to guests crashing and
+
+    interrupting workloads causing malfunctions.'
+  expression: "vms.all(h,\n    !has(h.spec.template.spec.domain.resources) ||\n  \
+    \  !has(h.spec.template.spec.domain.resources.overcommitGuestOverhead) ||\n  \
+    \  (has(h.spec.template.spec.domain.resources.overcommitGuestOverhead) &&\n  \
+    \   h.spec.template.spec.domain.resources.overcommitGuestOverhead == false)\n)"
+  inputs:
+  - name: vms
+    kubernetesInputSpec:
+      apiVersion: kubevirt.io/v1
+      resource: VirtualMachine
+- id: kubevirt-nonroot-feature-gate-is-enabled
+  name: kubevirt-nonroot-feature-gate-is-enabled
+  title: KubeVirt nonRoot Feature Gate Must Be Enabled
+  description: 'The <tt>nonRoot</tt> feature gate in KubeVirt enables restrictions
+    that prevent
+
+    virtual machines from running with root privileges. This feature enforces
+
+    security boundaries and helps prevent privilege escalation attacks. All virtual
+
+    machines should operate with the minimum necessary privileges, and the nonRoot
+
+    feature gate ensures this principle is enforced at the platform level.'
+  rationale: 'Unauthorized access to a root account without restrictions implemented
+    by
+
+    the nonRoot feature introduces the risk of unintended or unauthorized
+
+    access to privilege elevation and the ability to perform administrative
+
+    tasks. When the <tt>.spec.featureGates.nonRoot</tt> field is set to <tt>true</tt>
+
+    in the <tt>kubevirt-hyperconverged</tt> resource, KubeVirt enforces non-root
+
+    execution for virtual machine workloads, significantly reducing the attack
+
+    surface and limiting the potential impact of security vulnerabilities.'
+  severity: medium
+  checkType: Platform
+  instructions: 'Run the following command to check the feature gate configuration:
+
+    <pre>$ oc get hyperconverged kubevirt-hyperconverged -n openshift-cnv -o jsonpath=''{.spec.featureGates.nonRoot}''</pre>
+
+    The output should be <tt>true</tt>.'
+  failureReason: 'The ''.spec.featureGates.nonRoot'' field is missing or not set to
+    ''true'' in
+
+    the ''kubevirt-hyperconverged'' resource.'
+  expression: "hcoList.items.filter(h,\n    h.metadata.name == 'kubevirt-hyperconverged'\
+    \ &&\n    h.metadata.namespace == 'openshift-cnv'\n).size() == 1 &&\nhcoList.items.filter(h,\n\
+    \    h.metadata.name == 'kubevirt-hyperconverged' &&\n    h.metadata.namespace\
+    \ == 'openshift-cnv'\n).all(h,\n    has(h.spec.featureGates) &&\n    has(h.spec.featureGates.nonRoot)\
+    \ &&\n    h.spec.featureGates.nonRoot == true\n)"
+  inputs:
+  - name: hcoList
+    kubernetesInputSpec:
+      apiVersion: hco.kubevirt.io/v1beta1
+      resource: hyperconvergeds
+- id: kubevirt-persistent-reservation-disabled
+  name: kubevirt-persistent-reservation-disabled
+  title: KubeVirt Persistent Reservation Feature Gate Must Be Disabled
+  description: 'The persistent reservation feature gate in KubeVirt allows virtual
+    machines
+
+    to use SCSI persistent reservations, which provide exclusive access to shared
+
+    storage. This feature should be disabled unless explicitly required for
+
+    workload operation, as it can introduce security risks by allowing VMs to
+
+    claim exclusive access to storage resources, potentially impacting availability
+
+    and enabling resource manipulation outside normal access controls.'
+  rationale: 'The <tt>.spec.featureGates.persistentReservation</tt> field in the
+
+    <tt>kubevirt-hyperconverged</tt> resource controls whether virtual machines can
+
+    use SCSI persistent reservations. When enabled, this feature allows VMs to claim
+
+    exclusive access to shared storage resources, which can be exploited to cause
+
+    denial of service conditions or manipulate storage access in ways that bypass
+
+    normal Kubernetes access controls. Unless this capability is explicitly required
+
+    for specific workload requirements, it should remain disabled to minimize the
+
+    attack surface.'
+  severity: medium
+  checkType: Platform
+  instructions: 'Run the following command to check the feature gate configuration:
+
+    <pre>$ oc get hyperconverged kubevirt-hyperconverged -n openshift-cnv -o jsonpath=''{.spec.featureGates.persistentReservation}''</pre>
+
+    The output should be <tt>false</tt>.'
+  failureReason: 'The ''.spec.featureGates.persistentReservation'' field is missing,
+    not set,
+
+    or not set to ''false'' in the ''kubevirt-hyperconverged'' resource.'
+  expression: "hcoList.items.filter(h,\n    h.metadata.name == 'kubevirt-hyperconverged'\
+    \ &&\n    h.metadata.namespace == 'openshift-cnv'\n).size() == 1 &&\nhcoList.items.filter(h,\n\
+    \    h.metadata.name == 'kubevirt-hyperconverged' &&\n    h.metadata.namespace\
+    \ == 'openshift-cnv'\n).all(h,\n    has(h.spec.featureGates) &&\n    has(h.spec.featureGates.persistentReservation)\
+    \ &&\n    h.spec.featureGates.persistentReservation == false\n)"
+  inputs:
+  - name: hcoList
+    kubernetesInputSpec:
+      apiVersion: hco.kubevirt.io/v1beta1
+      resource: hyperconvergeds

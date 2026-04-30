@@ -3,13 +3,13 @@
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
+	apioperatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	versioned "github.com/openshift/client-go/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/operator/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/openshift/client-go/operator/listers/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/client-go/operator/listers/operator/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // ImageContentSourcePolicies.
 type ImageContentSourcePolicyInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.ImageContentSourcePolicyLister
+	Lister() operatorv1alpha1.ImageContentSourcePolicyLister
 }
 
 type imageContentSourcePolicyInformer struct {
@@ -40,21 +40,33 @@ func NewImageContentSourcePolicyInformer(client versioned.Interface, resyncPerio
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredImageContentSourcePolicyInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().ImageContentSourcePolicies().List(context.TODO(), options)
+				return client.OperatorV1alpha1().ImageContentSourcePolicies().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().ImageContentSourcePolicies().Watch(context.TODO(), options)
+				return client.OperatorV1alpha1().ImageContentSourcePolicies().Watch(context.Background(), options)
 			},
-		},
-		&operatorv1alpha1.ImageContentSourcePolicy{},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1alpha1().ImageContentSourcePolicies().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1alpha1().ImageContentSourcePolicies().Watch(ctx, options)
+			},
+		}, client),
+		&apioperatorv1alpha1.ImageContentSourcePolicy{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *imageContentSourcePolicyInformer) defaultInformer(client versioned.Inte
 }
 
 func (f *imageContentSourcePolicyInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.ImageContentSourcePolicy{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1alpha1.ImageContentSourcePolicy{}, f.defaultInformer)
 }
 
-func (f *imageContentSourcePolicyInformer) Lister() v1alpha1.ImageContentSourcePolicyLister {
-	return v1alpha1.NewImageContentSourcePolicyLister(f.Informer().GetIndexer())
+func (f *imageContentSourcePolicyInformer) Lister() operatorv1alpha1.ImageContentSourcePolicyLister {
+	return operatorv1alpha1.NewImageContentSourcePolicyLister(f.Informer().GetIndexer())
 }

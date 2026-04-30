@@ -3,14 +3,35 @@
 package v1
 
 import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // AWSClassicLoadBalancerParametersApplyConfiguration represents a declarative configuration of the AWSClassicLoadBalancerParameters type for use
 // with apply.
+//
+// AWSClassicLoadBalancerParameters holds configuration parameters for an
+// AWS Classic load balancer.
 type AWSClassicLoadBalancerParametersApplyConfiguration struct {
-	ConnectionIdleTimeout *v1.Duration                  `json:"connectionIdleTimeout,omitempty"`
-	Subnets               *AWSSubnetsApplyConfiguration `json:"subnets,omitempty"`
+	// connectionIdleTimeout specifies the maximum time period that a
+	// connection may be idle before the load balancer closes the
+	// connection.  The value must be parseable as a time duration value;
+	// see <https://pkg.go.dev/time#ParseDuration>.  A nil or zero value
+	// means no opinion, in which case a default value is used.  The default
+	// value for this field is 60s.  This default is subject to change.
+	ConnectionIdleTimeout *metav1.Duration `json:"connectionIdleTimeout,omitempty"`
+	// subnets specifies the subnets to which the load balancer will
+	// attach. The subnets may be specified by either their
+	// ID or name. The total number of subnets is limited to 10.
+	//
+	// In order for the load balancer to be provisioned with subnets,
+	// each subnet must exist, each subnet must be from a different
+	// availability zone, and the load balancer service must be
+	// recreated to pick up new values.
+	//
+	// When omitted from the spec, the subnets will be auto-discovered
+	// for each availability zone. Auto-discovered subnets are not reported
+	// in the status of the IngressController object.
+	Subnets *AWSSubnetsApplyConfiguration `json:"subnets,omitempty"`
 }
 
 // AWSClassicLoadBalancerParametersApplyConfiguration constructs a declarative configuration of the AWSClassicLoadBalancerParameters type for use with
@@ -22,7 +43,7 @@ func AWSClassicLoadBalancerParameters() *AWSClassicLoadBalancerParametersApplyCo
 // WithConnectionIdleTimeout sets the ConnectionIdleTimeout field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ConnectionIdleTimeout field is set to the value of the last call.
-func (b *AWSClassicLoadBalancerParametersApplyConfiguration) WithConnectionIdleTimeout(value v1.Duration) *AWSClassicLoadBalancerParametersApplyConfiguration {
+func (b *AWSClassicLoadBalancerParametersApplyConfiguration) WithConnectionIdleTimeout(value metav1.Duration) *AWSClassicLoadBalancerParametersApplyConfiguration {
 	b.ConnectionIdleTimeout = &value
 	return b
 }

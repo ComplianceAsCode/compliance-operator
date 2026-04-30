@@ -2,10 +2,6 @@
 
 package v1alpha1
 
-type MachineConfigNodeExpansion interface{}
+type InternalReleaseImageExpansion interface{}
 
-type MachineOSBuildExpansion interface{}
-
-type MachineOSConfigExpansion interface{}
-
-type PinnedImageSetExpansion interface{}
+type OSImageStreamExpansion interface{}

@@ -3,18 +3,39 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 // OperatorSpecApplyConfiguration represents a declarative configuration of the OperatorSpec type for use
 // with apply.
+//
+// OperatorSpec contains common fields operators need.  It is intended to be anonymous included
+// inside of the Spec struct for your particular operator.
 type OperatorSpecApplyConfiguration struct {
-	ManagementState            *v1.ManagementState   `json:"managementState,omitempty"`
-	LogLevel                   *v1.LogLevel          `json:"logLevel,omitempty"`
-	OperatorLogLevel           *v1.LogLevel          `json:"operatorLogLevel,omitempty"`
+	// managementState indicates whether and how the operator should manage the component
+	ManagementState *operatorv1.ManagementState `json:"managementState,omitempty"`
+	// logLevel is an intent based logging for an overall component.  It does not give fine grained control, but it is a
+	// simple way to manage coarse grained logging choices that operators have to interpret for their operands.
+	//
+	// Valid values are: "Normal", "Debug", "Trace", "TraceAll".
+	// Defaults to "Normal".
+	LogLevel *operatorv1.LogLevel `json:"logLevel,omitempty"`
+	// operatorLogLevel is an intent based logging for the operator itself.  It does not give fine grained control, but it is a
+	// simple way to manage coarse grained logging choices that operators have to interpret for themselves.
+	//
+	// Valid values are: "Normal", "Debug", "Trace", "TraceAll".
+	// Defaults to "Normal".
+	OperatorLogLevel *operatorv1.LogLevel `json:"operatorLogLevel,omitempty"`
+	// unsupportedConfigOverrides overrides the final configuration that was computed by the operator.
+	// Red Hat does not support the use of this field.
+	// Misuse of this field could lead to unexpected behavior or conflict with other configuration options.
+	// Seek guidance from the Red Hat support before using this field.
+	// Use of this property blocks cluster upgrades, it must be removed before upgrading your cluster.
 	UnsupportedConfigOverrides *runtime.RawExtension `json:"unsupportedConfigOverrides,omitempty"`
-	ObservedConfig             *runtime.RawExtension `json:"observedConfig,omitempty"`
+	// observedConfig holds a sparse config that controller has observed from the cluster state.  It exists in spec because
+	// it is an input to the level for the operator
+	ObservedConfig *runtime.RawExtension `json:"observedConfig,omitempty"`
 }
 
 // OperatorSpecApplyConfiguration constructs a declarative configuration of the OperatorSpec type for use with
@@ -26,7 +47,7 @@ func OperatorSpec() *OperatorSpecApplyConfiguration {
 // WithManagementState sets the ManagementState field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ManagementState field is set to the value of the last call.
-func (b *OperatorSpecApplyConfiguration) WithManagementState(value v1.ManagementState) *OperatorSpecApplyConfiguration {
+func (b *OperatorSpecApplyConfiguration) WithManagementState(value operatorv1.ManagementState) *OperatorSpecApplyConfiguration {
 	b.ManagementState = &value
 	return b
 }
@@ -34,7 +55,7 @@ func (b *OperatorSpecApplyConfiguration) WithManagementState(value v1.Management
 // WithLogLevel sets the LogLevel field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogLevel field is set to the value of the last call.
-func (b *OperatorSpecApplyConfiguration) WithLogLevel(value v1.LogLevel) *OperatorSpecApplyConfiguration {
+func (b *OperatorSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLevel) *OperatorSpecApplyConfiguration {
 	b.LogLevel = &value
 	return b
 }
@@ -42,7 +63,7 @@ func (b *OperatorSpecApplyConfiguration) WithLogLevel(value v1.LogLevel) *Operat
 // WithOperatorLogLevel sets the OperatorLogLevel field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the OperatorLogLevel field is set to the value of the last call.
-func (b *OperatorSpecApplyConfiguration) WithOperatorLogLevel(value v1.LogLevel) *OperatorSpecApplyConfiguration {
+func (b *OperatorSpecApplyConfiguration) WithOperatorLogLevel(value operatorv1.LogLevel) *OperatorSpecApplyConfiguration {
 	b.OperatorLogLevel = &value
 	return b
 }
