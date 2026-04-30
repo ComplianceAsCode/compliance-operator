@@ -991,6 +991,37 @@ Server 3.fedora.pool.ntp.org`
 		})
 	})
 
+	Describe("Testing unescapeNewlines function", func() {
+		Context("When given strings with literal newline escape sequences", func() {
+			It("Should convert single newline", func() {
+				input := "line1\\nline2"
+				expected := "line1\nline2"
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should convert multiple newlines", func() {
+				input := "line1\\nline2\\n\\nline3"
+				expected := "line1\nline2\n\nline3"
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should handle strings without newlines", func() {
+				input := "single line"
+				expected := "single line"
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should handle empty string", func() {
+				input := ""
+				expected := ""
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+		})
+	})
 })
 
 // printUniquePaths prints all unique paths within an XML document, starting from a given node.

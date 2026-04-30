@@ -952,6 +952,14 @@ func toArrayByComma(format string) []string {
 	return strings.Split(format, ",")
 }
 
+func urlEncode(s string) string {
+	return url.PathEscape(s)
+}
+
+func unescapeNewlines(s string) string {
+	return strings.ReplaceAll(s, "\\n", "\n")
+}
+
 // This function will take original remediation content, and a list of all values found in the configMap
 // It will processed and substitue the value in remediation content, and return processed Remediation content
 // The return will be Processed-Remdiation Content, Value-Used List, Un-Set List, and err if possible
@@ -1013,8 +1021,11 @@ func processContent(preProcessedContent string, resultValues map[string]string) 
 	var valuesUsedList []string
 	var valuesMissingList []string
 	var valuesParsedList []string
-	t, err := template.New("").Option("missingkey=zero").Funcs(template.FuncMap{"toArrayByComma": toArrayByComma}).
-		Parse(preProcessedContent)
+	t, err := template.New("").Option("missingkey=zero").Funcs(template.FuncMap{
+		"toArrayByComma":   toArrayByComma,
+		"urlencode":        urlEncode,
+		"unescapeNewlines": unescapeNewlines,
+	}).Parse(preProcessedContent)
 	if err != nil {
 		return preProcessedContent, valuesUsedList, valuesMissingList, errors.Wrap(err, "wrongly formatted remediation context: ") //Error creating template // Wrongly formatted remediation context
 	}
