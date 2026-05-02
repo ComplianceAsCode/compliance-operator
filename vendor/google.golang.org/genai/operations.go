@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -232,7 +232,7 @@ func (m Operations) fetchPredictVideosOperation(ctx context.Context, operationNa
 		fromConverter = generateVideosOperationFromVertex
 	} else {
 
-		return nil, fmt.Errorf("method FetchPredictVideosOperation is only supported in the Vertex AI client. You can choose to use Vertex AI by setting ClientConfig.Backend to BackendVertexAI.")
+		return nil, fmt.Errorf("method FetchPredictVideosOperation is only supported in the Gemini Enterprise Agent Platform (previously known as Vertex AI) client. You can choose to use Gemini Enterprise Agent Platform by setting ClientConfig.Backend to BackendEnterprise.")
 
 	}
 
