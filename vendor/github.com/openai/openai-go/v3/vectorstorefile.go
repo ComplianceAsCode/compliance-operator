@@ -216,7 +216,7 @@ type VectorStoreFile struct {
 	// are no errors.
 	LastError VectorStoreFileLastError `json:"last_error" api:"required"`
 	// The object type, which is always `vector_store.file`.
-	Object constant.VectorStoreFile `json:"object" api:"required"`
+	Object constant.VectorStoreFile `json:"object" default:"vector_store.file"`
 	// The status of the vector store file, which can be either `in_progress`,
 	// `completed`, `cancelled`, or `failed`. The status `completed` indicates that the
 	// vector store file is ready for use.
@@ -344,7 +344,7 @@ func (r *VectorStoreFileAttributeUnion) UnmarshalJSON(data []byte) error {
 type VectorStoreFileDeleted struct {
 	ID      string                          `json:"id" api:"required"`
 	Deleted bool                            `json:"deleted" api:"required"`
-	Object  constant.VectorStoreFileDeleted `json:"object" api:"required"`
+	Object  constant.VectorStoreFileDeleted `json:"object" default:"vector_store.file.deleted"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -384,7 +384,9 @@ func (r *VectorStoreFileContentResponse) UnmarshalJSON(data []byte) error {
 type VectorStoreFileNewParams struct {
 	// A [File](https://platform.openai.com/docs/api-reference/files) ID that the
 	// vector store should use. Useful for tools like `file_search` that can access
-	// files.
+	// files. For multi-file ingestion, we recommend
+	// [`file_batches`](https://platform.openai.com/docs/api-reference/vector-stores-file-batches/createBatch)
+	// to minimize per-vector-store write requests.
 	FileID string `json:"file_id" api:"required"`
 	// Set of 16 key-value pairs that can be attached to an object. This can be useful
 	// for storing additional information about the object in a structured format, and
