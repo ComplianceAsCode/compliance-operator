@@ -80,6 +80,11 @@ func (t Backend) String() string {
 	}
 }
 
+var multiRegionalLocations = map[string]bool{
+	"us": true,
+	"eu": true,
+}
+
 // ClientConfig is the configuration for the GenAI client.
 type ClientConfig struct {
 	// Optional. API Key for GenAI. Required for BackendGeminiAPI.
@@ -293,6 +298,8 @@ func NewInternalAPIClient(ctx context.Context, cc *ClientConfig) (*InternalAPICl
 		if cc.HTTPOptions.BaseURL == "" {
 			if cc.Location == "global" || cc.APIKey != "" {
 				cc.HTTPOptions.BaseURL = "https://aiplatform.googleapis.com/"
+			} else if multiRegionalLocations[cc.Location] {
+				cc.HTTPOptions.BaseURL = fmt.Sprintf("https://aiplatform.%s.rep.googleapis.com/", cc.Location)
 			} else {
 				cc.HTTPOptions.BaseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com/", cc.Location)
 			}

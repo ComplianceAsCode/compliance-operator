@@ -244,14 +244,14 @@ func (r *RealtimeAudioConfigOutputParam) UnmarshalJSON(data []byte) error {
 type RealtimeAudioConfigOutputVoiceUnionParam struct {
 	OfString param.Opt[string] `json:",omitzero,inline"`
 	// Check if union is this variant with
-	// !param.IsOmitted(union.OfRealtimeAudioConfigOutputVoiceString)
-	OfRealtimeAudioConfigOutputVoiceString param.Opt[string]                      `json:",omitzero,inline"`
-	OfRealtimeAudioConfigOutputVoiceID     *RealtimeAudioConfigOutputVoiceIDParam `json:",omitzero,inline"`
+	// !param.IsOmitted(union.OfRealtimeAudioConfigOutputVoiceString2)
+	OfRealtimeAudioConfigOutputVoiceString2 param.Opt[string]                      `json:",omitzero,inline"`
+	OfRealtimeAudioConfigOutputVoiceID      *RealtimeAudioConfigOutputVoiceIDParam `json:",omitzero,inline"`
 	paramUnion
 }
 
 func (u RealtimeAudioConfigOutputVoiceUnionParam) MarshalJSON() ([]byte, error) {
-	return param.MarshalUnion(u, u.OfString, u.OfRealtimeAudioConfigOutputVoiceString, u.OfRealtimeAudioConfigOutputVoiceID)
+	return param.MarshalUnion(u, u.OfString, u.OfRealtimeAudioConfigOutputVoiceString2, u.OfRealtimeAudioConfigOutputVoiceID)
 }
 func (u *RealtimeAudioConfigOutputVoiceUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
@@ -260,27 +260,27 @@ func (u *RealtimeAudioConfigOutputVoiceUnionParam) UnmarshalJSON(data []byte) er
 func (u *RealtimeAudioConfigOutputVoiceUnionParam) asAny() any {
 	if !param.IsOmitted(u.OfString) {
 		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfRealtimeAudioConfigOutputVoiceString) {
-		return &u.OfRealtimeAudioConfigOutputVoiceString
+	} else if !param.IsOmitted(u.OfRealtimeAudioConfigOutputVoiceString2) {
+		return &u.OfRealtimeAudioConfigOutputVoiceString2
 	} else if !param.IsOmitted(u.OfRealtimeAudioConfigOutputVoiceID) {
 		return u.OfRealtimeAudioConfigOutputVoiceID
 	}
 	return nil
 }
 
-type RealtimeAudioConfigOutputVoiceString string
+type RealtimeAudioConfigOutputVoiceString2 string
 
 const (
-	RealtimeAudioConfigOutputVoiceStringAlloy   RealtimeAudioConfigOutputVoiceString = "alloy"
-	RealtimeAudioConfigOutputVoiceStringAsh     RealtimeAudioConfigOutputVoiceString = "ash"
-	RealtimeAudioConfigOutputVoiceStringBallad  RealtimeAudioConfigOutputVoiceString = "ballad"
-	RealtimeAudioConfigOutputVoiceStringCoral   RealtimeAudioConfigOutputVoiceString = "coral"
-	RealtimeAudioConfigOutputVoiceStringEcho    RealtimeAudioConfigOutputVoiceString = "echo"
-	RealtimeAudioConfigOutputVoiceStringSage    RealtimeAudioConfigOutputVoiceString = "sage"
-	RealtimeAudioConfigOutputVoiceStringShimmer RealtimeAudioConfigOutputVoiceString = "shimmer"
-	RealtimeAudioConfigOutputVoiceStringVerse   RealtimeAudioConfigOutputVoiceString = "verse"
-	RealtimeAudioConfigOutputVoiceStringMarin   RealtimeAudioConfigOutputVoiceString = "marin"
-	RealtimeAudioConfigOutputVoiceStringCedar   RealtimeAudioConfigOutputVoiceString = "cedar"
+	RealtimeAudioConfigOutputVoiceString2Alloy   RealtimeAudioConfigOutputVoiceString2 = "alloy"
+	RealtimeAudioConfigOutputVoiceString2Ash     RealtimeAudioConfigOutputVoiceString2 = "ash"
+	RealtimeAudioConfigOutputVoiceString2Ballad  RealtimeAudioConfigOutputVoiceString2 = "ballad"
+	RealtimeAudioConfigOutputVoiceString2Coral   RealtimeAudioConfigOutputVoiceString2 = "coral"
+	RealtimeAudioConfigOutputVoiceString2Echo    RealtimeAudioConfigOutputVoiceString2 = "echo"
+	RealtimeAudioConfigOutputVoiceString2Sage    RealtimeAudioConfigOutputVoiceString2 = "sage"
+	RealtimeAudioConfigOutputVoiceString2Shimmer RealtimeAudioConfigOutputVoiceString2 = "shimmer"
+	RealtimeAudioConfigOutputVoiceString2Verse   RealtimeAudioConfigOutputVoiceString2 = "verse"
+	RealtimeAudioConfigOutputVoiceString2Marin   RealtimeAudioConfigOutputVoiceString2 = "marin"
+	RealtimeAudioConfigOutputVoiceString2Cedar   RealtimeAudioConfigOutputVoiceString2 = "cedar"
 )
 
 // Custom voice reference.
@@ -731,7 +731,7 @@ type RealtimeAudioInputTurnDetectionServerVadParam struct {
 	// Type of turn detection, `server_vad` to turn on simple Server VAD.
 	//
 	// This field can be elided, and will marshal its zero value as "server_vad".
-	Type constant.ServerVad `json:"type" api:"required"`
+	Type constant.ServerVad `json:"type" default:"server_vad"`
 	paramObj
 }
 
@@ -765,7 +765,7 @@ type RealtimeAudioInputTurnDetectionSemanticVadParam struct {
 	// Type of turn detection, `semantic_vad` to turn on Semantic VAD.
 	//
 	// This field can be elided, and will marshal its zero value as "semantic_vad".
-	Type constant.SemanticVad `json:"type" api:"required"`
+	Type constant.SemanticVad `json:"type" default:"semantic_vad"`
 	paramObj
 }
 
@@ -871,8 +871,9 @@ type RealtimeSessionCreateRequestParam struct {
 	// [Learn more](https://platform.openai.com/docs/guides/text?api-mode=responses#reusable-prompts).
 	Prompt responses.ResponsePromptParam `json:"prompt,omitzero"`
 	// Realtime API can write session traces to the
-	// [Traces Dashboard](/logs?api=traces). Set to null to disable tracing. Once
-	// tracing is enabled for a session, the configuration cannot be modified.
+	// [Traces Dashboard](https://platform.openai.com/logs?api=traces). Set to null to
+	// disable tracing. Once tracing is enabled for a session, the configuration cannot
+	// be modified.
 	//
 	// `auto` will create a trace for the session with default values for the workflow
 	// name, group id, and metadata.
@@ -926,7 +927,7 @@ type RealtimeSessionCreateRequestParam struct {
 	// The type of session to create. Always `realtime` for the Realtime API.
 	//
 	// This field can be elided, and will marshal its zero value as "realtime".
-	Type constant.Realtime `json:"type" api:"required"`
+	Type constant.Realtime `json:"type" default:"realtime"`
 	paramObj
 }
 
@@ -1251,7 +1252,7 @@ type RealtimeToolsConfigUnionMcpParam struct {
 	// The type of the MCP tool. Always `mcp`.
 	//
 	// This field can be elided, and will marshal its zero value as "mcp".
-	Type constant.Mcp `json:"type" api:"required"`
+	Type constant.Mcp `json:"type" default:"mcp"`
 	paramObj
 }
 
@@ -1691,7 +1692,7 @@ type RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadParam struct {
 	// Type of turn detection, `server_vad` to turn on simple Server VAD.
 	//
 	// This field can be elided, and will marshal its zero value as "server_vad".
-	Type constant.ServerVad `json:"type" api:"required"`
+	Type constant.ServerVad `json:"type" default:"server_vad"`
 	paramObj
 }
 
@@ -1725,7 +1726,7 @@ type RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadParam struct 
 	// Type of turn detection, `semantic_vad` to turn on Semantic VAD.
 	//
 	// This field can be elided, and will marshal its zero value as "semantic_vad".
-	Type constant.SemanticVad `json:"type" api:"required"`
+	Type constant.SemanticVad `json:"type" default:"semantic_vad"`
 	paramObj
 }
 
@@ -1760,7 +1761,7 @@ type RealtimeTranscriptionSessionCreateRequestParam struct {
 	// sessions.
 	//
 	// This field can be elided, and will marshal its zero value as "transcription".
-	Type constant.Transcription `json:"type" api:"required"`
+	Type constant.Transcription `json:"type" default:"transcription"`
 	paramObj
 }
 
@@ -1876,7 +1877,7 @@ type RealtimeTruncationRetentionRatio struct {
 	// helps reduce the frequency of truncations and improve cache rates.
 	RetentionRatio float64 `json:"retention_ratio" api:"required"`
 	// Use retention ratio truncation.
-	Type constant.RetentionRatio `json:"type" api:"required"`
+	Type constant.RetentionRatio `json:"type" default:"retention_ratio"`
 	// Optional custom token limits for this truncation strategy. If not provided, the
 	// model's default token limits will be used.
 	TokenLimits RealtimeTruncationRetentionRatioTokenLimits `json:"token_limits"`
@@ -1946,7 +1947,7 @@ type RealtimeTruncationRetentionRatioParam struct {
 	// Use retention ratio truncation.
 	//
 	// This field can be elided, and will marshal its zero value as "retention_ratio".
-	Type constant.RetentionRatio `json:"type" api:"required"`
+	Type constant.RetentionRatio `json:"type" default:"retention_ratio"`
 	paramObj
 }
 

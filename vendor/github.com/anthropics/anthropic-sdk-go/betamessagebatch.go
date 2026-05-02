@@ -58,7 +58,7 @@ func (r *BetaMessageBatchService) New(ctx context.Context, params BetaMessageBat
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "message-batches-2024-09-24")}, opts...)
 	path := "v1/messages/batches?beta=true"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
-	return
+	return res, err
 }
 
 // This endpoint is idempotent and can be used to poll for Message Batch
@@ -75,11 +75,11 @@ func (r *BetaMessageBatchService) Get(ctx context.Context, messageBatchID string
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "message-batches-2024-09-24")}, opts...)
 	if messageBatchID == "" {
 		err = errors.New("missing required message_batch_id parameter")
-		return
+		return nil, err
 	}
 	path := fmt.Sprintf("v1/messages/batches/%s?beta=true", messageBatchID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
-	return
+	return res, err
 }
 
 // List all Message Batches within a Workspace. Most recently created batches are
@@ -131,11 +131,11 @@ func (r *BetaMessageBatchService) Delete(ctx context.Context, messageBatchID str
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "message-batches-2024-09-24")}, opts...)
 	if messageBatchID == "" {
 		err = errors.New("missing required message_batch_id parameter")
-		return
+		return nil, err
 	}
 	path := fmt.Sprintf("v1/messages/batches/%s?beta=true", messageBatchID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
-	return
+	return res, err
 }
 
 // Batches may be canceled any time before processing ends. Once cancellation is
@@ -158,11 +158,11 @@ func (r *BetaMessageBatchService) Cancel(ctx context.Context, messageBatchID str
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "message-batches-2024-09-24")}, opts...)
 	if messageBatchID == "" {
 		err = errors.New("missing required message_batch_id parameter")
-		return
+		return nil, err
 	}
 	path := fmt.Sprintf("v1/messages/batches/%s/cancel?beta=true", messageBatchID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, nil, &res, opts...)
-	return
+	return res, err
 }
 
 // Streams the results of a Message Batch as a `.jsonl` file.
@@ -185,7 +185,7 @@ func (r *BetaMessageBatchService) ResultsStreaming(ctx context.Context, messageB
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "message-batches-2024-09-24"), option.WithHeader("Accept", "application/x-jsonl")}, opts...)
 	if messageBatchID == "" {
 		err = errors.New("missing required message_batch_id parameter")
-		return
+		return jsonl.NewStream[BetaMessageBatchIndividualResponse](nil, err)
 	}
 	path := fmt.Sprintf("v1/messages/batches/%s/results?beta=true", messageBatchID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &raw, opts...)
@@ -194,11 +194,11 @@ func (r *BetaMessageBatchService) ResultsStreaming(ctx context.Context, messageB
 
 type BetaDeletedMessageBatch struct {
 	// ID of the Message Batch.
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// Deleted object type.
 	//
 	// For Message Batches, this is always `"message_batch_deleted"`.
-	Type constant.MessageBatchDeleted `json:"type,required"`
+	Type constant.MessageBatchDeleted `json:"type" default:"message_batch_deleted"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -218,45 +218,45 @@ type BetaMessageBatch struct {
 	// Unique object identifier.
 	//
 	// The format and length of IDs may change over time.
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// RFC 3339 datetime string representing the time at which the Message Batch was
 	// archived and its results became unavailable.
-	ArchivedAt time.Time `json:"archived_at,required" format:"date-time"`
+	ArchivedAt time.Time `json:"archived_at" api:"required" format:"date-time"`
 	// RFC 3339 datetime string representing the time at which cancellation was
 	// initiated for the Message Batch. Specified only if cancellation was initiated.
-	CancelInitiatedAt time.Time `json:"cancel_initiated_at,required" format:"date-time"`
+	CancelInitiatedAt time.Time `json:"cancel_initiated_at" api:"required" format:"date-time"`
 	// RFC 3339 datetime string representing the time at which the Message Batch was
 	// created.
-	CreatedAt time.Time `json:"created_at,required" format:"date-time"`
+	CreatedAt time.Time `json:"created_at" api:"required" format:"date-time"`
 	// RFC 3339 datetime string representing the time at which processing for the
 	// Message Batch ended. Specified only once processing ends.
 	//
 	// Processing ends when every request in a Message Batch has either succeeded,
 	// errored, canceled, or expired.
-	EndedAt time.Time `json:"ended_at,required" format:"date-time"`
+	EndedAt time.Time `json:"ended_at" api:"required" format:"date-time"`
 	// RFC 3339 datetime string representing the time at which the Message Batch will
 	// expire and end processing, which is 24 hours after creation.
-	ExpiresAt time.Time `json:"expires_at,required" format:"date-time"`
+	ExpiresAt time.Time `json:"expires_at" api:"required" format:"date-time"`
 	// Processing status of the Message Batch.
 	//
 	// Any of "in_progress", "canceling", "ended".
-	ProcessingStatus BetaMessageBatchProcessingStatus `json:"processing_status,required"`
+	ProcessingStatus BetaMessageBatchProcessingStatus `json:"processing_status" api:"required"`
 	// Tallies requests within the Message Batch, categorized by their status.
 	//
 	// Requests start as `processing` and move to one of the other statuses only once
 	// processing of the entire batch ends. The sum of all values always matches the
 	// total number of requests in the batch.
-	RequestCounts BetaMessageBatchRequestCounts `json:"request_counts,required"`
+	RequestCounts BetaMessageBatchRequestCounts `json:"request_counts" api:"required"`
 	// URL to a `.jsonl` file containing the results of the Message Batch requests.
 	// Specified only once processing ends.
 	//
 	// Results in the file are not guaranteed to be in the same order as requests. Use
 	// the `custom_id` field to match results to requests.
-	ResultsURL string `json:"results_url,required"`
+	ResultsURL string `json:"results_url" api:"required"`
 	// Object type.
 	//
 	// For Message Batches, this is always `"message_batch"`.
-	Type constant.MessageBatch `json:"type,required"`
+	Type constant.MessageBatch `json:"type" default:"message_batch"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID                respjson.Field
@@ -290,7 +290,7 @@ const (
 )
 
 type BetaMessageBatchCanceledResult struct {
-	Type constant.Canceled `json:"type,required"`
+	Type constant.Canceled `json:"type" default:"canceled"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -306,8 +306,8 @@ func (r *BetaMessageBatchCanceledResult) UnmarshalJSON(data []byte) error {
 }
 
 type BetaMessageBatchErroredResult struct {
-	Error BetaErrorResponse `json:"error,required"`
-	Type  constant.Errored  `json:"type,required"`
+	Error BetaErrorResponse `json:"error" api:"required"`
+	Type  constant.Errored  `json:"type" default:"errored"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Error       respjson.Field
@@ -324,7 +324,7 @@ func (r *BetaMessageBatchErroredResult) UnmarshalJSON(data []byte) error {
 }
 
 type BetaMessageBatchExpiredResult struct {
-	Type constant.Expired `json:"type,required"`
+	Type constant.Expired `json:"type" default:"expired"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -346,13 +346,13 @@ type BetaMessageBatchIndividualResponse struct {
 	// matching results to requests, as results may be given out of request order.
 	//
 	// Must be unique for each request within the Message Batch.
-	CustomID string `json:"custom_id,required"`
+	CustomID string `json:"custom_id" api:"required"`
 	// Processing result for this request.
 	//
 	// Contains a Message output if processing was successful, an error response if
 	// processing failed, or the reason why processing was not attempted, such as
 	// cancellation or expiration.
-	Result BetaMessageBatchResultUnion `json:"result,required"`
+	Result BetaMessageBatchResultUnion `json:"result" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CustomID    respjson.Field
@@ -372,21 +372,21 @@ type BetaMessageBatchRequestCounts struct {
 	// Number of requests in the Message Batch that have been canceled.
 	//
 	// This is zero until processing of the entire Message Batch has ended.
-	Canceled int64 `json:"canceled,required"`
+	Canceled int64 `json:"canceled" api:"required"`
 	// Number of requests in the Message Batch that encountered an error.
 	//
 	// This is zero until processing of the entire Message Batch has ended.
-	Errored int64 `json:"errored,required"`
+	Errored int64 `json:"errored" api:"required"`
 	// Number of requests in the Message Batch that have expired.
 	//
 	// This is zero until processing of the entire Message Batch has ended.
-	Expired int64 `json:"expired,required"`
+	Expired int64 `json:"expired" api:"required"`
 	// Number of requests in the Message Batch that are processing.
-	Processing int64 `json:"processing,required"`
+	Processing int64 `json:"processing" api:"required"`
 	// Number of requests in the Message Batch that have completed successfully.
 	//
 	// This is zero until processing of the entire Message Batch has ended.
-	Succeeded int64 `json:"succeeded,required"`
+	Succeeded int64 `json:"succeeded" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Canceled    respjson.Field
@@ -491,8 +491,8 @@ func (r *BetaMessageBatchResultUnion) UnmarshalJSON(data []byte) error {
 }
 
 type BetaMessageBatchSucceededResult struct {
-	Message BetaMessage        `json:"message,required"`
-	Type    constant.Succeeded `json:"type,required"`
+	Message BetaMessage        `json:"message" api:"required"`
+	Type    constant.Succeeded `json:"type" default:"succeeded"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Message     respjson.Field
@@ -511,7 +511,7 @@ func (r *BetaMessageBatchSucceededResult) UnmarshalJSON(data []byte) error {
 type BetaMessageBatchNewParams struct {
 	// List of requests for prompt completion. Each is an individual request to create
 	// a Message.
-	Requests []BetaMessageBatchNewParamsRequest `json:"requests,omitzero,required"`
+	Requests []BetaMessageBatchNewParamsRequest `json:"requests,omitzero" api:"required"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -531,12 +531,12 @@ type BetaMessageBatchNewParamsRequest struct {
 	// matching results to requests, as results may be given out of request order.
 	//
 	// Must be unique for each request within the Message Batch.
-	CustomID string `json:"custom_id,required"`
+	CustomID string `json:"custom_id" api:"required"`
 	// Messages API creation parameters for the individual request.
 	//
 	// See the [Messages API reference](https://docs.claude.com/en/api/messages) for
 	// full documentation on available parameters.
-	Params BetaMessageBatchNewParamsRequestParams `json:"params,omitzero,required"`
+	Params BetaMessageBatchNewParamsRequestParams `json:"params,omitzero" api:"required"`
 	paramObj
 }
 
@@ -562,7 +562,7 @@ type BetaMessageBatchNewParamsRequestParams struct {
 	//
 	// Different models have different maximum values for this parameter. See
 	// [models](https://docs.claude.com/en/docs/models-overview) for details.
-	MaxTokens int64 `json:"max_tokens,required"`
+	MaxTokens int64 `json:"max_tokens" api:"required"`
 	// Input messages.
 	//
 	// Our models are trained to operate on alternating `user` and `assistant`
@@ -632,14 +632,17 @@ type BetaMessageBatchNewParamsRequestParams struct {
 	// the Messages API.
 	//
 	// There is a limit of 100,000 messages in a single request.
-	Messages []BetaMessageParam `json:"messages,omitzero,required"`
+	Messages []BetaMessageParam `json:"messages,omitzero" api:"required"`
 	// The model that will complete your prompt.\n\nSee
 	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
-	Model Model `json:"model,omitzero,required"`
+	Model Model `json:"model,omitzero" api:"required"`
 	// Specifies the geographic region for inference processing. If not specified, the
 	// workspace's `default_inference_geo` is used.
 	InferenceGeo param.Opt[string] `json:"inference_geo,omitzero"`
+	// The user profile ID to attribute this request to. Use when acting on behalf of a
+	// party other than your organization.
+	UserProfileID param.Opt[string] `json:"user_profile_id,omitzero"`
 	// Whether to incrementally stream the response using server-sent events.
 	//
 	// See [streaming](https://docs.claude.com/en/api/messages-streaming) for details.
@@ -652,24 +655,32 @@ type BetaMessageBatchNewParamsRequestParams struct {
 	//
 	// Note that even with `temperature` of `0.0`, the results will not be fully
 	// deterministic.
+	//
+	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not support
+	// setting temperature. A value of 1.0 of will be accepted for backwards
+	// compatibility, all other values will be rejected with a 400 error.
 	Temperature param.Opt[float64] `json:"temperature,omitzero"`
 	// Only sample from the top K options for each subsequent token.
 	//
 	// Used to remove "long tail" low probability responses.
 	// [Learn more technical details here](https://towardsdatascience.com/how-to-sample-from-language-models-682bceb97277).
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
+	//
+	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not accept
+	// top_k; any value will be rejected with a 400 error.
 	TopK param.Opt[int64] `json:"top_k,omitzero"`
 	// Use nucleus sampling.
 	//
 	// In nucleus sampling, we compute the cumulative distribution over all the options
 	// for each subsequent token in decreasing probability order and cut it off once it
-	// reaches a particular probability specified by `top_p`. You should either alter
-	// `temperature` or `top_p`, but not both.
+	// reaches a particular probability specified by `top_p`.
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
+	//
+	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not support
+	// setting top_p. A value >= 0.99 will be accepted for backwards compatibility, all
+	// other values will be rejected with a 400 error.
 	TopP param.Opt[float64] `json:"top_p,omitzero"`
 	// Container identifier for reuse across requests.
 	Container BetaMessageBatchNewParamsRequestParamsContainerUnion `json:"container,omitzero"`
