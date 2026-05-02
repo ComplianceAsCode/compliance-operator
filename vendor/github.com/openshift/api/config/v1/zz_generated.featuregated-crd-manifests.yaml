@@ -7,7 +7,6 @@ apiservers.config.openshift.io:
   Category: ""
   FeatureGates:
   - KMSEncryption
-  - KMSEncryptionProvider
   - TLSAdherence
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
@@ -373,11 +372,11 @@ infrastructures.config.openshift.io:
   - AzureDualStackInstall
   - DualReplica
   - DyanmicServiceEndpointIBMCloud
-  - GCPClusterHostedDNSInstall
   - NutanixMultiSubnets
   - OnPremDNSRecords
   - VSphereHostVMGroupZonal
   - VSphereMultiNetworks
+  - VSphereMultiVCenterDay2
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
