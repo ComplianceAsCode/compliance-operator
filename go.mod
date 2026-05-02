@@ -143,7 +143,7 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-RP v0.0.0-20250602035759-0693f32d5ccc // indirect
+	github.com/Azure/ARO-RP v0.0.0-20260501080605-2acf55f49287 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
 	github.com/coreos/fcct v0.5.0 // indirect
@@ -158,7 +158,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
-	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
+	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344 // indirect
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/jsonreference v0.21.5 // indirect
 	github.com/go-openapi/swag v0.25.5 // indirect

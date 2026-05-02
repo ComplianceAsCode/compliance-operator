@@ -25,8 +25,8 @@ cloud.google.com/go/auth/internal/trustboundary
 # cloud.google.com/go/compute/metadata v0.9.0
 ## explicit; go 1.24.0
 cloud.google.com/go/compute/metadata
-# github.com/Azure/ARO-RP v0.0.0-20250602035759-0693f32d5ccc
-## explicit; go 1.22.9
+# github.com/Azure/ARO-RP v0.0.0-20260501080605-2acf55f49287
+## explicit; go 1.25.3
 github.com/Azure/ARO-RP/pkg/operator/apis/aro.openshift.io/v1alpha1
 github.com/Azure/ARO-RP/pkg/operator/apis/preview.aro.openshift.io/v1alpha1
 github.com/Azure/ARO-RP/pkg/operator/clientset/versioned
@@ -217,7 +217,7 @@ github.com/fsnotify/fsnotify/internal
 # github.com/fxamacker/cbor/v2 v2.9.1
 ## explicit; go 1.20
 github.com/fxamacker/cbor/v2
-# github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
+# github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 ## explicit
 github.com/ghodss/yaml
 # github.com/go-logr/logr v1.4.3
