@@ -730,8 +730,9 @@ func TestSingleScanSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exitCode != "0" {
-		t.Fatalf("Expected ConfigMap exit-code to be '0', but got: '%s'", exitCode)
+	expectedExitCode := "0"
+	if exitCode != expectedExitCode {
+		t.Fatalf("Expected ConfigMap exit-code to be '%s', but got: '%s'", expectedExitCode, exitCode)
 	}
 }
 
@@ -1167,8 +1168,9 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exitCode != "2" {
-		t.Fatalf("Expected ConfigMap exit-code to be '2', but got: '%s'", exitCode)
+	expectedExitCode := "2"
+	if exitCode != expectedExitCode {
+		t.Fatalf("Expected ConfigMap exit-code to be '%s', but got: '%s'", expectedExitCode, exitCode)
 	}
 }
 
@@ -3340,7 +3342,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Invalid ScannerType Rule",
 				Description: "This rule has invalid scannerType",
 				Severity:    "low",
-				CheckType:   "Platform", // Valid checkType
+				CheckType:   "Platform",                       // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3381,7 +3383,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Valid Rule",
 				Description: "This rule has valid checkType and scannerType",
 				Severity:    "low",
-				CheckType:   "Platform", // Valid checkType
+				CheckType:   "Platform",                  // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
