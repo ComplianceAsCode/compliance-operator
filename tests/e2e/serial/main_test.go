@@ -2921,7 +2921,7 @@ func TestHighProfileManualRulesHaveInstructions(t *testing.T) {
 	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
 
 	// Wait for the suite to complete
-	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent); err != nil {
 		t.Fatalf("Failed waiting for suite to complete: %s", err)
 	}
 
@@ -2940,8 +2940,7 @@ func TestHighProfileManualRulesHaveInstructions(t *testing.T) {
 	}
 
 	if len(checkResults.Items) == 0 {
-		t.Logf("No MANUAL check results found for suite %s, test passed trivially", suiteName)
-		return
+		t.Fatalf("No MANUAL check results found for suite %s", suiteName)
 	}
 
 	t.Logf("Found %d MANUAL check results to verify", len(checkResults.Items))
