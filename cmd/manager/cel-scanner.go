@@ -450,7 +450,10 @@ func (c *CelScanner) runPlatformScan() {
 
 	// Save the scan result
 	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "result.json")
-	saveScanResult(outputFilePath, evalResultList)
+	if err := saveScanResult(outputFilePath, evalResultList); err != nil {
+		cmdLog.Error(err, "Failed to save scan results", "path", outputFilePath)
+		os.Exit(CelExitCodeError)
+	}
 
 	// Check if we need to generate ComplianceCheckResult objects
 	if c.celConfig.CCRGeneration {
@@ -808,18 +811,16 @@ func (c *CelScanner) getVariablesForTailoredProfile(tp *cmpv1alpha1.TailoredProf
 	return setVars, nil
 }
 
-// saveScanResult saves the scan results to a JSON file with proper indentation
-func saveScanResult(filePath string, resultsList []*cmpv1alpha1.ComplianceCheckResult) {
+func saveScanResult(filePath string, resultsList []*cmpv1alpha1.ComplianceCheckResult) error {
 	file, err := os.Create(filePath)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create result file %s: %v", filePath, err))
+		return fmt.Errorf("creating result file %s: %w", filePath, err)
 	}
 	defer file.Close()
-	// Serialize the results list to JSON
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	err = encoder.Encode(resultsList)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to encode results list to JSON: %v", err))
+	if err := encoder.Encode(resultsList); err != nil {
+		return fmt.Errorf("encoding results to JSON: %w", err)
 	}
+	return nil
 }
