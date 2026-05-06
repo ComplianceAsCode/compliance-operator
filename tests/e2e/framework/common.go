@@ -672,9 +672,6 @@ func (f *Framework) ensureE2EScanSettings() error {
 			TestPoolName,
 		}
 		ssCopy.Debug = true
-		// Increase timeout for tests that involve multiple node restarts
-		// (e.g., TestAutoRemediate with multiple MachineConfig applications)
-		ssCopy.Timeout = "60m"
 
 		if err := f.Client.Create(context.TODO(), ssCopy, nil); err != nil {
 			return err

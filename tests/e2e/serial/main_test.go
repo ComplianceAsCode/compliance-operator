@@ -742,6 +742,27 @@ func TestAutoRemediate(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), tp)
 
+	scanSettingName := suiteName + "-scan-setting"
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: true,
+			Schedule:              "0 1 * * *",
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug:   true,
+			Timeout: "60m",
+		},
+		Roles: []string{framework.TestPoolName},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatalf("failed to create ScanSetting %s: %s", scanSettingName, err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
+
 	ssb := &compv1alpha1.ScanSettingBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      suiteName,
@@ -757,7 +778,7 @@ func TestAutoRemediate(t *testing.T) {
 		SettingsRef: &compv1alpha1.NamedObjectReference{
 			APIGroup: "compliance.openshift.io/v1alpha1",
 			Kind:     "ScanSetting",
-			Name:     "e2e-default-auto-apply",
+			Name:     scanSettingName,
 		},
 	}
 	err := f.Client.Create(context.TODO(), ssb, nil)
@@ -766,40 +787,22 @@ func TestAutoRemediate(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), ssb)
 
-	// Wait for scan to complete - we need to wait for either COMPLIANT or NON-COMPLIANT
-	// Try waiting for NON-COMPLIANT first (expected case when rules need remediation)
 	log.Printf("Waiting for scan %s to complete\n", scanName)
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	err = f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant)
 	if err != nil {
-		// If it's not NON-COMPLIANT, check if it's COMPLIANT (all rules already compliant)
-		err2 := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
-		if err2 != nil {
-			t.Fatalf("Scan completed but with unexpected result. First error: %v, Second error: %v", err, err2)
-		}
-		log.Printf("Scan completed with COMPLIANT result - all rules already compliant")
-	} else {
-		log.Printf("Scan completed with NON-COMPLIANT result - some rules need remediation")
+		t.Fatalf("Scan did not complete with an expected result: %v", err)
 	}
 
-	// Query for all remediations that were created (only non-compliant rules get remediations)
-	// This allows the test to work regardless of which rules are non-compliant in the environment
 	remediationList := &compv1alpha1.ComplianceRemediationList{}
-	listOpts := client.ListOptions{
-		Namespace: f.OperatorNamespace,
-	}
-	err = f.Client.List(context.TODO(), remediationList, &listOpts)
+	err = f.Client.List(context.TODO(), remediationList,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{compv1alpha1.SuiteLabel: suiteName},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Filter to get only remediations for our scan
-	var ourRemediations []compv1alpha1.ComplianceRemediation
-	for _, rem := range remediationList.Items {
-		if rem.Labels != nil && rem.Labels[compv1alpha1.SuiteLabel] == suiteName {
-			ourRemediations = append(ourRemediations, rem)
-		}
-	}
-
+	ourRemediations := remediationList.Items
 	if len(ourRemediations) == 0 {
 		t.Skip("No non-compliant rules found - system is already compliant with all test rules, cannot test auto-remediation")
 	}
