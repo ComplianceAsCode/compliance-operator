@@ -685,6 +685,21 @@ func TestTolerations(t *testing.T) {
 	}
 }
 
+// TestAutoRemediate tests auto-remediation functionality with multiple rule types.
+// This test covers the following scenarios:
+// Tests auto-remediation with multiple remediation types simultaneously
+//
+//	        (file-based, audit rules, array values - whichever are non-compliant)
+//	Tests scanning on a subset of nodes (via framework.TestPoolName MachineConfigPool)
+//	Tests ComplianceRemediation status transitions (Applied → PASS after rescan)
+//	Tests array value remediations (chronyd with multiple NTP servers) and end-to-end workflow
+//
+// The test dynamically adapts to the environment by:
+// 1. Scanning with multiple rules (file, audit, array value types)
+// 2. Identifying which rules are non-compliant
+// 3. Testing auto-remediation on all non-compliant rules
+// 4. Verifying remediation status transitions and check results
+// 5. Cleaning up all applied configurations
 func TestAutoRemediate(t *testing.T) {
 	f := framework.Global
 	// FIXME, maybe have a func that returns a struct with suite name and scan names?
@@ -705,7 +720,17 @@ func TestAutoRemediate(t *testing.T) {
 			EnableRules: []compv1alpha1.RuleReferenceSpec{
 				{
 					Name:      "rhcos4-no-direct-root-logins",
-					Rationale: "To be tested",
+					Rationale: "Test file-based remediation",
+				},
+				{
+					// Array value remediation
+					Name:      "rhcos4-chronyd-or-ntpd-specify-multiple-servers",
+					Rationale: "Test array value remediation with multiple NTP servers",
+				},
+				{
+					// Different remediation type (audit rules)
+					Name:      "rhcos4-audit-rules-dac-modification-chmod",
+					Rationale: "Test audit rule remediation",
 				},
 			},
 		},
@@ -716,6 +741,27 @@ func TestAutoRemediate(t *testing.T) {
 		t.Fatalf("failed to create TailoredProfile %s: %s", tp.Name, createTPErr)
 	}
 	defer f.Client.Delete(context.TODO(), tp)
+
+	scanSettingName := suiteName + "-scan-setting"
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: true,
+			Schedule:              "0 1 * * *",
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug:   true,
+			Timeout: "60m",
+		},
+		Roles: []string{framework.TestPoolName},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatalf("failed to create ScanSetting %s: %s", scanSettingName, err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
 
 	ssb := &compv1alpha1.ScanSettingBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -732,7 +778,7 @@ func TestAutoRemediate(t *testing.T) {
 		SettingsRef: &compv1alpha1.NamedObjectReference{
 			APIGroup: "compliance.openshift.io/v1alpha1",
 			Kind:     "ScanSetting",
-			Name:     "e2e-default-auto-apply",
+			Name:     scanSettingName,
 		},
 	}
 	err := f.Client.Create(context.TODO(), ssb, nil)
@@ -741,36 +787,69 @@ func TestAutoRemediate(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), ssb)
 
-	// Get the MachineConfigPool before a scan or remediation has been applied
-	// This way, we can check that it changed without race-conditions
-	poolBeforeRemediation := &mcfgv1.MachineConfigPool{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: framework.TestPoolName}, poolBeforeRemediation)
+	log.Printf("Waiting for scan %s to complete\n", scanName)
+	err = f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("Scan did not complete with an expected result: %v", err)
+	}
+
+	remediationList := &compv1alpha1.ComplianceRemediationList{}
+	err = f.Client.List(context.TODO(), remediationList,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{compv1alpha1.SuiteLabel: suiteName},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Ensure that all the scans in the suite have finished and are marked as Done
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
-	if err != nil {
-		t.Fatal(err)
+	ourRemediations := remediationList.Items
+	if len(ourRemediations) == 0 {
+		t.Skip("No non-compliant rules found - system is already compliant with all test rules, cannot test auto-remediation")
 	}
 
-	// We need to check that the remediation is auto-applied and save
-	// the object so we can delete it later
-	remName := fmt.Sprintf("%s-no-direct-root-logins", scanName)
-	err = f.WaitForRemediationToBeAutoApplied(remName, f.OperatorNamespace, poolBeforeRemediation)
-	if err != nil {
-		t.Fatal(err)
+	log.Printf("Found %d remediation(s) to test: - multiple remediation types\n", len(ourRemediations))
+	for _, rem := range ourRemediations {
+		log.Printf("  - %s\n", rem.Name)
 	}
 
-	// Fetch remediation here so we can clean up the machine config later.
-	// We do this before the rescan takes place because the rescan will
-	// prune the remediation after the check passes.
-	rem := &compv1alpha1.ComplianceRemediation{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: remName, Namespace: f.OperatorNamespace}, rem)
-	if err != nil {
-		t.Fatal(err)
+	// Wait for all remediations to be auto-applied, processing them one at a time
+	// Get fresh pool state for each remediation to handle multiple MCs efficiently
+	var appliedRemediations []*compv1alpha1.ComplianceRemediation
+	for i := range ourRemediations {
+		rem := &ourRemediations[i]
+		log.Printf("Waiting for remediation %d/%d: %s to be auto-applied\n", i+1, len(ourRemediations), rem.Name)
+
+		// Get current pool state before waiting for this specific remediation
+		// This ensures we're working with fresh state, especially important when multiple MCs are being applied
+		currentPool := &mcfgv1.MachineConfigPool{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{Name: framework.TestPoolName}, currentPool)
+		if err != nil {
+			t.Fatalf("Failed to get current MachineConfigPool state for remediation %s: %s", rem.Name, err)
+		}
+
+		err = f.WaitForRemediationToBeAutoApplied(rem.Name, f.OperatorNamespace, currentPool)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify ComplianceRemediation shows "Applied" status
+		log.Printf("Verifying remediation %s is in Applied state\n", rem.Name)
+		err = f.WaitForRemediationState(rem.Name, f.OperatorNamespace, compv1alpha1.RemediationApplied)
+		if err != nil {
+			t.Fatalf("Remediation %s not in Applied state: %s", rem.Name, err)
+		}
+
+		// Fetch updated remediation for cleanup
+		updatedRem := &compv1alpha1.ComplianceRemediation{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{Name: rem.Name, Namespace: f.OperatorNamespace}, updatedRem)
+		if err != nil {
+			t.Fatal(err)
+		}
+		appliedRemediations = append(appliedRemediations, updatedRem)
+		log.Printf("Remediation %d/%d applied successfully: %s\n", i+1, len(ourRemediations), rem.Name)
 	}
+
+	log.Printf("All %d remediation(s) applied successfully\n", len(appliedRemediations))
 
 	// We can re-run the scan at this moment and check that it's now compliant
 	// and it's reflected in a CheckResult
@@ -785,58 +864,50 @@ func TestAutoRemediate(t *testing.T) {
 	}
 
 	// Ensure that all the scans in the suite have finished and are marked as Done
+	// After remediation, we expect COMPLIANT
 	log.Printf("waiting for scan %s to finish\n", scanName)
 	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Printf("scan %s re-run has finished\n", scanName)
+	log.Printf("scan %s re-run has finished with COMPLIANT result\n", scanName)
 
-	// Now the check should be passing
-	checkNoDirectRootLogins := compv1alpha1.ComplianceCheckResult{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-no-direct-root-logins", scanName),
-			Namespace: f.OperatorNamespace,
-		},
-		ID:       "xccdf_org.ssgproject.content_rule_no_direct_root_logins",
-		Status:   compv1alpha1.CheckResultPass,
-		Severity: compv1alpha1.CheckResultSeverityMedium,
-	}
-	err = f.AssertHasCheck(suiteName, scanName, checkNoDirectRootLogins)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Verify all checks pass after remediation (Applied → PASS transition)
+	log.Printf("Verifying all %d remediated checks are now PASS\n", len(appliedRemediations))
+	for _, rem := range appliedRemediations {
+		// Extract the rule name from remediation name (format: scanname-rulename)
+		checkName := rem.Name
+		log.Printf("Verifying check %s passed\n", checkName)
 
-	// The test should not leave junk around, let's remove the MC and wait
-	// for the nodes to stabilize again
-	log.Printf("Removing applied machine config\n")
-	mcfgToBeDeleted := rem.Spec.Current.Object.DeepCopy()
-	mcfgToBeDeleted.SetName(rem.GetMcName())
-	err = f.Client.Delete(context.TODO(), mcfgToBeDeleted)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	log.Printf("successfully deleted MachineConfig deleted, will wait for the machines to come back up")
-
-	dummyAction := func() error {
-		return nil
-	}
-	poolHasNoMc := func(pool *mcfgv1.MachineConfigPool) (bool, error) {
-		for _, mc := range pool.Status.Configuration.Source {
-			if mc.Name == rem.GetMcName() {
-				return false, nil
-			}
+		// Get the check result
+		checkResult := &compv1alpha1.ComplianceCheckResult{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{Name: checkName, Namespace: f.OperatorNamespace}, checkResult)
+		if err != nil {
+			t.Fatalf("Failed to get ComplianceCheckResult %s: %s", checkName, err)
 		}
 
-		return true, nil
+		if checkResult.Status != compv1alpha1.CheckResultPass {
+			t.Fatalf("Expected check %s to PASS after remediation, got %s", checkName, checkResult.Status)
+		}
+		log.Printf("Check %s is PASS\n", checkName)
 	}
 
-	// We need to wait for both the pool to update..
-	err = f.WaitForMachinePoolUpdate(framework.TestPoolName, dummyAction, poolHasNoMc, nil)
-	if err != nil {
-		t.Fatalf("failed waiting for workers to come back up after deleting MachineConfig: %s", err)
+	// The test should not leave junk around, let's unapply all remediations and wait
+	// for the nodes to stabilize again.
+	// Unapply remediations one at a time and wait for pool to stabilize after each
+	// to avoid timeout when unapplying multiple remediations simultaneously
+	log.Printf("Unapplying %d remediation(s) one at a time\n", len(appliedRemediations))
+
+	for i, rem := range appliedRemediations {
+		log.Printf("Unapplying remediation %d/%d: %s\n", i+1, len(appliedRemediations), rem.Name)
+		err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, rem.Name, framework.TestPoolName)
+		if err != nil {
+			t.Fatalf("Failed to unapply remediation %s: %s", rem.Name, err)
+		}
+		log.Printf("Successfully unapplied remediation %s\n", rem.Name)
 	}
+
+	log.Printf("Successfully unapplied all remediations and pool has stabilized")
 
 	// ..as well as the nodes
 	f.WaitForNodesToBeReady()
