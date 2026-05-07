@@ -3,13 +3,13 @@
 package v1beta1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	apimachinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	versioned "github.com/openshift/client-go/machine/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/openshift/client-go/machine/listers/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/client-go/machine/listers/machine/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // Machines.
 type MachineInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1beta1.MachineLister
+	Lister() machinev1beta1.MachineLister
 }
 
 type machineInformer struct {
@@ -41,21 +41,33 @@ func NewMachineInformer(client versioned.Interface, namespace string, resyncPeri
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredMachineInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MachineV1beta1().Machines(namespace).List(context.TODO(), options)
+				return client.MachineV1beta1().Machines(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MachineV1beta1().Machines(namespace).Watch(context.TODO(), options)
+				return client.MachineV1beta1().Machines(namespace).Watch(context.Background(), options)
 			},
-		},
-		&machinev1beta1.Machine{},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.MachineV1beta1().Machines(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.MachineV1beta1().Machines(namespace).Watch(ctx, options)
+			},
+		}, client),
+		&apimachinev1beta1.Machine{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *machineInformer) defaultInformer(client versioned.Interface, resyncPeri
 }
 
 func (f *machineInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&machinev1beta1.Machine{}, f.defaultInformer)
+	return f.factory.InformerFor(&apimachinev1beta1.Machine{}, f.defaultInformer)
 }
 
-func (f *machineInformer) Lister() v1beta1.MachineLister {
-	return v1beta1.NewMachineLister(f.Informer().GetIndexer())
+func (f *machineInformer) Lister() machinev1beta1.MachineLister {
+	return machinev1beta1.NewMachineLister(f.Informer().GetIndexer())
 }

@@ -3,13 +3,13 @@
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
+	apioperatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	versioned "github.com/openshift/client-go/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/operator/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/openshift/client-go/operator/listers/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/client-go/operator/listers/operator/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // ClusterVersionOperators.
 type ClusterVersionOperatorInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.ClusterVersionOperatorLister
+	Lister() operatorv1alpha1.ClusterVersionOperatorLister
 }
 
 type clusterVersionOperatorInformer struct {
@@ -40,21 +40,33 @@ func NewClusterVersionOperatorInformer(client versioned.Interface, resyncPeriod 
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredClusterVersionOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().ClusterVersionOperators().List(context.TODO(), options)
+				return client.OperatorV1alpha1().ClusterVersionOperators().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().ClusterVersionOperators().Watch(context.TODO(), options)
+				return client.OperatorV1alpha1().ClusterVersionOperators().Watch(context.Background(), options)
 			},
-		},
-		&operatorv1alpha1.ClusterVersionOperator{},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1alpha1().ClusterVersionOperators().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1alpha1().ClusterVersionOperators().Watch(ctx, options)
+			},
+		}, client),
+		&apioperatorv1alpha1.ClusterVersionOperator{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *clusterVersionOperatorInformer) defaultInformer(client versioned.Interf
 }
 
 func (f *clusterVersionOperatorInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.ClusterVersionOperator{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1alpha1.ClusterVersionOperator{}, f.defaultInformer)
 }
 
-func (f *clusterVersionOperatorInformer) Lister() v1alpha1.ClusterVersionOperatorLister {
-	return v1alpha1.NewClusterVersionOperatorLister(f.Informer().GetIndexer())
+func (f *clusterVersionOperatorInformer) Lister() operatorv1alpha1.ClusterVersionOperatorLister {
+	return operatorv1alpha1.NewClusterVersionOperatorLister(f.Informer().GetIndexer())
 }

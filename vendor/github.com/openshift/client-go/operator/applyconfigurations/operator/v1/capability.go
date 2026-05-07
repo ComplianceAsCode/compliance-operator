@@ -3,13 +3,18 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // CapabilityApplyConfiguration represents a declarative configuration of the Capability type for use
 // with apply.
+//
+// Capabilities contains set of UI capabilities and their state in the console UI.
 type CapabilityApplyConfiguration struct {
-	Name       *v1.ConsoleCapabilityName               `json:"name,omitempty"`
+	// name is the unique name of a capability.
+	// Available capabilities are LightspeedButton, GettingStartedBanner, and GuidedTour.
+	Name *operatorv1.ConsoleCapabilityName `json:"name,omitempty"`
+	// visibility defines the visibility state of the capability.
 	Visibility *CapabilityVisibilityApplyConfiguration `json:"visibility,omitempty"`
 }
 
@@ -22,7 +27,7 @@ func Capability() *CapabilityApplyConfiguration {
 // WithName sets the Name field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Name field is set to the value of the last call.
-func (b *CapabilityApplyConfiguration) WithName(value v1.ConsoleCapabilityName) *CapabilityApplyConfiguration {
+func (b *CapabilityApplyConfiguration) WithName(value operatorv1.ConsoleCapabilityName) *CapabilityApplyConfiguration {
 	b.Name = &value
 	return b
 }

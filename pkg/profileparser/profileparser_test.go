@@ -338,6 +338,60 @@ var _ = Describe("Testing ParseBundle", func() {
 				Expect(fetchedRule.Instructions).ToNot(BeEmpty())
 			})
 		})
+
+		When("User-added annotations exist on a rule before content update", func() {
+			const customAnnotationKey = "internal-id"
+			const customAnnotationValue = "SEC-4021"
+			const customLabelKey = "business-unit"
+			const customLabelValue = "payments"
+
+			BeforeEach(func() {
+				rule := &cmpv1alpha1.Rule{}
+				key := types.NamespacedName{Namespace: testNamespace, Name: chronydMaxpollRuleName}
+				err := client.Get(context.TODO(), key, rule)
+				Expect(err).To(BeNil())
+
+				if rule.Annotations == nil {
+					rule.Annotations = make(map[string]string)
+				}
+				rule.Annotations[customAnnotationKey] = customAnnotationValue
+
+				if rule.Labels == nil {
+					rule.Labels = make(map[string]string)
+				}
+				rule.Labels[customLabelKey] = customLabelValue
+
+				err = client.Update(context.TODO(), rule)
+				Expect(err).To(BeNil())
+			})
+
+			It("Preserves user-added annotations after content update", func() {
+				rule := &cmpv1alpha1.Rule{}
+				key := types.NamespacedName{Namespace: testNamespace, Name: chronydMaxpollRuleName}
+				err := client.Get(context.TODO(), key, rule)
+				Expect(err).To(BeNil())
+
+				Expect(rule.Annotations).To(HaveKeyWithValue(customAnnotationKey, customAnnotationValue))
+			})
+
+			It("Preserves user-added labels after content update", func() {
+				rule := &cmpv1alpha1.Rule{}
+				key := types.NamespacedName{Namespace: testNamespace, Name: chronydMaxpollRuleName}
+				err := client.Get(context.TODO(), key, rule)
+				Expect(err).To(BeNil())
+
+				Expect(rule.Labels).To(HaveKeyWithValue(customLabelKey, customLabelValue))
+			})
+
+			It("Still updates operator-managed annotations", func() {
+				rule := &cmpv1alpha1.Rule{}
+				key := types.NamespacedName{Namespace: testNamespace, Name: chronydMaxpollRuleName}
+				err := client.Get(context.TODO(), key, rule)
+				Expect(err).To(BeNil())
+
+				Expect(rule.Annotations).To(HaveKey(cmpv1alpha1.RuleIDAnnotationKey))
+			})
+		})
 	})
 
 	Context("Variable changes", func() {

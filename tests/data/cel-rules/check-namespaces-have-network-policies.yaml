@@ -1,0 +1,42 @@
+name: check-namespaces-have-network-policies
+id: check_namespaces_have_network_policies
+title: Namespaces must have network policies
+description: |-
+  All user-created namespaces should have at least one NetworkPolicy
+  defined to control ingress and egress traffic. Namespaces without
+  network policies allow unrestricted pod-to-pod communication.
+rationale: |-
+  Without network policies, any pod can communicate with any other
+  pod in the cluster, increasing the blast radius of a compromise.
+severity: medium
+checkType: Platform
+expression: |
+  namespaces.items.all(ns,
+      ns.metadata.name.startsWith('kube-') ||
+      ns.metadata.name == 'default' ||
+      ns.metadata.name.startsWith('openshift') ||
+      networkpolicies.items.exists(np,
+          np.metadata.namespace == ns.metadata.name
+      )
+  )
+inputs:
+  - name: namespaces
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: namespaces
+  - name: networkpolicies
+    kubernetesInputSpec:
+      group: networking.k8s.io
+      apiVersion: v1
+      resource: networkpolicies
+failureReason: |-
+  One or more user namespaces do not have a NetworkPolicy defined.
+instructions: |-
+  For each user namespace run 'oc get networkpolicies -n <namespace>'
+  and verify that at least one NetworkPolicy exists.
+controls:
+  NIST-800-53:
+    - "SC-7"
+    - "SC-7(5)"
+  CIS-OCP:
+    - "5.3.2"

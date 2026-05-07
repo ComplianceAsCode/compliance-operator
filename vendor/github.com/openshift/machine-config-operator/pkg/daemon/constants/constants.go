@@ -17,6 +17,10 @@ const (
 	CurrentMachineConfigAnnotationKey = "machineconfiguration.openshift.io/currentConfig"
 	// DesiredMachineConfigAnnotationKey is used to specify the desired MachineConfig for a machine
 	DesiredMachineConfigAnnotationKey = "machineconfiguration.openshift.io/desiredConfig"
+	// FirstPivotMachineConfigAnnotationKey is used to specify the MachineConfig the node pivoted to after firstboot.
+	FirstPivotMachineConfigAnnotationKey = "machineconfiguration.openshift.io/firstPivotConfig"
+	// CustomPoolLabelsAppliedAnnotationKey is set by the node controller to indicate custom pool labels were automatically applied
+	CustomPoolLabelsAppliedAnnotationKey = "machineconfiguration.openshift.io/customPoolLabelsApplied"
 	// MachineConfigDaemonStateAnnotationKey is used to fetch the state of the daemon on the machine.
 	MachineConfigDaemonStateAnnotationKey = "machineconfiguration.openshift.io/state"
 	// DesiredDrainerAnnotationKey is set by the MCD to indicate drain/uncordon requests
@@ -141,7 +145,18 @@ const (
 	// changes to this path. Note that other files added to the parent directory will not be handled specially
 	GPGNoRebootPath = "/etc/machine-config-daemon/no-reboot/containers-gpg.pub"
 
-	// ImageRegistryDrainOverrideConfigmap is the name of the Configmap a user can apply to force all
-	// image registry changes to not drain
-	ImageRegistryDrainOverrideConfigmap = "image-registry-override-drain"
+	KubernetesCredentialProvidersDir = "/etc/kubernetes/credential-providers"
+
+	KubeletCrioImageCredProviderConfPath = "/etc/systemd/system/kubelet.service.d/40-kubelet-crio-image-credential-provider.conf"
+
+	// IRI (InternalReleaseImage) registry paths and service
+	IRIRegistryConfigPath  = "/etc/iri-registry"
+	IRILoadImageScriptPath = "/usr/local/bin/load-registry-image.sh"
+	IRIRootCAPath          = "/etc/pki/ca-trust/source/anchors/iri-root-ca.crt"
+	IRIRegistryServiceName = "iri-registry.service"
+
+	// rpm-ostree command arguments
+	RPMOSTreeUpdateArg    = "update"
+	RPMOSTreeInstallArg   = "--install"
+	RPMOSTreeUninstallArg = "--uninstall"
 )

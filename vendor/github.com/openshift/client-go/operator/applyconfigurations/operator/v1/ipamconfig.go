@@ -3,13 +3,18 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // IPAMConfigApplyConfiguration represents a declarative configuration of the IPAMConfig type for use
 // with apply.
+//
+// IPAMConfig contains configurations for IPAM (IP Address Management)
 type IPAMConfigApplyConfiguration struct {
-	Type             *v1.IPAMType                        `json:"type,omitempty"`
+	// type is the type of IPAM module will be used for IP Address Management(IPAM).
+	// The supported values are IPAMTypeDHCP, IPAMTypeStatic
+	Type *operatorv1.IPAMType `json:"type,omitempty"`
+	// staticIPAMConfig configures the static IP address in case of type:IPAMTypeStatic
 	StaticIPAMConfig *StaticIPAMConfigApplyConfiguration `json:"staticIPAMConfig,omitempty"`
 }
 
@@ -22,7 +27,7 @@ func IPAMConfig() *IPAMConfigApplyConfiguration {
 // WithType sets the Type field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Type field is set to the value of the last call.
-func (b *IPAMConfigApplyConfiguration) WithType(value v1.IPAMType) *IPAMConfigApplyConfiguration {
+func (b *IPAMConfigApplyConfiguration) WithType(value operatorv1.IPAMType) *IPAMConfigApplyConfiguration {
 	b.Type = &value
 	return b
 }
