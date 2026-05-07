@@ -9,9 +9,20 @@ import (
 
 // CloudCredentialSpecApplyConfiguration represents a declarative configuration of the CloudCredentialSpec type for use
 // with apply.
+//
+// CloudCredentialSpec is the specification of the desired behavior of the cloud-credential-operator.
 type CloudCredentialSpecApplyConfiguration struct {
 	OperatorSpecApplyConfiguration `json:",inline"`
-	CredentialsMode                *operatorv1.CloudCredentialsMode `json:"credentialsMode,omitempty"`
+	// credentialsMode allows informing CCO that it should not attempt to dynamically
+	// determine the root cloud credentials capabilities, and it should just run in
+	// the specified mode.
+	// It also allows putting the operator into "manual" mode if desired.
+	// Leaving the field in default mode runs CCO so that the cluster's cloud credentials
+	// will be dynamically probed for capabilities (on supported clouds/platforms).
+	// Supported modes:
+	// AWS/Azure/GCP: "" (Default), "Mint", "Passthrough", "Manual"
+	// Others: Do not set value as other platforms only support running in "Passthrough"
+	CredentialsMode *operatorv1.CloudCredentialsMode `json:"credentialsMode,omitempty"`
 }
 
 // CloudCredentialSpecApplyConfiguration constructs a declarative configuration of the CloudCredentialSpec type for use with
@@ -24,7 +35,7 @@ func CloudCredentialSpec() *CloudCredentialSpecApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ManagementState field is set to the value of the last call.
 func (b *CloudCredentialSpecApplyConfiguration) WithManagementState(value operatorv1.ManagementState) *CloudCredentialSpecApplyConfiguration {
-	b.ManagementState = &value
+	b.OperatorSpecApplyConfiguration.ManagementState = &value
 	return b
 }
 
@@ -32,7 +43,7 @@ func (b *CloudCredentialSpecApplyConfiguration) WithManagementState(value operat
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogLevel field is set to the value of the last call.
 func (b *CloudCredentialSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLevel) *CloudCredentialSpecApplyConfiguration {
-	b.LogLevel = &value
+	b.OperatorSpecApplyConfiguration.LogLevel = &value
 	return b
 }
 
@@ -40,7 +51,7 @@ func (b *CloudCredentialSpecApplyConfiguration) WithLogLevel(value operatorv1.Lo
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the OperatorLogLevel field is set to the value of the last call.
 func (b *CloudCredentialSpecApplyConfiguration) WithOperatorLogLevel(value operatorv1.LogLevel) *CloudCredentialSpecApplyConfiguration {
-	b.OperatorLogLevel = &value
+	b.OperatorSpecApplyConfiguration.OperatorLogLevel = &value
 	return b
 }
 
@@ -48,7 +59,7 @@ func (b *CloudCredentialSpecApplyConfiguration) WithOperatorLogLevel(value opera
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UnsupportedConfigOverrides field is set to the value of the last call.
 func (b *CloudCredentialSpecApplyConfiguration) WithUnsupportedConfigOverrides(value runtime.RawExtension) *CloudCredentialSpecApplyConfiguration {
-	b.UnsupportedConfigOverrides = &value
+	b.OperatorSpecApplyConfiguration.UnsupportedConfigOverrides = &value
 	return b
 }
 
@@ -56,7 +67,7 @@ func (b *CloudCredentialSpecApplyConfiguration) WithUnsupportedConfigOverrides(v
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedConfig field is set to the value of the last call.
 func (b *CloudCredentialSpecApplyConfiguration) WithObservedConfig(value runtime.RawExtension) *CloudCredentialSpecApplyConfiguration {
-	b.ObservedConfig = &value
+	b.OperatorSpecApplyConfiguration.ObservedConfig = &value
 	return b
 }
 

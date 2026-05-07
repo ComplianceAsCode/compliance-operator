@@ -21,6 +21,7 @@ declare -a tags=(
     'variabletemplate'
     'kubelet_default'
     'deprecated_profile'
+    'cel_content'
 )
 
 CMD=$1

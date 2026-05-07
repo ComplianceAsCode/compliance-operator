@@ -4,6 +4,8 @@ package v1
 
 // ConsoleStatusApplyConfiguration represents a declarative configuration of the ConsoleStatus type for use
 // with apply.
+//
+// ConsoleStatus defines the observed status of the Console.
 type ConsoleStatusApplyConfiguration struct {
 	OperatorStatusApplyConfiguration `json:",inline"`
 }
@@ -18,7 +20,7 @@ func ConsoleStatus() *ConsoleStatusApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedGeneration field is set to the value of the last call.
 func (b *ConsoleStatusApplyConfiguration) WithObservedGeneration(value int64) *ConsoleStatusApplyConfiguration {
-	b.ObservedGeneration = &value
+	b.OperatorStatusApplyConfiguration.ObservedGeneration = &value
 	return b
 }
 
@@ -30,7 +32,7 @@ func (b *ConsoleStatusApplyConfiguration) WithConditions(values ...*OperatorCond
 		if values[i] == nil {
 			panic("nil value passed to WithConditions")
 		}
-		b.Conditions = append(b.Conditions, *values[i])
+		b.OperatorStatusApplyConfiguration.Conditions = append(b.OperatorStatusApplyConfiguration.Conditions, *values[i])
 	}
 	return b
 }
@@ -39,7 +41,7 @@ func (b *ConsoleStatusApplyConfiguration) WithConditions(values ...*OperatorCond
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Version field is set to the value of the last call.
 func (b *ConsoleStatusApplyConfiguration) WithVersion(value string) *ConsoleStatusApplyConfiguration {
-	b.Version = &value
+	b.OperatorStatusApplyConfiguration.Version = &value
 	return b
 }
 
@@ -47,7 +49,7 @@ func (b *ConsoleStatusApplyConfiguration) WithVersion(value string) *ConsoleStat
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ReadyReplicas field is set to the value of the last call.
 func (b *ConsoleStatusApplyConfiguration) WithReadyReplicas(value int32) *ConsoleStatusApplyConfiguration {
-	b.ReadyReplicas = &value
+	b.OperatorStatusApplyConfiguration.ReadyReplicas = &value
 	return b
 }
 
@@ -55,7 +57,7 @@ func (b *ConsoleStatusApplyConfiguration) WithReadyReplicas(value int32) *Consol
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LatestAvailableRevision field is set to the value of the last call.
 func (b *ConsoleStatusApplyConfiguration) WithLatestAvailableRevision(value int32) *ConsoleStatusApplyConfiguration {
-	b.LatestAvailableRevision = &value
+	b.OperatorStatusApplyConfiguration.LatestAvailableRevision = &value
 	return b
 }
 
@@ -67,7 +69,7 @@ func (b *ConsoleStatusApplyConfiguration) WithGenerations(values ...*GenerationS
 		if values[i] == nil {
 			panic("nil value passed to WithGenerations")
 		}
-		b.Generations = append(b.Generations, *values[i])
+		b.OperatorStatusApplyConfiguration.Generations = append(b.OperatorStatusApplyConfiguration.Generations, *values[i])
 	}
 	return b
 }

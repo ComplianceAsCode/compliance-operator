@@ -11,8 +11,34 @@ import (
 // with apply.
 type MachineConfigurationSpecApplyConfiguration struct {
 	StaticPodOperatorSpecApplyConfiguration `json:",inline"`
-	ManagedBootImages                       *ManagedBootImagesApplyConfiguration          `json:"managedBootImages,omitempty"`
-	NodeDisruptionPolicy                    *NodeDisruptionPolicyConfigApplyConfiguration `json:"nodeDisruptionPolicy,omitempty"`
+	// managedBootImages allows configuration for the management of boot images for machine
+	// resources within the cluster. This configuration allows users to select resources that should
+	// be updated to the latest boot images during cluster upgrades, ensuring that new machines
+	// always boot with the current cluster version's boot image. When omitted, this means no opinion
+	// and the platform is left to choose a reasonable default, which is subject to change over time.
+	// The default for each machine manager mode is All for GCP and AWS platforms, and None for all
+	// other platforms.
+	ManagedBootImages *ManagedBootImagesApplyConfiguration `json:"managedBootImages,omitempty"`
+	// nodeDisruptionPolicy allows an admin to set granular node disruption actions for
+	// MachineConfig-based updates, such as drains, service reloads, etc. Specifying this will allow
+	// for less downtime when doing small configuration updates to the cluster. This configuration
+	// has no effect on cluster upgrades which will still incur node disruption where required.
+	NodeDisruptionPolicy *NodeDisruptionPolicyConfigApplyConfiguration `json:"nodeDisruptionPolicy,omitempty"`
+	// irreconcilableValidationOverrides is an optional field that can used to make changes to a MachineConfig that
+	// cannot be applied to existing nodes.
+	// When specified, the fields configured with validation overrides will no longer reject changes to those
+	// respective fields due to them not being able to be applied to existing nodes.
+	// Only newly provisioned nodes will have these configurations applied.
+	// Existing nodes will report observed configuration differences in their MachineConfigNode status.
+	IrreconcilableValidationOverrides *IrreconcilableValidationOverridesApplyConfiguration `json:"irreconcilableValidationOverrides,omitempty"`
+	// bootImageSkewEnforcement allows an admin to configure how boot image version skew is
+	// enforced on the cluster.
+	// When omitted, this will default to Automatic for clusters that support automatic boot image updates.
+	// For clusters that do not support automatic boot image updates, cluster upgrades will be disabled until
+	// a skew enforcement mode has been specified.
+	// When version skew is being enforced, cluster upgrades will be disabled until the version skew is deemed
+	// acceptable for the current release payload.
+	BootImageSkewEnforcement *BootImageSkewEnforcementConfigApplyConfiguration `json:"bootImageSkewEnforcement,omitempty"`
 }
 
 // MachineConfigurationSpecApplyConfiguration constructs a declarative configuration of the MachineConfigurationSpec type for use with
@@ -25,7 +51,7 @@ func MachineConfigurationSpec() *MachineConfigurationSpecApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ManagementState field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithManagementState(value operatorv1.ManagementState) *MachineConfigurationSpecApplyConfiguration {
-	b.ManagementState = &value
+	b.OperatorSpecApplyConfiguration.ManagementState = &value
 	return b
 }
 
@@ -33,7 +59,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithManagementState(value o
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogLevel field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLevel) *MachineConfigurationSpecApplyConfiguration {
-	b.LogLevel = &value
+	b.OperatorSpecApplyConfiguration.LogLevel = &value
 	return b
 }
 
@@ -41,7 +67,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithLogLevel(value operator
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the OperatorLogLevel field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithOperatorLogLevel(value operatorv1.LogLevel) *MachineConfigurationSpecApplyConfiguration {
-	b.OperatorLogLevel = &value
+	b.OperatorSpecApplyConfiguration.OperatorLogLevel = &value
 	return b
 }
 
@@ -49,7 +75,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithOperatorLogLevel(value 
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UnsupportedConfigOverrides field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithUnsupportedConfigOverrides(value runtime.RawExtension) *MachineConfigurationSpecApplyConfiguration {
-	b.UnsupportedConfigOverrides = &value
+	b.OperatorSpecApplyConfiguration.UnsupportedConfigOverrides = &value
 	return b
 }
 
@@ -57,7 +83,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithUnsupportedConfigOverri
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedConfig field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithObservedConfig(value runtime.RawExtension) *MachineConfigurationSpecApplyConfiguration {
-	b.ObservedConfig = &value
+	b.OperatorSpecApplyConfiguration.ObservedConfig = &value
 	return b
 }
 
@@ -65,7 +91,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithObservedConfig(value ru
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ForceRedeploymentReason field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithForceRedeploymentReason(value string) *MachineConfigurationSpecApplyConfiguration {
-	b.ForceRedeploymentReason = &value
+	b.StaticPodOperatorSpecApplyConfiguration.ForceRedeploymentReason = &value
 	return b
 }
 
@@ -73,7 +99,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithForceRedeploymentReason
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the FailedRevisionLimit field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithFailedRevisionLimit(value int32) *MachineConfigurationSpecApplyConfiguration {
-	b.FailedRevisionLimit = &value
+	b.StaticPodOperatorSpecApplyConfiguration.FailedRevisionLimit = &value
 	return b
 }
 
@@ -81,7 +107,7 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithFailedRevisionLimit(val
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the SucceededRevisionLimit field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithSucceededRevisionLimit(value int32) *MachineConfigurationSpecApplyConfiguration {
-	b.SucceededRevisionLimit = &value
+	b.StaticPodOperatorSpecApplyConfiguration.SucceededRevisionLimit = &value
 	return b
 }
 
@@ -98,5 +124,21 @@ func (b *MachineConfigurationSpecApplyConfiguration) WithManagedBootImages(value
 // If called multiple times, the NodeDisruptionPolicy field is set to the value of the last call.
 func (b *MachineConfigurationSpecApplyConfiguration) WithNodeDisruptionPolicy(value *NodeDisruptionPolicyConfigApplyConfiguration) *MachineConfigurationSpecApplyConfiguration {
 	b.NodeDisruptionPolicy = value
+	return b
+}
+
+// WithIrreconcilableValidationOverrides sets the IrreconcilableValidationOverrides field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IrreconcilableValidationOverrides field is set to the value of the last call.
+func (b *MachineConfigurationSpecApplyConfiguration) WithIrreconcilableValidationOverrides(value *IrreconcilableValidationOverridesApplyConfiguration) *MachineConfigurationSpecApplyConfiguration {
+	b.IrreconcilableValidationOverrides = value
+	return b
+}
+
+// WithBootImageSkewEnforcement sets the BootImageSkewEnforcement field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the BootImageSkewEnforcement field is set to the value of the last call.
+func (b *MachineConfigurationSpecApplyConfiguration) WithBootImageSkewEnforcement(value *BootImageSkewEnforcementConfigApplyConfiguration) *MachineConfigurationSpecApplyConfiguration {
+	b.BootImageSkewEnforcement = value
 	return b
 }
