@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -2576,7 +2577,7 @@ func TestMustGatherImageWorksAsExpected(t *testing.T) {
 
 	// Wait for the ComplianceSuite scans to complete
 	log.Printf("Waiting for ComplianceSuite scans to complete...")
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent)
+	err = f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent)
 	if err != nil {
 		t.Fatalf("Scan did not complete successfully: %v", err)
 	}
@@ -2721,7 +2722,7 @@ func getMustGatherImageFromCSV(f *framework.Framework) (string, error) {
 		csvItem := &csvList.Items[i]
 		if name := csvItem.GetName(); name != "" {
 			// CSVs typically have names like "compliance-operator.vX.Y.Z"
-			if len(name) >= 19 && name[:19] == "compliance-operator" {
+			if strings.HasPrefix(name, "compliance-operator") {
 				csv = csvItem
 				break
 			}
