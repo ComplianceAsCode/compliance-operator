@@ -265,6 +265,141 @@ func (f *Framework) createFromYAMLString(y string) error {
 	return nil
 }
 
+// installViaSubscription installs the compliance operator using OLM Subscription
+func (f *Framework) installViaSubscription(channel, source, sourceNamespace string) error {
+	// Create OperatorGroup
+	operatorGroup := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      f.OperatorNamespace,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{
+			TargetNamespaces: []string{f.OperatorNamespace},
+		},
+	}
+
+	log.Printf("creating OperatorGroup %s in namespace %s", operatorGroup.Name, operatorGroup.Namespace)
+	if err := f.Client.CreateWithoutCleanup(context.TODO(), operatorGroup); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create OperatorGroup: %w", err)
+		}
+		log.Printf("OperatorGroup %s already exists", operatorGroup.Name)
+	}
+
+	// Create Subscription
+	subscription := &operatorsv1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "compliance-operator",
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: &operatorsv1alpha1.SubscriptionSpec{
+			Channel:                channel,
+			InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
+			Package:                "compliance-operator",
+			CatalogSource:          source,
+			CatalogSourceNamespace: sourceNamespace,
+		},
+	}
+
+	log.Printf("creating Subscription %s in namespace %s", subscription.Name, subscription.Namespace)
+	if err := f.Client.CreateWithoutCleanup(context.TODO(), subscription); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create Subscription: %w", err)
+		}
+		log.Printf("Subscription %s already exists", subscription.Name)
+	}
+
+	// Wait for the operator to be installed and CRDs to be ready
+	log.Printf("Waiting for operator installation via OLM...")
+	if err := f.waitForOperatorInstallation(); err != nil {
+		return fmt.Errorf("failed waiting for operator installation: %w", err)
+	}
+
+	return nil
+}
+
+// waitForOperatorInstallation polls until the compliance operator is installed via OLM
+func (f *Framework) waitForOperatorInstallation() error {
+	retryInterval := time.Second * 5
+	timeout := time.Minute * 5
+
+	err := wait.Poll(retryInterval, timeout, func() (bool, error) {
+		csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
+		listOpts := &dynclient.ListOptions{
+			Namespace: f.OperatorNamespace,
+		}
+		if err := f.Client.List(context.TODO(), csvList, listOpts); err != nil {
+			log.Printf("Error listing CSVs: %v, retrying...", err)
+			return false, nil
+		}
+
+		for _, csv := range csvList.Items {
+			if csv.Spec.DisplayName == "Compliance Operator" {
+				if csv.Status.Phase == operatorsv1alpha1.CSVPhaseSucceeded {
+					log.Printf("CSV %s is in Succeeded phase", csv.Name)
+					return true, nil
+				}
+				log.Printf("CSV %s is in phase %s, waiting...", csv.Name, csv.Status.Phase)
+				return false, nil
+			}
+		}
+		log.Printf("Compliance Operator CSV not found yet, waiting...")
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("timed out waiting for CSV to be installed: %w", err)
+	}
+
+	log.Printf("Operator CSV installed successfully")
+	return nil
+}
+
+func (f *Framework) waitForCRDs() error {
+	crdNames := []string{
+		"compliancescans.compliance.openshift.io",
+		"compliancesuites.compliance.openshift.io",
+		"complianceremediations.compliance.openshift.io",
+		"scansettings.compliance.openshift.io",
+		"scansettingbindings.compliance.openshift.io",
+		"tailoredprofiles.compliance.openshift.io",
+		"profiles.compliance.openshift.io",
+		"profilebundles.compliance.openshift.io",
+		"rules.compliance.openshift.io",
+		"variables.compliance.openshift.io",
+		"compliancecheckresults.compliance.openshift.io",
+	}
+
+	timeout := 5 * time.Minute
+	retryInterval := 5 * time.Second
+
+	log.Printf("Waiting for compliance operator CRDs to be created by OLM (timeout: %v)", timeout)
+
+	for _, crdName := range crdNames {
+		err := wait.Poll(retryInterval, timeout, func() (bool, error) {
+			_, err := f.KubeClient.Discovery().RESTClient().Get().
+				AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + crdName).
+				DoRaw(context.TODO())
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					log.Printf("CRD %s not found yet, waiting...", crdName)
+					return false, nil
+				}
+				log.Printf("Error checking CRD %s: %v, retrying...", crdName, err)
+				return false, nil
+			}
+			log.Printf("CRD %s is available", crdName)
+			return true, nil
+		})
+
+		if err != nil {
+			return fmt.Errorf("timeout waiting for CRD %s to be created: %w", crdName, err)
+		}
+	}
+
+	log.Printf("All compliance operator CRDs are available")
+	return nil
+}
+
 func (f *Framework) WaitForScanCleanup() error {
 	timeouterr := wait.Poll(time.Second*5, time.Minute*2, func() (bool, error) {
 		var scans compv1alpha1.ComplianceScanList
