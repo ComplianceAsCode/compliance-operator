@@ -3267,11 +3267,10 @@ func (f *Framework) AssertSuiteRerunnerResourcesInJobs(namespace, suiteName, cpu
 		return fmt.Errorf("failed to list jobs for suite %s: %w", suiteName, err)
 	}
 
-	if len(jobList.Items) == 0 {
-		return fmt.Errorf("no suitererunner jobs found for suite %s", suiteName)
+	if len(jobList.Items) != 1 {
+		return fmt.Errorf("expected only one suitererunner; got %d", len(jobList.Items))
 	}
 
-	// Check the first job's container resources
 	job := jobList.Items[0]
 	if len(job.Spec.Template.Spec.Containers) == 0 {
 		return fmt.Errorf("job %s has no containers", job.Name)

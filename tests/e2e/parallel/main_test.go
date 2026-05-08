@@ -2628,7 +2628,11 @@ func TestScheduledSuiteUpdate(t *testing.T) {
 	}
 
 	// Verify suitererunner resource limits and requests through Jobs
-	err = f.AssertSuiteRerunnerResourcesInJobs(f.OperatorNamespace, suiteName, "50m", "100Mi", "10m", "20Mi")
+	expectedResourceCpu := "10m"
+	expectedResourceMem := "20Mi"
+	expectedLimitCpu := "50m"
+	expectedLimitMem := "100Mi"
+	err = f.AssertSuiteRerunnerResourcesInJobs(f.OperatorNamespace, suiteName, expectedLimitCpu, expectedLimitMem, expectedResourceCpu, expectedResourceMem)
 	if err != nil {
 		t.Fatal(err)
 	}
