@@ -3340,7 +3340,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Invalid ScannerType Rule",
 				Description: "This rule has invalid scannerType",
 				Severity:    "low",
-				CheckType:   "Platform",                       // Valid checkType
+				CheckType:   "Platform", // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -3381,7 +3381,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Valid Rule",
 				Description: "This rule has valid checkType and scannerType",
 				Severity:    "low",
-				CheckType:   "Platform",                  // Valid checkType
+				CheckType:   "Platform", // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeCEL, // Valid scannerType
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
@@ -6054,7 +6054,8 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 }
 
 // TestMultipleProfileBundlesWithTailoredProfiles tests that the profileparser can handle
-// multiple ProfileBundles being added concurrently without affecting existing default ProfileBundles.
+// multiple ProfileBundles being parsed concurrently without corrupting each other or the
+// default bundles, and that scans using TailoredProfiles from each bundle complete successfully.
 func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
 	f := framework.Global
 	var (
@@ -6062,20 +6063,34 @@ func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
 		pb2Image = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
 	)
 
-	// Create first ProfileBundle
-	pb1Name := framework.GetObjNameFromTest(t) + "-pb1"
+	// Use a short base name so that derived scan/service names stay under the 63-char DNS label limit.
+	// The longest name is the result server service: {tpName}-{role}-rs.
+	baseName := "multi-pb"
+
+	// Create both ProfileBundles before waiting, so the operator parses them concurrently
+	pb1Name := baseName + "-pb1"
 	pb1, err := f.CreateProfileBundle(pb1Name, pb1Image, framework.RhcosContentFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), pb1)
 
-	// Wait for first ProfileBundle to become valid
+	pb2Name := baseName + "-pb2"
+	pb2, err := f.CreateProfileBundle(pb2Name, pb2Image, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), pb2)
+
+	// Wait for both ProfileBundles to become valid
 	if err := f.WaitForProfileBundleStatus(pb1Name, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}
+	if err := f.WaitForProfileBundleStatus(pb2Name, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
 
-	// Check that default ProfileBundles remain valid after first custom bundle creation
+	// Check that default ProfileBundles remain valid after concurrent custom bundle parsing
 	if err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}
@@ -6083,17 +6098,20 @@ func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create TailoredProfile extending from first ProfileBundle
-	tp1Name := framework.GetObjNameFromTest(t) + "-tp1"
+	// Create TailoredProfiles extending from each ProfileBundle using the e8 profile
+	tp1Name := baseName + "-tp1"
 	tp1 := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tp1Name,
 			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: string(compv1alpha1.ScanTypeNode),
+			},
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
 			Title:       "Test Multiple ProfileBundles - TP1",
 			Description: "TailoredProfile extending from first custom ProfileBundle",
-			Extends:     pb1Name + "-moderate",
+			Extends:     pb1Name + "-e8",
 			EnableRules: []compv1alpha1.RuleReferenceSpec{
 				{
 					Name:      pb1Name + "-account-disable-post-pw-expiration",
@@ -6113,43 +6131,19 @@ func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), tp1)
 
-	// Wait for first TailoredProfile to become ready
-	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp1Name, compv1alpha1.TailoredProfileStateReady); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create second ProfileBundle with different content image
-	pb2Name := framework.GetObjNameFromTest(t) + "-pb2"
-	pb2, err := f.CreateProfileBundle(pb2Name, pb2Image, framework.RhcosContentFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), pb2)
-
-	// Wait for second ProfileBundle to become valid
-	if err := f.WaitForProfileBundleStatus(pb2Name, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
-
-	// Check that default ProfileBundles still remain valid after second custom bundle creation
-	if err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create second TailoredProfile extending from second ProfileBundle
-	tp2Name := framework.GetObjNameFromTest(t) + "-tp2"
+	tp2Name := baseName + "-tp2"
 	tp2 := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tp2Name,
 			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: string(compv1alpha1.ScanTypeNode),
+			},
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
 			Title:       "Test Multiple ProfileBundles - TP2",
 			Description: "TailoredProfile extending from second custom ProfileBundle",
-			Extends:     pb2Name + "-moderate",
+			Extends:     pb2Name + "-e8",
 			EnableRules: []compv1alpha1.RuleReferenceSpec{
 				{
 					Name:      pb2Name + "-wireless-disable-in-bios",
@@ -6169,13 +6163,78 @@ func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), tp2)
 
-	// Wait for second TailoredProfile to become ready
+	// Wait for both TailoredProfiles to become ready
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp1Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
 	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp2Name, compv1alpha1.TailoredProfileStateReady); err != nil {
 		t.Fatal(err)
 	}
 
-	// Final verification: ensure first TailoredProfile is still ready
-	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp1Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+	// Run scans using both TailoredProfiles to exercise the full workflow
+	ssb1Name := baseName + "-ssb1"
+	ssb1 := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssb1Name,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tp1Name,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), ssb1, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb1)
+
+	ssb2Name := baseName + "-ssb2"
+	ssb2 := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssb2Name,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tp2Name,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), ssb2, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb2)
+
+	// Wait for both suites to complete
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, ssb1Name, compv1alpha1.PhaseDone,
+		compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultNotApplicable); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, ssb2Name, compv1alpha1.PhaseDone,
+		compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultNotApplicable); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify default ProfileBundles are still valid after concurrent scans
+	if err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}
 }
