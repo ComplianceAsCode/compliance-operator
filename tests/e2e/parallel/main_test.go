@@ -730,8 +730,9 @@ func TestSingleScanSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exitCode != "0" {
-		t.Fatalf("Expected ConfigMap exit-code to be '0', but got: '%s'", exitCode)
+	expectedExitCode := "0"
+	if exitCode != expectedExitCode {
+		t.Fatalf("Expected ConfigMap exit-code to be '%s', but got: '%s'", expectedExitCode, exitCode)
 	}
 }
 
@@ -1167,8 +1168,9 @@ func TestScanWithUnexistentResourceFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exitCode != "2" {
-		t.Fatalf("Expected ConfigMap exit-code to be '2', but got: '%s'", exitCode)
+	expectedExitCode := "2"
+	if exitCode != expectedExitCode {
+		t.Fatalf("Expected ConfigMap exit-code to be '%s', but got: '%s'", expectedExitCode, exitCode)
 	}
 }
 
