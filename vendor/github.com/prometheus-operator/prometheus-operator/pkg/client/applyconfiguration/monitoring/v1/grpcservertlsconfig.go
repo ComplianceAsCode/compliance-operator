@@ -21,25 +21,44 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// TLSConfigApplyConfiguration represents a declarative configuration of the TLSConfig type for use
+// GRPCServerTLSConfigApplyConfiguration represents a declarative configuration of the GRPCServerTLSConfig type for use
 // with apply.
 //
-// TLSConfig defines full TLS configuration.
-type TLSConfigApplyConfiguration struct {
-	SafeTLSConfigApplyConfiguration  `json:",inline"`
-	TLSFilesConfigApplyConfiguration `json:",inline"`
+// GRPCServerTLSConfig defines TLS configuration for a gRPC server.
+type GRPCServerTLSConfigApplyConfiguration struct {
+	TLSConfigApplyConfiguration `json:",inline"`
+	// cipherSuites defines the list of supported cipher suites for TLS
+	// versions up to TLS 1.2.
+	//
+	// If not defined, the Go default cipher suites are used.
+	// Available cipher suites are documented in the Go documentation:
+	// https://golang.org/pkg/crypto/tls/#pkg-constants
+	//
+	// It requires Thanos >= v0.42.0. Note that the operator doesn't verify if
+	// the Thanos version supports the provided values.
+	CipherSuites []string `json:"cipherSuites,omitempty"`
+	// curves defines the list of preferred elliptic curves for
+	// TLS handshakes.
+	//
+	// If not defined, the Go default curves are used.
+	// Available curves are documented in the Go documentation:
+	// https://golang.org/pkg/crypto/tls/#CurveID
+	//
+	// It requires Thanos >= v0.42.0. Note that the operator doesn't verify if
+	// the Thanos version supports the provided values.
+	Curves []string `json:"curves,omitempty"`
 }
 
-// TLSConfigApplyConfiguration constructs a declarative configuration of the TLSConfig type for use with
+// GRPCServerTLSConfigApplyConfiguration constructs a declarative configuration of the GRPCServerTLSConfig type for use with
 // apply.
-func TLSConfig() *TLSConfigApplyConfiguration {
-	return &TLSConfigApplyConfiguration{}
+func GRPCServerTLSConfig() *GRPCServerTLSConfigApplyConfiguration {
+	return &GRPCServerTLSConfigApplyConfiguration{}
 }
 
 // WithCA sets the CA field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CA field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithCA(value *SecretOrConfigMapApplyConfiguration) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithCA(value *SecretOrConfigMapApplyConfiguration) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.CA = value
 	return b
 }
@@ -47,7 +66,7 @@ func (b *TLSConfigApplyConfiguration) WithCA(value *SecretOrConfigMapApplyConfig
 // WithCert sets the Cert field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Cert field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithCert(value *SecretOrConfigMapApplyConfiguration) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithCert(value *SecretOrConfigMapApplyConfiguration) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.Cert = value
 	return b
 }
@@ -55,7 +74,7 @@ func (b *TLSConfigApplyConfiguration) WithCert(value *SecretOrConfigMapApplyConf
 // WithKeySecret sets the KeySecret field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the KeySecret field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithKeySecret(value corev1.SecretKeySelector) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithKeySecret(value corev1.SecretKeySelector) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.KeySecret = &value
 	return b
 }
@@ -63,7 +82,7 @@ func (b *TLSConfigApplyConfiguration) WithKeySecret(value corev1.SecretKeySelect
 // WithServerName sets the ServerName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ServerName field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithServerName(value string) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithServerName(value string) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.ServerName = &value
 	return b
 }
@@ -71,7 +90,7 @@ func (b *TLSConfigApplyConfiguration) WithServerName(value string) *TLSConfigApp
 // WithInsecureSkipVerify sets the InsecureSkipVerify field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the InsecureSkipVerify field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithInsecureSkipVerify(value bool) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithInsecureSkipVerify(value bool) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.InsecureSkipVerify = &value
 	return b
 }
@@ -79,7 +98,7 @@ func (b *TLSConfigApplyConfiguration) WithInsecureSkipVerify(value bool) *TLSCon
 // WithMinVersion sets the MinVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the MinVersion field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithMinVersion(value monitoringv1.TLSVersion) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithMinVersion(value monitoringv1.TLSVersion) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.MinVersion = &value
 	return b
 }
@@ -87,7 +106,7 @@ func (b *TLSConfigApplyConfiguration) WithMinVersion(value monitoringv1.TLSVersi
 // WithMaxVersion sets the MaxVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the MaxVersion field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithMaxVersion(value monitoringv1.TLSVersion) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithMaxVersion(value monitoringv1.TLSVersion) *GRPCServerTLSConfigApplyConfiguration {
 	b.SafeTLSConfigApplyConfiguration.MaxVersion = &value
 	return b
 }
@@ -95,7 +114,7 @@ func (b *TLSConfigApplyConfiguration) WithMaxVersion(value monitoringv1.TLSVersi
 // WithCAFile sets the CAFile field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CAFile field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithCAFile(value string) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithCAFile(value string) *GRPCServerTLSConfigApplyConfiguration {
 	b.TLSFilesConfigApplyConfiguration.CAFile = &value
 	return b
 }
@@ -103,7 +122,7 @@ func (b *TLSConfigApplyConfiguration) WithCAFile(value string) *TLSConfigApplyCo
 // WithCertFile sets the CertFile field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CertFile field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithCertFile(value string) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithCertFile(value string) *GRPCServerTLSConfigApplyConfiguration {
 	b.TLSFilesConfigApplyConfiguration.CertFile = &value
 	return b
 }
@@ -111,7 +130,27 @@ func (b *TLSConfigApplyConfiguration) WithCertFile(value string) *TLSConfigApply
 // WithKeyFile sets the KeyFile field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the KeyFile field is set to the value of the last call.
-func (b *TLSConfigApplyConfiguration) WithKeyFile(value string) *TLSConfigApplyConfiguration {
+func (b *GRPCServerTLSConfigApplyConfiguration) WithKeyFile(value string) *GRPCServerTLSConfigApplyConfiguration {
 	b.TLSFilesConfigApplyConfiguration.KeyFile = &value
+	return b
+}
+
+// WithCipherSuites adds the given value to the CipherSuites field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the CipherSuites field.
+func (b *GRPCServerTLSConfigApplyConfiguration) WithCipherSuites(values ...string) *GRPCServerTLSConfigApplyConfiguration {
+	for i := range values {
+		b.CipherSuites = append(b.CipherSuites, values[i])
+	}
+	return b
+}
+
+// WithCurves adds the given value to the Curves field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Curves field.
+func (b *GRPCServerTLSConfigApplyConfiguration) WithCurves(values ...string) *GRPCServerTLSConfigApplyConfiguration {
+	for i := range values {
+		b.Curves = append(b.Curves, values[i])
+	}
 	return b
 }
