@@ -4,7 +4,7 @@ go 1.25.3
 
 require (
 	github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
 	k8s.io/apimachinery v0.35.3
