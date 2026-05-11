@@ -3383,7 +3383,7 @@ func TestCustomRuleCheckTypeAndScannerTypeValidation(t *testing.T) {
 				Title:       "Invalid ScannerType Rule",
 				Description: "This rule has invalid scannerType",
 				Severity:    "low",
-				CheckType:   "Platform",                       // Valid checkType
+				CheckType:   "Platform", // Valid checkType
 				ScannerType: compv1alpha1.ScannerTypeOpenSCAP, // This should be rejected
 				Expression:  `pods.items.size() >= 0`,
 				Inputs: []compv1alpha1.InputPayload{
