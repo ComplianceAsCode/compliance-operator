@@ -5920,6 +5920,11 @@ func TestCISProfileVersionConsistency(t *testing.T) {
 					APIGroup: "compliance.openshift.io/v1alpha1",
 				},
 			},
+			SettingsRef: &compv1alpha1.NamedObjectReference{
+				Name:     "default",
+				Kind:     "ScanSetting",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
 		}
 
 		if err := f.Client.Create(context.TODO(), binding, nil); err != nil {
@@ -5933,35 +5938,49 @@ func TestCISProfileVersionConsistency(t *testing.T) {
 	// Helper to wait for suite completion with DONE phase
 	waitForSuiteCompletion := func(suiteName, description string) error {
 		t.Logf("Waiting for %s ComplianceSuite to complete...", description)
-
-		// Try NON-COMPLIANT first
-		err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
-		if err != nil {
-			// If not NON-COMPLIANT, try INCONSISTENT
-			errInconsistent := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultInconsistent)
-			if errInconsistent != nil {
-				return fmt.Errorf("%s suite not in expected state (tried NON-COMPLIANT and INCONSISTENT): %w", description, err)
-			}
+		if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent); err != nil {
+			return fmt.Errorf("%s suite not in expected state: %w", description, err)
 		}
 		t.Logf("%s ComplianceSuite completed", description)
 		return nil
 	}
 
-	// Helper to match scans by node role (master/worker) or platform type
+	// Helper to determine scan role from ComplianceScan metadata
+	getScanRole := func(scanName string) (string, error) {
+		scan := &compv1alpha1.ComplianceScan{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Namespace: f.OperatorNamespace,
+			Name:      scanName,
+		}, scan); err != nil {
+			return "", fmt.Errorf("failed to get scan %s: %w", scanName, err)
+		}
+		if scan.Spec.ScanType == compv1alpha1.ScanTypePlatform {
+			return "platform", nil
+		}
+		for key := range scan.Spec.NodeSelector {
+			if strings.Contains(key, "master") {
+				return "master", nil
+			}
+			if strings.Contains(key, "worker") {
+				return "worker", nil
+			}
+		}
+		return "node", nil
+	}
+
+	// Helper to match scans by role derived from scan metadata
 	findMatchingScan := func(scanName string, scanCounts map[string]int) (string, int, bool) {
-		isMaster := strings.Contains(scanName, "master")
-		isWorker := strings.Contains(scanName, "worker")
-		isPlatform := !isMaster && !isWorker
-
+		role, err := getScanRole(scanName)
+		if err != nil {
+			t.Logf("Warning: could not determine role for scan %s: %v", scanName, err)
+			return "", 0, false
+		}
 		for candidateName, count := range scanCounts {
-			candidateIsMaster := strings.Contains(candidateName, "master")
-			candidateIsWorker := strings.Contains(candidateName, "worker")
-			candidateIsPlatform := !candidateIsMaster && !candidateIsWorker
-
-			// Match by role: master with master, worker with worker, platform with platform
-			if (isMaster && candidateIsMaster) ||
-				(isWorker && candidateIsWorker) ||
-				(isPlatform && candidateIsPlatform) {
+			candidateRole, err := getScanRole(candidateName)
+			if err != nil {
+				continue
+			}
+			if role == candidateRole {
 				return candidateName, count, true
 			}
 		}
@@ -6038,7 +6057,7 @@ func TestCISProfileVersionConsistency(t *testing.T) {
 			t.Fatalf("Rule count mismatch: %s has %d rules, %s has %d rules",
 				versionedScanName, versionedCount, baseScanName, baseCount)
 		}
-		t.Logf("✓ Rule counts match for %s ↔ %s: %d rules",
+		t.Logf("Rule counts match for %s and %s: %d rules",
 			versionedScanName, baseScanName, versionedCount)
 
 		// Verify check results match
@@ -6046,14 +6065,14 @@ func TestCISProfileVersionConsistency(t *testing.T) {
 			t.Fatalf("Check results differ between %s and %s: %s",
 				versionedScanName, baseScanName, err)
 		}
-		t.Logf("✓ All check results match for %s ↔ %s", versionedScanName, baseScanName)
+		t.Logf("All check results match for %s and %s", versionedScanName, baseScanName)
 
 		matchedPairs++
 	}
 
 	// Summary
 	t.Logf("Successfully verified %d scan pairs between base and versioned CIS profiles", matchedPairs)
-	t.Log("✓ CIS profile versions produce consistent results")
+	t.Log("CIS profile versions produce consistent results")
 }
 
 // TestResultServerSAAndSecurityContext tests that resultserver uses a separate service account

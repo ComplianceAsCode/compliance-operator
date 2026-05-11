@@ -3109,7 +3109,6 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
-		t.Fatal(err)
 	}
 
 
