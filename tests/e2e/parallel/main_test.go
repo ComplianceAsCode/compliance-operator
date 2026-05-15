@@ -6054,3 +6054,136 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 
 	t.Log("Mixed CEL + XCCDF scan test completed successfully")
 }
+
+func TestTailoredProfileExtendsCELProfile(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	pbName := testName + "-pb"
+	tpName := testName + "-tp"
+	ssbName := testName + "-ssb"
+	testNamespace := f.OperatorNamespace
+	celContentImage := brokenContentImagePath + ":cel_content"
+
+	pb, err := f.CreateProfileBundleWithCEL(pbName, celContentImage, framework.RhcosContentFile, framework.CelContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatalf("ProfileBundle did not reach VALID state: %s", err)
+	}
+	t.Log("ProfileBundle is VALID")
+
+	celProfileName := pbName + "-cel-e2e-test-profile"
+	disabledRuleName := pbName + "-check-no-privileged-containers"
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TailoredProfile extending CEL profile",
+			Description: "E2E test: TailoredProfile that extends a CEL-based profile and disables one rule",
+			Extends:     celProfileName,
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      disabledRuleName,
+					Rationale: "Disabled for testing purposes",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	err = f.WaitForTailoredProfileStatus(testNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatalf("TailoredProfile did not become ready: %v", err)
+	}
+	t.Logf("TailoredProfile %s is ready", tpName)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("ScanSettingBinding did not become ready: %v", err)
+	}
+	t.Log("ScanSettingBinding is ready")
+
+	suiteName := ssbName
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+		if err != nil {
+			t.Fatalf("scan did not complete: %v", err)
+		}
+		t.Log("CEL scan via TailoredProfile completed as COMPLIANT")
+	} else {
+		t.Log("CEL scan via TailoredProfile completed as NON-COMPLIANT")
+	}
+
+	// Verify enabled rules produced check results
+	enabledRules := []string{
+		"check-default-namespace-has-no-pods",
+		"check-default-sa-exists-in-kube-system",
+		"check-namespaces-have-network-policies",
+	}
+	for _, ruleName := range enabledRules {
+		checkName := fmt.Sprintf("%s-%s", tpName, ruleName)
+		check := &compv1alpha1.ComplianceCheckResult{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: checkName, Namespace: testNamespace,
+		}, check)
+		if err != nil {
+			t.Fatalf("ComplianceCheckResult %s not found: %v", checkName, err)
+		}
+		if check.Status != compv1alpha1.CheckResultPass && check.Status != compv1alpha1.CheckResultFail {
+			t.Fatalf("check %s has unexpected status: %s", checkName, check.Status)
+		}
+		t.Logf("check %s: status=%s", checkName, check.Status)
+	}
+
+	// Verify disabled rule did NOT produce a check result
+	disabledCheckName := fmt.Sprintf("%s-%s", tpName, "check-no-privileged-containers")
+	disabledCheck := &compv1alpha1.ComplianceCheckResult{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name: disabledCheckName, Namespace: testNamespace,
+	}, disabledCheck)
+	if err == nil {
+		t.Fatalf("disabled rule %s should NOT have a ComplianceCheckResult, but found one with status %s",
+			disabledCheckName, disabledCheck.Status)
+	}
+	t.Logf("disabled rule %s correctly has no ComplianceCheckResult", disabledCheckName)
+
+	t.Log("TailoredProfile extending CEL profile test completed successfully")
+}
