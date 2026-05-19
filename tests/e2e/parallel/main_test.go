@@ -83,7 +83,7 @@ func TestProfileModification(t *testing.T) {
 	)
 	var (
 		baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_baseline")
-		modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
+        modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
 	)
 
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
@@ -213,7 +213,7 @@ func TestProfileISTagUpdate(t *testing.T) {
 	)
 	var (
 		baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_baseline")
-		modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
+        modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
 	)
 
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
@@ -312,7 +312,7 @@ func TestProfileISTagOtherNs(t *testing.T) {
 	)
 	var (
 		baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_baseline")
-		modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
+        modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
 	)
 
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }
@@ -469,7 +469,7 @@ func TestParsingErrorRestartsParserInitContainer(t *testing.T) {
 	f := framework.Global
 	var (
 		badImage  = fmt.Sprintf("%s:%s", brokenContentImagePath, "from")
-		goodImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "to")
+        goodImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "to")
 	)
 
 	pbName := framework.GetObjNameFromTest(t)
@@ -541,9 +541,6 @@ func TestParsingErrorRestartsParserInitContainer(t *testing.T) {
 		t.Fatalf("failed to update ProfileBundle %s: %s", pbName, err)
 	}
 
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}
@@ -4608,7 +4605,7 @@ func TestScanSettingBindingTailoringManyEnablingRulePass(t *testing.T) {
 	)
 	var (
 		baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "kubelet_default")
-		modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "new_kubeletconfig")
+        modifiedImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "new_kubeletconfig")
 	)
 
 	prefixName := func(profName, ruleBaseName string) string { return profName + "-" + ruleBaseName }

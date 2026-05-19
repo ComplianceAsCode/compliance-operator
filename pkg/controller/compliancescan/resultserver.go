@@ -201,7 +201,7 @@ func resultServer(scanInstance *compv1alpha1.ComplianceScan, labels map[string]s
 						{
 							Name:            "result-server",
 							Image:           utils.GetComponentImage(utils.OPERATOR),
-							ImagePullPolicy: corev1.PullAlways,
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command: []string{
 								"compliance-operator", "resultserver",
 								"--path=/reports/",
