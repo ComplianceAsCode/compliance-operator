@@ -84,13 +84,33 @@ If `--jobs-only`, drop the test column and just show job activity.
 
 ## What the dptools index is and isn't
 
-This skill queries `search.dptools.openshift.org`, which is a **failure-focused** index of CI output (logs + JUnit). A job that passes consistently may not appear in search results even though it runs daily. **Do not infer job existence from search results.** For job enumeration, query prow directly:
+This skill queries `search.dptools.openshift.org`, which is a **failure-focused** index of CI output (logs + JUnit). A job that passes consistently may not appear in search results even though it runs daily. **Do not infer job existence from search results.**
+
+### For job enumeration
 
 ```
 https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/<job-name>
 ```
 
 The page renders a count like "Showing 20/1224 results" — the second number is the total historical run count for that job, and its presence proves the job exists.
+
+### For per-test runtime
+
+The dptools index does NOT contain timing per Go test. For runtimes, go to the GCS artifact tree:
+
+```
+https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/
+  pr-logs/pull/<repo>/<pr>/<job>/<buildId>/artifacts/<step>/test/build-log.txt
+```
+
+That file contains Go's `--- PASS: TestX (Ns)` / `--- FAIL: TestX (Ns)` lines. See `/test-runtime` for the workflow that aggregates these across runs.
+
+### For build IDs of recent runs
+
+The prow job-history page renders the run table client-side, so curl/WebFetch only see one build ID (the page's current cursor). Reliable enumeration sources:
+
+- Use dptools with `groupBy=none` and any common test name — each result is a `view/gs/...` URL with the build ID in the last path segment.
+- Or grep recent dptools failure results.
 
 ## Known CO + content jobs (verified 2026-05-21 against prow + dptools)
 

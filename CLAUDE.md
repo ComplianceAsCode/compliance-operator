@@ -50,6 +50,7 @@ Active CO PR jobs (2026-05): `pull-ci-…-e2e-aws-parallel`, `…-parallel-arm`,
 Tools:
 - `/ci-search --test <TestName>` — failure history for one test.
 - `/ci-search --jobs-only` — enumerate failing jobs in the window (note: passes-only jobs hide).
+- `/test-runtime` — per-test wall-clock runtimes pulled from prow's `build-log.txt` artifact. Use for refactor cost analysis.
 - `/deflake` — mine flaky tests, classify, plan fixes.
 
 ## Available Subagents
@@ -69,7 +70,8 @@ Agents live in `.claude/agents/`. Invoke for matching work:
 - `/add-e2e-test "<description>"` — guided new test creation in the right file.
 - `/triage-downstream <path>` — `NOTE(rhmdnd)` → Jira drafts.
 - `/verify-e2e <TestName>` — run one test + skeptical verdict.
-- `/ci-search <regex>` — query the OpenShift CI search index.
+- `/ci-search <regex>` — query the OpenShift CI failure search index.
+- `/test-runtime` — per-test wall-clock runtimes from prow's build-log artifacts.
 - `/deflake [--top N]` — rank flakiest tests and plan fixes.
 - `/pr-review <pr#>` — post inline review comments via `gh`.
 
