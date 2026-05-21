@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,6 +31,7 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/version"
 	ocpapi "github.com/openshift/api"
 	mcfgapi "github.com/openshift/api/machineconfiguration"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 	"github.com/spf13/cobra"
@@ -260,16 +262,52 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	ctx := context.TODO()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
-	disableHTTP2 := func(c *tls.Config) {
-		c.NextProtos = []string{"http/1.1"}
+	// Build a client for fetching the cluster TLS profile and adherence
+	// policy before the manager is started.
+	preStartClient, err := client.New(cfg, client.Options{})
+	if err != nil {
+		setupLog.Error(err, "Failed to create pre-start client for TLS profile lookup")
+		os.Exit(1)
+	}
+
+	// Fetch the initial TLS profile and adherence policy from the APIServer
+	// resource. These are used to configure all TLS endpoints at startup and
+	// to detect changes later via the SecurityProfileWatcher.
+	initialTLSProfile, err := tlspkg.FetchAPIServerTLSProfile(ctx, preStartClient)
+	if err != nil {
+		setupLog.Info("Could not fetch APIServer TLS profile, using defaults", "error", err)
+		initialTLSProfile = configv1.TLSProfileSpec{
+			Ciphers:       tlspkg.DefaultTLSCiphers,
+			MinTLSVersion: tlspkg.DefaultMinTLSVersion,
+		}
+	}
+	initialTLSAdherencePolicy, err := tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, preStartClient)
+	if err != nil {
+		setupLog.Info("Could not fetch APIServer TLS adherence policy, using defaults", "error", err)
+		initialTLSAdherencePolicy = configv1.TLSAdherencePolicyNoOpinion
+	}
+
+	// Build webhook TLS options from the cluster profile.
+	webhookTLSOpts := []func(config *tls.Config){
+		func(c *tls.Config) {
+			c.NextProtos = []string{"http/1.1"}
+		},
+	}
+	if libgocrypto.ShouldHonorClusterTLSProfile(initialTLSAdherencePolicy) {
+		tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(initialTLSProfile)
+		if len(unsupported) > 0 {
+			setupLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+		}
+		webhookTLSOpts = append(webhookTLSOpts, tlsConfigFn)
 	}
 	webhookServerOptions := webhook.Options{
 		Port:    9443,
-		TLSOpts: []func(config *tls.Config){disableHTTP2},
+		TLSOpts: webhookTLSOpts,
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -327,6 +365,40 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	met := ctrlMetrics.New()
 	if err := met.Register(); err != nil {
 		setupLog.Error(err, "Error registering metrics")
+		os.Exit(1)
+	}
+
+	// If the tlsAdherence policy requires strict adherence, configure the
+	// metrics server to use the cluster's TLS security profile.
+	if libgocrypto.ShouldHonorClusterTLSProfile(initialTLSAdherencePolicy) {
+		met.SetTLSProfileSpec(initialTLSProfile)
+	}
+
+	// Set up the SecurityProfileWatcher to detect APIServer TLS profile
+	// and adherence policy changes. On change, cancel the context so the
+	// manager shuts down gracefully and the pod restarts with the new
+	// TLS configuration applied.
+	watcher := &tlspkg.SecurityProfileWatcher{
+		Client:                    mgr.GetClient(),
+		InitialTLSProfileSpec:     initialTLSProfile,
+		InitialTLSAdherencePolicy: initialTLSAdherencePolicy,
+		OnProfileChange: func(_ context.Context, oldProfile, newProfile configv1.TLSProfileSpec) {
+			setupLog.Info("Cluster TLS profile changed, initiating graceful shutdown to reload",
+				"oldMinTLSVersion", oldProfile.MinTLSVersion,
+				"newMinTLSVersion", newProfile.MinTLSVersion,
+			)
+			cancel()
+		},
+		OnAdherencePolicyChange: func(_ context.Context, oldPolicy, newPolicy configv1.TLSAdherencePolicy) {
+			setupLog.Info("Cluster TLS adherence policy changed, initiating graceful shutdown to reload",
+				"oldPolicy", oldPolicy,
+				"newPolicy", newPolicy,
+			)
+			cancel()
+		},
+	}
+	if err := watcher.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Unable to set up TLS security profile watcher")
 		os.Exit(1)
 	}
 
@@ -393,8 +465,15 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	setupLog.Info("Starting the Cmd.")
 
-	// Start the Cmd
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	// Start the Cmd. The context is cancelled either by OS signals or by
+	// the SecurityProfileWatcher when TLS configuration changes, causing
+	// a graceful shutdown so the pod restarts with updated TLS settings.
+	sigCtx := ctrl.SetupSignalHandler()
+	go func() {
+		<-sigCtx.Done()
+		cancel()
+	}()
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}

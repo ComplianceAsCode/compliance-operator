@@ -1207,10 +1207,15 @@ spec:
           - projects
           verbs:
           - get
-          - list
-          - watch
           - update
           - patch
+        - apiGroups:
+          - config.openshift.io
+          resources:
+          - apiservers
+          verbs:
+          - list
+          - watch
         - apiGroups:
           - monitoring.coreos.com
           resources:
@@ -1327,6 +1332,16 @@ spec:
           - list
           - watch
         serviceAccountName: remediation-aggregator
+      - rules:
+        - apiGroups:
+          - config.openshift.io
+          resourceNames:
+          - cluster
+          resources:
+          - apiservers
+          verbs:
+          - get
+        serviceAccountName: resultserver
       deployments:
       - name: compliance-operator
         spec:
