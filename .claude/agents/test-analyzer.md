@@ -26,38 +26,57 @@ For every `Test*` function emit:
 | `summary` | One sentence: what the test asserts. |
 | `feature_group` | One of the canonical groups below. |
 | `operation_type` | `Scan-Only` / `Remediation` / `Mixed` / `Validation`. Treat `Mixed` as Remediation for scheduling purposes. |
-| `key_dependencies` | Endpoints, CRDs, or external systems the test touches (e.g. `/metrics`, `MachineConfigPool`, `LimitRange`). Empty array if none. |
+| `key_dependencies` | Things outside the in-operator Compliance CRDs that the test's assertion depends on: Prometheus / `/metrics`, `MachineConfigPool`, `LimitRange`, `ImageStream`, external operators (FIO, Logging), specific namespaces (e.g. `openshift`). Skip plain core resources the test merely reads (Pod, ConfigMap) unless they're the subject of an assertion. Empty array is fine. |
 | `file` | Path of the file the test lives in. |
-| `is_parallel` | `true` if the test calls `t.Parallel()`, else `false`. |
+| `is_parallel` | `true` if the test calls `t.Parallel()`, else `false`. (Trivially `true` for every test in `parallel_e2e` — informational.) |
 
 ### Canonical feature_group values
 
-Use exactly these strings (do not invent new ones; if a test genuinely doesn't fit, propose a new group in a `_notes` field and flag it for review):
+Use exactly these strings. Each comes with a one-line scope. If a test genuinely doesn't fit, propose a new group in `_notes` and flag for review.
 
-- `Profile Parsing`
-- `Profile Tailoring`
-- `Custom Rules`
-- `Scan Configuration`
-- `Scheduled Suite`
-- `Remediation`
-- `Metrics`
-- `Validation`
-- `Operator Configuration`
-- `Storage`
-- `Hypershift`
-- `Logging`
-- `File Integrity`
+- `Profile Parsing` — the test's primary assertion is about how content (ProfileBundle, datastream, ImageStream tag) parses into `Profile`/`Rule`/`Variable` objects, including built-in rule classification.
+- `Profile Tailoring` — the primary assertion is about `TailoredProfile` behavior: enable/disable rules, set variables, extends-deprecated, mixed-rule-type rejection.
+- `Custom Rules` — the primary assertion is about user-authored `CustomRule` (CEL) — webhook validation, CEL evaluation, cascading-status-update.
+- `Scan Configuration` — the primary assertion is about a `ComplianceScan` or `ComplianceSuite` configuration (node selector, scan type, storage, scheduling). Default bucket for scan-CRUD tests that aren't more specific.
+- `Scheduled Suite` — the primary assertion is about cron-driven `ComplianceSuite` scheduling (schedule string, rotation, suspend, timeout).
+- `Remediation` — the primary assertion is about `ComplianceRemediation` lifecycle: generation, applying, patching, generic vs. typed, NeedsReview, auto-apply.
+- `Metrics` — the primary assertion is about Prometheus metrics or `ServiceMonitor` targets.
+- `Validation` — the primary assertion is "an invalid input is rejected" (by webhook OR by controller, doesn't matter — if the test's whole point is the rejection path, it goes here).
+- `Operator Configuration` — operator deployment/subscription/proxy/global-config tests.
+- `Storage` — PVC, quota, LimitRange, raw-result-storage tests.
+- `Hypershift` — tests that only apply on hosted control planes.
+- `Logging` — audit-log forwarding / cluster-logging tests.
+- `File Integrity` — File Integrity Operator integration tests.
+
+### Tie-breaker rule
+
+**Classify by primary assertion, not incidental setup.** If a test creates a TailoredProfile only as scaffolding to exercise the parser, it is `Profile Parsing` (subject of the assertion), not `Profile Tailoring`. If a test creates a ProfileBundle only to run a scan against the cis profile, it is `Scan Configuration`, not `Profile Parsing`.
 
 ### operation_type rules
 
-- **Scan-Only**: only reads cluster state, creates Compliance CRs that don't mutate the cluster (no `Apply: true` remediations applied, no taints, no MachineConfig).
-- **Remediation**: applies a remediation, taints/untaints a node, modifies OAuth/cluster config, creates resources that survive the test.
-- **Mixed**: does both scan + at least one mutating action. Schedule as Remediation.
-- **Validation**: exercises webhook / admission / CRD field validation; doesn't need a real scan.
+A test mutates the cluster if it does any of:
+- Applies a `ComplianceRemediation` with `Apply: true` (or relies on auto-apply).
+- Taints / untaints nodes or modifies labels on real worker nodes.
+- Creates a `MachineConfig`, modifies OAuth config, ClusterLogging, or any cluster-scoped non-Compliance CR.
+- Creates resources that intentionally survive the test (no defer-delete).
+
+Creating + deferring deletion of Compliance CRs (ProfileBundle, TailoredProfile, ScanSettingBinding, ComplianceScan, etc.) and short-lived RBAC for the test does NOT count as a mutation — these are normal test scaffolding.
+
+- **Scan-Only**: reads/asserts cluster state, only manipulates Compliance CRs scoped to the test, cleans up after itself. The default bucket.
+- **Remediation**: at least one mutating action per the list above.
+- **Mixed**: does both scan + at least one mutation. Schedule as Remediation.
+- **Validation**: the test's whole purpose is to assert that an invalid input is rejected. Co-occurs with `feature_group = Validation` (the inverse isn't required — see below).
+
+`feature_group = Validation` and `operation_type = Validation` should almost always co-occur. If they don't, add a `_notes` line explaining why.
 
 ## Output
 
-Output one JSON array per input file, fenced as ```json … ```. No prose around it. If asked to analyze multiple files, emit one fenced array per file in order, each preceded by a single line `// file: <path>`.
+Output one JSON array, fenced as ```json … ```. No prose around it.
+
+- Single file: emit one fenced array, no `// file:` prefix.
+- Multiple files: emit one fenced array per file in order, each preceded by a single line `// file: <path>` outside the fence.
+
+If a row needs clarification, add an optional `_notes` string field on that row (freeform; used both to flag classification ambiguity and to propose a new feature_group).
 
 Schema:
 

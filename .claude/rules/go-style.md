@@ -16,10 +16,11 @@ Applies to every Go file in the repo (excluding `vendor/`).
 
 ## Logging
 
-This repo uses `github.com/go-logr/logr` (controller-runtime convention). For test logs, use `framework.E2ELogf`, not `t.Log` — it routes through the framework's structured logger.
+Production code uses `github.com/go-logr/logr` (controller-runtime convention).
 
 - Don't log at INFO for every reconcile — use V(1) or higher.
 - Never log credentials, OAuth tokens, or full pod manifests.
+- In e2e tests, use `t.Logf` for progress (the test runner already attributes the message to the test). The framework does not export an `E2ELogf` helper — don't introduce one.
 
 ## Concurrency
 

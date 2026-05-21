@@ -25,7 +25,7 @@ Do NOT invoke for: unit tests (`unit-test-writer`), moving existing tests betwee
 - New file goes to `tests/e2e/parallel/<feature_group>_test.go` or `tests/e2e/serial/<feature_group>_test.go`. Don't add to `main_test.go` — that file is being shrunk.
 - Use `framework.Global` — never construct your own `Framework`.
 - Always call `t.Parallel()` as the first line of a parallel test (matches the existing convention).
-- Use `getObjNameFromTest(t)` for resource names so each test gets a unique, traceable name.
+- Use `framework.GetObjNameFromTest(t)` for resource names so each test gets a unique, traceable name.
 
 ## Workflow
 
@@ -33,11 +33,11 @@ Do NOT invoke for: unit tests (`unit-test-writer`), moving existing tests betwee
 
 2. **Use framework helpers.** Before writing a `waitForSomething` loop, search `tests/e2e/framework/common.go` and `utils.go` for an existing helper. Don't duplicate.
 
-3. **Resource isolation:** every CR your test creates must live in the test namespace (`framework.Global.OperatorNamespace`) and use a per-test name. Tests run concurrently against the same operator deployment.
+3. **Resource isolation:** every CR your test creates must live in the test namespace (`f.OperatorNamespace`) and use a per-test name. Tests run concurrently against the same operator deployment.
 
-4. **Cleanup:** pass `getCleanupOpts(ctx)` to every `f.Client.Create(...)`. The framework Context tears those down when the test returns.
+4. **Cleanup:** the dominant idiom in this repo is `f.Client.Create(context.TODO(), obj, nil)` followed by `defer f.Client.Delete(context.TODO(), obj)`. Don't introduce `framework.NewContext` / `ctx.Cleanup` patterns — they exist in the framework but no test uses them, so mixing styles is noise.
 
-5. **Assertions:** use `framework.E2ELogf` for progress logs (not `t.Log`), `require`/`assert` from testify where appropriate, and the existing `assertHasCheck` / `waitForSuiteScansStatus` helpers for compliance assertions.
+5. **Assertions:** use `t.Logf` for progress logs. Use `f.WaitForSuiteScansStatus(ns, name, phase, result)` for "scan done with status" and `f.AssertHasCheck(suiteName, scanName, expectedCheck)` for per-rule outcomes. `testify` is not currently used in e2e tests — match the existing `t.Fatalf` style.
 
 6. **Timeouts:** never `time.Sleep`. Use the polling helpers (`wait.PollImmediate` is already wrapped in the framework). If you need a new timeout, mirror the constant style in `framework/constants.go`.
 
@@ -53,16 +53,22 @@ Do NOT invoke for: unit tests (`unit-test-writer`), moving existing tests betwee
 func TestYourFeature(t *testing.T) {
     t.Parallel()
     f := framework.Global
-    ctx := framework.NewContext(t)
-    defer ctx.Cleanup()
 
-    namespace := f.OperatorNamespace
-    name := getObjNameFromTest(t)
+    name := framework.GetObjNameFromTest(t)
+    obj := &compv1alpha1.SomeCR{
+        ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: f.OperatorNamespace},
+        Spec:       /* ... */,
+    }
+    if err := f.Client.Create(context.TODO(), obj, nil); err != nil {
+        t.Fatalf("failed to create %s: %s", name, err)
+    }
+    defer f.Client.Delete(context.TODO(), obj)
 
-    // setup: create the CRs your test exercises
-    // action: trigger the behavior
-    // wait: for status/phase
-    // assert: the specific thing you want to verify
+    // wait: for phase/result
+    if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, name, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err != nil {
+        t.Fatal(err)
+    }
+    // assert: the specific thing this test verifies
 }
 ```
 

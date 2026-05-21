@@ -19,10 +19,10 @@ Applies to everything under `tests/e2e/`.
 ## Per-test rules
 
 - Place `t.Parallel()` as the first statement of every test in the `parallel_e2e` package. Never in `serial_e2e`.
-- Resource names: `name := getObjNameFromTest(t)`. Don't hard-code names that could collide with another concurrent test.
-- Namespace: `framework.Global.OperatorNamespace`. Don't create a new namespace per test unless the test specifically validates namespace-level behavior.
-- Every `f.Client.Create(...)` takes `getCleanupOpts(ctx)`. Without it, the resource leaks into the next test.
-- No `time.Sleep`. Use `wait.PollImmediate` or the framework's `waitFor*` helpers.
+- Resource names: `name := framework.GetObjNameFromTest(t)`. Don't hard-code names that could collide with another concurrent test.
+- Namespace: `f.OperatorNamespace` (where `f := framework.Global`). Don't create a new namespace per test unless the test specifically validates namespace-level behavior.
+- Create + cleanup idiom: `f.Client.Create(ctx, obj, nil)` followed by `defer f.Client.Delete(ctx, obj)`. The third `*CleanupOptions` argument to `Create` exists but no test currently uses it — stick with the defer-delete idiom that the rest of the suite uses.
+- No `time.Sleep`. Use `wait.PollImmediate` or the framework's `WaitFor*` helpers (note: exported, PascalCase methods on `*Framework` — e.g. `f.WaitForScanStatus`, `f.WaitForSuiteScansStatus`).
 
 ## Framework usage
 
@@ -37,9 +37,10 @@ Applies to everything under `tests/e2e/`.
 
 ## Result assertion patterns
 
-- For "scan should succeed and be compliant", use `waitForSuiteScansStatus(t, f, ns, name, PhaseDone, ResultCompliant)`.
-- For a specific check, use `assertHasCheck(f, suiteName, scanName, expectedCheckResult)`.
-- For warnings on the suite, use `getEventsForObject` / `assertEventContains`.
+- For "scan should succeed and be compliant", use `f.WaitForSuiteScansStatus(ns, name, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)`.
+- For "scan should reach a running/aggregating phase first", use `f.WaitForScanStatus(ns, name, compv1alpha1.PhaseRunning)`.
+- For a specific check, use `f.AssertHasCheck(suiteName, scanName, expectedCheckResult)`.
+- For events / warnings on the suite, grep `framework/common.go` for the closest existing helper (events APIs change across k8s versions — don't roll your own).
 
 ## Anti-patterns
 

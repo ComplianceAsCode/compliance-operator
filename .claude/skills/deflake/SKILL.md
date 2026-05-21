@@ -23,8 +23,10 @@ End-to-end deflake workflow for the Compliance Operator. Mines `search.dptools.o
 Use `/ci-search --jobs-only` to enumerate active CO jobs, then for each job query the JUnit failures:
 
 ```
-/ci-search "--- FAIL: " --job <job-regex> --age 7d --type junit
+/ci-search "FAIL: Test" --job <job-regex> --age 7d --type junit
 ```
+
+The bare-test-name search (`/ci-search --test <TestName>`) gives the richest per-test view; use it for the top candidates after this aggregate query.
 
 Aggregate per-test: total appearances, distinct jobs, failure rate, average duration, distinct error messages.
 

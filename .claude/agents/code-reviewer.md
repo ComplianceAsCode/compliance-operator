@@ -40,8 +40,8 @@ Do NOT invoke for: writing code (use the writer agents), running tests (`test-ve
 - [ ] E2E tests in the right package (`parallel` vs `serial`) per operation type.
 - [ ] No new test added to `main_test.go` — should go to a feature-group file.
 - [ ] `t.Parallel()` called iff the test is in `parallel_e2e`.
-- [ ] Resource names use `getObjNameFromTest(t)` so concurrent tests don't collide.
-- [ ] Cleanup via `getCleanupOpts(ctx)` (not bare `f.Client.Create`).
+- [ ] Resource names use `framework.GetObjNameFromTest(t)` so concurrent tests don't collide.
+- [ ] Every `f.Client.Create(ctx, obj, nil)` is paired with `defer f.Client.Delete(ctx, obj)`. No leaked CRs.
 
 ### Security
 - [ ] Pod specs don't drop required securityContext fields.

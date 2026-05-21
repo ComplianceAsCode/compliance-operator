@@ -48,13 +48,17 @@ Use `type=junit` for test-name-level results, `type=build-log` for raw log grep.
 
 ### 1. Build the URL
 
-URL-encode the `search` and `name` params. The CI index uses ripgrep regex (RE2-ish). Common patterns:
+URL-encode the `search` and `name` params. The CI index uses ripgrep regex (RE2-ish). What works in practice:
 
-- `FAIL: TestName` — JUnit failure marker
-- `--- FAIL: TestName` — Go test runner failure marker (more specific)
-- `timed out waiting` — common scan-flake signature
-- `MachineConfigPools.*still updating` — node-remediation flake
-- `failed to reach state VALID` — ProfileBundle parsing flake
+- **`<TestName>`** — searching the bare test name returns the richest results (the index indexes JUnit output, which contains the name verbatim). This is the recommended pattern for "how flaky is this one test?"
+- **`FAIL: Test`** — useful for "give me every Go failure across all CO jobs in the window."
+- `timed out waiting` — common scan-flake signature.
+- `MachineConfigPools.*still updating` — node-remediation flake.
+- `failed to reach state VALID` — ProfileBundle parsing flake.
+
+What does NOT work well:
+
+- `--- FAIL: Test` — the literal Go text marker isn't surfaced in `type=junit` results (those are XML), and the leading `---` can interact poorly with regex parsing. Use `FAIL: Test` or the test name instead.
 
 ### 2. Fetch
 

@@ -65,5 +65,5 @@ If `FAIL` or `INCONCLUSIVE`, surface the verifier's diagnosis and ask the user h
 ## Discipline
 
 - Don't write the test in the wrong package "just to see it compile". If unsure, ask.
-- Don't model on a test that uses a deprecated pattern (e.g. `defer ctx.Cleanup()` was the v1; new tests use `getCleanupOpts`). If the analogue is old, normalize while writing.
+- Don't model on a test that uses an unusual pattern. The current convention is `f.Client.Create(ctx, obj, nil)` + `defer f.Client.Delete(ctx, obj)` — `framework.NewContext`/`ctx.Cleanup` exists in the framework but is unused in tests, so don't propagate it.
 - Don't add a `t.Skip` for "not yet implemented" — write the test against the behavior you expect; if it fails, that's a real result.
