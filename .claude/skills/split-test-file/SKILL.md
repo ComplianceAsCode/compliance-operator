@@ -31,6 +31,17 @@ Abort with a clear error if any precondition fails. Don't auto-fix tree dirtines
 
 ## Workflow
 
+### 0. Cost-aware preflight
+
+Before any move, run `/test-runtime --top 40` and grep for the tests in your feature group. Print a one-line summary of the cumulative wall-time being relocated:
+
+```
+Migrating <N> tests, cumulative wall-time ~Xs (mean across recent runs).
+Slowest test in group: TestName at Ys/run.
+```
+
+This is purely informational, but it's the single most useful "what am I about to do" check before a split. If the group includes a multi-hundred-second test, you want to know.
+
 ### 1. Identify the test set
 
 From `/tmp/test-analysis.json` plus the planner's suite inventory, list the exact `Test*` names that belong in the new file. Confirm with the user before touching anything.

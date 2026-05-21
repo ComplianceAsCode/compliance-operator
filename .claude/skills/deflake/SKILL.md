@@ -30,6 +30,16 @@ Then for each known job, query the JUnit failures:
 
 The bare-test-name search (`/ci-search --test <TestName>`) gives the richest per-test view; use it for the top candidates after this aggregate query.
 
+### Also pull runtime data
+
+Failure rate alone undersells the cost of a flake. Run `/test-runtime` against the same jobs to get mean wall-time per test. Then rank candidates by a **cost score**, not just failure count:
+
+```
+cost = mean_runtime_seconds × failure_rate × estimated_runs_per_week
+```
+
+A 1820s test that fails 67% of the time eats orders of magnitude more CI budget than a 30s test that fails 20% of the time. Rank accordingly — that's what's actually worth your fix-time.
+
 For a job that returns zero failures in the search (likely either healthy OR low-activity), confirm it actually ran by checking prow's history endpoint:
 ```
 https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/<job-name>

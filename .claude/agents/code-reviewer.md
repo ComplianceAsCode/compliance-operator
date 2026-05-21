@@ -42,6 +42,7 @@ Do NOT invoke for: writing code (use the writer agents), running tests (`test-ve
 - [ ] `t.Parallel()` called iff the test is in `parallel_e2e`.
 - [ ] Resource names use `framework.GetObjNameFromTest(t)` so concurrent tests don't collide.
 - [ ] Every `f.Client.Create(ctx, obj, nil)` is paired with `defer f.Client.Delete(ctx, obj)`. No leaked CRs.
+- [ ] Cross-file references (package-level vars like `brokenContentImagePath`, helpers in `main_test.go`) still resolve. Same-package moves are fine; cross-package would break.
 
 ### Security
 - [ ] Pod specs don't drop required securityContext fields.
@@ -55,9 +56,18 @@ Do NOT invoke for: writing code (use the writer agents), running tests (`test-ve
 ## Process
 
 1. Read the diff (`git diff main...HEAD` or PR URL).
-2. For each touched file: read the surrounding context (don't review a hunk in isolation).
-3. Check the auto-loaded rules in `.claude/rules/` for matching paths.
-4. Group findings by severity:
+2. **Classify the change first.** Pure code-motion / refactor changes (extracting a function into a new file, renaming a symbol across files, moving tests between files in the same package) need a much narrower review than feature changes. If pure code motion:
+   - Verify the extracted/moved text is byte-identical to the source (`git diff --color-words` or compare hashes).
+   - Verify imports in the new file are minimal-and-sufficient (`goimports -l` is clean).
+   - Verify no symbol left orphaned in the source (`grep` the moved name).
+   - Verify `go vet` / `go build` are clean for touched packages.
+   - For test moves: verify the new file name maps to the canonical feature-group list and that `t.Parallel()` placement is preserved.
+   - Verify any package-level vars or unexported helpers referenced by moved code still resolve (same package = fine; cross-package = compile-checked).
+   - **Skip the rest of the checklist.** Don't manufacture findings to fill sections that don't apply.
+3. For feature/behavior changes: walk the full checklist below.
+4. For each touched file: read the surrounding context (don't review a hunk in isolation).
+5. Check the auto-loaded rules in `.claude/rules/` for matching paths.
+6. Group findings by severity:
 
 ```markdown
 ### Required (block merge)

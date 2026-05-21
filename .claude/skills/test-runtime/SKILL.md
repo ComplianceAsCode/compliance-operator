@@ -53,9 +53,18 @@ The build-log.txt contains Go's standard test output, with one `--- PASS:` or `-
 
 ## Discovering recent build IDs
 
-The prow job-history page is JavaScript-rendered, so curl/WebFetch won't see the build list. Two reliable sources:
+Two reliable sources, **in this order**:
 
-1. **dptools search** (groupBy=none, type=junit): returns a flat list of `view/gs/...` URLs that you can derive build IDs from.
+1. **Prow job-history HTML, grepped for long numerics**: even though the table is JS-rendered, the HTML embeds build-ID-shaped paths in href attributes. This reliably returns ~20 build IDs and is independent of search-index coverage.
+
+   ```bash
+   curl -s 'https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/<job>' \
+     | grep -oE '/[0-9]{15,}' | sort -u
+   ```
+
+   Each match is `/<buildId>`; strip the leading slash.
+
+2. **dptools search** (groupBy=none, type=junit): returns a flat list of `view/gs/...` URLs that you can derive `(repo, pr, job, buildId)` from. Use this if you specifically want builds that exercised a test or failure mode.
 
    ```
    https://search.dptools.openshift.org/?search=Test&type=junit&name=.*pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-parallel$&maxAge=336h&maxMatches=20&groupBy=none&context=0
@@ -66,13 +75,28 @@ The prow job-history page is JavaScript-rendered, so curl/WebFetch won't see the
    https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/ComplianceAsCode_compliance-operator/<pr>/<job>/<buildId>
    ```
 
-2. **Direct curl of job history HTML**: returns at least one build ID via the "older runs" link, but only one — the table itself is JS-populated.
+If dptools returns nothing (job is all-passes), the job-history method is the only one that works.
 
-   ```
-   curl -s 'https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/<job>' | grep -oE 'buildId=[0-9]+' | head -10
-   ```
+### Mapping a build ID to its PR (needed for the gcsweb URL)
 
-Use (1) for most cases. If dptools returns nothing (job is all-passes in the window), fall back to a search for a known passing test name like `TestSingleScanSucceeds` to force results.
+For PR jobs, the gcsweb path requires the PR number. Resolve it by fetching the symlink target file at:
+
+```
+https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/directory/<job>/<buildId>.txt
+```
+
+That file's content is the `gs://...pr-logs/pull/<repo>/<pr>/<job>/<buildId>` symlink target — parse `<pr>` out.
+
+### Filter out install-failed builds
+
+A non-trivial fraction of PR-job builds fail at cluster install before any test runs. Their `artifacts/<step>/test/build-log.txt` URL returns the directory listing (HTML) instead of a real log. Detect with a size threshold:
+
+```bash
+size=$(curl -s -o /tmp/build-log -w '%{size_download}' "<url>")
+if [ "$size" -lt 100000 ]; then echo "skip: install-failed or empty"; fi
+```
+
+Expect to fetch ~13-15 build IDs to land 10 with valid test data.
 
 ---
 
@@ -94,28 +118,35 @@ Use (1) for most cases. If dptools returns nothing (job is all-passes in the win
 
 4. **Aggregate** across runs into mean / min / max / failure-count per test name.
 
-5. **Output**: descending by mean time, top N (default 20):
+5. **Output**: descending by mean time, top N (default 20). Include std-dev:
 
    ```markdown
-   | Test | Runs | Mean (s) | Min | Max | Fails |
-   |------|-----:|---------:|----:|----:|------:|
-   | TestParsingErrorRestartsParserInitContainer | 3 | 1820.0 | 1815 | 1830 | 3/3 |
-   | TestScheduledSuite | 3 | 385.1 | 385.0 | 385.2 | 0/3 |
+   | Test | Runs | Mean (s) | Min | Max | StdDev | Fails |
+   |------|-----:|---------:|----:|----:|-------:|------:|
+   | TestParsingErrorRestartsParserInitContainer | 13 | 1820.0 | 1815 | 1830 | 4.2 | 4/13 |
+   | TestScheduledSuite | 13 | 385.1 | 285.0 | 700.3 | 145.2 | 0/13 |
    | ... |
    ```
 
-   Also print: total cumulative test wall-time per run, mean across runs, and "what % of the cumulative time is from the top 10 tests."
+   Also print:
+   - Total cumulative test wall-time per run, mean across runs.
+   - What % of cumulative time the top 10 tests carry.
+   - "High variance" callout: tests where `(max-min)/mean > 0.5` AND `mean > 1s` (the mean-filter guards against sub-second jitter on fast tests).
+   - "Stable-but-slow" callout: tests with `mean > 60s` AND `stddev/mean < 0.1`. These are intrinsic-work tests, not flake candidates — optimizing them needs scope-reduction, not deflake.
+   - "Bimodal" callout: a test whose runs cluster around two distinct values (e.g. parser-restart at 75s healthy vs 1820s flake). Different remediation than high-variance — these are flakes that fail-loud.
 
 ---
 
-## Known baseline (2026-05, parallel job, 3 recent runs)
+## Known baseline (2026-05, parallel job, 13 healthy runs)
 
-- Cumulative test wall time per run: ~88-90 minutes (parallel suite).
-- Top single contributor: `TestParsingErrorRestartsParserInitContainer` — 30 minutes per run, fails 3/3.
-- Without the top contributor: ~58 min cumulative.
-- Long-running tests (>60s mean): ~15 tests carry ~60% of total parallel wall time.
+- Mean cumulative test wall time per run: ~68 minutes (range 54-89 min).
+- Bimodal distribution: 9 healthy runs ~56 min, 4 flake runs ~87 min — the gap is one parser-restart timeout.
+- `TestParsingErrorRestartsParserInitContainer`: fails 4/13 (31%) and consumes 1820s when it fails. **Single biggest CI-cost target.** Fixing it reclaims ~22% of mean cumulative wall-time.
+- Top 10 tests carry ~50% of cumulative; top 20 carry ~71%.
+- `TestScheduledSuite`: high variance (285-700s) on a recent 13-run window — newly visible signal, worth investigating (CronJob scheduler tick drops or API contention).
+- 4-test cluster sharing a "30-50% variance, 75-155s" signature suggests `waitForScanStatus` poll-loop tightness — single fix may improve all four.
 
-If your refactor goal is "reduce CI time," fixing the top flake alone reclaims ~34% of cumulative parallel-suite wall time.
+If your refactor goal is "reduce CI time," fixing the top flake alone reclaims ~22% of cumulative parallel-suite wall time.
 
 ---
 

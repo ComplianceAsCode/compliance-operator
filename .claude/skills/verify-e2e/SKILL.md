@@ -49,7 +49,15 @@ The agent will run the test, parse logs, classify the result, and produce the ve
 
 ### 4. Surface result
 
-Print the verdict block as-is. If `FAIL`, include the agent's recommended next step.
+Print the verdict block as-is.
+
+End with a "next step" suggestion appropriate to the verdict:
+
+- **PASS** — suggest the user inspect the diff (`git diff --stat`), then either commit if local or open a PR. If the test is part of an `/add-e2e-test` flow, recommend Phase 5 (runtime sanity check).
+- **FAIL — Real regression** — suggest reading the controller code at the cited file:line. Don't auto-spawn `code-reviewer` (it can't review the operator behind the test).
+- **FAIL — Test bug** — recommend a small fix in the test; once green, re-invoke `/verify-e2e` once.
+- **FAIL — Flake** — recommend running again; if it passes the second time, point at `/deflake` for the root-cause analysis.
+- **INCONCLUSIVE — Preflight** — recommend the parent fix the env issue and re-invoke.
 
 ---
 

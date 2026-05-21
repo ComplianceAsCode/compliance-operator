@@ -60,6 +60,15 @@ Spawn **`test-verifier`** to run the new test and produce a verdict per `.claude
 If verdict is `PASS`, present the diff and the verifier report to the user.
 If `FAIL` or `INCONCLUSIVE`, surface the verifier's diagnosis and ask the user how to proceed.
 
+## Phase 5: Runtime sanity-check
+
+Once the test passes, compare its wall-time against the analogue. Pull the new test's elapsed seconds from the verifier's output and run `/test-runtime --top 40` against the analogue's feature group to find typical times.
+
+- If the new test took >2× the slowest analogue in its group → flag for the user. Likely cause: missing polling helper, unnecessary scan setup, redundant assertions.
+- If the new test is >180s and the analogue cohort averages <60s → reconsider scope. The test might be doing more than one thing.
+
+This isn't a blocker, just a "before you open the PR, are you sure?" check.
+
 ---
 
 ## Discipline

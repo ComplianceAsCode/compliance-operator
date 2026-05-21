@@ -65,14 +65,25 @@ Agents live in `.claude/agents/`. Invoke for matching work:
 
 ### User-invocable skills
 
+**Test refactor**
 - `/analyze-tests` — full classify-and-plan pipeline for the parallel-suite refactor.
 - `/split-test-file <feature_group>` — mechanically extract one feature_group out of `main_test.go`.
+
+**Adding / verifying tests**
 - `/add-e2e-test "<description>"` — guided new test creation in the right file.
 - `/triage-downstream <path>` — `NOTE(rhmdnd)` → Jira drafts.
 - `/verify-e2e <TestName>` — run one test + skeptical verdict.
+
+**CRD / generated code**
+- `/regen` — after edits to `pkg/apis/**`, run manifests+generate and audit the diff.
+
+**CI investigation**
 - `/ci-search <regex>` — query the OpenShift CI failure search index.
 - `/test-runtime` — per-test wall-clock runtimes from prow's build-log artifacts.
-- `/deflake [--top N]` — rank flakiest tests and plan fixes.
+- `/deflake [--top N]` — rank flakiest tests by cost (failure rate × runtime) and plan fixes.
+- `/bisect-regression <job>` — find which commit broke a CI job (transition from green to red).
+
+**PR**
 - `/pr-review <pr#>` — post inline review comments via `gh`.
 
 ### Development
