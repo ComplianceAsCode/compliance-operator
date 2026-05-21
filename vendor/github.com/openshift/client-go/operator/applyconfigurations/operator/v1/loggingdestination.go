@@ -3,14 +3,39 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // LoggingDestinationApplyConfiguration represents a declarative configuration of the LoggingDestination type for use
 // with apply.
+//
+// LoggingDestination describes a destination for log messages.
 type LoggingDestinationApplyConfiguration struct {
-	Type      *v1.LoggingDestinationType                               `json:"type,omitempty"`
-	Syslog    *SyslogLoggingDestinationParametersApplyConfiguration    `json:"syslog,omitempty"`
+	// type is the type of destination for logs.  It must be one of the
+	// following:
+	//
+	// * Container
+	//
+	// The ingress operator configures the sidecar container named "logs" on
+	// the ingress controller pod and configures the ingress controller to
+	// write logs to the sidecar.  The logs are then available as container
+	// logs.  The expectation is that the administrator configures a custom
+	// logging solution that reads logs from this sidecar.  Note that using
+	// container logs means that logs may be dropped if the rate of logs
+	// exceeds the container runtime's or the custom logging solution's
+	// capacity.
+	//
+	// * Syslog
+	//
+	// Logs are sent to a syslog endpoint.  The administrator must specify
+	// an endpoint that can receive syslog messages.  The expectation is
+	// that the administrator has configured a custom syslog instance.
+	Type *operatorv1.LoggingDestinationType `json:"type,omitempty"`
+	// syslog holds parameters for a syslog endpoint.  Present only if
+	// type is Syslog.
+	Syslog *SyslogLoggingDestinationParametersApplyConfiguration `json:"syslog,omitempty"`
+	// container holds parameters for the Container logging destination.
+	// Present only if type is Container.
 	Container *ContainerLoggingDestinationParametersApplyConfiguration `json:"container,omitempty"`
 }
 
@@ -23,7 +48,7 @@ func LoggingDestination() *LoggingDestinationApplyConfiguration {
 // WithType sets the Type field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Type field is set to the value of the last call.
-func (b *LoggingDestinationApplyConfiguration) WithType(value v1.LoggingDestinationType) *LoggingDestinationApplyConfiguration {
+func (b *LoggingDestinationApplyConfiguration) WithType(value operatorv1.LoggingDestinationType) *LoggingDestinationApplyConfiguration {
 	b.Type = &value
 	return b
 }

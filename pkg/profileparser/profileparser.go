@@ -39,6 +39,7 @@ var log = logf.Log.WithName("profileparser")
 
 type ParserConfig struct {
 	DataStreamPath   string
+	CELContentPath   string
 	ProfileBundleKey types.NamespacedName
 	Client           runtimeclient.Client
 	Scheme           *k8sruntime.Scheme
@@ -107,9 +108,12 @@ func ParseBundle(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg 
 					return fmt.Errorf("unexpected type")
 				}
 
-				foundRule.Annotations = updatedRule.Annotations
-				// if the check type has changed, add an annotation to the rule
-				// to indicate that the rule needs to be checked in TailoredProfile validation
+				if foundRule.Annotations == nil {
+					foundRule.Annotations = make(map[string]string)
+				}
+				for k, v := range updatedRule.Annotations {
+					foundRule.Annotations[k] = v
+				}
 				if foundRule.CheckType != updatedRule.CheckType {
 					log.Info("Rule check type has changed", "rule", foundRule.Name, "oldCheckType", foundRule.CheckType, "newCheckType", updatedRule.CheckType)
 					foundRule.Annotations[cmpv1alpha1.RuleLastCheckTypeChangedAnnotationKey] = foundRule.CheckType
@@ -387,6 +391,9 @@ func parseProfileFromNode(profileRoot *xmlquery.Node, pb *cmpv1alpha1.ProfileBun
 				Version:     version,
 			},
 		}
+
+		// XCCDF profiles use the OpenSCAP scanner
+		p.Annotations[cmpv1alpha1.ScannerTypeAnnotation] = string(cmpv1alpha1.ScannerTypeOpenSCAP)
 
 		annotateWithNonce(&p, nonce)
 		annotateWithStatus(&p, status)
@@ -699,6 +706,7 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 				RulePayload: cmpv1alpha1.RulePayload{
 					ID:             id,
 					Title:          title.InnerText(),
+					ScannerType:    cmpv1alpha1.ScannerTypeOpenSCAP,
 					AvailableFixes: nil,
 				},
 			}

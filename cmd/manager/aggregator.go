@@ -575,6 +575,14 @@ func createResults(crClient aggregatorCrClient, scan *compv1alpha1.ComplianceSca
 	// aggregator need to know it's using gRPC under the hood, probably
 	// not).
 
+	// Build a cache of custom labels/annotations from Rule objects so that
+	// we can propagate user-defined metadata to ComplianceCheckResults.
+	ruleMetadataCache, err := utils.NewRuleMetadataCache(crClient.getClient(), scan.Namespace)
+	if err != nil {
+		// Non-fatal: if we can't build the cache, we just won't propagate custom metadata.
+		cmdLog.Info("Warning: could not build rule metadata cache, custom labels/annotations will not be propagated", "error", err)
+	}
+
 	// Find all the existing scan results. As we iterate through the list
 	// of the most recent results below, we should remove entries from the
 	// list of existing results. By the end of the loop, we should have a
@@ -591,7 +599,7 @@ func createResults(crClient aggregatorCrClient, scan *compv1alpha1.ComplianceSca
 		Namespace:     scan.Namespace,
 		LabelSelector: labels.SelectorFromSet(withLabel),
 	}
-	err := crClient.getClient().List(context.TODO(), &complianceCheckResults, &lo)
+	err = crClient.getClient().List(context.TODO(), &complianceCheckResults, &lo)
 	if err != nil {
 		return fmt.Errorf("Unable to fetch existing ComplianceCheckResultList: %w", err)
 	}
@@ -616,6 +624,11 @@ func createResults(crClient aggregatorCrClient, scan *compv1alpha1.ComplianceSca
 
 		checkResultLabels := getCheckResultLabels(&pr.ParseResult, pr.Labels, scan)
 		checkResultAnnotations := getCheckResultAnnotations(pr.CheckResult, pr.Annotations)
+
+		// Propagate custom labels/annotations from the corresponding Rule object
+		ruleDNSName := utils.IDToDNSFriendlyName(pr.CheckResult.ID)
+		customLabels, customAnnotations := ruleMetadataCache.GetCustomMetadataForRule(ruleDNSName)
+		checkResultLabels, checkResultAnnotations = utils.MergeCustomMetadata(checkResultLabels, customLabels, checkResultAnnotations, customAnnotations)
 
 		crkey := getObjKey(pr.CheckResult.GetName(), pr.CheckResult.GetNamespace())
 		foundCheckResult := &compv1alpha1.ComplianceCheckResult{}

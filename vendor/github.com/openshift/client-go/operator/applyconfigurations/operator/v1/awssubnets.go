@@ -3,14 +3,28 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // AWSSubnetsApplyConfiguration represents a declarative configuration of the AWSSubnets type for use
 // with apply.
+//
+// AWSSubnets contains a list of references to AWS subnets by
+// ID or name.
 type AWSSubnetsApplyConfiguration struct {
-	IDs   []v1.AWSSubnetID   `json:"ids,omitempty"`
-	Names []v1.AWSSubnetName `json:"names,omitempty"`
+	// ids specifies a list of AWS subnets by subnet ID.
+	// Subnet IDs must start with "subnet-", consist only
+	// of alphanumeric characters, must be exactly 24
+	// characters long, must be unique, and the total
+	// number of subnets specified by ids and names
+	// must not exceed 10.
+	IDs []operatorv1.AWSSubnetID `json:"ids,omitempty"`
+	// names specifies a list of AWS subnets by subnet name.
+	// Subnet names must not start with "subnet-", must not
+	// include commas, must be under 256 characters in length,
+	// must be unique, and the total number of subnets
+	// specified by ids and names must not exceed 10.
+	Names []operatorv1.AWSSubnetName `json:"names,omitempty"`
 }
 
 // AWSSubnetsApplyConfiguration constructs a declarative configuration of the AWSSubnets type for use with
@@ -22,7 +36,7 @@ func AWSSubnets() *AWSSubnetsApplyConfiguration {
 // WithIDs adds the given value to the IDs field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the IDs field.
-func (b *AWSSubnetsApplyConfiguration) WithIDs(values ...v1.AWSSubnetID) *AWSSubnetsApplyConfiguration {
+func (b *AWSSubnetsApplyConfiguration) WithIDs(values ...operatorv1.AWSSubnetID) *AWSSubnetsApplyConfiguration {
 	for i := range values {
 		b.IDs = append(b.IDs, values[i])
 	}
@@ -32,7 +46,7 @@ func (b *AWSSubnetsApplyConfiguration) WithIDs(values ...v1.AWSSubnetID) *AWSSub
 // WithNames adds the given value to the Names field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Names field.
-func (b *AWSSubnetsApplyConfiguration) WithNames(values ...v1.AWSSubnetName) *AWSSubnetsApplyConfiguration {
+func (b *AWSSubnetsApplyConfiguration) WithNames(values ...operatorv1.AWSSubnetName) *AWSSubnetsApplyConfiguration {
 	for i := range values {
 		b.Names = append(b.Names, values[i])
 	}

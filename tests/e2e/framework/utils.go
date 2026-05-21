@@ -20,7 +20,6 @@ import (
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 	imagev1 "github.com/openshift/api/image/v1"
-	promv1 "github.com/prometheus/prometheus/web/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +31,22 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// PrometheusTarget represents a Prometheus scrape target from the /api/v1/targets endpoint.
+// This is a minimal version of prometheus/web/api/v1.Target to avoid pulling in test dependencies.
+type PrometheusTarget struct {
+	Labels             map[string]string `json:"labels"`
+	DiscoveredLabels   map[string]string `json:"discoveredLabels"`
+	ScrapePool         string            `json:"scrapePool"`
+	ScrapeURL          string            `json:"scrapeUrl"`
+	GlobalURL          string            `json:"globalUrl"`
+	LastError          string            `json:"lastError"`
+	LastScrape         time.Time         `json:"lastScrape"`
+	LastScrapeDuration float64           `json:"lastScrapeDuration"`
+	Health             string            `json:"health"`
+	ScrapeInterval     string            `json:"scrapeInterval"`
+	ScrapeTimeout      string            `json:"scrapeTimeout"`
+}
 
 func (f *Framework) AssertMustHaveParsedProfiles(pbName, productType, productName string) error {
 	var l compv1alpha1.ProfileList
@@ -427,8 +442,8 @@ func (f *Framework) CleanUpRBACForMetricsTest() error {
 }
 
 // WaitForPrometheusMetricTargets retrieves Prometheus metric targets
-func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
-	var metricsTargets []promv1.Target
+func (f *Framework) WaitForPrometheusMetricTargets() ([]PrometheusTarget, error) {
+	var metricsTargets []PrometheusTarget
 	var lastErr error
 
 	const prometheusCommand = `
@@ -466,7 +481,7 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 		log.Printf("Metrics output:\n%s\n", outTrimmed)
 		var responseData struct {
 			Data struct {
-				ActiveTargets []promv1.Target `json:"activeTargets"`
+				ActiveTargets []PrometheusTarget `json:"activeTargets"`
 			} `json:"data"`
 		}
 		err = json.Unmarshal([]byte(outTrimmed), &responseData)
@@ -478,7 +493,7 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 
 		// Filter metrics for the specified namespace
 		for _, metricsTarget := range responseData.Data.ActiveTargets {
-			if metricsTarget.Labels != nil &&
+			if len(metricsTarget.Labels) > 0 &&
 				metricContainsLabel(metricsTarget, "namespace", namespace) &&
 				(metricContainsLabel(metricsTarget, "endpoint", "metrics") ||
 					metricContainsLabel(metricsTarget, "endpoint", "metrics-co")) {
@@ -510,13 +525,9 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]promv1.Target, error) {
 }
 
 // function to check a label value in a metric match certain value
-func metricContainsLabel(metricTarget promv1.Target, labelName string, labelValue string) bool {
-	if metricTarget.Labels != nil {
-		for _, label := range metricTarget.Labels {
-			if label.Name == labelName && label.Value == labelValue {
-				return true
-			}
-		}
+func metricContainsLabel(metricTarget PrometheusTarget, labelName string, labelValue string) bool {
+	if len(metricTarget.Labels) > 0 {
+		return metricTarget.Labels[labelName] == labelValue
 	}
 	return false
 }
@@ -536,7 +547,7 @@ func trimOutput(out string) string {
 }
 
 // assertServiceMonitoringMetricsTarget checks if the specified metrics are up
-func (f *Framework) AssertServiceMonitoringMetricsTarget(metrics []promv1.Target, expectedTargetsCount int) error {
+func (f *Framework) AssertServiceMonitoringMetricsTarget(metrics []PrometheusTarget, expectedTargetsCount int) error {
 	// make sure we have required metrics
 	if len(metrics) != expectedTargetsCount {
 		return fmt.Errorf("Expected %d metrics, got %d", expectedTargetsCount, len(metrics))
@@ -612,4 +623,110 @@ func getTestMetricsCMD(namespace string) string {
 
 func GetPoolNodeRoleSelector() map[string]string {
 	return utils.GetNodeRoleSelector(TestPoolName)
+}
+
+// GetDefaultStorageClassProvisioner retrieves the provisioner from the default storage class
+func (f *Framework) GetDefaultStorageClassProvisioner() (string, error) {
+	var scList unstructured.UnstructuredList
+	scList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "storage.k8s.io",
+		Version: "v1",
+		Kind:    "StorageClassList",
+	})
+
+	if err := f.Client.List(context.TODO(), &scList); err != nil {
+		return "", fmt.Errorf("failed to list storage classes: %w", err)
+	}
+
+	for _, sc := range scList.Items {
+		annotations := sc.GetAnnotations()
+		if annotations != nil {
+			if isDefault, ok := annotations["storageclass.kubernetes.io/is-default-class"]; ok && isDefault == "true" {
+				provisioner, found, err := unstructured.NestedString(sc.Object, "provisioner")
+				if err != nil {
+					return "", fmt.Errorf("failed to get provisioner from storage class: %w", err)
+				}
+				if !found {
+					return "", fmt.Errorf("provisioner field not found in default storage class")
+				}
+				return provisioner, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no default storage class found in the cluster")
+}
+
+// CreateCustomStorageClass creates a custom StorageClass object
+func (f *Framework) CreateCustomStorageClass(name, provisioner string) (*unstructured.Unstructured, error) {
+	sc := &unstructured.Unstructured{}
+	sc.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "storage.k8s.io",
+		Version: "v1",
+		Kind:    "StorageClass",
+	})
+	sc.SetName(name)
+	if err := unstructured.SetNestedField(sc.Object, provisioner, "provisioner"); err != nil {
+		return nil, fmt.Errorf("failed to set provisioner field: %w", err)
+	}
+	return sc, nil
+}
+
+// AssertScanPVCHasStorageConfig verifies that the PVC for a scan has the expected storage configuration
+func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedStorageClassName string, expectedAccessMode corev1.PersistentVolumeAccessMode) error {
+	// List all PVCs in the namespace
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	listOpts := &client.ListOptions{
+		Namespace: namespace,
+	}
+	if err := f.Client.List(context.TODO(), pvcList, listOpts); err != nil {
+		return fmt.Errorf("failed to list PVCs: %w", err)
+	}
+
+	// Find the PVC for the scan
+	var scanPVC *corev1.PersistentVolumeClaim
+	for i := range pvcList.Items {
+		pvc := &pvcList.Items[i]
+		// Check if this PVC belongs to our scan
+		if pvc.Labels != nil {
+			if scanLabel, ok := pvc.Labels[compv1alpha1.ComplianceScanLabel]; ok && scanLabel == scanName {
+				scanPVC = pvc
+				break
+			}
+		}
+	}
+
+	if scanPVC == nil {
+		return fmt.Errorf("no PVC found for scan %s", scanName)
+	}
+
+	// Verify PVC has the correct storageClassName
+	if scanPVC.Spec.StorageClassName == nil {
+		return fmt.Errorf("PVC %s has nil storageClassName", scanPVC.Name)
+	}
+	if *scanPVC.Spec.StorageClassName != expectedStorageClassName {
+		return fmt.Errorf("expected PVC storageClassName to be %s, got %s", expectedStorageClassName, *scanPVC.Spec.StorageClassName)
+	}
+
+	// Verify PVC has the correct accessModes
+	if len(scanPVC.Spec.AccessModes) == 0 {
+		return fmt.Errorf("PVC %s has no access modes", scanPVC.Name)
+	}
+
+	found := false
+	for _, mode := range scanPVC.Spec.AccessModes {
+		if mode == expectedAccessMode {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("expected PVC to have access mode %s, got %v", expectedAccessMode, scanPVC.Spec.AccessModes)
+	}
+
+	log.Printf("Successfully verified PVC %s has storageClassName=%s and accessModes=%v\n",
+		scanPVC.Name, *scanPVC.Spec.StorageClassName, scanPVC.Spec.AccessModes)
+
+	return nil
 }

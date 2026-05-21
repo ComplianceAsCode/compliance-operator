@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: customrules.compliance.openshift.io
 spec:
   group: compliance.openshift.io
@@ -24,7 +24,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: CustomRule represents a rule that can be used with TailoredProfiles
+        description: CustomRule represents a user-created rule for use with TailoredProfiles
           to execute arbitrary checks against the cluster.
         properties:
           apiVersion:
@@ -45,6 +45,10 @@ spec:
           metadata:
             type: object
           spec:
+            description: |-
+              CustomRuleSpec embeds RulePayload which now contains all CEL fields
+              (scannerType, expression, inputs, failureReason). This is CRD-compatible
+              since both RulePayload and the former CustomRulePayload were json:",inline".
             properties:
               availableFixes:
                 description: The Available fixes
@@ -80,12 +84,12 @@ spec:
                 description: The description of the Rule
                 type: string
               expression:
-                description: Expression is the CEL expression to evaluate
-                minLength: 1
+                description: Expression is the CEL expression to evaluate (required
+                  when scannerType=CEL)
                 type: string
               failureReason:
-                description: FailureReason is displayed when the rule evaluation fails
-                minLength: 1
+                description: FailureReason is displayed when a CEL rule evaluation
+                  fails
                 type: string
               id:
                 description: The ID of the Rule
@@ -137,7 +141,6 @@ spec:
                   - kubernetesInputSpec
                   - name
                   type: object
-                minItems: 1
                 type: array
               instructions:
                 description: Instructions for auditing this specific rule
@@ -146,9 +149,11 @@ spec:
                 description: The rationale of the Rule
                 type: string
               scannerType:
-                description: ScannerType denotes the scanning implementation to use
-                  when evaluating rules
+                description: |-
+                  ScannerType denotes which scanner evaluates this rule.
+                  All rules must have an explicit scanner type set by the parser or user.
                 enum:
+                - OpenSCAP
                 - CEL
                 type: string
               severity:
@@ -161,11 +166,7 @@ spec:
                 description: A discretionary warning about the of the Rule
                 type: string
             required:
-            - expression
-            - failureReason
             - id
-            - inputs
-            - scannerType
             - title
             type: object
           status:
