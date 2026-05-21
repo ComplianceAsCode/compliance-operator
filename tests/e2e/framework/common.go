@@ -1965,6 +1965,44 @@ func (f *Framework) GetPodsForScan(scanName string) ([]core.Pod, error) {
 	return pods.Items, nil
 }
 
+// FilterScannerPods separates pods into scanner pods (workload=scanner) and operator pods
+// (aggregator, result server, etc.) based on the workload label.
+func FilterScannerPods(pods []core.Pod) (scannerPods, operatorPods []core.Pod) {
+	for i := range pods {
+		if pods[i].Labels["workload"] == "scanner" {
+			scannerPods = append(scannerPods, pods[i])
+		} else {
+			operatorPods = append(operatorPods, pods[i])
+		}
+	}
+	return
+}
+
+// AssertAllScannerPodsHaveToleration checks that every scanner pod satisfies
+// the given toleration predicate. It fatally fails the test if any scanner pod
+// is missing the expected toleration.
+func AssertAllScannerPodsHaveToleration(t *testing.T, pods []core.Pod, match func(core.Toleration) bool, description string) {
+	t.Helper()
+	scannerPods, operatorPods := FilterScannerPods(pods)
+	if len(scannerPods) == 0 {
+		t.Fatal("no scanner pods found")
+	}
+	t.Logf("Found %d scanner pods and %d operator pods", len(scannerPods), len(operatorPods))
+
+	for _, pod := range scannerPods {
+		found := false
+		for _, toleration := range pod.Spec.Tolerations {
+			if match(toleration) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("scanner pod %s does not have expected toleration: %s", pod.Name, description)
+		}
+	}
+}
+
 // WaitForRemediationState will poll until the complianceRemediation that we're lookingfor gets applied, or until
 // a timeout is reached.
 func (f *Framework) WaitForRemediationState(name, namespace string, state compv1alpha1.RemediationApplicationState) error {
