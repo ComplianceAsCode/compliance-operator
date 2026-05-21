@@ -40,13 +40,17 @@ There is an active testing-refactor effort (see `testing-refactor.md`) to split 
 
 ## CI Visibility
 
-The OpenShift CI search index (https://search.dptools.openshift.org) is the ground truth for test failure history. Use:
+CI visibility uses two endpoints:
 
-- `/ci-search --test <TestName>` to see recent failure rate and duration for one test.
-- `/ci-search --jobs-only` to enumerate which CI jobs are currently running the CO suite.
-- `/deflake` to mine flaky tests, classify them, and plan fixes.
+- **Failure search**: https://search.dptools.openshift.org (14-day retention, failure-focused — passing jobs may not appear).
+- **Job enumeration / history**: https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/&lt;job-name&gt; (full history, source of truth for "does this job exist").
 
-The index retains 14 days. Active jobs as of 2026-05: `pull-ci-…-e2e-aws-parallel`, `pull-ci-…-e2e-aws-parallel-arm`, plus `periodic-ci-ComplianceAsCode-content-master-4.21-*` weekly content runs.
+Active CO PR jobs (2026-05): `pull-ci-…-e2e-aws-parallel`, `…-parallel-arm`, `…-e2e-aws-serial`, `…-serial-arm`. Plus weekly `periodic-ci-ComplianceAsCode-content-master-<ocp>-…` runs.
+
+Tools:
+- `/ci-search --test <TestName>` — failure history for one test.
+- `/ci-search --jobs-only` — enumerate failing jobs in the window (note: passes-only jobs hide).
+- `/deflake` — mine flaky tests, classify, plan fixes.
 
 ## Available Subagents
 

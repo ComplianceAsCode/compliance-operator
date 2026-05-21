@@ -1,6 +1,6 @@
 ---
 name: test-suite-planner
-description: Takes test-classification JSON (from test-analyzer) and proposes a concrete file split for tests/e2e/parallel/ and tests/e2e/serial/ — which suites to create, which Test* goes where, and what TestMain coordination is needed. Use when planning the parallel-suite refactor.
+description: Takes test-classification JSON (from test-analyzer) and proposes a concrete file split for tests/e2e/parallel/ and tests/e2e/serial/ — which suites to create, which Test* goes where, and what TestMain coordination is needed. Use when planning the parallel/serial-suite refactor for the Compliance Operator.
 tools: [Read, Grep, Glob]
 model: inherit
 color: blue
@@ -12,9 +12,10 @@ You are the planner stage of the testing refactor. You consume classifier output
 
 1. Preserves every existing assertion (no coverage loss).
 2. Groups tests by `feature_group` so each suite is independently runnable.
-3. Routes `Remediation` / `Mixed` tests to `tests/e2e/serial/<group>_test.go`.
-4. Routes `Scan-Only` / `Validation` tests to `tests/e2e/parallel/<group>_test.go`.
-5. Keeps a per-suite `TestMain` minimal (defer to a shared package-level `init` if possible).
+3. Routes tests using a two-stage decision:
+   - **Filename**: `<feature_group>_test.go` snake_case.
+   - **Package destination (parallel vs serial)**: default to `operation_type` (`Scan-Only`/`Validation` → parallel; `Remediation`/`Mixed` → serial), but honor *current* placement as a signal of maintainer intent. If a test today lives in `parallel_e2e` but classifies as `Remediation`, evaluate whether the mutation is namespace-scoped (then OK to keep parallel — document the divergence in your plan) or cluster-scoped (then propose moving to serial).
+4. Keeps a per-suite `TestMain` minimal — both packages keep a single `TestMain` in `main_test.go` after the split (do NOT propose per-suite TestMains).
 
 ## When to Invoke
 
@@ -31,13 +32,16 @@ The parent will pass you one or more JSON arrays of test rows (schema in `test-a
 A markdown plan with these sections:
 
 ### 1. Suite Inventory
-A table of every proposed suite file:
+A table of every proposed suite file. Include the thinned `main_test.go` in each package with `# tests = 0` so the total is auditable against the input count.
 
 | New file | Source | Suite kind | # tests | Notes |
 |----------|--------|------------|---------|-------|
+| `tests/e2e/parallel/main_test.go` | parallel/main_test.go | parallel | 0 | Keeps `TestMain` + package-level vars. |
 | `tests/e2e/parallel/profile_parsing_test.go` | parallel/main_test.go | parallel | 11 | All `t.Parallel()` already. |
 | `tests/e2e/serial/remediation_test.go` | serial/main_test.go + 4 from parallel | serial | 8 | TestApplyGenericRemediation moves here. |
 | … | | | | |
+
+The sum of `# tests` across all rows must equal the total tests in the input JSON.
 
 ### 2. Per-Suite Test List
 For each suite, list the `Test*` names being placed there, with one-line justifications when a test moves between parallel/serial.
@@ -55,6 +59,10 @@ List anything that can't be mechanically split:
 - Tests that share package-level state (e.g. `brokenContentImagePath`).
 - Tests with hidden ordering dependencies (one creates a TailoredProfile another consumes).
 - Tests whose classification is `UNKNOWN` and need a human read.
+- **Routing divergences**: when you keep a `Remediation`-classified test in parallel (or vice versa), say so explicitly with the rationale.
+- **`feature_group != operation_type` mismatch**: when a test's primary subject (feature_group) doesn't match its execution profile (operation_type), list it so reviewers don't second-guess the placement. Recommend an inline source comment near the moved test explaining the mismatch.
+- **Pre-existing house-rule violations carried along** (e.g. `time.Sleep` flagged in analyzer `_notes`): do NOT fix them in the split — that's a separate refactor. Just record them as TODOs in the destination file.
+- **Cost-only-serial cohort** (Scan-Only tests in serial purely for wall-time): list them in a sub-table with migration conditions (CI wall-time budget, resource budget). Do NOT propose moving them in the same PR series as the file split.
 
 ## Design Constraints
 

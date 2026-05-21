@@ -27,12 +27,22 @@ The parent gives you:
 
 ## Workflow
 
-1. **Sanity-check cluster connectivity:**
+1. **Sanity-check cluster identity AND connectivity:**
    ```bash
+   oc config current-context
    oc whoami && oc get nodes
+   oc get ns openshift-compliance
    oc get pods -n openshift-compliance
    ```
-   If the operator namespace is missing, abort with a clear error — don't try to `make prep-e2e` unless the parent authorized it.
+   Echo the cluster identity (context + user) back to the parent **before** running anything. If the parent didn't explicitly confirm this is the target cluster, ask. A stale kubeconfig pointing at the wrong cluster is the most expensive foot-gun in this workflow.
+
+   Abort (don't run the test) if **any** of these fail:
+   - `oc config current-context` returns no context
+   - `oc whoami` errors / returns no user
+   - `oc get nodes` errors
+   - the `openshift-compliance` namespace is missing
+
+   Don't auto-run `make prep-e2e` to fix a missing namespace — that reinstalls the operator + CRDs and is destructive to whatever state exists. Suggest it; let the parent authorize.
 
 2. **Run the test:**
    ```bash
@@ -70,7 +80,8 @@ The parent gives you:
 
 **Test**: TestName
 **Suite**: parallel | serial
-**Wall time**: Nm Ns
+**Wall time**: Nm Ns        (use `N/A` if the test was never executed)
+**Cluster**: <context name> as <user>     (from step 1)
 
 ### What the test did
 <one paragraph from reading the test body and the log>
@@ -79,10 +90,16 @@ The parent gives you:
 <key log excerpts with line numbers, oc output, exit code>
 
 ### Diagnosis (if not PASS)
-**Category**: Real regression | Test bug | Env issue | Flake
+**Category**: Real regression | Test bug | Env issue | Flake | Preflight
 **Root cause**: <one sentence>
 **Recommended action**: <what the parent should do>
 ```
+
+### Verdict choice
+
+- **PASS** — test compiled, ran, exit 0, AND the post-run log evidence shows the assertion actually fired.
+- **FAIL** — test compiled and ran, but the result wasn't what we wanted (exit non-zero, OR exit 0 but the test didn't exercise the cluster, OR the result diverged from `--expect`).
+- **INCONCLUSIVE** — the test was never executed. Use this for any preflight abort (no cluster, missing namespace, kubeconfig mismatch) or any case where you couldn't get a real signal. Set `Category: Preflight` for these.
 
 ## Skepticism Discipline
 

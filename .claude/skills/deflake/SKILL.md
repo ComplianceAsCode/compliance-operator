@@ -20,13 +20,21 @@ End-to-end deflake workflow for the Compliance Operator. Mines `search.dptools.o
 
 ## Phase 1: Collect
 
-Use `/ci-search --jobs-only` to enumerate active CO jobs, then for each job query the JUnit failures:
+Job enumeration: read the "Known CO + content jobs" list in `/ci-search` SKILL.md (verified against prow) — do **not** rely on `/ci-search --jobs-only` to enumerate, because the dptools index is failure-focused and silently hides jobs that pass.
+
+Then for each known job, query the JUnit failures:
 
 ```
 /ci-search "FAIL: Test" --job <job-regex> --age 7d --type junit
 ```
 
 The bare-test-name search (`/ci-search --test <TestName>`) gives the richest per-test view; use it for the top candidates after this aggregate query.
+
+For a job that returns zero failures in the search (likely either healthy OR low-activity), confirm it actually ran by checking prow's history endpoint:
+```
+https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/<job-name>
+```
+The "Showing N/M results" count tells you total historical runs. If M is non-trivial and dptools returns nothing, the job is likely healthy.
 
 Aggregate per-test: total appearances, distinct jobs, failure rate, average duration, distinct error messages.
 

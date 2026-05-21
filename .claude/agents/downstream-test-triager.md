@@ -43,8 +43,13 @@ Do NOT invoke for: classifying upstream tests (`test-analyzer`), writing the act
    |----------|------|-------------|
    | `UPSTREAM_DUPLICATE` | Downstream test is fully covered upstream. | Title: "Downstream Cleanup: Remove test <ID>". Body: cite upstream test name. |
    | `UPSTREAM_PARTIAL` | Upstream covers core flow; downstream adds an assertion worth keeping. | Title: "Upstream Improvement: Enhance <upstream test> to cover <ID> logic". |
-   | `UPSTREAM_MISSING` | No upstream equivalent. | Title: "Upstream Parity: Add test for <feature> (<ID>)". |
+   | `UPSTREAM_MISSING` | No upstream equivalent (including the case where only unit tests cover it — those don't count as e2e parity). | Title: "Upstream Parity: Add test for <feature> (<ID>)". |
    | `NEEDS_DISCUSSION` | Ambiguous coverage; new product behavior; downstream-only platform. | Title: "Triage: <test title>". Flag for maintainer. |
+
+   **Edge cases**:
+   - If the NOTE asks for an enhancement that the upstream test *already received* (e.g. NOTE says "we should add X" and grep shows X is already in the upstream body), classify as `UPSTREAM_DUPLICATE`, not `UPSTREAM_PARTIAL`. The improvement landed; the downstream is now redundant.
+   - If the only upstream coverage is a unit test and the downstream is an e2e test, classify as `UPSTREAM_MISSING` (with `Gap: only unit coverage exists`) — unit tests don't substitute for e2e on integration paths.
+   - If the downstream title differs from the upstream in CR kind (e.g. ComplianceSuite vs ComplianceScan), call this out in the Jira body so the maintainer can decide whether the difference is meaningful or just superficial naming.
 
 4. **Draft Jira bodies** that match the format already in `testing-refactor.md`:
 
@@ -57,8 +62,9 @@ Do NOT invoke for: classifying upstream tests (`test-analyzer`), writing the act
    * **Full TestName:** <exact downstream title>
    * **Author:** <author from title>
    * **Original Comment:** <NOTE body verbatim>
-   * **Upstream coverage:** <upstream test name(s) or "none">
-   * **Gap (if PARTIAL):** <one sentence>
+   * **Upstream coverage:** <upstream test name(s)>, or "unit-only at <path>", or "none"
+   * **Gap (if PARTIAL):** <one sentence> | for non-PARTIAL, write "n/a"
+   * **Notes:** anything the maintainer should know — CR-kind mismatch, downstream-only platform, etc.
    ```
 
 ## Output

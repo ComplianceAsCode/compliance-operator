@@ -82,15 +82,36 @@ If `--jobs-only`, drop the test column and just show job activity.
 
 ---
 
-## Known CO jobs (as of 2026-05)
+## What the dptools index is and isn't
 
-- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-parallel`
-- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-parallel-arm`
-- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-serial` *(if present)*
+This skill queries `search.dptools.openshift.org`, which is a **failure-focused** index of CI output (logs + JUnit). A job that passes consistently may not appear in search results even though it runs daily. **Do not infer job existence from search results.** For job enumeration, query prow directly:
+
+```
+https://prow.ci.openshift.org/job-history/test-platform-results/pr-logs/directory/<job-name>
+```
+
+The page renders a count like "Showing 20/1224 results" — the second number is the total historical run count for that job, and its presence proves the job exists.
+
+## Known CO + content jobs (verified 2026-05-21 against prow + dptools)
+
+**Pull-request jobs (compliance-operator):**
+- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-parallel` — ~67% failure rate (per dptools, 14d window). Dominant failure: `TestParsingErrorRestartsParserInitContainer`.
+- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-parallel-arm` — ~77% failure rate, same.
+- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-serial` — 1224 historical runs on prow; rarely surfaces in dptools (low failure rate or fewer indexed events).
+- `pull-ci-ComplianceAsCode-compliance-operator-master-e2e-aws-serial-arm` — 1171 historical runs on prow; same.
+
+The serial jobs are the reason the apparent failure rate of CO PR CI is overstated when you only look at `parallel*` — the serial jobs run in parallel with them and pass at a much higher rate.
+
+**Periodic jobs (content):**
 - `periodic-ci-ComplianceAsCode-content-master-4.21-e2e-aws-openshift-node-compliance-weekly`
 - `periodic-ci-ComplianceAsCode-content-master-4.21-e2e-aws-openshift-node-compliance-arm-weekly`
+- `periodic-ci-ComplianceAsCode-content-master-4.18-e2e-aws-openshift-node-compliance-weekly`
+- `periodic-ci-ComplianceAsCode-content-master-4.16-e2e-aws-openshift-node-compliance-weekly`
+- `periodic-ci-ComplianceAsCode-content-master-4.19-e2e-aws-openshift-node-compliance-arm-weekly`
 
-Use `--jobs-only` to discover the current set — the list rotates with OCP versions.
+The 4.21 periodics have been failing 100% over multiple weeks — that's a real regression in the content side, not a flake. Use `/deflake` for triage but route the fix to the content team.
+
+To discover the current set of periodic jobs (the OCP-version list rotates), run a broad search-only `/ci-search` AND cross-reference with prow's directory listing — the periodic_failure rate makes search a reasonable enumeration source for them.
 
 ---
 
