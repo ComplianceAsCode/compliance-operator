@@ -879,4 +879,3 @@ fi`, runtimeDir, configPath, sshdBin, terminationLog)
 		})
 	})
 })
-
