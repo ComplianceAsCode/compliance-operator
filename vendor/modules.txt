@@ -121,8 +121,8 @@ github.com/coreos/go-systemd/unit
 # github.com/coreos/go-systemd/v22 v22.7.0
 ## explicit; go 1.23
 github.com/coreos/go-systemd/v22/unit
-# github.com/coreos/ign-converter v0.0.0-20241125185625-2f773079ca81
-## explicit; go 1.18
+# github.com/coreos/ign-converter v0.0.0-20260420141348-5351d3e16080
+## explicit; go 1.24.0
 github.com/coreos/ign-converter/translate/v23tov30
 github.com/coreos/ign-converter/translate/v32tov22
 github.com/coreos/ign-converter/translate/v32tov31
