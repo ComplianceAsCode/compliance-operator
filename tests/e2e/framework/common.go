@@ -629,6 +629,21 @@ func (f *Framework) GetReadyProfileBundle(name, namespace string) (*compv1alpha1
 	return pb, nil
 }
 
+// WaitForProfileExists polls until a Profile with the given name exists in the operator namespace.
+func (f *Framework) WaitForProfileExists(profileName string, timeout, interval time.Duration) error {
+	return wait.Poll(interval, timeout, func() (bool, error) {
+		profile := &compv1alpha1.Profile{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      profileName,
+			Namespace: f.OperatorNamespace,
+		}, profile)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+}
+
 func (f *Framework) updateScanSettingsForDebug() error {
 	if f.Platform == "rosa" {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
