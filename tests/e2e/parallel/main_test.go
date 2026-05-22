@@ -1347,7 +1347,299 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 	}
 }
 
-func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
+// TestTailoredProfileFromScratchPlatformOnly tests creating a TailoredProfile
+// from scratch with only platform rules (no extends field).
+func TestTailoredProfileFromScratchPlatformOnly(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tpName := "test-tailoredplatformprofile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Platform profile from scratch",
+			Description: "Test platform profile created without extending",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-cluster-version-operator-exists",
+					Rationale: "Test for platform profile tailoring",
+				},
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwaysadmit",
+					Rationale: "Platform rule",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwayspullimages",
+					Rationale: "Platform disable rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestTailoredProfileFromScratchNodeOnly tests creating a TailoredProfile
+// from scratch with only node rules (no extends field).
+func TestTailoredProfileFromScratchNodeOnly(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tpName := "test-tailorednodeprofile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Node profile from scratch",
+			Description: "Test node profile created without extending",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-cni-conf",
+					Rationale: "Node rule",
+				},
+				{
+					Name:      "ocp4-accounts-restrict-service-account-tokens",
+					Rationale: "Node rule",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-etcd-data-dir",
+					Rationale: "Node disable rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestTailoredProfileFromScratchMixedCheckTypesErrors tests that a TailoredProfile
+// with both node and platform rules goes into ERROR state with the expected error message.
+func TestTailoredProfileFromScratchMixedCheckTypesErrors(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tpName := "test-tailoredmixedprofile"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Mixed profile from scratch",
+			Description: "Test profile with both node and platform rules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-cni-conf",
+					Rationale: "Node rule",
+				},
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwayspullimages",
+					Rationale: "Platform rule",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-etcd-data-dir",
+					Rationale: "Node disable rule",
+				},
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwaysadmit",
+					Rationale: "Platform disable rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	// Verify it goes to ERROR state
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateError)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the error message contains expected text
+	tpObj := &compv1alpha1.TailoredProfile{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: tpName, Namespace: f.OperatorNamespace}, tpObj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tpObj.Status.ErrorMessage, "didn't match expected type") {
+		t.Fatalf("Expected error message to contain 'didn't match expected type', got: %s", tpObj.Status.ErrorMessage)
+	}
+}
+
+// TestTailoredProfilePatchFixesMixedCheckTypeError tests that patching a TailoredProfile
+// with mixed checkTypes to remove conflicting rules moves it from ERROR to READY state.
+func TestTailoredProfilePatchFixesMixedCheckTypeError(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tpName := "test-tailoredmixedprofile-patch"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Mixed profile from scratch",
+			Description: "Test profile with both node and platform rules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-cni-conf",
+					Rationale: "Node rule",
+				},
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwayspullimages",
+					Rationale: "Platform rule",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-etcd-data-dir",
+					Rationale: "Node disable rule",
+				},
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwaysadmit",
+					Rationale: "Platform disable rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	// Wait for ERROR state
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateError)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Patch to fix it by removing conflicting rules
+	tpObj := &compv1alpha1.TailoredProfile{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: tpName, Namespace: f.OperatorNamespace}, tpObj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove disableRules first
+	patchRemoveDisable := []byte(`[{"op": "remove", "path": "/spec/disableRules"}]`)
+	err = f.Client.Patch(context.TODO(), tpObj, client.RawPatch(types.JSONPatchType, patchRemoveDisable))
+	if err != nil {
+		t.Fatalf("Failed to patch TailoredProfile to remove disableRules: %s", err)
+	}
+
+	// Remove the first enableRule (node rule) to make it platform-only
+	patchRemoveFirstEnable := []byte(`[{"op": "remove", "path": "/spec/enableRules/0"}]`)
+	err = f.Client.Patch(context.TODO(), tpObj, client.RawPatch(types.JSONPatchType, patchRemoveFirstEnable))
+	if err != nil {
+		t.Fatalf("Failed to patch TailoredProfile to remove enableRules[0]: %s", err)
+	}
+
+	// Verify it becomes READY after patching
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestTailoredProfileRequiresTitle tests that the title field is required
+// when creating a TailoredProfile.
+func TestTailoredProfileRequiresTitle(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-notitle",
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Description: "Profile without title",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-cni-conf",
+					Rationale: "Node rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err == nil {
+		f.Client.Delete(context.TODO(), tp)
+		t.Fatal("Expected error when creating TailoredProfile without title, but got none")
+	}
+	if !strings.Contains(err.Error(), "spec.title") && !strings.Contains(err.Error(), "Required value") {
+		t.Fatalf("Expected error about missing title, got: %s", err)
+	}
+}
+
+// TestTailoredProfileRequiresDescription tests that the description field is required
+// when creating a TailoredProfile.
+func TestTailoredProfileRequiresDescription(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-nodesc",
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title: "Profile without description",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-cni-conf",
+					Rationale: "Node rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err == nil {
+		f.Client.Delete(context.TODO(), tp)
+		t.Fatal("Expected error when creating TailoredProfile without description, but got none")
+	}
+	if !strings.Contains(err.Error(), "spec.description") && !strings.Contains(err.Error(), "Required value") {
+		t.Fatalf("Expected error about missing description, got: %s", err)
+	}
+}
+
+// TestTailoredProfileFromScratchPlatformScanSucceeds tests creating a platform
+// TailoredProfile from scratch and running a successful compliance scan with it.
+// Also validates proxy configuration if the cluster uses a proxy.
+func TestTailoredProfileFromScratchPlatformScanSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
@@ -1377,19 +1669,29 @@ func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
 		}
 	}
 
-	tpName := "test-tailoredplatformprofile"
+	tpName := "test-tailoredplatformprofile-scan"
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tpName,
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
-			Title:       "TestSingleTailoredPlatformScanSucceeds",
-			Description: "TestSingleTailoredPlatformScanSucceeds",
+			Title:       "Platform profile from scratch",
+			Description: "Test platform profile created without extending",
 			EnableRules: []compv1alpha1.RuleReferenceSpec{
 				{
 					Name:      "ocp4-cluster-version-operator-exists",
 					Rationale: "Test for platform profile tailoring",
+				},
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwaysadmit",
+					Rationale: "Platform rule",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-api-server-admission-control-plugin-alwayspullimages",
+					Rationale: "Platform disable rule",
 				},
 			},
 		},
@@ -1467,6 +1769,83 @@ func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
 		if cm.Data["HTTPS_PROXY"] != httpsProxy {
 			t.Fatalf("HTTPS_PROXY mismatch in configmap. Expected: %s, Got: %s", httpsProxy, cm.Data["HTTPS_PROXY"])
 		}
+	}
+}
+
+// TestTailoredProfileFromScratchNodeScanSucceeds tests creating a node
+// TailoredProfile from scratch and running a successful compliance scan with it.
+func TestTailoredProfileFromScratchNodeScanSucceeds(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	tpName := "test-tailorednodeprofile-scan"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Node profile from scratch",
+			Description: "Test node profile created without extending",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-cni-conf",
+					Rationale: "Node rule",
+				},
+				{
+					Name:      "ocp4-accounts-restrict-service-account-tokens",
+					Rationale: "Node rule",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-file-groupowner-etcd-data-dir",
+					Rationale: "Node disable rule",
+				},
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	suiteName := framework.GetObjNameFromTest(t)
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// When using SSB with TailoredProfile, the scan has same name as the TP
+	scanName := tpName
+	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
