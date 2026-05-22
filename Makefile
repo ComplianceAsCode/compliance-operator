@@ -616,6 +616,14 @@ e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests con
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
+.PHONY: e2e-parsing
+e2e-parsing: e2e-set-image prep-e2e ## Run profile parsing end-to-end tests.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-parsing-critical
+e2e-parsing-critical: e2e-set-image prep-e2e ## Run parsing tests that have Critical in their name.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
+
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
 .PHONY: e2e-rosa
