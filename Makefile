@@ -602,7 +602,7 @@ endif
 	@$(GO) test -v ./pkg/utils/ -ginkgo.v
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e e2e-parallel e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+e2e: e2e-set-image prep-e2e e2e-parallel e2e-test-wait e2e-serial e2e-cis-profile ## Run full end-to-end tests that exercise content on an operational cluster.
 
 .PHONY: e2e
 e2e-test-wait:
@@ -615,6 +615,10 @@ e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests con
 .PHONY: e2e-serial
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-cis-profile
+e2e-cis-profile: e2e-set-image prep-e2e ## Run CIS profile end-to-end tests.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/cis_profiles_test $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
