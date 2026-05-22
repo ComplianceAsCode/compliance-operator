@@ -733,3 +733,7 @@ changelog: ## Move all unreleased notes in the CHANGELOG to a section dedicated 
 .PHONY: set-current-version
 set-current-version:
 	@echo "Using $(PREVIOUS_VERSION) as previous version"
+
+.PHONY: e2e-prerelease
+e2e-prerelease: e2e-set-image prep-e2e ## Run pre-release end-to-end tests
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/prerelease $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
