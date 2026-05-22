@@ -48,6 +48,67 @@ type PrometheusTarget struct {
 	ScrapeTimeout      string            `json:"scrapeTimeout"`
 }
 
+// labelSetJSON unmarshals Prometheus /api/v1/targets "labels" as either a JSON object (common)
+// or an array of {name,value} pairs, so we do not depend on vendoring prometheus/prometheus.
+type labelSetJSON struct {
+	m map[string]string
+}
+
+func (l *labelSetJSON) UnmarshalJSON(data []byte) error {
+	l.m = nil
+	s := strings.TrimSpace(string(data))
+	if s == "" || s == "null" {
+		return nil
+	}
+	if strings.HasPrefix(s, "{") {
+		if err := json.Unmarshal(data, &l.m); err != nil {
+			return err
+		}
+		return nil
+	}
+	if strings.HasPrefix(s, "[") {
+		var pairs []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal(data, &pairs); err != nil {
+			return err
+		}
+		l.m = make(map[string]string, len(pairs))
+		for _, p := range pairs {
+			if p.Name != "" {
+				l.m[p.Name] = p.Value
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("unexpected Prometheus target labels JSON (prefix %.80q)", s)
+}
+
+func (l labelSetJSON) labelEquals(name, value string) bool {
+	if l.m == nil {
+		return false
+	}
+	v, ok := l.m[name]
+	return ok && v == value
+}
+
+func (l labelSetJSON) String() string {
+	if l.m == nil {
+		return "{}"
+	}
+	return fmt.Sprintf("%v", l.m)
+}
+
+// prometheusScrapeTarget mirrors the subset of fields we need from Prometheus targets API JSON
+// without importing github.com/prometheus/prometheus (not vendored; breaks -mod=vendor builds).
+type prometheusScrapeTarget struct {
+	Labels     labelSetJSON `json:"labels"`
+	Health     string       `json:"health"`
+	LastScrape string       `json:"lastScrape"`
+	LastError  string       `json:"lastError"`
+}
+
 func (f *Framework) AssertMustHaveParsedProfiles(pbName, productType, productName string) error {
 	var l compv1alpha1.ProfileList
 	o := &client.ListOptions{
@@ -409,10 +470,11 @@ func runOCandGetOutput(arg []string) (string, error) {
 
 	cmd := exec.Command(ocPath, arg...)
 	out, err := cmd.CombinedOutput()
+	outStr := string(out)
 	if err != nil {
-		return "", fmt.Errorf("Failed to run oc command: %v", err)
+		return outStr, fmt.Errorf("Failed to run oc command: %v", err)
 	}
-	return string(out), nil
+	return outStr, nil
 }
 
 // createServiceAccount creates a service account
@@ -614,6 +676,30 @@ func getMetricResults(namespace string) (string, error) {
 	}
 	log.Printf("metrics output:\n%s\n", string(out))
 	return string(out), nil
+}
+
+// WaitForMetricOutputContainsAll polls the operator metrics-co scrape (same path as getMetricResults)
+// until the response body contains every substring (TC 43072 style substring checks).
+func WaitForMetricOutputContainsAll(namespace string, substrings []string, timeout, interval time.Duration) error {
+	var lastMiss string
+	err := wait.Poll(interval, timeout, func() (bool, error) {
+		out, gerr := getMetricResults(namespace)
+		if gerr != nil {
+			lastMiss = gerr.Error()
+			return false, nil
+		}
+		for _, s := range substrings {
+			if !strings.Contains(out, s) {
+				lastMiss = fmt.Sprintf("missing substring %q", s)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("wait for metric substrings: %w (last: %s)", err, lastMiss)
+	}
+	return nil
 }
 
 func getTestMetricsCMD(namespace string) string {

@@ -3,6 +3,7 @@ package framework
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -3248,4 +3249,43 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 	}
 	return nil
+}
+
+// AssertPrometheusRuleComplianceNonCompliantAlert checks that some PrometheusRule in the operator
+// namespace has a name containing "compliance" and an alert name containing "NonCompliant"
+// (TC 43072 / observability parity with openshift-tests).
+func (f *Framework) AssertPrometheusRuleComplianceNonCompliantAlert() error {
+	out, err := runOCandGetOutput([]string{"get", "prometheusrule", "-n", f.OperatorNamespace, "-o", "json"})
+	if err != nil {
+		return fmt.Errorf("list prometheusrule: %w", err)
+	}
+	var pr struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Spec struct {
+				Groups []struct {
+					Rules []struct {
+						Alert string `json:"alert"`
+					} `json:"rules"`
+				} `json:"groups"`
+			} `json:"spec"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &pr); err != nil {
+		return fmt.Errorf("parse prometheusrule list: %w", err)
+	}
+	for _, item := range pr.Items {
+		if !strings.Contains(strings.ToLower(item.Metadata.Name), "compliance") {
+			continue
+		}
+		if len(item.Spec.Groups) == 0 || len(item.Spec.Groups[0].Rules) == 0 {
+			continue
+		}
+		if strings.Contains(item.Spec.Groups[0].Rules[0].Alert, "NonCompliant") {
+			return nil
+		}
+	}
+	return fmt.Errorf("no compliance PrometheusRule with NonCompliant alert found in %s", f.OperatorNamespace)
 }
