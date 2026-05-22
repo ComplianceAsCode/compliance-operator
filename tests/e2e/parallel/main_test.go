@@ -2,6 +2,7 @@ package parallel_e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -6079,4 +6081,81 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 	t.Logf("XCCDF scan %s produced %d check results", xccdfProfileName, len(xccdfChecks.Items))
 
 	t.Log("Mixed CEL + XCCDF scan test completed successfully")
+}
+
+// TestCSVInfrastructureFeaturesAnnotation tests that the Compliance Operator CSV
+// has the proper infrastructure features annotation for disconnected environments.
+// This test verifies support for disconnected, FIPS, and proxy-aware configurations.
+func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Get all CSVs in the operator namespace
+	csvList := &unstructured.UnstructuredList{}
+	csvList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v1alpha1",
+		Kind:    "ClusterServiceVersionList",
+	})
+
+	listOpts := &client.ListOptions{
+		Namespace: f.OperatorNamespace,
+	}
+
+	err := f.Client.List(context.TODO(), csvList, listOpts)
+	if err != nil {
+		t.Skipf("failed to list CSVs (not an OLM-managed installation): %s", err)
+	}
+
+	if len(csvList.Items) == 0 {
+		t.Skip("no CSVs found in namespace - test only runs on OLM-managed installations")
+	}
+
+	// Find the compliance-operator CSV
+	var csv *unstructured.Unstructured
+	for i := range csvList.Items {
+		name := csvList.Items[i].GetName()
+		// CSV names typically start with "compliance-operator"
+		if len(name) >= 19 && name[:19] == "compliance-operator" {
+			csv = &csvList.Items[i]
+			break
+		}
+	}
+
+	if csv == nil {
+		t.Skip("compliance-operator CSV not found - test only runs on OLM-managed installations")
+	}
+
+	// Check the infrastructure-features annotation
+	annotations := csv.GetAnnotations()
+	infraFeatures, exists := annotations["operators.openshift.io/infrastructure-features"]
+	if !exists {
+		t.Fatal("CSV is missing operators.openshift.io/infrastructure-features annotation")
+	}
+
+	// Parse the annotation as JSON
+	var features []string
+	if err := json.Unmarshal([]byte(infraFeatures), &features); err != nil {
+		t.Fatalf("Failed to parse infrastructure-features annotation %q: %v", infraFeatures, err)
+	}
+
+	expectedFeatures := map[string]bool{
+		"disconnected": false,
+		"fips":         false,
+		"proxy-aware":  false,
+	}
+
+	for _, f := range features {
+		if _, ok := expectedFeatures[f]; ok {
+			expectedFeatures[f] = true
+		}
+	}
+
+	for feature, found := range expectedFeatures {
+		if !found {
+			t.Errorf("Expected infrastructure feature %q not found in annotation: %s", feature, infraFeatures)
+		}
+	}
+
+	t.Logf("CSV %s correctly has infrastructure-features annotation: %s", csv.GetName(), infraFeatures)
 }
