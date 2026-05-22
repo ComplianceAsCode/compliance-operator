@@ -378,7 +378,7 @@ github.com/googleapis/gax-go/v2/callctx
 github.com/googleapis/gax-go/v2/internal
 github.com/googleapis/gax-go/v2/internallog
 github.com/googleapis/gax-go/v2/internallog/internal
-# github.com/gookit/color v1.6.0
+# github.com/gookit/color v1.6.1
 ## explicit; go 1.18
 github.com/gookit/color
 # github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
