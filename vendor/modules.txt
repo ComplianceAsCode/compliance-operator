@@ -393,7 +393,7 @@ github.com/inconshreveable/mousetrap
 # github.com/itchyny/gojq v0.12.18
 ## explicit; go 1.24.0
 github.com/itchyny/gojq
-# github.com/itchyny/timefmt-go v0.1.7
+# github.com/itchyny/timefmt-go v0.1.8
 ## explicit; go 1.24
 github.com/itchyny/timefmt-go
 # github.com/jaytaylor/html2text v0.0.0-20260303211410-1a4bdc82ecec
