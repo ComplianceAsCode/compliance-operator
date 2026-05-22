@@ -3,6 +3,7 @@ package framework
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -368,6 +369,12 @@ func (f *Framework) addFrameworks() error {
 	}
 
 	return nil
+}
+
+// EnsureE2ESchemes registers API schemes on the framework client when tests run against an
+// existing cluster install without SetUp (see E2E_SKIP_FRAMEWORK_SETUP in prerelease tests).
+func (f *Framework) EnsureE2ESchemes() error {
+	return f.addFrameworks()
 }
 
 func (f *Framework) initializeMetricsTestResources() error {
@@ -3248,4 +3255,294 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		}
 	}
 	return nil
+}
+
+// GetClusterArchitecture returns cluster architecture string (or "multi" when mixed).
+func (f *Framework) GetClusterArchitecture() (string, error) {
+	nodeList := &corev1.NodeList{}
+	if err := f.Client.List(context.TODO(), nodeList); err != nil {
+		return "", err
+	}
+	seen := map[string]struct{}{}
+	for i := range nodeList.Items {
+		arch := strings.ToLower(nodeList.Items[i].Status.NodeInfo.Architecture)
+		if arch != "" {
+			seen[arch] = struct{}{}
+		}
+	}
+	if len(seen) == 0 {
+		return "", fmt.Errorf("no nodes with architecture found")
+	}
+	if len(seen) > 1 {
+		return "multi", nil
+	}
+	for arch := range seen {
+		return arch, nil
+	}
+	return "", fmt.Errorf("cannot determine architecture")
+}
+
+func compareVersion(v1, v2 string) int {
+	s1 := strings.Split(v1, ".")
+	s2 := strings.Split(v2, ".")
+	maxLen := len(s1)
+	if len(s2) > maxLen {
+		maxLen = len(s2)
+	}
+	for i := 0; i < maxLen; i++ {
+		a := 0
+		b := 0
+		if i < len(s1) {
+			part := regexp.MustCompile(`[^0-9]`).ReplaceAllString(s1[i], "")
+			if part != "" {
+				a, _ = strconv.Atoi(part)
+			}
+		}
+		if i < len(s2) {
+			part := regexp.MustCompile(`[^0-9]`).ReplaceAllString(s2[i], "")
+			if part != "" {
+				b, _ = strconv.Atoi(part)
+			}
+		}
+		if a > b {
+			return 1
+		}
+		if a < b {
+			return -1
+		}
+	}
+	return 0
+}
+
+func (f *Framework) GetInstalledComplianceOperatorCSV() (string, error) {
+	out, err := runOCandGetOutput([]string{
+		"get", "csv", "-n", f.OperatorNamespace,
+		"-l", "operators.coreos.com/compliance-operator." + f.OperatorNamespace + "=",
+		"-o", "jsonpath={.items[0].metadata.name}",
+	})
+	if err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(strings.Trim(out, "'"))
+	if name == "" {
+		return "", fmt.Errorf("installed CSV not found in namespace %s", f.OperatorNamespace)
+	}
+	return name, nil
+}
+
+// IsComplianceOperatorUpgradable checks if catalog/channel advertises newer CSV than installed.
+func (f *Framework) IsComplianceOperatorUpgradable(catalogSource, channel string) (bool, error) {
+	oldCSV, err := f.GetInstalledComplianceOperatorCSV()
+	if err != nil {
+		return false, err
+	}
+	oldVersion := strings.TrimPrefix(oldCSV, "compliance-operator.v")
+
+	out, err := runOCandGetOutput([]string{
+		"get", "packagemanifest", "-n", "openshift-marketplace",
+		"-l", fmt.Sprintf("catalog=%s", catalogSource),
+		"-o", "json",
+	})
+	if err != nil {
+		return false, err
+	}
+	var pm struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				Channels []struct {
+					Name       string `json:"name"`
+					CurrentCSV string `json:"currentCSV"`
+				} `json:"channels"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &pm); err != nil {
+		return false, err
+	}
+	for _, item := range pm.Items {
+		if item.Metadata.Name != "compliance-operator" {
+			continue
+		}
+		for _, ch := range item.Status.Channels {
+			if ch.Name != channel {
+				continue
+			}
+			curVersion := strings.TrimPrefix(ch.CurrentCSV, "compliance-operator.v")
+			return compareVersion(curVersion, oldVersion) == 1, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *Framework) PatchComplianceOperatorSubscriptionSource(source string) error {
+	_, err := runOCandGetOutput([]string{
+		"patch", "subscription", "compliance-operator", "-n", f.OperatorNamespace,
+		"--type", "merge", "-p", fmt.Sprintf(`{"spec":{"source":"%s"}}`, source),
+	})
+	return err
+}
+
+func (f *Framework) WaitForComplianceOperatorCSVUpgrade(oldCSV string) error {
+	return wait.PollImmediate(10*time.Second, Timeout, func() (bool, error) {
+		curCSVOut, err := runOCandGetOutput([]string{
+			"get", "subscription", "compliance-operator", "-n", f.OperatorNamespace,
+			"-o", "jsonpath={.status.currentCSV}",
+		})
+		if err != nil {
+			return false, nil
+		}
+		curCSV := strings.TrimSpace(curCSVOut)
+		if curCSV == "" || curCSV == oldCSV {
+			return false, nil
+		}
+		phaseOut, err := runOCandGetOutput([]string{
+			"get", "csv", curCSV, "-n", f.OperatorNamespace,
+			"-o", "jsonpath={.status.phase}",
+		})
+		if err != nil {
+			return false, nil
+		}
+		return strings.Contains(strings.TrimSpace(phaseOut), "Succeeded"), nil
+	})
+}
+
+func (f *Framework) AssertComplianceOperatorPodRunning() error {
+	pods, err := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "name=compliance-operator",
+	})
+	if err != nil {
+		return err
+	}
+	if len(pods.Items) == 0 {
+		return fmt.Errorf("no compliance-operator pod found in %s", f.OperatorNamespace)
+	}
+	if pods.Items[0].Status.Phase != corev1.PodRunning {
+		return fmt.Errorf("compliance-operator pod phase is %s", pods.Items[0].Status.Phase)
+	}
+	return nil
+}
+
+func (f *Framework) Assert56353MetricsContain(ssbName string) error {
+	want := []string{
+		`compliance_operator_compliance_scan_status_total{name="ocp4-cis",phase="DONE",result=`,
+		fmt.Sprintf(`compliance_operator_compliance_state{name="%s"}`, ssbName),
+	}
+	deadline := time.Now().Add(180 * time.Second)
+	for time.Now().Before(deadline) {
+		out, err := getMetricResults(f.OperatorNamespace)
+		if err == nil {
+			ok := true
+			for _, m := range want {
+				if !strings.Contains(out, m) {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				return nil
+			}
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("metrics did not contain expected 56353 substrings")
+}
+
+func (f *Framework) Assert56353PrometheusRule() error {
+	out, err := runOCandGetOutput([]string{"get", "prometheusrule", "-n", f.OperatorNamespace, "-o", "json"})
+	if err != nil {
+		return err
+	}
+	var pr struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Spec struct {
+				Groups []struct {
+					Rules []struct {
+						Alert string `json:"alert"`
+					} `json:"rules"`
+				} `json:"groups"`
+			} `json:"spec"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &pr); err != nil {
+		return err
+	}
+	for _, item := range pr.Items {
+		if !strings.Contains(strings.ToLower(item.Metadata.Name), "compliance") {
+			continue
+		}
+		if len(item.Spec.Groups) == 0 || len(item.Spec.Groups[0].Rules) == 0 {
+			continue
+		}
+		if strings.Contains(item.Spec.Groups[0].Rules[0].Alert, "NonCompliant") {
+			return nil
+		}
+	}
+	return fmt.Errorf("no compliance PrometheusRule with NonCompliant alert found")
+}
+
+func (f *Framework) waitForAlertmanagerAlertsRaw() (string, error) {
+	script := `
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+curl -k -s -H "Authorization: Bearer ${TOKEN}" \
+  --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+  "https://alertmanager-main.openshift-monitoring.svc:9094/api/v2/alerts"
+`
+	out, err := runOCandGetOutput([]string{
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
+		"-n", f.OperatorNamespace,
+		`--overrides={"spec":{"serviceAccountName":"` + PromethusTestSA + `"}}`,
+		"alertmanager-56353", "--", "bash", "-c", script,
+	})
+	if err != nil {
+		return "", err
+	}
+	trimmed := strings.TrimSpace(trimOutput(out))
+	if trimmed != "" {
+		return trimmed, nil
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func (f *Framework) WaitFor56353NonCompliantAlert(ssbName string, timeout time.Duration) error {
+	want := fmt.Sprintf("The compliance suite %s returned as NON-COMPLIANT, ERROR, or INCONSISTENT", ssbName)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		out, err := f.waitForAlertmanagerAlertsRaw()
+		if err == nil && strings.Contains(out, want) {
+			return nil
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return fmt.Errorf("expected non-compliant alert description not found for %s", ssbName)
+}
+
+func (f *Framework) WaitFor56353AlertAbsent(alertName string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	promQL := fmt.Sprintf(`ALERTS{namespace="%s"}`, f.OperatorNamespace)
+	script := fmt.Sprintf(`
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+curl -k -s -G "https://prometheus-k8s.openshift-monitoring.svc:9091/api/v1/query" \
+  --data-urlencode 'query=%s' \
+  -H "Authorization: Bearer ${TOKEN}" \
+  --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+`, promQL)
+	for time.Now().Before(deadline) {
+		out, err := runOCandGetOutput([]string{
+			"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
+			"-n", f.OperatorNamespace,
+			`--overrides={"spec":{"serviceAccountName":"` + PromethusTestSA + `"}}`,
+			"prom-alerts-56353", "--", "bash", "-c", script,
+		})
+		if err == nil && !strings.Contains(out, alertName) {
+			return nil
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return fmt.Errorf("%s still present in ALERTS query output", alertName)
 }
