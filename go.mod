@@ -1,6 +1,6 @@
 module github.com/ComplianceAsCode/compliance-operator
 
-go 1.25.3
+go 1.25.8
 
 require (
 	github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19
