@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: (^vendor/|^config/helm/templates/|must-gather)
+
+  - repo: local
+    hooks:
+      - id: go-file-size-check
+        name: go file size check (max 1000 lines)
+        entry: scripts/check-go-file-size.sh
+        language: script
+        types: [go]
+        verbose: true
+        exclude: (^vendor/|zz_generated)
