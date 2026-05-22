@@ -148,6 +148,8 @@ type RawResultStorageSettings struct {
 	// if re-scans happen, the new results will also need to be stored. Defaults to 1Gi.
 	// +kubebuilder:validation:Default=1Gi
 	// +kubebuilder:default="1Gi"
+	// +kubebuilder:validation:MaxLength=16
+	// +kubebuilder:validation:XValidation:rule="self == '' || isQuantity(self)",message="size must be a valid Kubernetes quantity (e.g., 1Gi, 500Mi)"
 	Size string `json:"size,omitempty"`
 	// Specifies the amount of scans for which the raw results will be stored.
 	// Older results will get rotated, and it's the responsibility of administrators
