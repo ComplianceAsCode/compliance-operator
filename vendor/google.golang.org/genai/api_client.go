@@ -39,6 +39,7 @@ const maxChunkSize = 8 * 1024 * 1024 // 8 MB chunk size
 const maxRetryCount = 3
 const initialRetryDelay = time.Second
 const delayMultiplier = 2
+const vertexPrefix = "vertex-genai-modules/"
 
 type apiClient struct {
 	clientConfig *ClientConfig
@@ -237,6 +238,43 @@ func appendSDKHeaders(headers http.Header) {
 
 	libraryLabel := fmt.Sprintf("google-genai-sdk/%s", version)
 	languageLabel := fmt.Sprintf("gl-go/%s", runtime.Version())
+
+	var vertexLabel string
+	if uaValues := headers.Values("user-agent"); uaValues != nil {
+		var newUserAgents []string
+		for _, ua := range uaValues {
+			var newParts []string
+			parts := strings.Fields(ua)
+			foundVertex := false
+			for _, part := range parts {
+				if strings.HasPrefix(part, vertexPrefix) {
+					if vertexLabel == "" {
+						vertexLabel = part
+					}
+					foundVertex = true
+				} else {
+					newParts = append(newParts, part)
+				}
+			}
+
+			if foundVertex {
+				if len(newParts) > 0 {
+					newUserAgents = append(newUserAgents, strings.Join(newParts, " "))
+				}
+			} else {
+				newUserAgents = append(newUserAgents, ua)
+			}
+		}
+
+		if vertexLabel != "" {
+			headers.Del("user-agent")
+			for _, ua := range newUserAgents {
+				headers.Add("user-agent", ua)
+			}
+			libraryLabel = fmt.Sprintf("%s+%s", libraryLabel, vertexLabel)
+		}
+	}
+
 	versionHeaderValue := fmt.Sprintf("%s %s", libraryLabel, languageLabel)
 
 	if !slices.Contains(headers.Values("user-agent"), versionHeaderValue) {

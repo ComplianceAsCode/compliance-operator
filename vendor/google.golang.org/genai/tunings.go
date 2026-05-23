@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ func createTuningJobConfigToMldev(fromObject map[string]any, parentObject map[st
 	toObject = make(map[string]any)
 
 	if InternalGetValueByPath(fromObject, []string{"validationDataset"}) != nil {
-		return nil, fmt.Errorf("validationDataset parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("validationDataset parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	fromTunedModelDisplayName := InternalGetValueByPath(fromObject, []string{"tunedModelDisplayName"})
@@ -83,7 +83,7 @@ func createTuningJobConfigToMldev(fromObject map[string]any, parentObject map[st
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"description"}) != nil {
-		return nil, fmt.Errorf("description parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("description parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	fromEpochCount := InternalGetValueByPath(fromObject, []string{"epochCount"})
@@ -97,23 +97,23 @@ func createTuningJobConfigToMldev(fromObject map[string]any, parentObject map[st
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"exportLastCheckpointOnly"}) != nil {
-		return nil, fmt.Errorf("exportLastCheckpointOnly parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("exportLastCheckpointOnly parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"preTunedModelCheckpointId"}) != nil {
-		return nil, fmt.Errorf("preTunedModelCheckpointId parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("preTunedModelCheckpointId parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"adapterSize"}) != nil {
-		return nil, fmt.Errorf("adapterSize parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("adapterSize parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"tuningMode"}) != nil {
-		return nil, fmt.Errorf("tuningMode parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("tuningMode parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"customBaseModel"}) != nil {
-		return nil, fmt.Errorf("customBaseModel parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("customBaseModel parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	fromBatchSize := InternalGetValueByPath(fromObject, []string{"batchSize"})
@@ -127,31 +127,31 @@ func createTuningJobConfigToMldev(fromObject map[string]any, parentObject map[st
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"labels"}) != nil {
-		return nil, fmt.Errorf("labels parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("labels parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"beta"}) != nil {
-		return nil, fmt.Errorf("beta parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("beta parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"baseTeacherModel"}) != nil {
-		return nil, fmt.Errorf("baseTeacherModel parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("baseTeacherModel parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"tunedTeacherModelSource"}) != nil {
-		return nil, fmt.Errorf("tunedTeacherModelSource parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("tunedTeacherModelSource parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"sftLossWeightMultiplier"}) != nil {
-		return nil, fmt.Errorf("sftLossWeightMultiplier parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("sftLossWeightMultiplier parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"outputUri"}) != nil {
-		return nil, fmt.Errorf("outputUri parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("outputUri parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"encryptionSpec"}) != nil {
-		return nil, fmt.Errorf("encryptionSpec parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("encryptionSpec parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	return toObject, nil
@@ -299,6 +299,11 @@ func createTuningJobConfigToVertex(fromObject map[string]any, parentObject map[s
 		if fromTuningMode != nil {
 			InternalSetValueByPath(parentObject, []string{"supervisedTuningSpec", "tuningMode"}, fromTuningMode)
 		}
+	} else if discriminatorTuningMode.(string) == "DISTILLATION" {
+		fromTuningMode := InternalGetValueByPath(fromObject, []string{"tuningMode"})
+		if fromTuningMode != nil {
+			InternalSetValueByPath(parentObject, []string{"distillationSpec", "tuningMode"}, fromTuningMode)
+		}
 	}
 
 	fromCustomBaseModel := InternalGetValueByPath(fromObject, []string{"customBaseModel"})
@@ -315,6 +320,11 @@ func createTuningJobConfigToVertex(fromObject map[string]any, parentObject map[s
 		if fromBatchSize != nil {
 			InternalSetValueByPath(parentObject, []string{"supervisedTuningSpec", "hyperParameters", "batchSize"}, fromBatchSize)
 		}
+	} else if discriminatorBatchSize.(string) == "DISTILLATION" {
+		fromBatchSize := InternalGetValueByPath(fromObject, []string{"batchSize"})
+		if fromBatchSize != nil {
+			InternalSetValueByPath(parentObject, []string{"distillationSpec", "hyperParameters", "batchSize"}, fromBatchSize)
+		}
 	}
 
 	var discriminatorLearningRate any = InternalGetValueByPath(rootObject, []string{"config", "method"})
@@ -325,6 +335,11 @@ func createTuningJobConfigToVertex(fromObject map[string]any, parentObject map[s
 		fromLearningRate := InternalGetValueByPath(fromObject, []string{"learningRate"})
 		if fromLearningRate != nil {
 			InternalSetValueByPath(parentObject, []string{"supervisedTuningSpec", "hyperParameters", "learningRate"}, fromLearningRate)
+		}
+	} else if discriminatorLearningRate.(string) == "DISTILLATION" {
+		fromLearningRate := InternalGetValueByPath(fromObject, []string{"learningRate"})
+		if fromLearningRate != nil {
+			InternalSetValueByPath(parentObject, []string{"distillationSpec", "hyperParameters", "learningRate"}, fromLearningRate)
 		}
 	}
 
@@ -425,6 +440,139 @@ func createTuningJobParametersPrivateToVertex(fromObject map[string]any, parentO
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return toObject, nil
+}
+
+func distillationHyperParametersFromVertex(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
+	toObject = make(map[string]any)
+
+	fromAdapterSize := InternalGetValueByPath(fromObject, []string{"adapterSize"})
+	if fromAdapterSize != nil {
+		InternalSetValueByPath(toObject, []string{"adapterSize"}, fromAdapterSize)
+	}
+
+	fromEpochCount := InternalGetValueByPath(fromObject, []string{"epochCount"})
+	if fromEpochCount != nil {
+		InternalSetValueByPath(toObject, []string{"epochCount"}, fromEpochCount)
+	}
+
+	fromLearningRateMultiplier := InternalGetValueByPath(fromObject, []string{"learningRateMultiplier"})
+	if fromLearningRateMultiplier != nil {
+		InternalSetValueByPath(toObject, []string{"learningRateMultiplier"}, fromLearningRateMultiplier)
+	}
+
+	fromGenerationConfig := InternalGetValueByPath(fromObject, []string{"generationConfig"})
+	if fromGenerationConfig != nil {
+		fromGenerationConfig, err = generationConfigFromVertex(fromGenerationConfig.(map[string]any), toObject, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
+		InternalSetValueByPath(toObject, []string{"generationConfig"}, fromGenerationConfig)
+	}
+
+	fromLearningRate := InternalGetValueByPath(fromObject, []string{"learningRate"})
+	if fromLearningRate != nil {
+		InternalSetValueByPath(toObject, []string{"learningRate"}, fromLearningRate)
+	}
+
+	fromBatchSize := InternalGetValueByPath(fromObject, []string{"batchSize"})
+	if fromBatchSize != nil {
+		InternalSetValueByPath(toObject, []string{"batchSize"}, fromBatchSize)
+	}
+
+	return toObject, nil
+}
+
+func distillationSamplingSpecFromVertex(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
+	toObject = make(map[string]any)
+
+	fromBaseTeacherModel := InternalGetValueByPath(fromObject, []string{"baseTeacherModel"})
+	if fromBaseTeacherModel != nil {
+		InternalSetValueByPath(toObject, []string{"baseTeacherModel"}, fromBaseTeacherModel)
+	}
+
+	fromTunedTeacherModelSource := InternalGetValueByPath(fromObject, []string{"tunedTeacherModelSource"})
+	if fromTunedTeacherModelSource != nil {
+		InternalSetValueByPath(toObject, []string{"tunedTeacherModelSource"}, fromTunedTeacherModelSource)
+	}
+
+	fromValidationDatasetUri := InternalGetValueByPath(fromObject, []string{"validationDatasetUri"})
+	if fromValidationDatasetUri != nil {
+		InternalSetValueByPath(toObject, []string{"validationDatasetUri"}, fromValidationDatasetUri)
+	}
+
+	fromPromptDatasetUri := InternalGetValueByPath(fromObject, []string{"promptDatasetUri"})
+	if fromPromptDatasetUri != nil {
+		InternalSetValueByPath(toObject, []string{"promptDatasetUri"}, fromPromptDatasetUri)
+	}
+
+	fromHyperparameters := InternalGetValueByPath(fromObject, []string{"hyperparameters"})
+	if fromHyperparameters != nil {
+		fromHyperparameters, err = distillationHyperParametersFromVertex(fromHyperparameters.(map[string]any), toObject, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
+		InternalSetValueByPath(toObject, []string{"hyperparameters"}, fromHyperparameters)
+	}
+
+	return toObject, nil
+}
+
+func distillationSpecFromVertex(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
+	toObject = make(map[string]any)
+
+	fromPromptDatasetUri := InternalGetValueByPath(fromObject, []string{"promptDatasetUri"})
+	if fromPromptDatasetUri != nil {
+		InternalSetValueByPath(toObject, []string{"promptDatasetUri"}, fromPromptDatasetUri)
+	}
+
+	fromBaseTeacherModel := InternalGetValueByPath(fromObject, []string{"baseTeacherModel"})
+	if fromBaseTeacherModel != nil {
+		InternalSetValueByPath(toObject, []string{"baseTeacherModel"}, fromBaseTeacherModel)
+	}
+
+	fromHyperParameters := InternalGetValueByPath(fromObject, []string{"hyperParameters"})
+	if fromHyperParameters != nil {
+		fromHyperParameters, err = distillationHyperParametersFromVertex(fromHyperParameters.(map[string]any), toObject, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
+		InternalSetValueByPath(toObject, []string{"hyperParameters"}, fromHyperParameters)
+	}
+
+	fromPipelineRootDirectory := InternalGetValueByPath(fromObject, []string{"pipelineRootDirectory"})
+	if fromPipelineRootDirectory != nil {
+		InternalSetValueByPath(toObject, []string{"pipelineRootDirectory"}, fromPipelineRootDirectory)
+	}
+
+	fromStudentModel := InternalGetValueByPath(fromObject, []string{"studentModel"})
+	if fromStudentModel != nil {
+		InternalSetValueByPath(toObject, []string{"studentModel"}, fromStudentModel)
+	}
+
+	fromTrainingDatasetUri := InternalGetValueByPath(fromObject, []string{"trainingDatasetUri"})
+	if fromTrainingDatasetUri != nil {
+		InternalSetValueByPath(toObject, []string{"trainingDatasetUri"}, fromTrainingDatasetUri)
+	}
+
+	fromTunedTeacherModelSource := InternalGetValueByPath(fromObject, []string{"tunedTeacherModelSource"})
+	if fromTunedTeacherModelSource != nil {
+		InternalSetValueByPath(toObject, []string{"tunedTeacherModelSource"}, fromTunedTeacherModelSource)
+	}
+
+	fromValidationDatasetUri := InternalGetValueByPath(fromObject, []string{"validationDatasetUri"})
+	if fromValidationDatasetUri != nil {
+		InternalSetValueByPath(toObject, []string{"validationDatasetUri"}, fromValidationDatasetUri)
+	}
+
+	fromTuningMode := InternalGetValueByPath(fromObject, []string{"tuningMode"})
+	if fromTuningMode != nil {
+		InternalSetValueByPath(toObject, []string{"tuningMode"}, fromTuningMode)
 	}
 
 	return toObject, nil
@@ -568,27 +716,6 @@ func getTuningJobParametersToVertex(fromObject map[string]any, parentObject map[
 	return toObject, nil
 }
 
-func listTuningJobsConfigToMldev(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
-	toObject = make(map[string]any)
-
-	fromPageSize := InternalGetValueByPath(fromObject, []string{"pageSize"})
-	if fromPageSize != nil {
-		InternalSetValueByPath(parentObject, []string{"_query", "pageSize"}, fromPageSize)
-	}
-
-	fromPageToken := InternalGetValueByPath(fromObject, []string{"pageToken"})
-	if fromPageToken != nil {
-		InternalSetValueByPath(parentObject, []string{"_query", "pageToken"}, fromPageToken)
-	}
-
-	fromFilter := InternalGetValueByPath(fromObject, []string{"filter"})
-	if fromFilter != nil {
-		InternalSetValueByPath(parentObject, []string{"_query", "filter"}, fromFilter)
-	}
-
-	return toObject, nil
-}
-
 func listTuningJobsConfigToVertex(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
 	toObject = make(map[string]any)
 
@@ -610,20 +737,6 @@ func listTuningJobsConfigToVertex(fromObject map[string]any, parentObject map[st
 	return toObject, nil
 }
 
-func listTuningJobsParametersToMldev(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
-	toObject = make(map[string]any)
-
-	fromConfig := InternalGetValueByPath(fromObject, []string{"config"})
-	if fromConfig != nil {
-		_, err = listTuningJobsConfigToMldev(fromConfig.(map[string]any), toObject, rootObject)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return toObject, nil
-}
-
 func listTuningJobsParametersToVertex(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
 	toObject = make(map[string]any)
 
@@ -633,32 +746,6 @@ func listTuningJobsParametersToVertex(fromObject map[string]any, parentObject ma
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	return toObject, nil
-}
-
-func listTuningJobsResponseFromMldev(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
-	toObject = make(map[string]any)
-
-	fromSdkHttpResponse := InternalGetValueByPath(fromObject, []string{"sdkHttpResponse"})
-	if fromSdkHttpResponse != nil {
-		InternalSetValueByPath(toObject, []string{"sdkHttpResponse"}, fromSdkHttpResponse)
-	}
-
-	fromNextPageToken := InternalGetValueByPath(fromObject, []string{"nextPageToken"})
-	if fromNextPageToken != nil {
-		InternalSetValueByPath(toObject, []string{"nextPageToken"}, fromNextPageToken)
-	}
-
-	fromTuningJobs := InternalGetValueByPath(fromObject, []string{"tunedModels"})
-	if fromTuningJobs != nil {
-		fromTuningJobs, err = applyConverterToSliceWithRoot(fromTuningJobs.([]any), tuningJobFromMldev, rootObject)
-		if err != nil {
-			return nil, err
-		}
-
-		InternalSetValueByPath(toObject, []string{"tuningJobs"}, fromTuningJobs)
 	}
 
 	return toObject, nil
@@ -679,7 +766,7 @@ func listTuningJobsResponseFromVertex(fromObject map[string]any, parentObject ma
 
 	fromTuningJobs := InternalGetValueByPath(fromObject, []string{"tuningJobs"})
 	if fromTuningJobs != nil {
-		fromTuningJobs, err = applyConverterToSliceWithRoot(fromTuningJobs.([]any), tuningJobFromVertex, rootObject)
+		fromTuningJobs, err = InternalApplyConverterToSliceWithRoot(fromTuningJobs.([]any), tuningJobFromVertex, rootObject)
 		if err != nil {
 			return nil, err
 		}
@@ -709,11 +796,11 @@ func tunedModelFromMldev(fromObject map[string]any, parentObject map[string]any,
 func tuningDatasetToMldev(fromObject map[string]any, parentObject map[string]any, rootObject map[string]any) (toObject map[string]any, err error) {
 	toObject = make(map[string]any)
 	if InternalGetValueByPath(fromObject, []string{"gcsUri"}) != nil {
-		return nil, fmt.Errorf("gcsUri parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("gcsUri parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"vertexDatasetResource"}) != nil {
-		return nil, fmt.Errorf("vertexDatasetResource parameter is not supported in Gemini API")
+		return nil, fmt.Errorf("vertexDatasetResource parameter is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode.")
 	}
 
 	fromExamples := InternalGetValueByPath(fromObject, []string{"examples"})
@@ -770,7 +857,7 @@ func tuningDatasetToVertex(fromObject map[string]any, parentObject map[string]an
 	}
 
 	if InternalGetValueByPath(fromObject, []string{"examples"}) != nil {
-		return nil, fmt.Errorf("examples parameter is not supported in Vertex AI")
+		return nil, fmt.Errorf("examples parameter is only supported in Gemini Developer API mode, not in Gemini Enterprise Agent Platform mode.")
 	}
 
 	return toObject, nil
@@ -922,6 +1009,11 @@ func tuningJobFromVertex(fromObject map[string]any, parentObject map[string]any,
 
 	fromDistillationSpec := InternalGetValueByPath(fromObject, []string{"distillationSpec"})
 	if fromDistillationSpec != nil {
+		fromDistillationSpec, err = distillationSpecFromVertex(fromDistillationSpec.(map[string]any), toObject, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
 		InternalSetValueByPath(toObject, []string{"distillationSpec"}, fromDistillationSpec)
 	}
 
@@ -993,6 +1085,26 @@ func tuningJobFromVertex(fromObject map[string]any, parentObject map[string]any,
 	fromVeoTuningSpec := InternalGetValueByPath(fromObject, []string{"veoTuningSpec"})
 	if fromVeoTuningSpec != nil {
 		InternalSetValueByPath(toObject, []string{"veoTuningSpec"}, fromVeoTuningSpec)
+	}
+
+	fromTuningJobMetadata := InternalGetValueByPath(fromObject, []string{"tuningJobMetadata"})
+	if fromTuningJobMetadata != nil {
+		InternalSetValueByPath(toObject, []string{"tuningJobMetadata"}, fromTuningJobMetadata)
+	}
+
+	fromVeoLoraTuningSpec := InternalGetValueByPath(fromObject, []string{"veoLoraTuningSpec"})
+	if fromVeoLoraTuningSpec != nil {
+		InternalSetValueByPath(toObject, []string{"veoLoraTuningSpec"}, fromVeoLoraTuningSpec)
+	}
+
+	fromDistillationSamplingSpec := InternalGetValueByPath(fromObject, []string{"distillationSamplingSpec"})
+	if fromDistillationSamplingSpec != nil {
+		fromDistillationSamplingSpec, err = distillationSamplingSpecFromVertex(fromDistillationSamplingSpec.(map[string]any), toObject, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
+		InternalSetValueByPath(toObject, []string{"distillationSamplingSpec"}, fromDistillationSamplingSpec)
 	}
 
 	return toObject, nil
@@ -1087,11 +1199,7 @@ func (m Tunings) get(ctx context.Context, name string, config *GetTuningJobConfi
 		urlParams = body["_url"].(map[string]any)
 		delete(body, "_url")
 	}
-	if m.apiClient.ClientConfig().Backend == BackendVertexAI {
-		path, err = InternalFormatMap("{name}", urlParams)
-	} else {
-		path, err = InternalFormatMap("{name}", urlParams)
-	}
+	path, err = InternalFormatMap("{name}", urlParams)
 	if err != nil {
 		return nil, fmt.Errorf("invalid url params: %#v.\n%w", urlParams, err)
 	}
@@ -1144,8 +1252,9 @@ func (m Tunings) list(ctx context.Context, config *ListTuningJobsConfig) (*ListT
 		toConverter = listTuningJobsParametersToVertex
 		fromConverter = listTuningJobsResponseFromVertex
 	} else {
-		toConverter = listTuningJobsParametersToMldev
-		fromConverter = listTuningJobsResponseFromMldev
+
+		return nil, fmt.Errorf("method List is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode. You can choose to use Gemini Enterprise Agent Platform by setting ClientConfig.Backend to BackendEnterprise.")
+
 	}
 
 	body, err := toConverter(parameterMap, nil, parameterMap)
@@ -1162,7 +1271,7 @@ func (m Tunings) list(ctx context.Context, config *ListTuningJobsConfig) (*ListT
 	if m.apiClient.ClientConfig().Backend == BackendVertexAI {
 		path, err = InternalFormatMap("tuningJobs", urlParams)
 	} else {
-		path, err = InternalFormatMap("tunedModels", urlParams)
+		path, err = InternalFormatMap("None", urlParams)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("invalid url params: %#v.\n%w", urlParams, err)
@@ -1232,11 +1341,7 @@ func (m Tunings) Cancel(ctx context.Context, name string, config *CancelTuningJo
 		urlParams = body["_url"].(map[string]any)
 		delete(body, "_url")
 	}
-	if m.apiClient.ClientConfig().Backend == BackendVertexAI {
-		path, err = InternalFormatMap("{name}:cancel", urlParams)
-	} else {
-		path, err = InternalFormatMap("{name}:cancel", urlParams)
-	}
+	path, err = InternalFormatMap("{name}:cancel", urlParams)
 	if err != nil {
 		return nil, fmt.Errorf("invalid url params: %#v.\n%w", urlParams, err)
 	}
@@ -1290,7 +1395,7 @@ func (m Tunings) tune(ctx context.Context, baseModel *string, preTunedModel *Pre
 		fromConverter = tuningJobFromVertex
 	} else {
 
-		return nil, fmt.Errorf("method Tune is only supported in the Vertex AI client. You can choose to use Vertex AI by setting ClientConfig.Backend to BackendVertexAI.")
+		return nil, fmt.Errorf("method Tune is only supported in Gemini Enterprise Agent Platform mode, not in Gemini Developer API mode. You can choose to use Gemini Enterprise Agent Platform by setting ClientConfig.Backend to BackendEnterprise.")
 
 	}
 
@@ -1360,7 +1465,7 @@ func (m Tunings) tuneMldev(ctx context.Context, baseModel *string, preTunedModel
 	var toConverter func(map[string]any, map[string]any, map[string]any) (map[string]any, error)
 	if m.apiClient.ClientConfig().Backend == BackendVertexAI {
 
-		return nil, fmt.Errorf("method TuneMldev is only supported in the Gemini Developer client. You can choose to use Gemini Developer client by setting ClientConfig.Backend to BackendGeminiAPI.")
+		return nil, fmt.Errorf("method TuneMldev is only supported in Gemini Developer API mode, not in Gemini Enterprise Agent Platform mode. You can choose to use Gemini Developer client by setting ClientConfig.Backend to BackendGeminiAPI.")
 
 	} else {
 		toConverter = createTuningJobParametersPrivateToMldev
