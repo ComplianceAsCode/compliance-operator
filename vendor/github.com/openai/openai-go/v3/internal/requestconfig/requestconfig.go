@@ -31,6 +31,25 @@ func getDefaultHeaders() map[string]string {
 	}
 }
 
+func encodePathParam(value string) string {
+	switch value {
+	case ".":
+		return "%2E"
+	case "..":
+		return "%2E%2E"
+	}
+	return url.PathEscape(value)
+}
+
+// FormatPath escapes path parameters and inserts them into a request path.
+func FormatPath(format string, params ...string) string {
+	args := make([]any, len(params))
+	for i, param := range params {
+		args[i] = encodePathParam(param)
+	}
+	return fmt.Sprintf(format, args...)
+}
+
 func getNormalizedOS() string {
 	switch runtime.GOOS {
 	case "ios":
@@ -122,7 +141,13 @@ func NewRequestConfig(ctx context.Context, method string, u string, body any, ds
 		}
 		params := q.Encode()
 		if params != "" {
-			u = u + "?" + params
+			parsed, _ := url.Parse(u)
+			if parsed.RawQuery != "" {
+				parsed.RawQuery = parsed.RawQuery + "&" + params
+				u = parsed.String()
+			} else {
+				u = u + "?" + params
+			}
 		}
 	}
 	if body, ok := body.([]byte); ok {
@@ -172,10 +197,17 @@ func NewRequestConfig(ctx context.Context, method string, u string, body any, ds
 		Body:       reader,
 	}
 	cfg.ResponseBodyInto = dst
+	cfg.Security = Security{
+		BearerAuth:      true,
+		AdminAPIKeyAuth: true,
+	}
 	err = cfg.Apply(opts...)
 	if err != nil {
 		return nil, err
 	}
+
+	// This must run after `cfg.Apply(...)` above so we know which specific security scheme to add
+	ApplySecurity(cfg)
 
 	// This must run after `cfg.Apply(...)` above in case the request timeout gets modified. We also only
 	// apply our own logic for it if it's still "0" from above. If it's not, then it was deleted or modified
@@ -209,14 +241,19 @@ type RequestConfig struct {
 	BaseURL        *url.URL
 	// DefaultBaseURL will be used if BaseURL is not explicitly overridden using
 	// WithBaseURL.
-	DefaultBaseURL *url.URL
-	CustomHTTPDoer HTTPDoer
-	HTTPClient     *http.Client
-	Middlewares    []middleware
-	APIKey         string
-	Organization   string
-	Project        string
-	WebhookSecret  string
+	DefaultBaseURL     *url.URL
+	CustomHTTPDoer     HTTPDoer
+	HTTPClient         *http.Client
+	Middlewares        []middleware
+	APIKey             string
+	AdminAPIKey        string
+	Organization       string
+	Project            string
+	WebhookSecret      string
+	authHeaderOverride bool
+	authPreference     authCredentialPreference
+	// Configure which security scheme(s) should be enabled for this request
+	Security Security
 	// If ResponseBodyInto not nil, then we will attempt to deserialize into
 	// ResponseBodyInto. If Destination is a []byte, then it will return the body as
 	// is.
@@ -584,20 +621,56 @@ func (cfg *RequestConfig) Clone(ctx context.Context) *RequestConfig {
 		return nil
 	}
 	new := &RequestConfig{
-		MaxRetries:     cfg.MaxRetries,
-		RequestTimeout: cfg.RequestTimeout,
-		Context:        ctx,
-		Request:        req,
-		BaseURL:        cfg.BaseURL,
-		HTTPClient:     cfg.HTTPClient,
-		Middlewares:    cfg.Middlewares,
-		APIKey:         cfg.APIKey,
-		Organization:   cfg.Organization,
-		Project:        cfg.Project,
-		WebhookSecret:  cfg.WebhookSecret,
+		MaxRetries:         cfg.MaxRetries,
+		RequestTimeout:     cfg.RequestTimeout,
+		Context:            ctx,
+		Request:            req,
+		BaseURL:            cfg.BaseURL,
+		HTTPClient:         cfg.HTTPClient,
+		Middlewares:        cfg.Middlewares,
+		APIKey:             cfg.APIKey,
+		AdminAPIKey:        cfg.AdminAPIKey,
+		Organization:       cfg.Organization,
+		Project:            cfg.Project,
+		WebhookSecret:      cfg.WebhookSecret,
+		authHeaderOverride: cfg.authHeaderOverride,
+		authPreference:     cfg.authPreference,
 	}
 
 	return new
+}
+
+func (cfg *RequestConfig) SetHeader(key, value string) {
+	cfg.Request.Header.Set(key, value)
+	if strings.EqualFold(key, "Authorization") {
+		cfg.authHeaderOverride = true
+	}
+}
+
+func (cfg *RequestConfig) AddHeader(key, value string) {
+	cfg.Request.Header.Add(key, value)
+	if strings.EqualFold(key, "Authorization") {
+		cfg.authHeaderOverride = true
+	}
+}
+
+func (cfg *RequestConfig) DelHeader(key string) {
+	cfg.Request.Header.Del(key)
+	if strings.EqualFold(key, "Authorization") {
+		cfg.authHeaderOverride = true
+	}
+}
+
+func (cfg *RequestConfig) SetAPIKey(value string) {
+	cfg.APIKey = value
+	cfg.authHeaderOverride = false
+	cfg.authPreference = authCredentialPreferenceBearer
+}
+
+func (cfg *RequestConfig) SetAdminAPIKey(value string) {
+	cfg.AdminAPIKey = value
+	cfg.authHeaderOverride = false
+	cfg.authPreference = authCredentialPreferenceAdmin
 }
 
 func (cfg *RequestConfig) Apply(opts ...RequestOption) error {
@@ -641,4 +714,82 @@ func WithDefaultBaseURL(baseURL string) RequestOption {
 		r.DefaultBaseURL = u
 		return nil
 	})
+}
+
+type Security struct {
+	BearerAuth      bool
+	AdminAPIKeyAuth bool
+}
+
+type authCredentialPreference int
+
+const (
+	authCredentialPreferenceNone authCredentialPreference = iota
+	authCredentialPreferenceBearer
+	authCredentialPreferenceAdmin
+)
+
+func WithSecurity(security Security) RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.Security = security
+		return nil
+	})
+}
+
+// WithBearerAuthSecurity() should only be used within a method, not provided to at
+// the client-level.
+func WithBearerAuthSecurity() RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.Security = Security{
+			BearerAuth:      true,
+			AdminAPIKeyAuth: false,
+		}
+		return nil
+	})
+}
+
+// WithAdminAPIKeyAuthSecurity() should only be used within a method, not provided
+// to at the client-level.
+func WithAdminAPIKeyAuthSecurity() RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.Security = Security{
+			BearerAuth:      false,
+			AdminAPIKeyAuth: true,
+		}
+		return nil
+	})
+}
+
+// WithBearerAuthPreference() should only be used when a request supports multiple
+// auth schemes and has no endpoint-specific security preference.
+func WithBearerAuthPreference() RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.authPreference = authCredentialPreferenceBearer
+		return nil
+	})
+}
+
+func ApplySecurity(r RequestConfig) {
+	if r.authHeaderOverride {
+		return
+	}
+
+	if r.authPreference == authCredentialPreferenceBearer && r.Security.BearerAuth && r.APIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.APIKey))
+		return
+	}
+
+	if r.authPreference == authCredentialPreferenceAdmin && r.Security.AdminAPIKeyAuth && r.AdminAPIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.AdminAPIKey))
+		return
+	}
+
+	if r.Security.AdminAPIKeyAuth && r.AdminAPIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.AdminAPIKey))
+		return
+	}
+
+	if r.Security.BearerAuth && r.APIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.APIKey))
+	}
 }

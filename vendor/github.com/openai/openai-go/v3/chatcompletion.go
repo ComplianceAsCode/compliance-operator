@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -70,7 +69,8 @@ func NewChatCompletionService(opts ...option.RequestOption) (r ChatCompletionSer
 // Returns a chat completion object, or a streamed sequence of chat completion
 // chunk objects if the request is streamed.
 func (r *ChatCompletionService) New(ctx context.Context, body ChatCompletionNewParams, opts ...option.RequestOption) (res *ChatCompletion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	path := "chat/completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
@@ -101,7 +101,8 @@ func (r *ChatCompletionService) NewStreaming(ctx context.Context, body ChatCompl
 		raw *http.Response
 		err error
 	)
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append(opts, option.WithJSONSet("stream", true))
 	path := "chat/completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, opts...)
@@ -111,12 +112,13 @@ func (r *ChatCompletionService) NewStreaming(ctx context.Context, body ChatCompl
 // Get a stored chat completion. Only Chat Completions that have been created with
 // the `store` parameter set to `true` will be returned.
 func (r *ChatCompletionService) Get(ctx context.Context, completionID string, opts ...option.RequestOption) (res *ChatCompletion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if completionID == "" {
 		err = errors.New("missing required completion_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chat/completions/%s", completionID)
+	path := requestconfig.FormatPath("chat/completions/%s", completionID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
@@ -125,12 +127,13 @@ func (r *ChatCompletionService) Get(ctx context.Context, completionID string, op
 // with the `store` parameter set to `true` can be modified. Currently, the only
 // supported modification is to update the `metadata` field.
 func (r *ChatCompletionService) Update(ctx context.Context, completionID string, body ChatCompletionUpdateParams, opts ...option.RequestOption) (res *ChatCompletion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if completionID == "" {
 		err = errors.New("missing required completion_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chat/completions/%s", completionID)
+	path := requestconfig.FormatPath("chat/completions/%s", completionID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -139,7 +142,8 @@ func (r *ChatCompletionService) Update(ctx context.Context, completionID string,
 // the `store` parameter set to `true` will be returned.
 func (r *ChatCompletionService) List(ctx context.Context, query ChatCompletionListParams, opts ...option.RequestOption) (res *pagination.CursorPage[ChatCompletion], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
 	path := "chat/completions"
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
@@ -163,12 +167,13 @@ func (r *ChatCompletionService) ListAutoPaging(ctx context.Context, query ChatCo
 // Delete a stored chat completion. Only Chat Completions that have been created
 // with the `store` parameter set to `true` can be deleted.
 func (r *ChatCompletionService) Delete(ctx context.Context, completionID string, opts ...option.RequestOption) (res *ChatCompletionDeleted, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if completionID == "" {
 		err = errors.New("missing required completion_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chat/completions/%s", completionID)
+	path := requestconfig.FormatPath("chat/completions/%s", completionID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -182,11 +187,11 @@ type ChatCompletion struct {
 	// than 1.
 	Choices []ChatCompletionChoice `json:"choices" api:"required"`
 	// The Unix timestamp (in seconds) of when the chat completion was created.
-	Created int64 `json:"created" api:"required"`
+	Created int64 `json:"created" api:"required" format:"unixtime"`
 	// The model used for the chat completion.
 	Model string `json:"model" api:"required"`
 	// The object type, which is always `chat.completion`.
-	Object constant.ChatCompletion `json:"object" api:"required"`
+	Object constant.ChatCompletion `json:"object" default:"chat.completion"`
 	// Specifies the processing type used for serving the request.
 	//
 	//   - If set to 'auto', then the request will be processed with the service tier
@@ -325,7 +330,7 @@ type ChatCompletionAllowedToolChoiceParam struct {
 	// Allowed tool configuration type. Always `allowed_tools`.
 	//
 	// This field can be elided, and will marshal its zero value as "allowed_tools".
-	Type constant.AllowedTools `json:"type" api:"required"`
+	Type constant.AllowedTools `json:"type" default:"allowed_tools"`
 	paramObj
 }
 
@@ -362,7 +367,7 @@ type ChatCompletionAssistantMessageParam struct {
 	// The role of the messages author, in this case `assistant`.
 	//
 	// This field can be elided, and will marshal its zero value as "assistant".
-	Role constant.Assistant `json:"role" api:"required"`
+	Role constant.Assistant `json:"role" default:"assistant"`
 	paramObj
 }
 
@@ -512,7 +517,7 @@ type ChatCompletionAudio struct {
 	Data string `json:"data" api:"required"`
 	// The Unix timestamp (in seconds) for when this audio response will no longer be
 	// accessible on the server for use in multi-turn conversations.
-	ExpiresAt int64 `json:"expires_at" api:"required"`
+	ExpiresAt int64 `json:"expires_at" api:"required" format:"unixtime"`
 	// Transcript of the audio generated by the model.
 	Transcript string `json:"transcript" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -578,14 +583,14 @@ const (
 type ChatCompletionAudioParamVoiceUnion struct {
 	OfString param.Opt[string] `json:",omitzero,inline"`
 	// Check if union is this variant with
-	// !param.IsOmitted(union.OfChatCompletionAudioVoiceString)
-	OfChatCompletionAudioVoiceString param.Opt[string]                `json:",omitzero,inline"`
-	OfChatCompletionAudioVoiceID     *ChatCompletionAudioParamVoiceID `json:",omitzero,inline"`
+	// !param.IsOmitted(union.OfChatCompletionAudioVoiceString2)
+	OfChatCompletionAudioVoiceString2 param.Opt[string]                `json:",omitzero,inline"`
+	OfChatCompletionAudioVoiceID      *ChatCompletionAudioParamVoiceID `json:",omitzero,inline"`
 	paramUnion
 }
 
 func (u ChatCompletionAudioParamVoiceUnion) MarshalJSON() ([]byte, error) {
-	return param.MarshalUnion(u, u.OfString, u.OfChatCompletionAudioVoiceString, u.OfChatCompletionAudioVoiceID)
+	return param.MarshalUnion(u, u.OfString, u.OfChatCompletionAudioVoiceString2, u.OfChatCompletionAudioVoiceID)
 }
 func (u *ChatCompletionAudioParamVoiceUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
@@ -594,27 +599,27 @@ func (u *ChatCompletionAudioParamVoiceUnion) UnmarshalJSON(data []byte) error {
 func (u *ChatCompletionAudioParamVoiceUnion) asAny() any {
 	if !param.IsOmitted(u.OfString) {
 		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfChatCompletionAudioVoiceString) {
-		return &u.OfChatCompletionAudioVoiceString
+	} else if !param.IsOmitted(u.OfChatCompletionAudioVoiceString2) {
+		return &u.OfChatCompletionAudioVoiceString2
 	} else if !param.IsOmitted(u.OfChatCompletionAudioVoiceID) {
 		return u.OfChatCompletionAudioVoiceID
 	}
 	return nil
 }
 
-type ChatCompletionAudioParamVoiceString string
+type ChatCompletionAudioParamVoiceString2 string
 
 const (
-	ChatCompletionAudioParamVoiceStringAlloy   ChatCompletionAudioParamVoiceString = "alloy"
-	ChatCompletionAudioParamVoiceStringAsh     ChatCompletionAudioParamVoiceString = "ash"
-	ChatCompletionAudioParamVoiceStringBallad  ChatCompletionAudioParamVoiceString = "ballad"
-	ChatCompletionAudioParamVoiceStringCoral   ChatCompletionAudioParamVoiceString = "coral"
-	ChatCompletionAudioParamVoiceStringEcho    ChatCompletionAudioParamVoiceString = "echo"
-	ChatCompletionAudioParamVoiceStringSage    ChatCompletionAudioParamVoiceString = "sage"
-	ChatCompletionAudioParamVoiceStringShimmer ChatCompletionAudioParamVoiceString = "shimmer"
-	ChatCompletionAudioParamVoiceStringVerse   ChatCompletionAudioParamVoiceString = "verse"
-	ChatCompletionAudioParamVoiceStringMarin   ChatCompletionAudioParamVoiceString = "marin"
-	ChatCompletionAudioParamVoiceStringCedar   ChatCompletionAudioParamVoiceString = "cedar"
+	ChatCompletionAudioParamVoiceString2Alloy   ChatCompletionAudioParamVoiceString2 = "alloy"
+	ChatCompletionAudioParamVoiceString2Ash     ChatCompletionAudioParamVoiceString2 = "ash"
+	ChatCompletionAudioParamVoiceString2Ballad  ChatCompletionAudioParamVoiceString2 = "ballad"
+	ChatCompletionAudioParamVoiceString2Coral   ChatCompletionAudioParamVoiceString2 = "coral"
+	ChatCompletionAudioParamVoiceString2Echo    ChatCompletionAudioParamVoiceString2 = "echo"
+	ChatCompletionAudioParamVoiceString2Sage    ChatCompletionAudioParamVoiceString2 = "sage"
+	ChatCompletionAudioParamVoiceString2Shimmer ChatCompletionAudioParamVoiceString2 = "shimmer"
+	ChatCompletionAudioParamVoiceString2Verse   ChatCompletionAudioParamVoiceString2 = "verse"
+	ChatCompletionAudioParamVoiceString2Marin   ChatCompletionAudioParamVoiceString2 = "marin"
+	ChatCompletionAudioParamVoiceString2Cedar   ChatCompletionAudioParamVoiceString2 = "cedar"
 )
 
 // Custom voice reference.
@@ -646,11 +651,11 @@ type ChatCompletionChunk struct {
 	Choices []ChatCompletionChunkChoice `json:"choices" api:"required"`
 	// The Unix timestamp (in seconds) of when the chat completion was created. Each
 	// chunk has the same timestamp.
-	Created int64 `json:"created" api:"required"`
+	Created int64 `json:"created" api:"required" format:"unixtime"`
 	// The model to generate the completion.
 	Model string `json:"model" api:"required"`
 	// The object type, which is always `chat.completion.chunk`.
-	Object constant.ChatCompletionChunk `json:"object" api:"required"`
+	Object constant.ChatCompletionChunk `json:"object" default:"chat.completion.chunk"`
 	// Specifies the processing type used for serving the request.
 	//
 	//   - If set to 'auto', then the request will be processed with the service tier
@@ -1015,7 +1020,7 @@ type ChatCompletionContentPartFileParam struct {
 	// The type of the content part. Always `file`.
 	//
 	// This field can be elided, and will marshal its zero value as "file".
-	Type constant.File `json:"type" api:"required"`
+	Type constant.File `json:"type" default:"file"`
 	paramObj
 }
 
@@ -1050,7 +1055,7 @@ func (r *ChatCompletionContentPartFileFileParam) UnmarshalJSON(data []byte) erro
 type ChatCompletionContentPartImage struct {
 	ImageURL ChatCompletionContentPartImageImageURL `json:"image_url" api:"required"`
 	// The type of the content part.
-	Type constant.ImageURL `json:"type" api:"required"`
+	Type constant.ImageURL `json:"type" default:"image_url"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ImageURL    respjson.Field
@@ -1107,7 +1112,7 @@ type ChatCompletionContentPartImageParam struct {
 	// The type of the content part.
 	//
 	// This field can be elided, and will marshal its zero value as "image_url".
-	Type constant.ImageURL `json:"type" api:"required"`
+	Type constant.ImageURL `json:"type" default:"image_url"`
 	paramObj
 }
 
@@ -1153,7 +1158,7 @@ type ChatCompletionContentPartInputAudioParam struct {
 	// The type of the content part. Always `input_audio`.
 	//
 	// This field can be elided, and will marshal its zero value as "input_audio".
-	Type constant.InputAudio `json:"type" api:"required"`
+	Type constant.InputAudio `json:"type" default:"input_audio"`
 	paramObj
 }
 
@@ -1197,7 +1202,7 @@ type ChatCompletionContentPartRefusalParam struct {
 	// The type of the content part.
 	//
 	// This field can be elided, and will marshal its zero value as "refusal".
-	Type constant.Refusal `json:"type" api:"required"`
+	Type constant.Refusal `json:"type" default:"refusal"`
 	paramObj
 }
 
@@ -1215,7 +1220,7 @@ type ChatCompletionContentPartText struct {
 	// The text content.
 	Text string `json:"text" api:"required"`
 	// The type of the content part.
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Text        respjson.Field
@@ -1251,7 +1256,7 @@ type ChatCompletionContentPartTextParam struct {
 	// The type of the content part.
 	//
 	// This field can be elided, and will marshal its zero value as "text".
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	paramObj
 }
 
@@ -1272,7 +1277,7 @@ type ChatCompletionCustomToolParam struct {
 	// The type of the custom tool. Always `custom`.
 	//
 	// This field can be elided, and will marshal its zero value as "custom".
-	Type constant.Custom `json:"type" api:"required"`
+	Type constant.Custom `json:"type" default:"custom"`
 	paramObj
 }
 
@@ -1368,7 +1373,7 @@ func NewChatCompletionCustomToolCustomFormatTextParam() ChatCompletionCustomTool
 // [NewChatCompletionCustomToolCustomFormatTextParam].
 type ChatCompletionCustomToolCustomFormatTextParam struct {
 	// Unconstrained text format. Always `text`.
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	paramObj
 }
 
@@ -1389,7 +1394,7 @@ type ChatCompletionCustomToolCustomFormatGrammarParam struct {
 	// Grammar format. Always `grammar`.
 	//
 	// This field can be elided, and will marshal its zero value as "grammar".
-	Type constant.Grammar `json:"type" api:"required"`
+	Type constant.Grammar `json:"type" default:"grammar"`
 	paramObj
 }
 
@@ -1434,7 +1439,7 @@ type ChatCompletionDeleted struct {
 	// Whether the chat completion was deleted.
 	Deleted bool `json:"deleted" api:"required"`
 	// The type of object being deleted.
-	Object constant.ChatCompletionDeleted `json:"object" api:"required"`
+	Object constant.ChatCompletionDeleted `json:"object" default:"chat.completion.deleted"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -1465,7 +1470,7 @@ type ChatCompletionDeveloperMessageParam struct {
 	// The role of the messages author, in this case `developer`.
 	//
 	// This field can be elided, and will marshal its zero value as "developer".
-	Role constant.Developer `json:"role" api:"required"`
+	Role constant.Developer `json:"role" default:"developer"`
 	paramObj
 }
 
@@ -1531,7 +1536,7 @@ type ChatCompletionFunctionMessageParam struct {
 	// The role of the messages author, in this case `function`.
 	//
 	// This field can be elided, and will marshal its zero value as "function".
-	Role constant.Function `json:"role" api:"required"`
+	Role constant.Function `json:"role" default:"function"`
 	paramObj
 }
 
@@ -1551,7 +1556,7 @@ type ChatCompletionFunctionToolParam struct {
 	// The type of the tool. Currently, only `function` is supported.
 	//
 	// This field can be elided, and will marshal its zero value as "function".
-	Type constant.Function `json:"type" api:"required"`
+	Type constant.Function `json:"type" default:"function"`
 	paramObj
 }
 
@@ -1570,7 +1575,7 @@ type ChatCompletionMessage struct {
 	// The refusal message generated by the model.
 	Refusal string `json:"refusal" api:"required"`
 	// The role of the author of this message.
-	Role constant.Assistant `json:"role" api:"required"`
+	Role constant.Assistant `json:"role" default:"assistant"`
 	// Annotations for the message, when applicable, as when using the
 	// [web search tool](https://platform.openai.com/docs/guides/tools-web-search?api-mode=chat).
 	Annotations []ChatCompletionMessageAnnotation `json:"annotations"`
@@ -1661,7 +1666,7 @@ func (r ChatCompletionMessage) ToAssistantMessageParam() ChatCompletionAssistant
 // A URL citation when using web search.
 type ChatCompletionMessageAnnotation struct {
 	// The type of the URL citation. Always `url_citation`.
-	Type constant.URLCitation `json:"type" api:"required"`
+	Type constant.URLCitation `json:"type" default:"url_citation"`
 	// A URL citation when using web search.
 	URLCitation ChatCompletionMessageAnnotationURLCitation `json:"url_citation" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -1688,7 +1693,7 @@ type ChatCompletionMessageAnnotationURLCitation struct {
 	// The title of the web resource.
 	Title string `json:"title" api:"required"`
 	// The URL of the web resource.
-	URL string `json:"url" api:"required"`
+	URL string `json:"url" api:"required" format:"uri"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		EndIndex    respjson.Field
@@ -1740,7 +1745,7 @@ type ChatCompletionMessageCustomToolCall struct {
 	// The custom tool that the model called.
 	Custom ChatCompletionMessageCustomToolCallCustom `json:"custom" api:"required"`
 	// The type of the tool. Always `custom`.
-	Type constant.Custom `json:"type" api:"required"`
+	Type constant.Custom `json:"type" default:"custom"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -1799,7 +1804,7 @@ type ChatCompletionMessageCustomToolCallParam struct {
 	// The type of the tool. Always `custom`.
 	//
 	// This field can be elided, and will marshal its zero value as "custom".
-	Type constant.Custom `json:"type" api:"required"`
+	Type constant.Custom `json:"type" default:"custom"`
 	paramObj
 }
 
@@ -1837,7 +1842,7 @@ type ChatCompletionMessageFunctionToolCall struct {
 	// The function that the model called.
 	Function ChatCompletionMessageFunctionToolCallFunction `json:"function" api:"required"`
 	// The type of the tool. Currently, only `function` is supported.
-	Type constant.Function `json:"type" api:"required"`
+	Type constant.Function `json:"type" default:"function"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -1899,7 +1904,7 @@ type ChatCompletionMessageFunctionToolCallParam struct {
 	// The type of the tool. Currently, only `function` is supported.
 	//
 	// This field can be elided, and will marshal its zero value as "function".
-	Type constant.Function `json:"type" api:"required"`
+	Type constant.Function `json:"type" default:"function"`
 	paramObj
 }
 
@@ -2332,7 +2337,7 @@ type ChatCompletionNamedToolChoiceParam struct {
 	// For function calling, the type is always `function`.
 	//
 	// This field can be elided, and will marshal its zero value as "function".
-	Type constant.Function `json:"type" api:"required"`
+	Type constant.Function `json:"type" default:"function"`
 	paramObj
 }
 
@@ -2368,7 +2373,7 @@ type ChatCompletionNamedToolChoiceCustomParam struct {
 	// For custom tool calling, the type is always `custom`.
 	//
 	// This field can be elided, and will marshal its zero value as "custom".
-	Type constant.Custom `json:"type" api:"required"`
+	Type constant.Custom `json:"type" default:"custom"`
 	paramObj
 }
 
@@ -2408,7 +2413,7 @@ type ChatCompletionPredictionContentParam struct {
 	// always `content`.
 	//
 	// This field can be elided, and will marshal its zero value as "content".
-	Type constant.Content `json:"type" api:"required"`
+	Type constant.Content `json:"type" default:"content"`
 	paramObj
 }
 
@@ -2545,7 +2550,7 @@ type ChatCompletionSystemMessageParam struct {
 	// The role of the messages author, in this case `system`.
 	//
 	// This field can be elided, and will marshal its zero value as "system".
-	Role constant.System `json:"role" api:"required"`
+	Role constant.System `json:"role" default:"system"`
 	paramObj
 }
 
@@ -2595,8 +2600,7 @@ type ChatCompletionTokenLogprob struct {
 	// unlikely.
 	Logprob float64 `json:"logprob" api:"required"`
 	// List of the most likely tokens and their log probability, at this token
-	// position. In rare cases, there may be fewer than the number of requested
-	// `top_logprobs` returned.
+	// position. The number of entries may be fewer than the requested `top_logprobs`.
 	TopLogprobs []ChatCompletionTokenLogprobTopLogprob `json:"top_logprobs" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
@@ -2820,7 +2824,7 @@ type ChatCompletionToolMessageParam struct {
 	// The role of the messages author, in this case `tool`.
 	//
 	// This field can be elided, and will marshal its zero value as "tool".
-	Role constant.Tool `json:"role" api:"required"`
+	Role constant.Tool `json:"role" default:"tool"`
 	paramObj
 }
 
@@ -2870,7 +2874,7 @@ type ChatCompletionUserMessageParam struct {
 	// The role of the messages author, in this case `user`.
 	//
 	// This field can be elided, and will marshal its zero value as "user".
-	Role constant.User `json:"role" api:"required"`
+	Role constant.User `json:"role" default:"user"`
 	paramObj
 }
 
@@ -3016,8 +3020,9 @@ type ChatCompletionNewParams struct {
 	// focused and deterministic. We generally recommend altering this or `top_p` but
 	// not both.
 	Temperature param.Opt[float64] `json:"temperature,omitzero"`
-	// An integer between 0 and 20 specifying the number of most likely tokens to
-	// return at each token position, each with an associated log probability.
+	// An integer between 0 and 20 specifying the maximum number of most likely tokens
+	// to return at each token position, each with an associated log probability. In
+	// some cases, the number of returned tokens may be fewer than requested.
 	// `logprobs` must be set to `true` if this parameter is used.
 	TopLogprobs param.Opt[int64] `json:"top_logprobs,omitzero"`
 	// An alternative to sampling with temperature, called nucleus sampling, where the
@@ -3085,7 +3090,7 @@ type ChatCompletionNewParams struct {
 	// of 24 hours.
 	// [Learn more](https://platform.openai.com/docs/guides/prompt-caching#prompt-cache-retention).
 	//
-	// Any of "in-memory", "24h".
+	// Any of "in_memory", "24h".
 	PromptCacheRetention ChatCompletionNewParamsPromptCacheRetention `json:"prompt_cache_retention,omitzero"`
 	// Constrains effort on reasoning for
 	// [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
@@ -3269,7 +3274,7 @@ func (r *ChatCompletionNewParamsFunction) UnmarshalJSON(data []byte) error {
 type ChatCompletionNewParamsPromptCacheRetention string
 
 const (
-	ChatCompletionNewParamsPromptCacheRetentionInMemory ChatCompletionNewParamsPromptCacheRetention = "in-memory"
+	ChatCompletionNewParamsPromptCacheRetentionInMemory ChatCompletionNewParamsPromptCacheRetention = "in_memory"
 	ChatCompletionNewParamsPromptCacheRetention24h      ChatCompletionNewParamsPromptCacheRetention = "24h"
 )
 
@@ -3429,7 +3434,7 @@ type ChatCompletionNewParamsWebSearchOptionsUserLocation struct {
 	// The type of location approximation. Always `approximate`.
 	//
 	// This field can be elided, and will marshal its zero value as "approximate".
-	Type constant.Approximate `json:"type" api:"required"`
+	Type constant.Approximate `json:"type" default:"approximate"`
 	paramObj
 }
 

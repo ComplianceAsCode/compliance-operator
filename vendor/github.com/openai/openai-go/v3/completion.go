@@ -43,7 +43,8 @@ func NewCompletionService(opts ...option.RequestOption) (r CompletionService) {
 // Returns a completion object, or a sequence of completion objects if the request
 // is streamed.
 func (r *CompletionService) New(ctx context.Context, body CompletionNewParams, opts ...option.RequestOption) (res *Completion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	path := "completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
@@ -58,7 +59,8 @@ func (r *CompletionService) NewStreaming(ctx context.Context, body CompletionNew
 		raw *http.Response
 		err error
 	)
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append(opts, option.WithJSONSet("stream", true))
 	path := "completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, opts...)
@@ -73,11 +75,11 @@ type Completion struct {
 	// The list of completion choices the model generated for the input prompt.
 	Choices []CompletionChoice `json:"choices" api:"required"`
 	// The Unix timestamp (in seconds) of when the completion was created.
-	Created int64 `json:"created" api:"required"`
+	Created int64 `json:"created" api:"required" format:"unixtime"`
 	// The model used for completion.
 	Model string `json:"model" api:"required"`
 	// The object type, which is always "text_completion"
-	Object constant.TextCompletion `json:"object" api:"required"`
+	Object constant.TextCompletion `json:"object" default:"text_completion"`
 	// This fingerprint represents the backend configuration that the model runs with.
 	//
 	// Can be used in conjunction with the `seed` request parameter to understand when

@@ -47,7 +47,8 @@ func NewAudioTranscriptionService(opts ...option.RequestOption) (r AudioTranscri
 // Returns a transcription object in `json`, `diarized_json`, or `verbose_json`
 // format, or a stream of transcript events.
 func (r *AudioTranscriptionService) New(ctx context.Context, body AudioTranscriptionNewParams, opts ...option.RequestOption) (res *AudioTranscriptionNewResponseUnion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	path := "audio/transcriptions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
@@ -62,7 +63,8 @@ func (r *AudioTranscriptionService) NewStreaming(ctx context.Context, body Audio
 		raw *http.Response
 		err error
 	)
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	body.SetExtraFields(map[string]any{
 		"stream": "true",
 	})
@@ -205,7 +207,7 @@ type TranscriptionUsageTokens struct {
 	// Total number of tokens used (input + output).
 	TotalTokens int64 `json:"total_tokens" api:"required"`
 	// The type of the usage object. Always `tokens` for this variant.
-	Type constant.Tokens `json:"type" api:"required"`
+	Type constant.Tokens `json:"type" default:"tokens"`
 	// Details about the input tokens billed for this request.
 	InputTokenDetails TranscriptionUsageTokensInputTokenDetails `json:"input_token_details"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -252,7 +254,7 @@ type TranscriptionUsageDuration struct {
 	// Duration of the input audio in seconds.
 	Seconds float64 `json:"seconds" api:"required"`
 	// The type of the usage object. Always `duration` for this variant.
-	Type constant.Duration `json:"type" api:"required"`
+	Type constant.Duration `json:"type" default:"duration"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Seconds     respjson.Field
@@ -455,7 +457,7 @@ type TranscriptionTextDeltaEvent struct {
 	// The text delta that was additionally transcribed.
 	Delta string `json:"delta" api:"required"`
 	// The type of the event. Always `transcript.text.delta`.
-	Type constant.TranscriptTextDelta `json:"type" api:"required"`
+	Type constant.TranscriptTextDelta `json:"type" default:"transcript.text.delta"`
 	// The log probabilities of the delta. Only included if you
 	// [create a transcription](https://platform.openai.com/docs/api-reference/audio/create-transcription)
 	// with the `include[]` parameter set to `logprobs`.
@@ -511,7 +513,7 @@ type TranscriptionTextDoneEvent struct {
 	// The text that was transcribed.
 	Text string `json:"text" api:"required"`
 	// The type of the event. Always `transcript.text.done`.
-	Type constant.TranscriptTextDone `json:"type" api:"required"`
+	Type constant.TranscriptTextDone `json:"type" default:"transcript.text.done"`
 	// The log probabilities of the individual tokens in the transcription. Only
 	// included if you
 	// [create a transcription](https://platform.openai.com/docs/api-reference/audio/create-transcription)
@@ -568,7 +570,7 @@ type TranscriptionTextDoneEventUsage struct {
 	// Total number of tokens used (input + output).
 	TotalTokens int64 `json:"total_tokens" api:"required"`
 	// The type of the usage object. Always `tokens` for this variant.
-	Type constant.Tokens `json:"type" api:"required"`
+	Type constant.Tokens `json:"type" default:"tokens"`
 	// Details about the input tokens billed for this request.
 	InputTokenDetails TranscriptionTextDoneEventUsageInputTokenDetails `json:"input_token_details"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -626,7 +628,7 @@ type TranscriptionTextSegmentEvent struct {
 	// Transcript text for this segment.
 	Text string `json:"text" api:"required"`
 	// The type of the event. Always `transcript.text.segment`.
-	Type constant.TranscriptTextSegment `json:"type" api:"required"`
+	Type constant.TranscriptTextSegment `json:"type" default:"transcript.text.segment"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -685,7 +687,7 @@ type TranscriptionVerboseUsage struct {
 	// Duration of the input audio in seconds.
 	Seconds float64 `json:"seconds" api:"required"`
 	// The type of the usage object. Always `duration` for this variant.
-	Type constant.Duration `json:"type" api:"required"`
+	Type constant.Duration `json:"type" default:"duration"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Seconds     respjson.Field

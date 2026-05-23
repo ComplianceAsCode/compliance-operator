@@ -35,6 +35,8 @@ type BatchCancelled string                                   // Always "batch.ca
 type BatchCompleted string                                   // Always "batch.completed"
 type BatchExpired string                                     // Always "batch.expired"
 type BatchFailed string                                      // Always "batch.failed"
+type Bucket string                                           // Always "bucket"
+type CertificateDeleted string                               // Always "certificate.deleted"
 type ChatCompletion string                                   // Always "chat.completion"
 type ChatCompletionChunk string                              // Always "chat.completion.chunk"
 type ChatCompletionDeleted string                            // Always "chat.completion.deleted"
@@ -54,6 +56,7 @@ type Closed string                                           // Always "closed"
 type CodeInterpreter string                                  // Always "code_interpreter"
 type CodeInterpreterCall string                              // Always "code_interpreter_call"
 type Compaction string                                       // Always "compaction"
+type CompactionTrigger string                                // Always "compaction_trigger"
 type Computer string                                         // Always "computer"
 type ComputerCallOutput string                               // Always "computer_call_output"
 type ComputerScreenshot string                               // Always "computer_screenshot"
@@ -91,6 +94,7 @@ type Disabled string                                         // Always "disabled
 type DoubleClick string                                      // Always "double_click"
 type Drag string                                             // Always "drag"
 type Duration string                                         // Always "duration"
+type Email string                                            // Always "email"
 type Embedding string                                        // Always "embedding"
 type Error string                                            // Always "error"
 type EvalRunCanceled string                                  // Always "eval.run.canceled"
@@ -114,6 +118,11 @@ type Function string                                         // Always "function
 type FunctionCall string                                     // Always "function_call"
 type FunctionCallOutput string                               // Always "function_call_output"
 type Grammar string                                          // Always "grammar"
+type Group string                                            // Always "group"
+type GroupDeleted string                                     // Always "group.deleted"
+type GroupRole string                                        // Always "group.role"
+type GroupUser string                                        // Always "group.user"
+type GroupUserDeleted string                                 // Always "group.user.deleted"
 type HTTPError string                                        // Always "http_error"
 type Image string                                            // Always "image"
 type ImageEditCompleted string                               // Always "image_edit.completed"
@@ -159,6 +168,7 @@ type McpListTools string                                     // Always "mcp_list
 type McpListToolsCompleted string                            // Always "mcp_list_tools.completed"
 type McpListToolsFailed string                               // Always "mcp_list_tools.failed"
 type McpListToolsInProgress string                           // Always "mcp_list_tools.in_progress"
+type Member string                                           // Always "member"
 type Message string                                          // Always "message"
 type MessageCreation string                                  // Always "message_creation"
 type Model string                                            // Always "model"
@@ -166,6 +176,40 @@ type Move string                                             // Always "move"
 type Multi string                                            // Always "multi"
 type Namespace string                                        // Always "namespace"
 type OpenPage string                                         // Always "open_page"
+type OrganizationAdminAPIKey string                          // Always "organization.admin_api_key"
+type OrganizationAdminAPIKeyDeleted string                   // Always "organization.admin_api_key.deleted"
+type OrganizationCertificate string                          // Always "organization.certificate"
+type OrganizationCertificateActivation string                // Always "organization.certificate.activation"
+type OrganizationCertificateDeactivation string              // Always "organization.certificate.deactivation"
+type OrganizationCostsResult string                          // Always "organization.costs.result"
+type OrganizationDataRetention string                        // Always "organization.data_retention"
+type OrganizationInvite string                               // Always "organization.invite"
+type OrganizationInviteDeleted string                        // Always "organization.invite.deleted"
+type OrganizationProject string                              // Always "organization.project"
+type OrganizationProjectAPIKey string                        // Always "organization.project.api_key"
+type OrganizationProjectAPIKeyDeleted string                 // Always "organization.project.api_key.deleted"
+type OrganizationProjectCertificate string                   // Always "organization.project.certificate"
+type OrganizationProjectCertificateActivation string         // Always "organization.project.certificate.activation"
+type OrganizationProjectCertificateDeactivation string       // Always "organization.project.certificate.deactivation"
+type OrganizationProjectServiceAccount string                // Always "organization.project.service_account"
+type OrganizationProjectServiceAccountAPIKey string          // Always "organization.project.service_account.api_key"
+type OrganizationProjectServiceAccountDeleted string         // Always "organization.project.service_account.deleted"
+type OrganizationProjectUser string                          // Always "organization.project.user"
+type OrganizationProjectUserDeleted string                   // Always "organization.project.user.deleted"
+type OrganizationSpendAlert string                           // Always "organization.spend_alert"
+type OrganizationSpendAlertDeleted string                    // Always "organization.spend_alert.deleted"
+type OrganizationUsageAudioSpeechesResult string             // Always "organization.usage.audio_speeches.result"
+type OrganizationUsageAudioTranscriptionsResult string       // Always "organization.usage.audio_transcriptions.result"
+type OrganizationUsageCodeInterpreterSessionsResult string   // Always "organization.usage.code_interpreter_sessions.result"
+type OrganizationUsageCompletionsResult string               // Always "organization.usage.completions.result"
+type OrganizationUsageEmbeddingsResult string                // Always "organization.usage.embeddings.result"
+type OrganizationUsageFileSearchesResult string              // Always "organization.usage.file_searches.result"
+type OrganizationUsageImagesResult string                    // Always "organization.usage.images.result"
+type OrganizationUsageModerationsResult string               // Always "organization.usage.moderations.result"
+type OrganizationUsageVectorStoresResult string              // Always "organization.usage.vector_stores.result"
+type OrganizationUsageWebSearchesResult string               // Always "organization.usage.web_searches.result"
+type OrganizationUser string                                 // Always "organization.user"
+type OrganizationUserDeleted string                          // Always "organization.user.deleted"
 type Other string                                            // Always "other"
 type OutputAudio string                                      // Always "output_audio"
 type OutputAudioBufferClear string                           // Always "output_audio_buffer.clear"
@@ -173,12 +217,22 @@ type OutputAudioBufferCleared string                         // Always "output_a
 type OutputAudioBufferStarted string                         // Always "output_audio_buffer.started"
 type OutputAudioBufferStopped string                         // Always "output_audio_buffer.stopped"
 type OutputText string                                       // Always "output_text"
+type Page string                                             // Always "page"
+type ProjectDataRetention string                             // Always "project.data_retention"
+type ProjectGroup string                                     // Always "project.group"
+type ProjectGroupDeleted string                              // Always "project.group.deleted"
+type ProjectModelPermissions string                          // Always "project.model_permissions"
+type ProjectModelPermissionsDeleted string                   // Always "project.model_permissions.deleted"
+type ProjectRateLimit string                                 // Always "project.rate_limit"
+type ProjectSpendAlert string                                // Always "project.spend_alert"
+type ProjectSpendAlertDeleted string                         // Always "project.spend_alert.deleted"
 type ProtocolError string                                    // Always "protocol_error"
 type Python string                                           // Always "python"
 type QuotedText string                                       // Always "quoted_text"
 type RateLimitsUpdated string                                // Always "rate_limits.updated"
 type Realtime string                                         // Always "realtime"
 type RealtimeCallIncoming string                             // Always "realtime.call.incoming"
+type RealtimeSession string                                  // Always "realtime.session"
 type Reasoning string                                        // Always "reasoning"
 type ReasoningText string                                    // Always "reasoning_text"
 type Refusal string                                          // Always "refusal"
@@ -246,13 +300,21 @@ type ResponseWebSearchCallCompleted string                   // Always "response
 type ResponseWebSearchCallInProgress string                  // Always "response.web_search_call.in_progress"
 type ResponseWebSearchCallSearching string                   // Always "response.web_search_call.searching"
 type RetentionRatio string                                   // Always "retention_ratio"
+type Role string                                             // Always "role"
+type RoleDeleted string                                      // Always "role.deleted"
 type ScoreModel string                                       // Always "score_model"
 type Screenshot string                                       // Always "screenshot"
 type Scroll string                                           // Always "scroll"
 type Search string                                           // Always "search"
 type SemanticVad string                                      // Always "semantic_vad"
 type ServerVad string                                        // Always "server_vad"
+type SessionClose string                                     // Always "session.close"
+type SessionClosed string                                    // Always "session.closed"
 type SessionCreated string                                   // Always "session.created"
+type SessionInputAudioBufferAppend string                    // Always "session.input_audio_buffer.append"
+type SessionInputTranscriptDelta string                      // Always "session.input_transcript.delta"
+type SessionOutputAudioDelta string                          // Always "session.output_audio.delta"
+type SessionOutputTranscriptDelta string                     // Always "session.output_transcript.delta"
 type SessionUpdate string                                    // Always "session.update"
 type SessionUpdated string                                   // Always "session.updated"
 type Shell string                                            // Always "shell"
@@ -315,6 +377,7 @@ type TranscriptTextSegment string                            // Always "transcri
 type Transcription string                                    // Always "transcription"
 type TranscriptionSessionUpdate string                       // Always "transcription_session.update"
 type TranscriptionSessionUpdated string                      // Always "transcription_session.updated"
+type Translation string                                      // Always "translation"
 type Type string                                             // Always "type"
 type UpdateFile string                                       // Always "update_file"
 type Upload string                                           // Always "upload"
@@ -322,6 +385,7 @@ type UploadPart string                                       // Always "upload.p
 type URL string                                              // Always "url"
 type URLCitation string                                      // Always "url_citation"
 type User string                                             // Always "user"
+type UserRole string                                         // Always "user.role"
 type VectorStore string                                      // Always "vector_store"
 type VectorStoreDeleted string                               // Always "vector_store.deleted"
 type VectorStoreFile string                                  // Always "vector_store.file"
@@ -352,6 +416,8 @@ func (c BatchCancelled) Default() BatchCancelled               { return "batch.c
 func (c BatchCompleted) Default() BatchCompleted               { return "batch.completed" }
 func (c BatchExpired) Default() BatchExpired                   { return "batch.expired" }
 func (c BatchFailed) Default() BatchFailed                     { return "batch.failed" }
+func (c Bucket) Default() Bucket                               { return "bucket" }
+func (c CertificateDeleted) Default() CertificateDeleted       { return "certificate.deleted" }
 func (c ChatCompletion) Default() ChatCompletion               { return "chat.completion" }
 func (c ChatCompletionChunk) Default() ChatCompletionChunk     { return "chat.completion.chunk" }
 func (c ChatCompletionDeleted) Default() ChatCompletionDeleted { return "chat.completion.deleted" }
@@ -373,6 +439,7 @@ func (c Closed) Default() Closed                                 { return "close
 func (c CodeInterpreter) Default() CodeInterpreter               { return "code_interpreter" }
 func (c CodeInterpreterCall) Default() CodeInterpreterCall       { return "code_interpreter_call" }
 func (c Compaction) Default() Compaction                         { return "compaction" }
+func (c CompactionTrigger) Default() CompactionTrigger           { return "compaction_trigger" }
 func (c Computer) Default() Computer                             { return "computer" }
 func (c ComputerCallOutput) Default() ComputerCallOutput         { return "computer_call_output" }
 func (c ComputerScreenshot) Default() ComputerScreenshot         { return "computer_screenshot" }
@@ -430,6 +497,7 @@ func (c Disabled) Default() Disabled                             { return "disab
 func (c DoubleClick) Default() DoubleClick                       { return "double_click" }
 func (c Drag) Default() Drag                                     { return "drag" }
 func (c Duration) Default() Duration                             { return "duration" }
+func (c Email) Default() Email                                   { return "email" }
 func (c Embedding) Default() Embedding                           { return "embedding" }
 func (c Error) Default() Error                                   { return "error" }
 func (c EvalRunCanceled) Default() EvalRunCanceled               { return "eval.run.canceled" }
@@ -455,6 +523,11 @@ func (c Function) Default() Function                             { return "funct
 func (c FunctionCall) Default() FunctionCall                     { return "function_call" }
 func (c FunctionCallOutput) Default() FunctionCallOutput         { return "function_call_output" }
 func (c Grammar) Default() Grammar                               { return "grammar" }
+func (c Group) Default() Group                                   { return "group" }
+func (c GroupDeleted) Default() GroupDeleted                     { return "group.deleted" }
+func (c GroupRole) Default() GroupRole                           { return "group.role" }
+func (c GroupUser) Default() GroupUser                           { return "group.user" }
+func (c GroupUserDeleted) Default() GroupUserDeleted             { return "group.user.deleted" }
 func (c HTTPError) Default() HTTPError                           { return "http_error" }
 func (c Image) Default() Image                                   { return "image" }
 func (c ImageEditCompleted) Default() ImageEditCompleted         { return "image_edit.completed" }
@@ -516,6 +589,7 @@ func (c McpListTools) Default() McpListTools                     { return "mcp_l
 func (c McpListToolsCompleted) Default() McpListToolsCompleted   { return "mcp_list_tools.completed" }
 func (c McpListToolsFailed) Default() McpListToolsFailed         { return "mcp_list_tools.failed" }
 func (c McpListToolsInProgress) Default() McpListToolsInProgress { return "mcp_list_tools.in_progress" }
+func (c Member) Default() Member                                 { return "member" }
 func (c Message) Default() Message                               { return "message" }
 func (c MessageCreation) Default() MessageCreation               { return "message_creation" }
 func (c Model) Default() Model                                   { return "model" }
@@ -523,6 +597,98 @@ func (c Move) Default() Move                                     { return "move"
 func (c Multi) Default() Multi                                   { return "multi" }
 func (c Namespace) Default() Namespace                           { return "namespace" }
 func (c OpenPage) Default() OpenPage                             { return "open_page" }
+func (c OrganizationAdminAPIKey) Default() OrganizationAdminAPIKey {
+	return "organization.admin_api_key"
+}
+func (c OrganizationAdminAPIKeyDeleted) Default() OrganizationAdminAPIKeyDeleted {
+	return "organization.admin_api_key.deleted"
+}
+func (c OrganizationCertificate) Default() OrganizationCertificate { return "organization.certificate" }
+func (c OrganizationCertificateActivation) Default() OrganizationCertificateActivation {
+	return "organization.certificate.activation"
+}
+func (c OrganizationCertificateDeactivation) Default() OrganizationCertificateDeactivation {
+	return "organization.certificate.deactivation"
+}
+func (c OrganizationCostsResult) Default() OrganizationCostsResult {
+	return "organization.costs.result"
+}
+func (c OrganizationDataRetention) Default() OrganizationDataRetention {
+	return "organization.data_retention"
+}
+func (c OrganizationInvite) Default() OrganizationInvite { return "organization.invite" }
+func (c OrganizationInviteDeleted) Default() OrganizationInviteDeleted {
+	return "organization.invite.deleted"
+}
+func (c OrganizationProject) Default() OrganizationProject { return "organization.project" }
+func (c OrganizationProjectAPIKey) Default() OrganizationProjectAPIKey {
+	return "organization.project.api_key"
+}
+func (c OrganizationProjectAPIKeyDeleted) Default() OrganizationProjectAPIKeyDeleted {
+	return "organization.project.api_key.deleted"
+}
+func (c OrganizationProjectCertificate) Default() OrganizationProjectCertificate {
+	return "organization.project.certificate"
+}
+func (c OrganizationProjectCertificateActivation) Default() OrganizationProjectCertificateActivation {
+	return "organization.project.certificate.activation"
+}
+func (c OrganizationProjectCertificateDeactivation) Default() OrganizationProjectCertificateDeactivation {
+	return "organization.project.certificate.deactivation"
+}
+func (c OrganizationProjectServiceAccount) Default() OrganizationProjectServiceAccount {
+	return "organization.project.service_account"
+}
+func (c OrganizationProjectServiceAccountAPIKey) Default() OrganizationProjectServiceAccountAPIKey {
+	return "organization.project.service_account.api_key"
+}
+func (c OrganizationProjectServiceAccountDeleted) Default() OrganizationProjectServiceAccountDeleted {
+	return "organization.project.service_account.deleted"
+}
+func (c OrganizationProjectUser) Default() OrganizationProjectUser {
+	return "organization.project.user"
+}
+func (c OrganizationProjectUserDeleted) Default() OrganizationProjectUserDeleted {
+	return "organization.project.user.deleted"
+}
+func (c OrganizationSpendAlert) Default() OrganizationSpendAlert { return "organization.spend_alert" }
+func (c OrganizationSpendAlertDeleted) Default() OrganizationSpendAlertDeleted {
+	return "organization.spend_alert.deleted"
+}
+func (c OrganizationUsageAudioSpeechesResult) Default() OrganizationUsageAudioSpeechesResult {
+	return "organization.usage.audio_speeches.result"
+}
+func (c OrganizationUsageAudioTranscriptionsResult) Default() OrganizationUsageAudioTranscriptionsResult {
+	return "organization.usage.audio_transcriptions.result"
+}
+func (c OrganizationUsageCodeInterpreterSessionsResult) Default() OrganizationUsageCodeInterpreterSessionsResult {
+	return "organization.usage.code_interpreter_sessions.result"
+}
+func (c OrganizationUsageCompletionsResult) Default() OrganizationUsageCompletionsResult {
+	return "organization.usage.completions.result"
+}
+func (c OrganizationUsageEmbeddingsResult) Default() OrganizationUsageEmbeddingsResult {
+	return "organization.usage.embeddings.result"
+}
+func (c OrganizationUsageFileSearchesResult) Default() OrganizationUsageFileSearchesResult {
+	return "organization.usage.file_searches.result"
+}
+func (c OrganizationUsageImagesResult) Default() OrganizationUsageImagesResult {
+	return "organization.usage.images.result"
+}
+func (c OrganizationUsageModerationsResult) Default() OrganizationUsageModerationsResult {
+	return "organization.usage.moderations.result"
+}
+func (c OrganizationUsageVectorStoresResult) Default() OrganizationUsageVectorStoresResult {
+	return "organization.usage.vector_stores.result"
+}
+func (c OrganizationUsageWebSearchesResult) Default() OrganizationUsageWebSearchesResult {
+	return "organization.usage.web_searches.result"
+}
+func (c OrganizationUser) Default() OrganizationUser { return "organization.user" }
+func (c OrganizationUserDeleted) Default() OrganizationUserDeleted {
+	return "organization.user.deleted"
+}
 func (c Other) Default() Other                                   { return "other" }
 func (c OutputAudio) Default() OutputAudio                       { return "output_audio" }
 func (c OutputAudioBufferClear) Default() OutputAudioBufferClear { return "output_audio_buffer.clear" }
@@ -536,12 +702,28 @@ func (c OutputAudioBufferStopped) Default() OutputAudioBufferStopped {
 	return "output_audio_buffer.stopped"
 }
 func (c OutputText) Default() OutputText                     { return "output_text" }
+func (c Page) Default() Page                                 { return "page" }
+func (c ProjectDataRetention) Default() ProjectDataRetention { return "project.data_retention" }
+func (c ProjectGroup) Default() ProjectGroup                 { return "project.group" }
+func (c ProjectGroupDeleted) Default() ProjectGroupDeleted   { return "project.group.deleted" }
+func (c ProjectModelPermissions) Default() ProjectModelPermissions {
+	return "project.model_permissions"
+}
+func (c ProjectModelPermissionsDeleted) Default() ProjectModelPermissionsDeleted {
+	return "project.model_permissions.deleted"
+}
+func (c ProjectRateLimit) Default() ProjectRateLimit   { return "project.rate_limit" }
+func (c ProjectSpendAlert) Default() ProjectSpendAlert { return "project.spend_alert" }
+func (c ProjectSpendAlertDeleted) Default() ProjectSpendAlertDeleted {
+	return "project.spend_alert.deleted"
+}
 func (c ProtocolError) Default() ProtocolError               { return "protocol_error" }
 func (c Python) Default() Python                             { return "python" }
 func (c QuotedText) Default() QuotedText                     { return "quoted_text" }
 func (c RateLimitsUpdated) Default() RateLimitsUpdated       { return "rate_limits.updated" }
 func (c Realtime) Default() Realtime                         { return "realtime" }
 func (c RealtimeCallIncoming) Default() RealtimeCallIncoming { return "realtime.call.incoming" }
+func (c RealtimeSession) Default() RealtimeSession           { return "realtime.session" }
 func (c Reasoning) Default() Reasoning                       { return "reasoning" }
 func (c ReasoningText) Default() ReasoningText               { return "reasoning_text" }
 func (c Refusal) Default() Refusal                           { return "refusal" }
@@ -694,14 +876,30 @@ func (c ResponseWebSearchCallInProgress) Default() ResponseWebSearchCallInProgre
 func (c ResponseWebSearchCallSearching) Default() ResponseWebSearchCallSearching {
 	return "response.web_search_call.searching"
 }
-func (c RetentionRatio) Default() RetentionRatio                 { return "retention_ratio" }
-func (c ScoreModel) Default() ScoreModel                         { return "score_model" }
-func (c Screenshot) Default() Screenshot                         { return "screenshot" }
-func (c Scroll) Default() Scroll                                 { return "scroll" }
-func (c Search) Default() Search                                 { return "search" }
-func (c SemanticVad) Default() SemanticVad                       { return "semantic_vad" }
-func (c ServerVad) Default() ServerVad                           { return "server_vad" }
-func (c SessionCreated) Default() SessionCreated                 { return "session.created" }
+func (c RetentionRatio) Default() RetentionRatio { return "retention_ratio" }
+func (c Role) Default() Role                     { return "role" }
+func (c RoleDeleted) Default() RoleDeleted       { return "role.deleted" }
+func (c ScoreModel) Default() ScoreModel         { return "score_model" }
+func (c Screenshot) Default() Screenshot         { return "screenshot" }
+func (c Scroll) Default() Scroll                 { return "scroll" }
+func (c Search) Default() Search                 { return "search" }
+func (c SemanticVad) Default() SemanticVad       { return "semantic_vad" }
+func (c ServerVad) Default() ServerVad           { return "server_vad" }
+func (c SessionClose) Default() SessionClose     { return "session.close" }
+func (c SessionClosed) Default() SessionClosed   { return "session.closed" }
+func (c SessionCreated) Default() SessionCreated { return "session.created" }
+func (c SessionInputAudioBufferAppend) Default() SessionInputAudioBufferAppend {
+	return "session.input_audio_buffer.append"
+}
+func (c SessionInputTranscriptDelta) Default() SessionInputTranscriptDelta {
+	return "session.input_transcript.delta"
+}
+func (c SessionOutputAudioDelta) Default() SessionOutputAudioDelta {
+	return "session.output_audio.delta"
+}
+func (c SessionOutputTranscriptDelta) Default() SessionOutputTranscriptDelta {
+	return "session.output_transcript.delta"
+}
 func (c SessionUpdate) Default() SessionUpdate                   { return "session.update" }
 func (c SessionUpdated) Default() SessionUpdated                 { return "session.updated" }
 func (c Shell) Default() Shell                                   { return "shell" }
@@ -776,6 +974,7 @@ func (c TranscriptionSessionUpdate) Default() TranscriptionSessionUpdate {
 func (c TranscriptionSessionUpdated) Default() TranscriptionSessionUpdated {
 	return "transcription_session.updated"
 }
+func (c Translation) Default() Translation               { return "translation" }
 func (c Type) Default() Type                             { return "type" }
 func (c UpdateFile) Default() UpdateFile                 { return "update_file" }
 func (c Upload) Default() Upload                         { return "upload" }
@@ -783,6 +982,7 @@ func (c UploadPart) Default() UploadPart                 { return "upload.part" 
 func (c URL) Default() URL                               { return "url" }
 func (c URLCitation) Default() URLCitation               { return "url_citation" }
 func (c User) Default() User                             { return "user" }
+func (c UserRole) Default() UserRole                     { return "user.role" }
 func (c VectorStore) Default() VectorStore               { return "vector_store" }
 func (c VectorStoreDeleted) Default() VectorStoreDeleted { return "vector_store.deleted" }
 func (c VectorStoreFile) Default() VectorStoreFile       { return "vector_store.file" }
@@ -817,6 +1017,8 @@ func (c BatchCancelled) MarshalJSON() ([]byte, error)          { return marshalS
 func (c BatchCompleted) MarshalJSON() ([]byte, error)          { return marshalString(c) }
 func (c BatchExpired) MarshalJSON() ([]byte, error)            { return marshalString(c) }
 func (c BatchFailed) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c Bucket) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c CertificateDeleted) MarshalJSON() ([]byte, error)      { return marshalString(c) }
 func (c ChatCompletion) MarshalJSON() ([]byte, error)          { return marshalString(c) }
 func (c ChatCompletionChunk) MarshalJSON() ([]byte, error)     { return marshalString(c) }
 func (c ChatCompletionDeleted) MarshalJSON() ([]byte, error)   { return marshalString(c) }
@@ -836,6 +1038,7 @@ func (c Closed) MarshalJSON() ([]byte, error)                  { return marshalS
 func (c CodeInterpreter) MarshalJSON() ([]byte, error)         { return marshalString(c) }
 func (c CodeInterpreterCall) MarshalJSON() ([]byte, error)     { return marshalString(c) }
 func (c Compaction) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c CompactionTrigger) MarshalJSON() ([]byte, error)       { return marshalString(c) }
 func (c Computer) MarshalJSON() ([]byte, error)                { return marshalString(c) }
 func (c ComputerCallOutput) MarshalJSON() ([]byte, error)      { return marshalString(c) }
 func (c ComputerScreenshot) MarshalJSON() ([]byte, error)      { return marshalString(c) }
@@ -866,96 +1069,149 @@ func (c ConversationItemInputAudioTranscriptionFailed) MarshalJSON() ([]byte, er
 func (c ConversationItemInputAudioTranscriptionSegment) MarshalJSON() ([]byte, error) {
 	return marshalString(c)
 }
-func (c ConversationItemRetrieve) MarshalJSON() ([]byte, error)              { return marshalString(c) }
-func (c ConversationItemRetrieved) MarshalJSON() ([]byte, error)             { return marshalString(c) }
-func (c ConversationItemTruncate) MarshalJSON() ([]byte, error)              { return marshalString(c) }
-func (c ConversationItemTruncated) MarshalJSON() ([]byte, error)             { return marshalString(c) }
-func (c CreateFile) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c CreatedAt) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c Custom) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
-func (c CustomToolCall) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
-func (c CustomToolCallOutput) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
-func (c DeleteFile) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c Developer) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c Disabled) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
-func (c DoubleClick) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
-func (c Drag) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c Duration) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
-func (c Embedding) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c Error) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
-func (c EvalRunCanceled) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
-func (c EvalRunFailed) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
-func (c EvalRunSucceeded) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
-func (c Exec) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c Exit) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c File) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c FileCitation) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
-func (c FilePath) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
-func (c FileSearch) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c FileSearchCall) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
-func (c FindInPage) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c FineTuningJob) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
-func (c FineTuningJobCancelled) MarshalJSON() ([]byte, error)                { return marshalString(c) }
-func (c FineTuningJobCheckpoint) MarshalJSON() ([]byte, error)               { return marshalString(c) }
-func (c FineTuningJobEvent) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
-func (c FineTuningJobFailed) MarshalJSON() ([]byte, error)                   { return marshalString(c) }
-func (c FineTuningJobSucceeded) MarshalJSON() ([]byte, error)                { return marshalString(c) }
-func (c Function) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
-func (c FunctionCall) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
-func (c FunctionCallOutput) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
-func (c Grammar) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
-func (c HTTPError) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c Image) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
-func (c ImageEditCompleted) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
-func (c ImageEditPartialImage) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
-func (c ImageFile) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c ImageGeneration) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
-func (c ImageGenerationCall) MarshalJSON() ([]byte, error)                   { return marshalString(c) }
-func (c ImageGenerationCompleted) MarshalJSON() ([]byte, error)              { return marshalString(c) }
-func (c ImageGenerationPartialImage) MarshalJSON() ([]byte, error)           { return marshalString(c) }
-func (c ImageURL) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
-func (c Inf) MarshalJSON() ([]byte, error)                                   { return marshalString(c) }
-func (c Inline) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
-func (c InputAudio) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c InputAudioBufferAppend) MarshalJSON() ([]byte, error)                { return marshalString(c) }
-func (c InputAudioBufferClear) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
-func (c InputAudioBufferCleared) MarshalJSON() ([]byte, error)               { return marshalString(c) }
-func (c InputAudioBufferCommit) MarshalJSON() ([]byte, error)                { return marshalString(c) }
-func (c InputAudioBufferCommitted) MarshalJSON() ([]byte, error)             { return marshalString(c) }
-func (c InputAudioBufferDtmfEventReceived) MarshalJSON() ([]byte, error)     { return marshalString(c) }
-func (c InputAudioBufferSpeechStarted) MarshalJSON() ([]byte, error)         { return marshalString(c) }
-func (c InputAudioBufferSpeechStopped) MarshalJSON() ([]byte, error)         { return marshalString(c) }
-func (c InputAudioBufferTimeoutTriggered) MarshalJSON() ([]byte, error)      { return marshalString(c) }
-func (c InputFile) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c InputImage) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c InputText) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c JSONObject) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c JSONSchema) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c Keypress) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
-func (c LabelModel) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c LastActiveAt) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
-func (c List) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c Local) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
-func (c LocalShell) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
-func (c LocalShellCall) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
-func (c LocalShellCallOutput) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
-func (c Locked) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
-func (c Logs) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c Mcp) MarshalJSON() ([]byte, error)                                   { return marshalString(c) }
-func (c McpApprovalRequest) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
-func (c McpApprovalResponse) MarshalJSON() ([]byte, error)                   { return marshalString(c) }
-func (c McpCall) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
-func (c McpListTools) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
-func (c McpListToolsCompleted) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
-func (c McpListToolsFailed) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
-func (c McpListToolsInProgress) MarshalJSON() ([]byte, error)                { return marshalString(c) }
-func (c Message) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
-func (c MessageCreation) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
-func (c Model) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
-func (c Move) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
-func (c Multi) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
-func (c Namespace) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
-func (c OpenPage) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
+func (c ConversationItemRetrieve) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c ConversationItemRetrieved) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c ConversationItemTruncate) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c ConversationItemTruncated) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c CreateFile) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c CreatedAt) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c Custom) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
+func (c CustomToolCall) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c CustomToolCallOutput) MarshalJSON() ([]byte, error)                { return marshalString(c) }
+func (c DeleteFile) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c Developer) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c Disabled) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c DoubleClick) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
+func (c Drag) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c Duration) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c Email) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c Embedding) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c Error) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c EvalRunCanceled) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c EvalRunFailed) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
+func (c EvalRunSucceeded) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
+func (c Exec) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c Exit) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c File) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c FileCitation) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
+func (c FilePath) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c FileSearch) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c FileSearchCall) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c FindInPage) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c FineTuningJob) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
+func (c FineTuningJobCancelled) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c FineTuningJobCheckpoint) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c FineTuningJobEvent) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c FineTuningJobFailed) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
+func (c FineTuningJobSucceeded) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c Function) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c FunctionCall) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
+func (c FunctionCallOutput) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c Grammar) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
+func (c Group) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c GroupDeleted) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
+func (c GroupRole) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c GroupUser) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c GroupUserDeleted) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
+func (c HTTPError) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c Image) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c ImageEditCompleted) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c ImageEditPartialImage) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c ImageFile) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c ImageGeneration) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c ImageGenerationCall) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
+func (c ImageGenerationCompleted) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c ImageGenerationPartialImage) MarshalJSON() ([]byte, error)         { return marshalString(c) }
+func (c ImageURL) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c Inf) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
+func (c Inline) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
+func (c InputAudio) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c InputAudioBufferAppend) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c InputAudioBufferClear) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c InputAudioBufferCleared) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c InputAudioBufferCommit) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c InputAudioBufferCommitted) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c InputAudioBufferDtmfEventReceived) MarshalJSON() ([]byte, error)   { return marshalString(c) }
+func (c InputAudioBufferSpeechStarted) MarshalJSON() ([]byte, error)       { return marshalString(c) }
+func (c InputAudioBufferSpeechStopped) MarshalJSON() ([]byte, error)       { return marshalString(c) }
+func (c InputAudioBufferTimeoutTriggered) MarshalJSON() ([]byte, error)    { return marshalString(c) }
+func (c InputFile) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c InputImage) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c InputText) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c JSONObject) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c JSONSchema) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c Keypress) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c LabelModel) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c LastActiveAt) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
+func (c List) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c Local) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c LocalShell) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c LocalShellCall) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c LocalShellCallOutput) MarshalJSON() ([]byte, error)                { return marshalString(c) }
+func (c Locked) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
+func (c Logs) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c Mcp) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
+func (c McpApprovalRequest) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c McpApprovalResponse) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
+func (c McpCall) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
+func (c McpListTools) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
+func (c McpListToolsCompleted) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c McpListToolsFailed) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c McpListToolsInProgress) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c Member) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
+func (c Message) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
+func (c MessageCreation) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c Model) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c Move) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
+func (c Multi) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c Namespace) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c OpenPage) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c OrganizationAdminAPIKey) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c OrganizationAdminAPIKeyDeleted) MarshalJSON() ([]byte, error)      { return marshalString(c) }
+func (c OrganizationCertificate) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c OrganizationCertificateActivation) MarshalJSON() ([]byte, error)   { return marshalString(c) }
+func (c OrganizationCertificateDeactivation) MarshalJSON() ([]byte, error) { return marshalString(c) }
+func (c OrganizationCostsResult) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c OrganizationDataRetention) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c OrganizationInvite) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c OrganizationInviteDeleted) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c OrganizationProject) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
+func (c OrganizationProjectAPIKey) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c OrganizationProjectAPIKeyDeleted) MarshalJSON() ([]byte, error)    { return marshalString(c) }
+func (c OrganizationProjectCertificate) MarshalJSON() ([]byte, error)      { return marshalString(c) }
+func (c OrganizationProjectCertificateActivation) MarshalJSON() ([]byte, error) {
+	return marshalString(c)
+}
+func (c OrganizationProjectCertificateDeactivation) MarshalJSON() ([]byte, error) {
+	return marshalString(c)
+}
+func (c OrganizationProjectServiceAccount) MarshalJSON() ([]byte, error) { return marshalString(c) }
+func (c OrganizationProjectServiceAccountAPIKey) MarshalJSON() ([]byte, error) {
+	return marshalString(c)
+}
+func (c OrganizationProjectServiceAccountDeleted) MarshalJSON() ([]byte, error) {
+	return marshalString(c)
+}
+func (c OrganizationProjectUser) MarshalJSON() ([]byte, error)              { return marshalString(c) }
+func (c OrganizationProjectUserDeleted) MarshalJSON() ([]byte, error)       { return marshalString(c) }
+func (c OrganizationSpendAlert) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c OrganizationSpendAlertDeleted) MarshalJSON() ([]byte, error)        { return marshalString(c) }
+func (c OrganizationUsageAudioSpeechesResult) MarshalJSON() ([]byte, error) { return marshalString(c) }
+func (c OrganizationUsageAudioTranscriptionsResult) MarshalJSON() ([]byte, error) {
+	return marshalString(c)
+}
+func (c OrganizationUsageCodeInterpreterSessionsResult) MarshalJSON() ([]byte, error) {
+	return marshalString(c)
+}
+func (c OrganizationUsageCompletionsResult) MarshalJSON() ([]byte, error)    { return marshalString(c) }
+func (c OrganizationUsageEmbeddingsResult) MarshalJSON() ([]byte, error)     { return marshalString(c) }
+func (c OrganizationUsageFileSearchesResult) MarshalJSON() ([]byte, error)   { return marshalString(c) }
+func (c OrganizationUsageImagesResult) MarshalJSON() ([]byte, error)         { return marshalString(c) }
+func (c OrganizationUsageModerationsResult) MarshalJSON() ([]byte, error)    { return marshalString(c) }
+func (c OrganizationUsageVectorStoresResult) MarshalJSON() ([]byte, error)   { return marshalString(c) }
+func (c OrganizationUsageWebSearchesResult) MarshalJSON() ([]byte, error)    { return marshalString(c) }
+func (c OrganizationUser) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c OrganizationUserDeleted) MarshalJSON() ([]byte, error)               { return marshalString(c) }
 func (c Other) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
 func (c OutputAudio) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
 func (c OutputAudioBufferClear) MarshalJSON() ([]byte, error)                { return marshalString(c) }
@@ -963,12 +1219,22 @@ func (c OutputAudioBufferCleared) MarshalJSON() ([]byte, error)              { r
 func (c OutputAudioBufferStarted) MarshalJSON() ([]byte, error)              { return marshalString(c) }
 func (c OutputAudioBufferStopped) MarshalJSON() ([]byte, error)              { return marshalString(c) }
 func (c OutputText) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c Page) MarshalJSON() ([]byte, error)                                  { return marshalString(c) }
+func (c ProjectDataRetention) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c ProjectGroup) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c ProjectGroupDeleted) MarshalJSON() ([]byte, error)                   { return marshalString(c) }
+func (c ProjectModelPermissions) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c ProjectModelPermissionsDeleted) MarshalJSON() ([]byte, error)        { return marshalString(c) }
+func (c ProjectRateLimit) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c ProjectSpendAlert) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c ProjectSpendAlertDeleted) MarshalJSON() ([]byte, error)              { return marshalString(c) }
 func (c ProtocolError) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
 func (c Python) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
 func (c QuotedText) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
 func (c RateLimitsUpdated) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
 func (c Realtime) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
 func (c RealtimeCallIncoming) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c RealtimeSession) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
 func (c Reasoning) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c ReasoningText) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
 func (c Refusal) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
@@ -1040,13 +1306,21 @@ func (c ResponseWebSearchCallCompleted) MarshalJSON() ([]byte, error)     { retu
 func (c ResponseWebSearchCallInProgress) MarshalJSON() ([]byte, error)    { return marshalString(c) }
 func (c ResponseWebSearchCallSearching) MarshalJSON() ([]byte, error)     { return marshalString(c) }
 func (c RetentionRatio) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c Role) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c RoleDeleted) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c ScoreModel) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
 func (c Screenshot) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
 func (c Scroll) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c Search) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c SemanticVad) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c ServerVad) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c SessionClose) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
+func (c SessionClosed) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c SessionCreated) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c SessionInputAudioBufferAppend) MarshalJSON() ([]byte, error)      { return marshalString(c) }
+func (c SessionInputTranscriptDelta) MarshalJSON() ([]byte, error)        { return marshalString(c) }
+func (c SessionOutputAudioDelta) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c SessionOutputTranscriptDelta) MarshalJSON() ([]byte, error)       { return marshalString(c) }
 func (c SessionUpdate) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c SessionUpdated) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
 func (c Shell) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
@@ -1109,6 +1383,7 @@ func (c TranscriptTextSegment) MarshalJSON() ([]byte, error)              { retu
 func (c Transcription) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c TranscriptionSessionUpdate) MarshalJSON() ([]byte, error)         { return marshalString(c) }
 func (c TranscriptionSessionUpdated) MarshalJSON() ([]byte, error)        { return marshalString(c) }
+func (c Translation) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c Type) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
 func (c UpdateFile) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
 func (c Upload) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
@@ -1116,6 +1391,7 @@ func (c UploadPart) MarshalJSON() ([]byte, error)                         { retu
 func (c URL) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
 func (c URLCitation) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c User) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c UserRole) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
 func (c VectorStore) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c VectorStoreDeleted) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
 func (c VectorStoreFile) MarshalJSON() ([]byte, error)                    { return marshalString(c) }

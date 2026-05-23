@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 
@@ -46,7 +45,8 @@ func NewConversationService(opts ...option.RequestOption) (r ConversationService
 
 // Create a conversation.
 func (r *ConversationService) New(ctx context.Context, body ConversationNewParams, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	path := "conversations"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
@@ -54,36 +54,39 @@ func (r *ConversationService) New(ctx context.Context, body ConversationNewParam
 
 // Get a conversation
 func (r *ConversationService) Get(ctx context.Context, conversationID string, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s", conversationID)
+	path := requestconfig.FormatPath("conversations/%s", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
 
 // Update a conversation
 func (r *ConversationService) Update(ctx context.Context, conversationID string, body ConversationUpdateParams, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s", conversationID)
+	path := requestconfig.FormatPath("conversations/%s", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
 
 // Delete a conversation. Items in the conversation will not be deleted.
 func (r *ConversationService) Delete(ctx context.Context, conversationID string, opts ...option.RequestOption) (res *ConversationDeletedResource, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s", conversationID)
+	path := requestconfig.FormatPath("conversations/%s", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -98,10 +101,10 @@ type ComputerScreenshotContent struct {
 	// The identifier of an uploaded file that contains the screenshot.
 	FileID string `json:"file_id" api:"required"`
 	// The URL of the screenshot image.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// Specifies the event type. For a computer screenshot, this property is always set
 	// to `computer_screenshot`.
-	Type constant.ComputerScreenshot `json:"type" api:"required"`
+	Type constant.ComputerScreenshot `json:"type" default:"computer_screenshot"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Detail      respjson.Field
@@ -135,7 +138,7 @@ type Conversation struct {
 	ID string `json:"id" api:"required"`
 	// The time at which the conversation was created, measured in seconds since the
 	// Unix epoch.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Set of 16 key-value pairs that can be attached to an object. This can be useful
 	// for storing additional information about the object in a structured format, and
 	// querying for objects via API or the dashboard. Keys are strings with a maximum
@@ -143,7 +146,7 @@ type Conversation struct {
 	// characters.
 	Metadata any `json:"metadata" api:"required"`
 	// The object type, which is always `conversation`.
-	Object constant.Conversation `json:"object" api:"required"`
+	Object constant.Conversation `json:"object" default:"conversation"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -164,7 +167,7 @@ func (r *Conversation) UnmarshalJSON(data []byte) error {
 type ConversationDeletedResource struct {
 	ID      string                       `json:"id" api:"required"`
 	Deleted bool                         `json:"deleted" api:"required"`
-	Object  constant.ConversationDeleted `json:"object" api:"required"`
+	Object  constant.ConversationDeleted `json:"object" default:"conversation.deleted"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -199,7 +202,14 @@ type Message struct {
 	// Any of "in_progress", "completed", "incomplete".
 	Status MessageStatus `json:"status" api:"required"`
 	// The type of the message. Always set to `message`.
-	Type constant.Message `json:"type" api:"required"`
+	Type constant.Message `json:"type" default:"message"`
+	// Labels an `assistant` message as intermediate commentary (`commentary`) or the
+	// final answer (`final_answer`). For models like `gpt-5.3-codex` and beyond, when
+	// sending follow-up requests, preserve and resend phase on all assistant messages
+	// — dropping it can degrade performance. Not used for user messages.
+	//
+	// Any of "commentary", "final_answer".
+	Phase MessagePhase `json:"phase" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -207,6 +217,7 @@ type Message struct {
 		Role        respjson.Field
 		Status      respjson.Field
 		Type        respjson.Field
+		Phase       respjson.Field
 		ExtraFields map[string]respjson.Field
 		raw         string
 	} `json:"-"`
@@ -370,7 +381,7 @@ type MessageContentReasoningText struct {
 	// The reasoning text from the model.
 	Text string `json:"text" api:"required"`
 	// The type of the reasoning text. Always `reasoning_text`.
-	Type constant.ReasoningText `json:"type" api:"required"`
+	Type constant.ReasoningText `json:"type" default:"reasoning_text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Text        respjson.Field
@@ -411,12 +422,23 @@ const (
 	MessageStatusIncomplete MessageStatus = "incomplete"
 )
 
+// Labels an `assistant` message as intermediate commentary (`commentary`) or the
+// final answer (`final_answer`). For models like `gpt-5.3-codex` and beyond, when
+// sending follow-up requests, preserve and resend phase on all assistant messages
+// — dropping it can degrade performance. Not used for user messages.
+type MessagePhase string
+
+const (
+	MessagePhaseCommentary  MessagePhase = "commentary"
+	MessagePhaseFinalAnswer MessagePhase = "final_answer"
+)
+
 // A summary text from the model.
 type SummaryTextContent struct {
 	// A summary of the reasoning output from the model so far.
 	Text string `json:"text" api:"required"`
 	// The type of the object. Always `summary_text`.
-	Type constant.SummaryText `json:"type" api:"required"`
+	Type constant.SummaryText `json:"type" default:"summary_text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Text        respjson.Field
@@ -435,7 +457,7 @@ func (r *SummaryTextContent) UnmarshalJSON(data []byte) error {
 // A text content.
 type TextContent struct {
 	Text string        `json:"text" api:"required"`
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Text        respjson.Field

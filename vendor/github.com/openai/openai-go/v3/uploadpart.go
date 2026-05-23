@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -53,12 +52,13 @@ func NewUploadPartService(opts ...option.RequestOption) (r UploadPartService) {
 // order of the Parts when you
 // [complete the Upload](https://platform.openai.com/docs/api-reference/uploads/complete).
 func (r *UploadPartService) New(ctx context.Context, uploadID string, body UploadPartNewParams, opts ...option.RequestOption) (res *UploadPart, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if uploadID == "" {
 		err = errors.New("missing required upload_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("uploads/%s/parts", uploadID)
+	path := requestconfig.FormatPath("uploads/%s/parts", uploadID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -68,9 +68,9 @@ type UploadPart struct {
 	// The upload Part unique identifier, which can be referenced in API endpoints.
 	ID string `json:"id" api:"required"`
 	// The Unix timestamp (in seconds) for when the Part was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// The object type, which is always `upload.part`.
-	Object constant.UploadPart `json:"object" api:"required"`
+	Object constant.UploadPart `json:"object" default:"upload.part"`
 	// The ID of the Upload object that this Part was added to.
 	UploadID string `json:"upload_id" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
