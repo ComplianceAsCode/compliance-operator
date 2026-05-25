@@ -9,9 +9,12 @@ import (
 	mapiclientset "github.com/openshift/client-go/machine/clientset/versioned"
 	mcfgclientset "github.com/openshift/client-go/machineconfiguration/clientset/versioned"
 	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
+	routeclientset "github.com/openshift/client-go/route/clientset/versioned"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	aroclientset "github.com/Azure/ARO-RP/pkg/operator/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 )
@@ -67,9 +70,18 @@ func (cb *Builder) ImageClientOrDie(name string) imageclientset.Interface {
 	return imageclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
+func (cb *Builder) RouteClientOrDie(name string) routeclientset.Interface {
+	return routeclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+}
+
 // MachineClientOrDie returns the machine api client interface for machine api objects.
 func (cb *Builder) MachineClientOrDie(name string) mapiclientset.Interface {
 	return mapiclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+}
+
+// AROClientOrDie returns the ARO client interface for ARO-specific objects.
+func (cb *Builder) AROClientOrDie(name string) aroclientset.Interface {
+	return aroclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
 // GetBuilderConfig returns a copy of the builders *rest.Config

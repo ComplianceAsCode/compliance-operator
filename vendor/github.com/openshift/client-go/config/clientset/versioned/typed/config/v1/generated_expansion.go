@@ -8,7 +8,7 @@ type AuthenticationExpansion interface{}
 
 type BuildExpansion interface{}
 
-type ClusterMonitoringExpansion interface{}
+type ClusterImagePolicyExpansion interface{}
 
 type ClusterOperatorExpansion interface{}
 
@@ -26,11 +26,15 @@ type ImageContentPolicyExpansion interface{}
 
 type ImageDigestMirrorSetExpansion interface{}
 
+type ImagePolicyExpansion interface{}
+
 type ImageTagMirrorSetExpansion interface{}
 
 type InfrastructureExpansion interface{}
 
 type IngressExpansion interface{}
+
+type InsightsDataGatherExpansion interface{}
 
 type NetworkExpansion interface{}
 

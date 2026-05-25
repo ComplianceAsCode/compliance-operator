@@ -4,14 +4,47 @@ package v1
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // NodePlacementApplyConfiguration represents a declarative configuration of the NodePlacement type for use
 // with apply.
+//
+// NodePlacement describes node scheduling configuration for an ingress
+// controller.
 type NodePlacementApplyConfiguration struct {
-	NodeSelector *v1.LabelSelectorApplyConfiguration `json:"nodeSelector,omitempty"`
-	Tolerations  []corev1.Toleration                 `json:"tolerations,omitempty"`
+	// nodeSelector is the node selector applied to ingress controller
+	// deployments.
+	//
+	// If set, the specified selector is used and replaces the default.
+	//
+	// If unset, the default depends on the value of the defaultPlacement
+	// field in the cluster config.openshift.io/v1/ingresses status.
+	//
+	// When defaultPlacement is Workers, the default is:
+	//
+	// kubernetes.io/os: linux
+	// node-role.kubernetes.io/worker: ”
+	//
+	// When defaultPlacement is ControlPlane, the default is:
+	//
+	// kubernetes.io/os: linux
+	// node-role.kubernetes.io/master: ”
+	//
+	// These defaults are subject to change.
+	//
+	// Note that using nodeSelector.matchExpressions is not supported.  Only
+	// nodeSelector.matchLabels may be used.  This is a limitation of the
+	// Kubernetes API: the pod spec does not allow complex expressions for
+	// node selectors.
+	NodeSelector *metav1.LabelSelectorApplyConfiguration `json:"nodeSelector,omitempty"`
+	// tolerations is a list of tolerations applied to ingress controller
+	// deployments.
+	//
+	// The default is an empty list.
+	//
+	// See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // NodePlacementApplyConfiguration constructs a declarative configuration of the NodePlacement type for use with
@@ -23,7 +56,7 @@ func NodePlacement() *NodePlacementApplyConfiguration {
 // WithNodeSelector sets the NodeSelector field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NodeSelector field is set to the value of the last call.
-func (b *NodePlacementApplyConfiguration) WithNodeSelector(value *v1.LabelSelectorApplyConfiguration) *NodePlacementApplyConfiguration {
+func (b *NodePlacementApplyConfiguration) WithNodeSelector(value *metav1.LabelSelectorApplyConfiguration) *NodePlacementApplyConfiguration {
 	b.NodeSelector = value
 	return b
 }

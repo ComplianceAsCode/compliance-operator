@@ -3,19 +3,30 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // FailureDomainsApplyConfiguration represents a declarative configuration of the FailureDomains type for use
 // with apply.
+//
+// FailureDomain represents the different configurations required to spread Machines
+// across failure domains on different platforms.
 type FailureDomainsApplyConfiguration struct {
-	Platform  *v1.PlatformType                                  `json:"platform,omitempty"`
-	AWS       *[]AWSFailureDomainApplyConfiguration             `json:"aws,omitempty"`
-	Azure     *[]AzureFailureDomainApplyConfiguration           `json:"azure,omitempty"`
-	GCP       *[]GCPFailureDomainApplyConfiguration             `json:"gcp,omitempty"`
-	VSphere   []VSphereFailureDomainApplyConfiguration          `json:"vsphere,omitempty"`
-	OpenStack []OpenStackFailureDomainApplyConfiguration        `json:"openstack,omitempty"`
-	Nutanix   []NutanixFailureDomainReferenceApplyConfiguration `json:"nutanix,omitempty"`
+	// platform identifies the platform for which the FailureDomain represents.
+	// Currently supported values are AWS, Azure, GCP, OpenStack, VSphere and Nutanix.
+	Platform *configv1.PlatformType `json:"platform,omitempty"`
+	// aws configures failure domain information for the AWS platform.
+	AWS *[]AWSFailureDomainApplyConfiguration `json:"aws,omitempty"`
+	// azure configures failure domain information for the Azure platform.
+	Azure *[]AzureFailureDomainApplyConfiguration `json:"azure,omitempty"`
+	// gcp configures failure domain information for the GCP platform.
+	GCP *[]GCPFailureDomainApplyConfiguration `json:"gcp,omitempty"`
+	// vsphere configures failure domain information for the VSphere platform.
+	VSphere []VSphereFailureDomainApplyConfiguration `json:"vsphere,omitempty"`
+	// openstack configures failure domain information for the OpenStack platform.
+	OpenStack []OpenStackFailureDomainApplyConfiguration `json:"openstack,omitempty"`
+	// nutanix configures failure domain information for the Nutanix platform.
+	Nutanix []NutanixFailureDomainReferenceApplyConfiguration `json:"nutanix,omitempty"`
 }
 
 // FailureDomainsApplyConfiguration constructs a declarative configuration of the FailureDomains type for use with
@@ -27,7 +38,7 @@ func FailureDomains() *FailureDomainsApplyConfiguration {
 // WithPlatform sets the Platform field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Platform field is set to the value of the last call.
-func (b *FailureDomainsApplyConfiguration) WithPlatform(value v1.PlatformType) *FailureDomainsApplyConfiguration {
+func (b *FailureDomainsApplyConfiguration) WithPlatform(value configv1.PlatformType) *FailureDomainsApplyConfiguration {
 	b.Platform = &value
 	return b
 }

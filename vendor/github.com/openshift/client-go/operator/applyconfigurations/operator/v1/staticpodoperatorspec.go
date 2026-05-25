@@ -9,11 +9,20 @@ import (
 
 // StaticPodOperatorSpecApplyConfiguration represents a declarative configuration of the StaticPodOperatorSpec type for use
 // with apply.
+//
+// StaticPodOperatorSpec is spec for controllers that manage static pods.
 type StaticPodOperatorSpecApplyConfiguration struct {
 	OperatorSpecApplyConfiguration `json:",inline"`
-	ForceRedeploymentReason        *string `json:"forceRedeploymentReason,omitempty"`
-	FailedRevisionLimit            *int32  `json:"failedRevisionLimit,omitempty"`
-	SucceededRevisionLimit         *int32  `json:"succeededRevisionLimit,omitempty"`
+	// forceRedeploymentReason can be used to force the redeployment of the operand by providing a unique string.
+	// This provides a mechanism to kick a previously failed deployment and provide a reason why you think it will work
+	// this time instead of failing again on the same config.
+	ForceRedeploymentReason *string `json:"forceRedeploymentReason,omitempty"`
+	// failedRevisionLimit is the number of failed static pod installer revisions to keep on disk and in the api
+	// -1 = unlimited, 0 or unset = 5 (default)
+	FailedRevisionLimit *int32 `json:"failedRevisionLimit,omitempty"`
+	// succeededRevisionLimit is the number of successful static pod installer revisions to keep on disk and in the api
+	// -1 = unlimited, 0 or unset = 5 (default)
+	SucceededRevisionLimit *int32 `json:"succeededRevisionLimit,omitempty"`
 }
 
 // StaticPodOperatorSpecApplyConfiguration constructs a declarative configuration of the StaticPodOperatorSpec type for use with
@@ -26,7 +35,7 @@ func StaticPodOperatorSpec() *StaticPodOperatorSpecApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ManagementState field is set to the value of the last call.
 func (b *StaticPodOperatorSpecApplyConfiguration) WithManagementState(value operatorv1.ManagementState) *StaticPodOperatorSpecApplyConfiguration {
-	b.ManagementState = &value
+	b.OperatorSpecApplyConfiguration.ManagementState = &value
 	return b
 }
 
@@ -34,7 +43,7 @@ func (b *StaticPodOperatorSpecApplyConfiguration) WithManagementState(value oper
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogLevel field is set to the value of the last call.
 func (b *StaticPodOperatorSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLevel) *StaticPodOperatorSpecApplyConfiguration {
-	b.LogLevel = &value
+	b.OperatorSpecApplyConfiguration.LogLevel = &value
 	return b
 }
 
@@ -42,7 +51,7 @@ func (b *StaticPodOperatorSpecApplyConfiguration) WithLogLevel(value operatorv1.
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the OperatorLogLevel field is set to the value of the last call.
 func (b *StaticPodOperatorSpecApplyConfiguration) WithOperatorLogLevel(value operatorv1.LogLevel) *StaticPodOperatorSpecApplyConfiguration {
-	b.OperatorLogLevel = &value
+	b.OperatorSpecApplyConfiguration.OperatorLogLevel = &value
 	return b
 }
 
@@ -50,7 +59,7 @@ func (b *StaticPodOperatorSpecApplyConfiguration) WithOperatorLogLevel(value ope
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UnsupportedConfigOverrides field is set to the value of the last call.
 func (b *StaticPodOperatorSpecApplyConfiguration) WithUnsupportedConfigOverrides(value runtime.RawExtension) *StaticPodOperatorSpecApplyConfiguration {
-	b.UnsupportedConfigOverrides = &value
+	b.OperatorSpecApplyConfiguration.UnsupportedConfigOverrides = &value
 	return b
 }
 
@@ -58,7 +67,7 @@ func (b *StaticPodOperatorSpecApplyConfiguration) WithUnsupportedConfigOverrides
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedConfig field is set to the value of the last call.
 func (b *StaticPodOperatorSpecApplyConfiguration) WithObservedConfig(value runtime.RawExtension) *StaticPodOperatorSpecApplyConfiguration {
-	b.ObservedConfig = &value
+	b.OperatorSpecApplyConfiguration.ObservedConfig = &value
 	return b
 }
 

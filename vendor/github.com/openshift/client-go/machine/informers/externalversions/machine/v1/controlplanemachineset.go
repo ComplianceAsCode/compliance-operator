@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	machinev1 "github.com/openshift/api/machine/v1"
+	apimachinev1 "github.com/openshift/api/machine/v1"
 	versioned "github.com/openshift/client-go/machine/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/machine/listers/machine/v1"
+	machinev1 "github.com/openshift/client-go/machine/listers/machine/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // ControlPlaneMachineSets.
 type ControlPlaneMachineSetInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ControlPlaneMachineSetLister
+	Lister() machinev1.ControlPlaneMachineSetLister
 }
 
 type controlPlaneMachineSetInformer struct {
@@ -41,21 +41,33 @@ func NewControlPlaneMachineSetInformer(client versioned.Interface, namespace str
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredControlPlaneMachineSetInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MachineV1().ControlPlaneMachineSets(namespace).List(context.TODO(), options)
+				return client.MachineV1().ControlPlaneMachineSets(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MachineV1().ControlPlaneMachineSets(namespace).Watch(context.TODO(), options)
+				return client.MachineV1().ControlPlaneMachineSets(namespace).Watch(context.Background(), options)
 			},
-		},
-		&machinev1.ControlPlaneMachineSet{},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.MachineV1().ControlPlaneMachineSets(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.MachineV1().ControlPlaneMachineSets(namespace).Watch(ctx, options)
+			},
+		}, client),
+		&apimachinev1.ControlPlaneMachineSet{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *controlPlaneMachineSetInformer) defaultInformer(client versioned.Interf
 }
 
 func (f *controlPlaneMachineSetInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&machinev1.ControlPlaneMachineSet{}, f.defaultInformer)
+	return f.factory.InformerFor(&apimachinev1.ControlPlaneMachineSet{}, f.defaultInformer)
 }
 
-func (f *controlPlaneMachineSetInformer) Lister() v1.ControlPlaneMachineSetLister {
-	return v1.NewControlPlaneMachineSetLister(f.Informer().GetIndexer())
+func (f *controlPlaneMachineSetInformer) Lister() machinev1.ControlPlaneMachineSetLister {
+	return machinev1.NewControlPlaneMachineSetLister(f.Informer().GetIndexer())
 }

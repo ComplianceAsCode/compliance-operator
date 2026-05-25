@@ -37,15 +37,13 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 				},
 				Spec: v1alpha1.CustomRuleSpec{
 					RulePayload: v1alpha1.RulePayload{
-						ID:          "test-rule-1",
-						Title:       "Test Rule",
-						Description: "A test rule for validation",
-						Severity:    "medium",
-					},
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						ScannerType: v1alpha1.ScannerTypeCEL,
-						Expression:  "pods.items.all(pod, pod.spec.containers.all(container, container.securityContext.runAsNonRoot == true))",
-						Inputs: []v1alpha1.InputPayload{
+						ID:           "test-rule-1",
+						Title:        "Test Rule",
+						Description:  "A test rule for validation",
+						Severity:     "medium",
+						ScannerType:  v1alpha1.ScannerTypeCEL,
+						Expression:   "pods.items.all(pod, pod.spec.containers.all(container, container.securityContext.runAsNonRoot == true))",
+						Inputs:       []v1alpha1.InputPayload{
 							{
 								Name: "pods",
 								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
@@ -72,15 +70,13 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 				},
 				Spec: v1alpha1.CustomRuleSpec{
 					RulePayload: v1alpha1.RulePayload{
-						ID:          "test-rule-2",
-						Title:       "Invalid Rule",
-						Description: "A rule with invalid CEL syntax",
-						Severity:    "high",
-					},
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						ScannerType: v1alpha1.ScannerTypeCEL,
-						Expression:  "this is not &&& valid CEL syntax", // Invalid CEL syntax
-						Inputs: []v1alpha1.InputPayload{
+						ID:           "test-rule-2",
+						Title:        "Invalid Rule",
+						Description:  "A rule with invalid CEL syntax",
+						Severity:     "high",
+						ScannerType:  v1alpha1.ScannerTypeCEL,
+						Expression:   "this is not &&& valid CEL syntax", // Invalid CEL syntax
+						Inputs:       []v1alpha1.InputPayload{
 							{
 								Name: "test",
 								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
@@ -95,7 +91,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 			},
 			expectedPhase:  v1alpha1.CustomRulePhaseError,
 			expectError:    false,
-			expectedErrMsg: "CEL expression validation failed",
+			expectedErrMsg: "CEL expression compilation failed",
 		},
 		{
 			name: "Valid CustomRule with multiple inputs",
@@ -107,15 +103,13 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 				},
 				Spec: v1alpha1.CustomRuleSpec{
 					RulePayload: v1alpha1.RulePayload{
-						ID:          "test-rule-5",
-						Title:       "Multi-input Rule",
-						Description: "A rule with multiple inputs",
-						Severity:    "medium",
-					},
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						ScannerType: v1alpha1.ScannerTypeCEL,
-						Expression:  "namespaces.items.all(ns, networkpolicies.items.exists(np, np.metadata.namespace == ns.metadata.name))",
-						Inputs: []v1alpha1.InputPayload{
+						ID:           "test-rule-5",
+						Title:        "Multi-input Rule",
+						Description:  "A rule with multiple inputs",
+						Severity:     "medium",
+						ScannerType:  v1alpha1.ScannerTypeCEL,
+						Expression:   "namespaces.items.all(ns, networkpolicies.items.exists(np, np.metadata.namespace == ns.metadata.name))",
+						Inputs:       []v1alpha1.InputPayload{
 							{
 								Name: "namespaces",
 								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
@@ -150,15 +144,13 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 				},
 				Spec: v1alpha1.CustomRuleSpec{
 					RulePayload: v1alpha1.RulePayload{
-						ID:          "test-rule-5",
-						Title:       "Multi-input Rule",
-						Description: "A rule with multiple inputs",
-						Severity:    "medium",
-					},
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						ScannerType: v1alpha1.ScannerTypeCEL,
-						Expression:  "namespaces.items.all(ns, networkpolicies-non-existent.items.exists(np, np.metadata.namespace == ns.metadata.name))",
-						Inputs: []v1alpha1.InputPayload{
+						ID:           "test-rule-5",
+						Title:        "Multi-input Rule",
+						Description:  "A rule with multiple inputs",
+						Severity:     "medium",
+						ScannerType:  v1alpha1.ScannerTypeCEL,
+						Expression:   "namespaces.items.all(ns, networkpolicies-non-existent.items.exists(np, np.metadata.namespace == ns.metadata.name))",
+						Inputs:       []v1alpha1.InputPayload{
 							{
 								Name: "namespaces",
 								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
@@ -193,15 +185,13 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 				},
 				Spec: v1alpha1.CustomRuleSpec{
 					RulePayload: v1alpha1.RulePayload{
-						ID:          "test-rule-6",
-						Title:       "Undefined Reference Rule",
-						Description: "A rule referencing undefined inputs",
-						Severity:    "medium",
-					},
-					CustomRulePayload: v1alpha1.CustomRulePayload{
-						ScannerType: v1alpha1.ScannerTypeCEL,
-						Expression:  "undefinedInput.items.size() > 0", // References 'undefinedInput' not in inputs
-						Inputs: []v1alpha1.InputPayload{
+						ID:           "test-rule-6",
+						Title:        "Undefined Reference Rule",
+						Description:  "A rule referencing undefined inputs",
+						Severity:     "medium",
+						ScannerType:  v1alpha1.ScannerTypeCEL,
+						Expression:   "undefinedInput.items.size() > 0", // References 'undefinedInput' not in inputs
+						Inputs:       []v1alpha1.InputPayload{
 							{
 								Name: "test",
 								KubernetesInputSpec: v1alpha1.KubernetesInputSpec{
@@ -216,7 +206,7 @@ func TestCustomRuleReconciler_Reconcile(t *testing.T) {
 			},
 			expectedPhase:  v1alpha1.CustomRulePhaseError,
 			expectError:    false,
-			expectedErrMsg: "CEL expression validation failed",
+			expectedErrMsg: "CEL expression compilation failed",
 		},
 	}
 

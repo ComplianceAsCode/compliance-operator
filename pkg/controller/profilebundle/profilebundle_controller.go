@@ -406,6 +406,30 @@ func getISTagNamespace(ref reference.DockerImageReference) string {
 	return common.GetComplianceOperatorNamespace()
 }
 
+// contentCopyCommand builds the shell command for the content-container init container.
+// It copies the XCCDF content file and optionally the CEL content file.
+func contentCopyCommand(pb *compliancev1alpha1.ProfileBundle) string {
+	cmd := fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", pb.Spec.ContentFile))
+	if pb.Spec.CELContentFile != "" {
+		cmd += fmt.Sprintf(" && cp %s /content | /bin/true", path.Join("/", pb.Spec.CELContentFile))
+	}
+	return cmd
+}
+
+// profileparserCommand builds the command arguments for the profileparser init container.
+func profileparserCommand(pb *compliancev1alpha1.ProfileBundle) []string {
+	cmd := []string{
+		"compliance-operator", "profileparser",
+		"--name", pb.Name,
+		"--namespace", pb.Namespace,
+		"--ds-path", path.Join("/content", pb.Spec.ContentFile),
+	}
+	if pb.Spec.CELContentFile != "" {
+		cmd = append(cmd, "--cel-path", path.Join("/content", pb.Spec.CELContentFile))
+	}
+	return cmd
+}
+
 func getWorkloadLabels(pb *compliancev1alpha1.ProfileBundle) map[string]string {
 	return map[string]string{
 		"profile-bundle": pb.Name,
@@ -470,7 +494,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 							Command: []string{
 								"sh",
 								"-c",
-								fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", pb.Spec.ContentFile)),
+								contentCopyCommand(pb),
 							},
 							ImagePullPolicy: corev1.PullAlways,
 							SecurityContext: &corev1.SecurityContext{
@@ -519,12 +543,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 									corev1.ResourceCPU:    resource.MustParse("100m"),
 								},
 							},
-							Command: []string{
-								"compliance-operator", "profileparser",
-								"--name", pb.Name,
-								"--namespace", pb.Namespace,
-								"--ds-path", path.Join("/content", pb.Spec.ContentFile),
-							},
+							Command: profileparserCommand(pb),
 							Env: []corev1.EnvVar{
 								corev1.EnvVar{Name: "PLATFORM", Value: utils.GetPlatform()},
 								corev1.EnvVar{Name: "CONTROL_PLANE_TOPOLOGY", Value: utils.GetControlPlaneTopology()},

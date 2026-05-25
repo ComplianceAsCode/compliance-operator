@@ -3,13 +3,23 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // IPsecFullModeConfigApplyConfiguration represents a declarative configuration of the IPsecFullModeConfig type for use
 // with apply.
+//
+// IPsecFullModeConfig defines configuration parameters for the IPsec `Full` mode.
 type IPsecFullModeConfigApplyConfiguration struct {
-	Encapsulation *v1.Encapsulation `json:"encapsulation,omitempty"`
+	// encapsulation option to configure libreswan on how inter-pod traffic across nodes
+	// are encapsulated to handle NAT traversal. When configured it uses UDP port 4500
+	// for the encapsulation.
+	// Valid values are Always, Auto and omitted.
+	// Always means enable UDP encapsulation regardless of whether NAT is detected.
+	// Auto means enable UDP encapsulation based on the detection of NAT.
+	// When omitted, this means no opinion and the platform is left to choose a reasonable
+	// default, which is subject to change over time. The current default is Auto.
+	Encapsulation *operatorv1.Encapsulation `json:"encapsulation,omitempty"`
 }
 
 // IPsecFullModeConfigApplyConfiguration constructs a declarative configuration of the IPsecFullModeConfig type for use with
@@ -21,7 +31,7 @@ func IPsecFullModeConfig() *IPsecFullModeConfigApplyConfiguration {
 // WithEncapsulation sets the Encapsulation field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Encapsulation field is set to the value of the last call.
-func (b *IPsecFullModeConfigApplyConfiguration) WithEncapsulation(value v1.Encapsulation) *IPsecFullModeConfigApplyConfiguration {
+func (b *IPsecFullModeConfigApplyConfiguration) WithEncapsulation(value operatorv1.Encapsulation) *IPsecFullModeConfigApplyConfiguration {
 	b.Encapsulation = &value
 	return b
 }

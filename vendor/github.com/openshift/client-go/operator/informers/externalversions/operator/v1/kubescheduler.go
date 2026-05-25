@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
+	apioperatorv1 "github.com/openshift/api/operator/v1"
 	versioned "github.com/openshift/client-go/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/operator/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/operator/listers/operator/v1"
+	operatorv1 "github.com/openshift/client-go/operator/listers/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // KubeSchedulers.
 type KubeSchedulerInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.KubeSchedulerLister
+	Lister() operatorv1.KubeSchedulerLister
 }
 
 type kubeSchedulerInformer struct {
@@ -40,21 +40,33 @@ func NewKubeSchedulerInformer(client versioned.Interface, resyncPeriod time.Dura
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredKubeSchedulerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1().KubeSchedulers().List(context.TODO(), options)
+				return client.OperatorV1().KubeSchedulers().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1().KubeSchedulers().Watch(context.TODO(), options)
+				return client.OperatorV1().KubeSchedulers().Watch(context.Background(), options)
 			},
-		},
-		&operatorv1.KubeScheduler{},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1().KubeSchedulers().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1().KubeSchedulers().Watch(ctx, options)
+			},
+		}, client),
+		&apioperatorv1.KubeScheduler{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *kubeSchedulerInformer) defaultInformer(client versioned.Interface, resy
 }
 
 func (f *kubeSchedulerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1.KubeScheduler{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1.KubeScheduler{}, f.defaultInformer)
 }
 
-func (f *kubeSchedulerInformer) Lister() v1.KubeSchedulerLister {
-	return v1.NewKubeSchedulerLister(f.Informer().GetIndexer())
+func (f *kubeSchedulerInformer) Lister() operatorv1.KubeSchedulerLister {
+	return operatorv1.NewKubeSchedulerLister(f.Informer().GetIndexer())
 }
