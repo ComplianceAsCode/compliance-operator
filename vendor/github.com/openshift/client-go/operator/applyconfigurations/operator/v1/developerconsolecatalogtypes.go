@@ -3,15 +3,29 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // DeveloperConsoleCatalogTypesApplyConfiguration represents a declarative configuration of the DeveloperConsoleCatalogTypes type for use
 // with apply.
+//
+// DeveloperConsoleCatalogTypes defines the state of the sub-catalog types.
 type DeveloperConsoleCatalogTypesApplyConfiguration struct {
-	State    *v1.CatalogTypesState `json:"state,omitempty"`
-	Enabled  *[]string             `json:"enabled,omitempty"`
-	Disabled *[]string             `json:"disabled,omitempty"`
+	// state defines if a list of catalog types should be enabled or disabled.
+	State *operatorv1.CatalogTypesState `json:"state,omitempty"`
+	// enabled is a list of developer catalog types (sub-catalogs IDs) that will be shown to users.
+	// Types (sub-catalogs) are added via console plugins, the available types (sub-catalog IDs) are available
+	// in the console on the cluster configuration page, or when editing the YAML in the console.
+	// Example: "Devfile", "HelmChart", "BuilderImage"
+	// If the list is non-empty, a new type will not be shown to the user until it is added to list.
+	// If the list is empty the complete developer catalog will be shown.
+	Enabled *[]string `json:"enabled,omitempty"`
+	// disabled is a list of developer catalog types (sub-catalogs IDs) that are not shown to users.
+	// Types (sub-catalogs) are added via console plugins, the available types (sub-catalog IDs) are available
+	// in the console on the cluster configuration page, or when editing the YAML in the console.
+	// Example: "Devfile", "HelmChart", "BuilderImage"
+	// If the list is empty or all the available sub-catalog types are added, then the complete developer catalog should be hidden.
+	Disabled *[]string `json:"disabled,omitempty"`
 }
 
 // DeveloperConsoleCatalogTypesApplyConfiguration constructs a declarative configuration of the DeveloperConsoleCatalogTypes type for use with
@@ -23,7 +37,7 @@ func DeveloperConsoleCatalogTypes() *DeveloperConsoleCatalogTypesApplyConfigurat
 // WithState sets the State field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the State field is set to the value of the last call.
-func (b *DeveloperConsoleCatalogTypesApplyConfiguration) WithState(value v1.CatalogTypesState) *DeveloperConsoleCatalogTypesApplyConfiguration {
+func (b *DeveloperConsoleCatalogTypesApplyConfiguration) WithState(value operatorv1.CatalogTypesState) *DeveloperConsoleCatalogTypesApplyConfiguration {
 	b.State = &value
 	return b
 }

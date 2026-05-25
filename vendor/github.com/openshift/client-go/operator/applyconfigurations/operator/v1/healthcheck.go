@@ -3,16 +3,26 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // HealthCheckApplyConfiguration represents a declarative configuration of the HealthCheck type for use
 // with apply.
+//
+// healthCheck represents an Insights health check attributes.
 type HealthCheckApplyConfiguration struct {
-	Description *string              `json:"description,omitempty"`
-	TotalRisk   *int32               `json:"totalRisk,omitempty"`
-	AdvisorURI  *string              `json:"advisorURI,omitempty"`
-	State       *v1.HealthCheckState `json:"state,omitempty"`
+	// description provides basic description of the healtcheck.
+	Description *string `json:"description,omitempty"`
+	// totalRisk of the healthcheck. Indicator of the total risk posed
+	// by the detected issue; combination of impact and likelihood. The values can be from 1 to 4,
+	// and the higher the number, the more important the issue.
+	TotalRisk *int32 `json:"totalRisk,omitempty"`
+	// advisorURI provides the URL link to the Insights Advisor.
+	AdvisorURI *string `json:"advisorURI,omitempty"`
+	// state determines what the current state of the health check is.
+	// Health check is enabled by default and can be disabled
+	// by the user in the Insights advisor user interface.
+	State *operatorv1.HealthCheckState `json:"state,omitempty"`
 }
 
 // HealthCheckApplyConfiguration constructs a declarative configuration of the HealthCheck type for use with
@@ -48,7 +58,7 @@ func (b *HealthCheckApplyConfiguration) WithAdvisorURI(value string) *HealthChec
 // WithState sets the State field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the State field is set to the value of the last call.
-func (b *HealthCheckApplyConfiguration) WithState(value v1.HealthCheckState) *HealthCheckApplyConfiguration {
+func (b *HealthCheckApplyConfiguration) WithState(value operatorv1.HealthCheckState) *HealthCheckApplyConfiguration {
 	b.State = &value
 	return b
 }

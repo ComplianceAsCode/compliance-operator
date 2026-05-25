@@ -13,7 +13,8 @@ jobs:
       - name: Check if the PR title is well dressed
         if: >-
           github.event.pull_request.user.login != 'renovate[bot]' &&
-          github.event.pull_request.user.login != 'red-hat-konflux[bot]'
+          github.event.pull_request.user.login != 'red-hat-konflux[bot]' &&
+          github.event.pull_request.user.login != 'red-hat-konflux-kflux-prd-rh02[bot]'
         env:
           JIRA: '([A-Z]+-[0-9]+, ?)*[A-Z]+-[0-9]+'
           TEXT: ': .+'

@@ -3,20 +3,37 @@
 package v1
 
 import (
-	apimachineconfigurationv1 "github.com/openshift/api/machineconfiguration/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	machineconfigurationv1 "github.com/openshift/api/machineconfiguration/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // MachineOSBuildStatusApplyConfiguration represents a declarative configuration of the MachineOSBuildStatus type for use
 // with apply.
+//
+// MachineOSBuildStatus describes the state of a build and other helpful information.
 type MachineOSBuildStatusApplyConfiguration struct {
-	Conditions            []v1.ConditionApplyConfiguration             `json:"conditions,omitempty"`
-	Builder               *MachineOSBuilderReferenceApplyConfiguration `json:"builder,omitempty"`
-	RelatedObjects        []ObjectReferenceApplyConfiguration          `json:"relatedObjects,omitempty"`
-	BuildStart            *metav1.Time                                 `json:"buildStart,omitempty"`
-	BuildEnd              *metav1.Time                                 `json:"buildEnd,omitempty"`
-	DigestedImagePushSpec *apimachineconfigurationv1.ImageDigestFormat `json:"digestedImagePushSpec,omitempty"`
+	// conditions are state related conditions for the build. Valid types are:
+	// Prepared, Building, Failed, Interrupted, and Succeeded.
+	// Once a Build is marked as Failed, Interrupted or Succeeded, no future conditions can be set.
+	Conditions []metav1.ConditionApplyConfiguration `json:"conditions,omitempty"`
+	// builder describes the image builder backend used for this build.
+	Builder *MachineOSBuilderReferenceApplyConfiguration `json:"builder,omitempty"`
+	// relatedObjects is a list of references to ephemeral objects such as ConfigMaps or Secrets that are meant to be consumed while the build process runs.
+	// After a successful build or when this MachineOSBuild is deleted, these ephemeral objects will be removed.
+	// In the event of a failed build, the objects will remain until the build is removed to allow for inspection.
+	RelatedObjects []ObjectReferenceApplyConfiguration `json:"relatedObjects,omitempty"`
+	// buildStart is the timestamp corresponding to the build controller initiating the build backend for this MachineOSBuild.
+	BuildStart *apismetav1.Time `json:"buildStart,omitempty"`
+	// buildEnd is the timestamp corresponding to completion of the builder backend.
+	// When omitted the build has either not been started, or is in progress.
+	// It will be populated once the build completes, fails or is interrupted.
+	BuildEnd *apismetav1.Time `json:"buildEnd,omitempty"`
+	// digestedImagePushSpec describes the fully qualified push spec produced by this build.
+	// The format of the push spec is: host[:port][/namespace]/name@sha256:<digest>,
+	// where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9.
+	// The length of the whole spec must be between 1 to 447 characters.
+	DigestedImagePushSpec *machineconfigurationv1.ImageDigestFormat `json:"digestedImagePushSpec,omitempty"`
 }
 
 // MachineOSBuildStatusApplyConfiguration constructs a declarative configuration of the MachineOSBuildStatus type for use with
@@ -28,7 +45,7 @@ func MachineOSBuildStatus() *MachineOSBuildStatusApplyConfiguration {
 // WithConditions adds the given value to the Conditions field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Conditions field.
-func (b *MachineOSBuildStatusApplyConfiguration) WithConditions(values ...*v1.ConditionApplyConfiguration) *MachineOSBuildStatusApplyConfiguration {
+func (b *MachineOSBuildStatusApplyConfiguration) WithConditions(values ...*metav1.ConditionApplyConfiguration) *MachineOSBuildStatusApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithConditions")
@@ -62,7 +79,7 @@ func (b *MachineOSBuildStatusApplyConfiguration) WithRelatedObjects(values ...*O
 // WithBuildStart sets the BuildStart field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the BuildStart field is set to the value of the last call.
-func (b *MachineOSBuildStatusApplyConfiguration) WithBuildStart(value metav1.Time) *MachineOSBuildStatusApplyConfiguration {
+func (b *MachineOSBuildStatusApplyConfiguration) WithBuildStart(value apismetav1.Time) *MachineOSBuildStatusApplyConfiguration {
 	b.BuildStart = &value
 	return b
 }
@@ -70,7 +87,7 @@ func (b *MachineOSBuildStatusApplyConfiguration) WithBuildStart(value metav1.Tim
 // WithBuildEnd sets the BuildEnd field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the BuildEnd field is set to the value of the last call.
-func (b *MachineOSBuildStatusApplyConfiguration) WithBuildEnd(value metav1.Time) *MachineOSBuildStatusApplyConfiguration {
+func (b *MachineOSBuildStatusApplyConfiguration) WithBuildEnd(value apismetav1.Time) *MachineOSBuildStatusApplyConfiguration {
 	b.BuildEnd = &value
 	return b
 }
@@ -78,7 +95,7 @@ func (b *MachineOSBuildStatusApplyConfiguration) WithBuildEnd(value metav1.Time)
 // WithDigestedImagePushSpec sets the DigestedImagePushSpec field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DigestedImagePushSpec field is set to the value of the last call.
-func (b *MachineOSBuildStatusApplyConfiguration) WithDigestedImagePushSpec(value apimachineconfigurationv1.ImageDigestFormat) *MachineOSBuildStatusApplyConfiguration {
+func (b *MachineOSBuildStatusApplyConfiguration) WithDigestedImagePushSpec(value machineconfigurationv1.ImageDigestFormat) *MachineOSBuildStatusApplyConfiguration {
 	b.DigestedImagePushSpec = &value
 	return b
 }

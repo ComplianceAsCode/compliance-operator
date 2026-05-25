@@ -63,6 +63,12 @@ rules:
     verbs:
       - get
   - apiGroups:
+      - compliance.openshift.io
+    resources:
+      - rules
+    verbs:
+      - list
+  - apiGroups:
       - scheduling.k8s.io
     resources:
       - priorityclasses

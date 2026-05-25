@@ -422,6 +422,12 @@ func getNodeScannerPodVolumes(instance *compv1alpha1.ComplianceScan, node *corev
 				},
 			},
 		},
+		{
+			Name: RuntimeConfigVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 	}
 	if instance.Spec.RawResultStorage.Enabled != nil && *instance.Spec.RawResultStorage.Enabled {
 		volumesList = append(volumesList, corev1.Volume{

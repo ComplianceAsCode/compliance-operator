@@ -1,0 +1,35 @@
+name: check-default-namespace-has-no-pods
+id: check_default_namespace_has_no_pods
+title: Default namespace must not contain application pods
+description: |-
+  The default namespace should be kept empty and not used for running
+  application workloads. Running pods in the default namespace bypasses
+  RBAC policies that may be scoped to specific namespaces and reduces
+  the security posture of the cluster.
+rationale: |-
+  Using the default namespace for workloads circumvents namespace-based
+  access controls and network policies.
+severity: medium
+checkType: Platform
+expression: |
+  pods.items.filter(p,
+      p.metadata.namespace == 'default' &&
+      !p.metadata.name.startsWith('kubernetes')
+  ).size() == 0
+inputs:
+  - name: pods
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: pods
+      resourceNamespace: default
+failureReason: |-
+  Application pods are running in the default namespace.
+instructions: |-
+  Run 'oc get pods -n default' and verify that no application pods
+  are present. Only the 'kubernetes' service should exist.
+controls:
+  NIST-800-53:
+    - "AC-6"
+    - "CM-7"
+  CIS-OCP:
+    - "5.7.4"

@@ -131,7 +131,7 @@ func (v *RuleValidator) ValidateRule(rule Rule) ValidationResult {
 	declsList := v.createDeclarationsForRule(rule)
 
 	// Validate the CEL expression with declarations
-	issues := v.ValidateCELExpression(celRule.Expression(), declsList)
+	issues := v.ValidateCELExpressionWithInputs(celRule.Expression(), declsList)
 	if len(issues) > 0 {
 		result.Valid = false
 		result.Issues = append(result.Issues, issues...)
@@ -140,8 +140,8 @@ func (v *RuleValidator) ValidateRule(rule Rule) ValidationResult {
 	return result
 }
 
-// ValidateCELExpression validates a CEL expression with optional declarations
-func (v *RuleValidator) ValidateCELExpression(expression string, declarations []*expr.Decl) []ValidationIssue {
+// ValidateCELExpressionWithInputs validates a CEL expression with optional declarations
+func (v *RuleValidator) ValidateCELExpressionWithInputs(expression string, declarations []*expr.Decl) []ValidationIssue {
 	issues := []ValidationIssue{}
 
 	// Create CEL environment with declarations
@@ -162,10 +162,10 @@ func (v *RuleValidator) ValidateCELExpression(expression string, declarations []
 	return issues
 }
 
-// ValidateCELExpressionSimple validates just the syntax of a CEL expression
+// ValidateCELExpression validates just the syntax of a CEL expression
 // without requiring input declarations
-func (v *RuleValidator) ValidateCELExpressionSimple(expression string) []ValidationIssue {
-	return v.ValidateCELExpression(expression, nil)
+func (v *RuleValidator) ValidateCELExpression(expression string) []ValidationIssue {
+	return v.ValidateCELExpressionWithInputs(expression, nil)
 }
 
 // createDeclarationsForRule creates CEL declarations from a rule's inputs
@@ -327,7 +327,7 @@ func CompileCELExpression(expression string, inputs []Input) error {
 	}
 
 	// Validate the expression
-	issues := validator.ValidateCELExpression(expression, declsList)
+	issues := validator.ValidateCELExpressionWithInputs(expression, declsList)
 	if len(issues) > 0 {
 		// Build detailed error message
 		var errMsgs []string
