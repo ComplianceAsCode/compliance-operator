@@ -3,13 +3,21 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // MachineManagerSelectorApplyConfiguration represents a declarative configuration of the MachineManagerSelector type for use
 // with apply.
 type MachineManagerSelectorApplyConfiguration struct {
-	Mode    *v1.MachineManagerSelectorMode     `json:"mode,omitempty"`
+	// mode determines how machine managers will be selected for updates.
+	// Valid values are All, Partial and None.
+	// All means that every resource matched by the machine manager will be updated.
+	// Partial requires specified selector(s) and allows customisation of which resources matched by the machine manager will be updated.
+	// Partial is not permitted for the controlplanemachinesets resource type as they are a singleton within the cluster.
+	// None means that every resource matched by the machine manager will not be updated.
+	Mode *operatorv1.MachineManagerSelectorMode `json:"mode,omitempty"`
+	// partial provides label selector(s) that can be used to match machine management resources.
+	// Only permitted when mode is set to "Partial".
 	Partial *PartialSelectorApplyConfiguration `json:"partial,omitempty"`
 }
 
@@ -22,7 +30,7 @@ func MachineManagerSelector() *MachineManagerSelectorApplyConfiguration {
 // WithMode sets the Mode field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Mode field is set to the value of the last call.
-func (b *MachineManagerSelectorApplyConfiguration) WithMode(value v1.MachineManagerSelectorMode) *MachineManagerSelectorApplyConfiguration {
+func (b *MachineManagerSelectorApplyConfiguration) WithMode(value operatorv1.MachineManagerSelectorMode) *MachineManagerSelectorApplyConfiguration {
 	b.Mode = &value
 	return b
 }

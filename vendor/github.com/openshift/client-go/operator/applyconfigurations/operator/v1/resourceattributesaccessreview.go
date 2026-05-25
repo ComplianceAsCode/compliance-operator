@@ -3,14 +3,20 @@
 package v1
 
 import (
-	v1 "k8s.io/api/authorization/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 )
 
 // ResourceAttributesAccessReviewApplyConfiguration represents a declarative configuration of the ResourceAttributesAccessReview type for use
 // with apply.
+//
+// ResourceAttributesAccessReview defines the visibility of the perspective depending on the access review checks.
+// `required` and  `missing` can work together esp. in the case where the cluster admin
+// wants to show another perspective to users without specific permissions. Out of `required` and `missing` atleast one property should be non-empty.
 type ResourceAttributesAccessReviewApplyConfiguration struct {
-	Required []v1.ResourceAttributes `json:"required,omitempty"`
-	Missing  []v1.ResourceAttributes `json:"missing,omitempty"`
+	// required defines a list of permission checks. The perspective will only be shown when all checks are successful. When omitted, the access review is skipped and the perspective will not be shown unless it is required to do so based on the configuration of the missing access review list.
+	Required []authorizationv1.ResourceAttributes `json:"required,omitempty"`
+	// missing defines a list of permission checks. The perspective will only be shown when at least one check fails. When omitted, the access review is skipped and the perspective will not be shown unless it is required to do so based on the configuration of the required access review list.
+	Missing []authorizationv1.ResourceAttributes `json:"missing,omitempty"`
 }
 
 // ResourceAttributesAccessReviewApplyConfiguration constructs a declarative configuration of the ResourceAttributesAccessReview type for use with
@@ -22,7 +28,7 @@ func ResourceAttributesAccessReview() *ResourceAttributesAccessReviewApplyConfig
 // WithRequired adds the given value to the Required field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Required field.
-func (b *ResourceAttributesAccessReviewApplyConfiguration) WithRequired(values ...v1.ResourceAttributes) *ResourceAttributesAccessReviewApplyConfiguration {
+func (b *ResourceAttributesAccessReviewApplyConfiguration) WithRequired(values ...authorizationv1.ResourceAttributes) *ResourceAttributesAccessReviewApplyConfiguration {
 	for i := range values {
 		b.Required = append(b.Required, values[i])
 	}
@@ -32,7 +38,7 @@ func (b *ResourceAttributesAccessReviewApplyConfiguration) WithRequired(values .
 // WithMissing adds the given value to the Missing field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Missing field.
-func (b *ResourceAttributesAccessReviewApplyConfiguration) WithMissing(values ...v1.ResourceAttributes) *ResourceAttributesAccessReviewApplyConfiguration {
+func (b *ResourceAttributesAccessReviewApplyConfiguration) WithMissing(values ...authorizationv1.ResourceAttributes) *ResourceAttributesAccessReviewApplyConfiguration {
 	for i := range values {
 		b.Missing = append(b.Missing, values[i])
 	}

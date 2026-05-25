@@ -38,6 +38,12 @@ type ProfileBundleSpec struct {
 	ContentImage string `json:"contentImage"`
 	// Is the path for the file in the image that contains the content for this bundle.
 	ContentFile string `json:"contentFile"`
+	// Is the path for the file in the image that contains the CEL-based
+	// compliance content (rules and profiles) for this bundle. This is
+	// optional and when set, the parser will create CEL Rule and Profile CRs
+	// alongside any XCCDF content from ContentFile.
+	// +optional
+	CELContentFile string `json:"celContentFile,omitempty"`
 }
 
 // Defines the observed state of ProfileBundle
@@ -60,6 +66,7 @@ type ProfileBundleStatus struct {
 // +kubebuilder:resource:path=profilebundles,scope=Namespaced,shortName=pb
 // +kubebuilder:printcolumn:name="ContentImage",type="string",JSONPath=`.spec.contentImage`
 // +kubebuilder:printcolumn:name="ContentFile",type="string",JSONPath=`.spec.contentFile`
+// +kubebuilder:printcolumn:name="CELContentFile",type="string",JSONPath=`.spec.celContentFile`
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.dataStreamStatus`
 type ProfileBundle struct {
 	metav1.TypeMeta   `json:",inline"`

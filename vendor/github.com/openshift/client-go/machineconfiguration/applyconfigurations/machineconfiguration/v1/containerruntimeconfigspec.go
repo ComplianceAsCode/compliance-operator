@@ -3,14 +3,19 @@
 package v1
 
 import (
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // ContainerRuntimeConfigSpecApplyConfiguration represents a declarative configuration of the ContainerRuntimeConfigSpec type for use
 // with apply.
+//
+// ContainerRuntimeConfigSpec defines the desired state of ContainerRuntimeConfig
 type ContainerRuntimeConfigSpecApplyConfiguration struct {
-	MachineConfigPoolSelector *v1.LabelSelectorApplyConfiguration              `json:"machineConfigPoolSelector,omitempty"`
-	ContainerRuntimeConfig    *ContainerRuntimeConfigurationApplyConfiguration `json:"containerRuntimeConfig,omitempty"`
+	// machineConfigPoolSelector selects which pools the ContainerRuntimeConfig shoud apply to.
+	// A nil selector will result in no pools being selected.
+	MachineConfigPoolSelector *metav1.LabelSelectorApplyConfiguration `json:"machineConfigPoolSelector,omitempty"`
+	// containerRuntimeConfig defines the tuneables of the container runtime.
+	ContainerRuntimeConfig *ContainerRuntimeConfigurationApplyConfiguration `json:"containerRuntimeConfig,omitempty"`
 }
 
 // ContainerRuntimeConfigSpecApplyConfiguration constructs a declarative configuration of the ContainerRuntimeConfigSpec type for use with
@@ -22,7 +27,7 @@ func ContainerRuntimeConfigSpec() *ContainerRuntimeConfigSpecApplyConfiguration 
 // WithMachineConfigPoolSelector sets the MachineConfigPoolSelector field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the MachineConfigPoolSelector field is set to the value of the last call.
-func (b *ContainerRuntimeConfigSpecApplyConfiguration) WithMachineConfigPoolSelector(value *v1.LabelSelectorApplyConfiguration) *ContainerRuntimeConfigSpecApplyConfiguration {
+func (b *ContainerRuntimeConfigSpecApplyConfiguration) WithMachineConfigPoolSelector(value *metav1.LabelSelectorApplyConfiguration) *ContainerRuntimeConfigSpecApplyConfiguration {
 	b.MachineConfigPoolSelector = value
 	return b
 }

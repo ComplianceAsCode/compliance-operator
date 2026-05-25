@@ -7,6 +7,7 @@ import (
 
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/ComplianceAsCode/compliance-operator/pkg/apis"
 	"github.com/go-logr/zapr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -90,10 +91,11 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			},
 		}
 
-		profileTypeMeta := v1.TypeMeta{}
-		profileTypeMeta.SetGroupVersionKind(compv1alpha1.SchemeGroupVersion.WithKind("Profile"))
 		profRhcosE8 = &compv1alpha1.Profile{
-			TypeMeta: profileTypeMeta,
+			TypeMeta: v1.TypeMeta{
+				Kind:       "Profile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:        "rhcos4-e8",
 				Namespace:   common.GetComplianceOperatorNamespace(),
@@ -106,10 +108,11 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			},
 		}
 
-		tailoredProfileTypeMeta := v1.TypeMeta{}
-		tailoredProfileTypeMeta.SetGroupVersionKind(compv1alpha1.SchemeGroupVersion.WithKind("TailoredProfile"))
 		tpRhcosE8 = &compv1alpha1.TailoredProfile{
-			TypeMeta: tailoredProfileTypeMeta,
+			TypeMeta: v1.TypeMeta{
+				Kind:       "TailoredProfile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "emptypass-rhcos4-e8",
 				Namespace: common.GetComplianceOperatorNamespace(),
@@ -138,7 +141,10 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		}
 
 		scratchTP = &compv1alpha1.TailoredProfile{
-			TypeMeta: tailoredProfileTypeMeta,
+			TypeMeta: v1.TypeMeta{
+				Kind:       "TailoredProfile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:        "scratch-tp",
 				Namespace:   common.GetComplianceOperatorNamespace(),
@@ -165,10 +171,11 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			},
 		}
 
-		settingsTypeMeta := v1.TypeMeta{}
-		settingsTypeMeta.SetGroupVersionKind(compv1alpha1.SchemeGroupVersion.WithKind("ScanSetting"))
 		setting = &compv1alpha1.ScanSetting{
-			TypeMeta: settingsTypeMeta,
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ScanSetting",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "scan-setting",
 				Namespace: common.GetComplianceOperatorNamespace(),
@@ -185,19 +192,20 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 
 		objs = append(objs, ssb, pBundleRhcos, profRhcosE8, tpRhcosE8, scratchTP, suite, setting)
 
-		scheme := scheme.Scheme
-		scheme.AddKnownTypes(compv1alpha1.SchemeGroupVersion, objs...)
+		cscheme := scheme.Scheme
+		err := apis.AddToScheme(cscheme)
+		Expect(err).To(BeNil())
 
 		statusObjs := []runtimeclient.Object{}
 		statusObjs = append(statusObjs, ssb, scratchTP)
 
 		client := fake.NewClientBuilder().
-			WithScheme(scheme).
+			WithScheme(cscheme).
 			WithStatusSubresource(statusObjs...).
 			WithRuntimeObjects(objs...).
 			Build()
 
-		err := client.Get(context.TODO(), types.NamespacedName{
+		err = client.Get(context.TODO(), types.NamespacedName{
 			Namespace: pBundleRhcos.Namespace,
 			Name:      pBundleRhcos.Name,
 		}, pBundleRhcos)
@@ -206,8 +214,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		profRhcosE8.OwnerReferences = append(profRhcosE8.OwnerReferences,
 			v1.OwnerReference{
 				Name:       pBundleRhcos.Name,
-				Kind:       pBundleRhcos.Kind,
-				APIVersion: pBundleRhcos.APIVersion})
+				Kind:       "ProfileBundle",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String()})
 		err = client.Update(context.TODO(), profRhcosE8)
 		Expect(err).To(BeNil())
 
@@ -220,8 +228,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		tpRhcosE8.OwnerReferences = append(tpRhcosE8.OwnerReferences,
 			v1.OwnerReference{
 				Name:       profRhcosE8.Name,
-				Kind:       profRhcosE8.Kind,
-				APIVersion: profRhcosE8.APIVersion})
+				Kind:       "Profile",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String()})
 		err = client.Update(context.TODO(), tpRhcosE8)
 		Expect(err).To(BeNil())
 
@@ -234,8 +242,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 		scratchTP.OwnerReferences = append(scratchTP.OwnerReferences,
 			v1.OwnerReference{
 				Name:       pBundleRhcos.Name,
-				Kind:       pBundleRhcos.Kind,
-				APIVersion: pBundleRhcos.APIVersion})
+				Kind:       "ProfileBundle",
+				APIVersion: compv1alpha1.SchemeGroupVersion.String()})
 		err = client.Update(context.TODO(), scratchTP)
 		Expect(err).To(BeNil())
 
@@ -264,7 +272,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 
 		reconciler = ReconcileScanSettingBinding{
 			Client:      client,
-			Scheme:      scheme,
+			Scheme:      cscheme,
+			Recorder:    &common.SafeRecorder{},
 			Metrics:     mockMetrics,
 			roleVal:     regexp.MustCompile(roleValRegexp),
 			invalidRole: regexp.MustCompile(invalidRoleRegexp),
@@ -284,14 +293,14 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     profRhcosE8.Name,
-						Kind:     profRhcosE8.Kind,
-						APIGroup: profRhcosE8.APIVersion,
+						Kind:     "Profile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 				SettingsRef: &compv1alpha1.NamedObjectReference{
 					Name:     setting.Name,
-					Kind:     setting.Kind,
-					APIGroup: setting.APIVersion,
+					Kind:     "ScanSetting",
+					APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 				},
 			}
 
@@ -331,7 +340,7 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 			Expect(suite.Spec.AutoApplyRemediations).To(BeTrue())
 
 			Expect(ssb.Status.OutputRef.Name).To(Equal(suite.Name))
-			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(suite.GroupVersionKind().Group))
+			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(compv1alpha1.SchemeGroupVersion.Group))
 
 			expScanWorker := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
@@ -382,14 +391,14 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     tpRhcosE8.Name,
-						Kind:     tpRhcosE8.Kind,
-						APIGroup: tpRhcosE8.APIVersion,
+						Kind:     "TailoredProfile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 				SettingsRef: &compv1alpha1.NamedObjectReference{
 					Name:     setting.Name,
-					Kind:     setting.Kind,
-					APIGroup: setting.APIVersion,
+					Kind:     "ScanSetting",
+					APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 				},
 			}
 			ssb.Status.SetConditionPending()
@@ -425,13 +434,13 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 
 			Expect(suite.OwnerReferences).To(HaveLen(1))
 			Expect(suite.OwnerReferences[0].Name).To(BeEquivalentTo(ssb.Name))
-			Expect(suite.OwnerReferences[0].APIVersion).To(BeEquivalentTo(ssb.APIVersion))
+			Expect(suite.OwnerReferences[0].APIVersion).To(BeEquivalentTo(compv1alpha1.SchemeGroupVersion.String()))
 
 			Expect(suite.Spec.Schedule).To(BeEquivalentTo(setting.Schedule))
 			Expect(suite.Spec.AutoApplyRemediations).To(BeTrue())
 
 			Expect(ssb.Status.OutputRef.Name).To(Equal(suite.Name))
-			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(suite.GroupVersionKind().Group))
+			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(compv1alpha1.SchemeGroupVersion.Group))
 
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
@@ -486,14 +495,14 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     scratchTP.Name,
-						Kind:     scratchTP.Kind,
-						APIGroup: scratchTP.APIVersion,
+						Kind:     "TailoredProfile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 				SettingsRef: &compv1alpha1.NamedObjectReference{
 					Name:     setting.Name,
-					Kind:     setting.Kind,
-					APIGroup: setting.APIVersion,
+					Kind:     "ScanSetting",
+					APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 				},
 			}
 			ssb.Status.SetConditionPending()
@@ -529,13 +538,13 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 
 			Expect(suite.OwnerReferences).To(HaveLen(1))
 			Expect(suite.OwnerReferences[0].Name).To(BeEquivalentTo(ssb.Name))
-			Expect(suite.OwnerReferences[0].APIVersion).To(BeEquivalentTo(ssb.APIVersion))
+			Expect(suite.OwnerReferences[0].APIVersion).To(BeEquivalentTo(compv1alpha1.SchemeGroupVersion.String()))
 
 			Expect(suite.Spec.Schedule).To(BeEquivalentTo(setting.Schedule))
 			Expect(suite.Spec.AutoApplyRemediations).To(BeTrue())
 
 			Expect(ssb.Status.OutputRef.Name).To(Equal(suite.Name))
-			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(suite.GroupVersionKind().Group))
+			Expect(*ssb.Status.OutputRef.APIGroup).To(Equal(compv1alpha1.SchemeGroupVersion.Group))
 
 			expScanMaster := compv1alpha1.ComplianceScanSpecWrapper{
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
@@ -587,8 +596,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     "unexistent",
-						Kind:     profRhcosE8.Kind,
-						APIGroup: profRhcosE8.APIVersion,
+						Kind:     "Profile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 			}
@@ -644,8 +653,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     scratchTP.Name,
-						Kind:     scratchTP.Kind,
-						APIGroup: scratchTP.APIVersion,
+						Kind:     "TailoredProfile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 			}
@@ -699,8 +708,8 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     scratchTP.Name,
-						Kind:     scratchTP.Kind,
-						APIGroup: scratchTP.APIVersion,
+						Kind:     "TailoredProfile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 			}
@@ -812,13 +821,13 @@ var _ = Describe("Testing scansettingbinding controller", func() {
 				Profiles: []compv1alpha1.NamedObjectReference{
 					{
 						Name:     profRhcosE8Badproduct.Name,
-						Kind:     profRhcosE8Badproduct.Kind,
-						APIGroup: profRhcosE8Badproduct.APIVersion,
+						Kind:     "Profile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 					{
 						Name:     profRhcosE8.Name,
-						Kind:     profRhcosE8.Kind,
-						APIGroup: profRhcosE8.APIVersion,
+						Kind:     "Profile",
+						APIGroup: compv1alpha1.SchemeGroupVersion.String(),
 					},
 				},
 			}

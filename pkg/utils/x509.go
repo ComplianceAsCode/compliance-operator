@@ -9,7 +9,7 @@ import (
 )
 
 func ComplianceOperatorRootCA(certname string, expire int) ([]byte, []byte, error) {
-	config, err := libgocrypto.MakeSelfSignedCAConfig(certname, expire)
+	config, err := libgocrypto.MakeSelfSignedCAConfig(certname, time.Duration(expire)*24*time.Hour)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -22,7 +22,7 @@ func NewServerCert(caCert, caKey []byte, certname string, expire int) ([]byte, [
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := ca.MakeServerCert(sets.New(certname), expire)
+	config, err := ca.MakeServerCert(sets.New(certname), time.Duration(expire)*24*time.Hour)
 	if err != nil {
 		return nil, nil, err
 	}

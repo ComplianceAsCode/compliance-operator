@@ -36,4 +36,11 @@ spec:
         scheduling algorithms. If the VM consumes the entire memory might
         cause the guest to crash with workload interruptions and guest
         malfunctioning.
+    - kind: CustomRule
+      name: kubevirt-enforce-trusted-tls-registries
+      rationale: |-
+        Container images should be pulled from trusted registries to reduce 
+        the risk of introducing unknown vulnerabilities or malicious software. 
+        This helps ensure that their applications and systems remain 
+        secure and stable.
   title: Platform checks for OpenShift Virtualization

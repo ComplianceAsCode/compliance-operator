@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
+	apioperatorv1 "github.com/openshift/api/operator/v1"
 	versioned "github.com/openshift/client-go/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/operator/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/operator/listers/operator/v1"
+	operatorv1 "github.com/openshift/client-go/operator/listers/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // ClusterCSIDrivers.
 type ClusterCSIDriverInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ClusterCSIDriverLister
+	Lister() operatorv1.ClusterCSIDriverLister
 }
 
 type clusterCSIDriverInformer struct {
@@ -40,21 +40,33 @@ func NewClusterCSIDriverInformer(client versioned.Interface, resyncPeriod time.D
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredClusterCSIDriverInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1().ClusterCSIDrivers().List(context.TODO(), options)
+				return client.OperatorV1().ClusterCSIDrivers().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1().ClusterCSIDrivers().Watch(context.TODO(), options)
+				return client.OperatorV1().ClusterCSIDrivers().Watch(context.Background(), options)
 			},
-		},
-		&operatorv1.ClusterCSIDriver{},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1().ClusterCSIDrivers().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorV1().ClusterCSIDrivers().Watch(ctx, options)
+			},
+		}, client),
+		&apioperatorv1.ClusterCSIDriver{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *clusterCSIDriverInformer) defaultInformer(client versioned.Interface, r
 }
 
 func (f *clusterCSIDriverInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1.ClusterCSIDriver{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1.ClusterCSIDriver{}, f.defaultInformer)
 }
 
-func (f *clusterCSIDriverInformer) Lister() v1.ClusterCSIDriverLister {
-	return v1.NewClusterCSIDriverLister(f.Informer().GetIndexer())
+func (f *clusterCSIDriverInformer) Lister() operatorv1.ClusterCSIDriverLister {
+	return operatorv1.NewClusterCSIDriverLister(f.Informer().GetIndexer())
 }
