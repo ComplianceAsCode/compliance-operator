@@ -653,6 +653,11 @@ github.com/openshift/client-go/machineconfiguration/informers/externalversions/m
 github.com/openshift/client-go/machineconfiguration/informers/externalversions/machineconfiguration/v1alpha1
 github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1
 github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1alpha1
+github.com/openshift/client-go/oauth/applyconfigurations/internal
+github.com/openshift/client-go/oauth/applyconfigurations/oauth/v1
+github.com/openshift/client-go/oauth/clientset/versioned
+github.com/openshift/client-go/oauth/clientset/versioned/scheme
+github.com/openshift/client-go/oauth/clientset/versioned/typed/oauth/v1
 github.com/openshift/client-go/operator/applyconfigurations/internal
 github.com/openshift/client-go/operator/applyconfigurations/operator/v1
 github.com/openshift/client-go/operator/applyconfigurations/operator/v1alpha1
