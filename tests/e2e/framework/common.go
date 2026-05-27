@@ -32,6 +32,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 
+	"encoding/json"
+	"math"
+
+	oauthv1 "github.com/openshift/api/oauth/v1"
+	oauthclientset "github.com/openshift/client-go/oauth/clientset/versioned"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -3246,6 +3251,151 @@ func (f *Framework) AssertNodeNameIsInTargetAndFactIdentifierInCM(nodes []core.N
 		if !matched {
 			return fmt.Errorf("nodeName '%s' not found in <fact name=\"urn:xccdf:fact:identifier\"> tag in ConfigMap %s/%s", nodeName, foundCM.Namespace, foundCM.Name)
 		}
+	}
+	return nil
+}
+
+// OAuthClientConfig holds the token settings for an OAuth client so they can be restored later.
+// Pointer fields are nil when the client did not have that field set; restore will remove the field instead of setting 0.
+type OAuthClientConfig struct {
+	Name                                string
+	AccessTokenMaxAgeSeconds            *int64
+	AccessTokenInactivityTimeoutSeconds *int64
+}
+
+func (f *Framework) newOAuthClientset() (oauthclientset.Interface, error) {
+	cs, err := oauthclientset.NewForConfig(f.KubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create openshift oauth clientset: %w", err)
+	}
+	return cs, nil
+}
+
+func oauthClientConfigFromAPI(client oauthv1.OAuthClient) OAuthClientConfig {
+	return OAuthClientConfig{
+		Name:                                client.Name,
+		AccessTokenMaxAgeSeconds:            int32PtrToInt64Ptr(client.AccessTokenMaxAgeSeconds),
+		AccessTokenInactivityTimeoutSeconds: int32PtrToInt64Ptr(client.AccessTokenInactivityTimeoutSeconds),
+	}
+}
+
+func int32PtrToInt64Ptr(v *int32) *int64 {
+	if v == nil {
+		return nil
+	}
+	out := int64(*v)
+	return &out
+}
+
+func int64ToInt32(v int64) (int32, error) {
+	if v > math.MaxInt32 || v < math.MinInt32 {
+		return 0, fmt.Errorf("value %d is out of int32 range", v)
+	}
+	return int32(v), nil
+}
+
+// GetOAuthClientConfigs lists all OAuth clients and returns their current token config (no patching).
+func (f *Framework) GetOAuthClientConfigs() ([]OAuthClientConfig, error) {
+	cs, err := f.newOAuthClientset()
+	if err != nil {
+		return nil, err
+	}
+
+	list, err := cs.OauthV1().OAuthClients().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list oauthclients: %w", err)
+	}
+
+	configs := make([]OAuthClientConfig, 0, len(list.Items))
+	for i := range list.Items {
+		configs = append(configs, oauthClientConfigFromAPI(list.Items[i]))
+	}
+	return configs, nil
+}
+
+// UpdateOAuthClientConfigs updates every OAuth client with the given token settings and verifies the update.
+func (f *Framework) UpdateOAuthClientConfigs(maxAgeSeconds, inactivityTimeoutSeconds int64) error {
+	maxAge, err := int64ToInt32(maxAgeSeconds)
+	if err != nil {
+		return fmt.Errorf("accessTokenMaxAgeSeconds: %w", err)
+	}
+	inactivity, err := int64ToInt32(inactivityTimeoutSeconds)
+	if err != nil {
+		return fmt.Errorf("accessTokenInactivityTimeoutSeconds: %w", err)
+	}
+
+	cs, err := f.newOAuthClientset()
+	if err != nil {
+		return err
+	}
+
+	list, err := cs.OauthV1().OAuthClients().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("list oauthclients: %w", err)
+	}
+
+	for i := range list.Items {
+		client := list.Items[i].DeepCopy()
+		client.AccessTokenMaxAgeSeconds = &maxAge
+		client.AccessTokenInactivityTimeoutSeconds = &inactivity
+
+		updated, err := cs.OauthV1().OAuthClients().Update(context.TODO(), client, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("update oauthclient %s: %w", client.Name, err)
+		}
+		if updated.AccessTokenMaxAgeSeconds == nil || *updated.AccessTokenMaxAgeSeconds != maxAge {
+			return fmt.Errorf("expected accessTokenMaxAgeSeconds %d for oauthclient %s, got %v", maxAge, client.Name, updated.AccessTokenMaxAgeSeconds)
+		}
+		if updated.AccessTokenInactivityTimeoutSeconds == nil || *updated.AccessTokenInactivityTimeoutSeconds != inactivity {
+			return fmt.Errorf("expected accessTokenInactivityTimeoutSeconds %d for oauthclient %s, got %v", inactivity, client.Name, updated.AccessTokenInactivityTimeoutSeconds)
+		}
+		log.Printf("successfully updated oauthclient %s with accessTokenMaxAgeSeconds=%d and accessTokenInactivityTimeoutSeconds=%d",
+			client.Name, maxAge, inactivity)
+	}
+	return nil
+}
+
+// RestoreOAuthClientConfigs updates each OAuth client back to the given configs (e.g. from GetOAuthClientConfigs).
+func (f *Framework) RestoreOAuthClientConfigs(configs []OAuthClientConfig) error {
+	if len(configs) == 0 {
+		return nil
+	}
+
+	cs, err := f.newOAuthClientset()
+	if err != nil {
+		return err
+	}
+
+	for _, cfg := range configs {
+		patchObj := map[string]interface{}{}
+		if cfg.AccessTokenMaxAgeSeconds != nil {
+			maxAge, err := int64ToInt32(*cfg.AccessTokenMaxAgeSeconds)
+			if err != nil {
+				return fmt.Errorf("oauthclient %s accessTokenMaxAgeSeconds: %w", cfg.Name, err)
+			}
+			patchObj["accessTokenMaxAgeSeconds"] = maxAge
+		} else {
+			patchObj["accessTokenMaxAgeSeconds"] = nil
+		}
+		if cfg.AccessTokenInactivityTimeoutSeconds != nil {
+			inactivity, err := int64ToInt32(*cfg.AccessTokenInactivityTimeoutSeconds)
+			if err != nil {
+				return fmt.Errorf("oauthclient %s accessTokenInactivityTimeoutSeconds: %w", cfg.Name, err)
+			}
+			patchObj["accessTokenInactivityTimeoutSeconds"] = inactivity
+		} else {
+			patchObj["accessTokenInactivityTimeoutSeconds"] = nil
+		}
+
+		patch, err := json.Marshal(patchObj)
+		if err != nil {
+			return fmt.Errorf("marshal restore patch for oauthclient %s: %w", cfg.Name, err)
+		}
+		if _, err := cs.OauthV1().OAuthClients().Patch(context.TODO(), cfg.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			return fmt.Errorf("restore oauthclient %s: %w", cfg.Name, err)
+		}
+		log.Printf("restored oauthclient %s (maxAge=%v, inactivity=%v)",
+			cfg.Name, cfg.AccessTokenMaxAgeSeconds, cfg.AccessTokenInactivityTimeoutSeconds)
 	}
 	return nil
 }
