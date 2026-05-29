@@ -756,7 +756,7 @@ func (r *ReconcileComplianceScan) phaseAggregatingHandler(h scanTypeHandler, log
 
 		logger.Info("Creating an aggregator pod for scan")
 		aggregator := r.newAggregatorPod(instance, logger)
-		if priorityClassExist, why := utils.ValidatePriorityClassExist(aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
+		if priorityClassExist, why := utils.ValidatePriorityClassExist(context.TODO(), aggregator.Spec.PriorityClassName, r.Client); !priorityClassExist {
 			logger.Info(why, "aggregator", aggregator.Name)
 			r.Recorder.Eventf(aggregator, corev1.EventTypeWarning, "PriorityClass", why+" aggregator:"+aggregator.Name)
 			aggregator.Spec.PriorityClassName = ""
@@ -1025,7 +1025,7 @@ func (r *ReconcileComplianceScan) generateResultEventForScan(scan *compv1alpha1.
 			compv1alpha1.ComplianceCheckInconsistentLabel)
 	}
 
-	err, haveOutdatedRems := utils.HaveOutdatedRemediations(r.Client)
+	err, haveOutdatedRems := utils.HaveOutdatedRemediations(context.TODO(), r.Client)
 	if err != nil {
 		logger.Info("Could not check if there exist any obsolete remediations", "Scan.Name", scan.Name)
 	}
