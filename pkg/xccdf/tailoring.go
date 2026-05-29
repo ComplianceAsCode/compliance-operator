@@ -10,7 +10,10 @@ import (
 	"github.com/google/uuid"
 
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var log = logf.Log.WithName("xccdf")
 
 const (
 	// XMLHeader is the header for the XML doc
@@ -221,7 +224,16 @@ func TailoredProfileToXML(tp *cmpv1alpha1.TailoredProfile, p *cmpv1alpha1.Profil
 		if pb.Annotations != nil {
 			if groupsStr, ok := pb.Annotations[cmpv1alpha1.XCCDFGroupsAnnotation]; ok && groupsStr != "" {
 				groupIDs = strings.Split(groupsStr, ",")
+			} else {
+				log.Info("ProfileBundle is missing XCCDF groups annotation - groups will not be enabled in tailoring",
+					"profileBundle", pb.Name,
+					"tailoredProfile", tp.Name,
+					"annotation", cmpv1alpha1.XCCDFGroupsAnnotation)
 			}
+		} else {
+			log.Info("ProfileBundle has no annotations - groups will not be enabled in tailoring",
+				"profileBundle", pb.Name,
+				"tailoredProfile", tp.Name)
 		}
 	}
 
