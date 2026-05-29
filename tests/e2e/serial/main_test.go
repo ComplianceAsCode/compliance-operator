@@ -1289,7 +1289,7 @@ func TestUpdateRemediation(t *testing.T) {
 
 	var (
 		origImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_base")
-		modImage  = fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_change")
+        modImage  = fmt.Sprintf("%s:%s", brokenContentImagePath, "rem_mod_change")
 	)
 
 	pbName := framework.GetObjNameFromTest(t)
