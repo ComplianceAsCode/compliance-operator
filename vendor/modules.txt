@@ -404,7 +404,7 @@ github.com/jaytaylor/html2text
 github.com/json-iterator/go
 # github.com/klauspost/compress v1.18.5
 ## explicit; go 1.24
-# github.com/mattn/go-colorable v0.1.14
+# github.com/mattn/go-colorable v0.1.15
 ## explicit; go 1.18
 github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
