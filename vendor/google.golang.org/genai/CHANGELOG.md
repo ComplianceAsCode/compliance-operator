@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.54.0](https://github.com/googleapis/go-genai/compare/v1.53.0...v1.54.0) (2026-04-13)
+
+
+### Features
+
+* Add "eu" as a supported service location for Vertex AI platform. ([9245aba](https://github.com/googleapis/go-genai/commit/9245aba251afea99b1560fae07b93498ed5b5d8e))
+* Add Live Avatar new fields ([2ae252c](https://github.com/googleapis/go-genai/commit/2ae252caaf0d5273d5656d32858e54c354326248))
+* Add webhook_config to batches.create() and models.generate_videos() ([4790027](https://github.com/googleapis/go-genai/commit/4790027b553d401d5cc99f21776dcfa49cbda16d))
+
+## [1.53.0](https://github.com/googleapis/go-genai/compare/v1.52.1...v1.53.0) (2026-04-08)
+
+
+### Miscellaneous Chores
+
+* release 1.53.0 ([07f38c9](https://github.com/googleapis/go-genai/commit/07f38c926798eb5f4d9ef3af531ee3f4d91c6fd6))
+
+## [1.52.1](https://github.com/googleapis/go-genai/compare/v1.52.0...v1.52.1) (2026-03-31)
+
+
+### Bug Fixes
+
+* Fix service_tier enums. ([5518442](https://github.com/googleapis/go-genai/commit/5518442a2a8dac4a00ad4248470ec995604974f6))
+
+## [1.52.0](https://github.com/googleapis/go-genai/compare/v1.51.0...v1.52.0) (2026-03-27)
+
+
+### Features
+
+* Add labels field to Veo configs ([3fab63a](https://github.com/googleapis/go-genai/commit/3fab63a5f628b8ffe35fe75c325108a75e5c5add))
+* Add model_status to GenerateContentResponse (Gemini API only) ([8c040e3](https://github.com/googleapis/go-genai/commit/8c040e35aaab4089303fbd0fcacdf80ae85cc9df))
+* Add part_metadata in Part (Gemini API only) ([8c040e3](https://github.com/googleapis/go-genai/commit/8c040e35aaab4089303fbd0fcacdf80ae85cc9df))
+* Add service tier to GenerateContent. ([c07b6a0](https://github.com/googleapis/go-genai/commit/c07b6a0b47408e038264a4b0d85183e4240cb30a))
+* **genai:** add TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO to TurnCoverage ([ea49f9a](https://github.com/googleapis/go-genai/commit/ea49f9a7d885d7d0fb2016c7621b1d22eee06b26))
+* support hyperparameters in distillation tuning ([b8873ea](https://github.com/googleapis/go-genai/commit/b8873ea18126d825b841794414c05c66cb2bc094))
+* Support rendered_parts in GroundingSupport ([8c040e3](https://github.com/googleapis/go-genai/commit/8c040e35aaab4089303fbd0fcacdf80ae85cc9df))
+
+
+### Bug Fixes
+
+* Fix empty InlinedEmbedContentResponses for inline batch embeddings in Go GenAI SDK ([e70c9d1](https://github.com/googleapis/go-genai/commit/e70c9d111e5f70e684537ae3ebb3fcaaf839d642)), closes [#712](https://github.com/googleapis/go-genai/issues/712)
+* support us region routing ([09d5be3](https://github.com/googleapis/go-genai/commit/09d5be32d28541debeb2fbfae13be29e51d0b42d))
+
+## [1.51.0](https://github.com/googleapis/go-genai/compare/v1.50.0...v1.51.0) (2026-03-17)
+
+
+### Features
+
+* Support include_server_side_tool_invocations for genai. ([cec4bfd](https://github.com/googleapis/go-genai/commit/cec4bfd51223b19740526a44a610a8c06de737d4))
+
 ## [1.50.0](https://github.com/googleapis/go-genai/compare/v1.49.0...v1.50.0) (2026-03-12)
 
 

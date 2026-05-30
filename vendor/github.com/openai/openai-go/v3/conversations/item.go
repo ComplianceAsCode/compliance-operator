@@ -121,8 +121,9 @@ func (r *ItemService) Delete(ctx context.Context, conversationID string, itemID 
 // [ConversationItemImageGenerationCall], [responses.ResponseComputerToolCall],
 // [responses.ResponseComputerToolCallOutputItem],
 // [responses.ResponseToolSearchCall], [responses.ResponseToolSearchOutputItem],
-// [responses.ResponseReasoningItem], [responses.ResponseCodeInterpreterToolCall],
-// [ConversationItemLocalShellCall], [ConversationItemLocalShellCallOutput],
+// [responses.ResponseReasoningItem], [responses.ResponseCompactionItem],
+// [responses.ResponseCodeInterpreterToolCall], [ConversationItemLocalShellCall],
+// [ConversationItemLocalShellCallOutput],
 // [responses.ResponseFunctionShellToolCall],
 // [responses.ResponseFunctionShellToolCallOutput],
 // [responses.ResponseApplyPatchToolCall],
@@ -145,17 +146,20 @@ type ConversationItemUnion struct {
 	// Any of "message", "function_call", "function_call_output", "file_search_call",
 	// "web_search_call", "image_generation_call", "computer_call",
 	// "computer_call_output", "tool_search_call", "tool_search_output", "reasoning",
-	// "code_interpreter_call", "local_shell_call", "local_shell_call_output",
-	// "shell_call", "shell_call_output", "apply_patch_call",
-	// "apply_patch_call_output", "mcp_list_tools", "mcp_approval_request",
-	// "mcp_approval_response", "mcp_call", "custom_tool_call",
+	// "compaction", "code_interpreter_call", "local_shell_call",
+	// "local_shell_call_output", "shell_call", "shell_call_output",
+	// "apply_patch_call", "apply_patch_call_output", "mcp_list_tools",
+	// "mcp_approval_request", "mcp_approval_response", "mcp_call", "custom_tool_call",
 	// "custom_tool_call_output".
 	Type string `json:"type"`
+	// This field is from variant [Message].
+	Phase MessagePhase `json:"phase"`
 	// This field is a union of [string], [any], [string], [string]
 	Arguments ConversationItemUnionArguments `json:"arguments"`
 	CallID    string                         `json:"call_id"`
 	Name      string                         `json:"name"`
 	Namespace string                         `json:"namespace"`
+	CreatedBy string                         `json:"created_by"`
 	// This field is a union of
 	// [responses.ResponseFunctionToolCallOutputItemOutputUnion],
 	// [responses.ResponseComputerToolCallOutputScreenshot], [string],
@@ -180,14 +184,12 @@ type ConversationItemUnion struct {
 	// This field is from variant [responses.ResponseComputerToolCallOutputItem].
 	AcknowledgedSafetyChecks []responses.ResponseComputerToolCallOutputItemAcknowledgedSafetyCheck `json:"acknowledged_safety_checks"`
 	Execution                string                                                                `json:"execution"`
-	CreatedBy                string                                                                `json:"created_by"`
 	// This field is a union of [[]responses.ToolUnion],
 	// [[]ConversationItemMcpListToolsTool]
 	Tools ConversationItemUnionTools `json:"tools"`
 	// This field is from variant [responses.ResponseReasoningItem].
-	Summary []responses.ResponseReasoningItemSummary `json:"summary"`
-	// This field is from variant [responses.ResponseReasoningItem].
-	EncryptedContent string `json:"encrypted_content"`
+	Summary          []responses.ResponseReasoningItemSummary `json:"summary"`
+	EncryptedContent string                                   `json:"encrypted_content"`
 	// This field is from variant [responses.ResponseCodeInterpreterToolCall].
 	Code string `json:"code"`
 	// This field is from variant [responses.ResponseCodeInterpreterToolCall].
@@ -215,10 +217,12 @@ type ConversationItemUnion struct {
 		Role                     respjson.Field
 		Status                   respjson.Field
 		Type                     respjson.Field
+		Phase                    respjson.Field
 		Arguments                respjson.Field
 		CallID                   respjson.Field
 		Name                     respjson.Field
 		Namespace                respjson.Field
+		CreatedBy                respjson.Field
 		Output                   respjson.Field
 		Queries                  respjson.Field
 		Results                  respjson.Field
@@ -228,7 +232,6 @@ type ConversationItemUnion struct {
 		Actions                  respjson.Field
 		AcknowledgedSafetyChecks respjson.Field
 		Execution                respjson.Field
-		CreatedBy                respjson.Field
 		Tools                    respjson.Field
 		Summary                  respjson.Field
 		EncryptedContent         respjson.Field
@@ -277,6 +280,7 @@ func (ConversationItemMcpCall) ImplConversationItemUnion()              {}
 //	case responses.ResponseToolSearchCall:
 //	case responses.ResponseToolSearchOutputItem:
 //	case responses.ResponseReasoningItem:
+//	case responses.ResponseCompactionItem:
 //	case responses.ResponseCodeInterpreterToolCall:
 //	case conversations.ConversationItemLocalShellCall:
 //	case conversations.ConversationItemLocalShellCallOutput:
@@ -317,6 +321,8 @@ func (u ConversationItemUnion) AsAny() anyConversationItem {
 		return u.AsToolSearchOutput()
 	case "reasoning":
 		return u.AsReasoning()
+	case "compaction":
+		return u.AsCompaction()
 	case "code_interpreter_call":
 		return u.AsCodeInterpreterCall()
 	case "local_shell_call":
@@ -398,6 +404,11 @@ func (u ConversationItemUnion) AsToolSearchOutput() (v responses.ResponseToolSea
 }
 
 func (u ConversationItemUnion) AsReasoning() (v responses.ResponseReasoningItem) {
+	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u ConversationItemUnion) AsCompaction() (v responses.ResponseCompactionItem) {
 	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
@@ -585,13 +596,12 @@ type ConversationItemUnionAction struct {
 	// This field is from variant [responses.ResponseFunctionWebSearchActionUnion].
 	Pattern string `json:"pattern"`
 	// This field is from variant [responses.ResponseComputerToolCallActionUnion].
-	Button string `json:"button"`
-	X      int64  `json:"x"`
-	Y      int64  `json:"y"`
+	Button string   `json:"button"`
+	X      int64    `json:"x"`
+	Y      int64    `json:"y"`
+	Keys   []string `json:"keys"`
 	// This field is from variant [responses.ResponseComputerToolCallActionUnion].
 	Path []responses.ResponseComputerToolCallActionDragPath `json:"path"`
-	// This field is from variant [responses.ResponseComputerToolCallActionUnion].
-	Keys []string `json:"keys"`
 	// This field is from variant [responses.ResponseComputerToolCallActionUnion].
 	ScrollX int64 `json:"scroll_x"`
 	// This field is from variant [responses.ResponseComputerToolCallActionUnion].
@@ -621,8 +631,8 @@ type ConversationItemUnionAction struct {
 		Button           respjson.Field
 		X                respjson.Field
 		Y                respjson.Field
-		Path             respjson.Field
 		Keys             respjson.Field
+		Path             respjson.Field
 		ScrollX          respjson.Field
 		ScrollY          respjson.Field
 		Text             respjson.Field
@@ -679,7 +689,7 @@ type ConversationItemImageGenerationCall struct {
 	// Any of "in_progress", "completed", "generating", "failed".
 	Status string `json:"status" api:"required"`
 	// The type of the image generation call. Always `image_generation_call`.
-	Type constant.ImageGenerationCall `json:"type" api:"required"`
+	Type constant.ImageGenerationCall `json:"type" default:"image_generation_call"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -710,7 +720,7 @@ type ConversationItemLocalShellCall struct {
 	// Any of "in_progress", "completed", "incomplete".
 	Status string `json:"status" api:"required"`
 	// The type of the local shell call. Always `local_shell_call`.
-	Type constant.LocalShellCall `json:"type" api:"required"`
+	Type constant.LocalShellCall `json:"type" default:"local_shell_call"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -736,7 +746,7 @@ type ConversationItemLocalShellCallAction struct {
 	// Environment variables to set for the command.
 	Env map[string]string `json:"env" api:"required"`
 	// The type of the local shell action. Always `exec`.
-	Type constant.Exec `json:"type" api:"required"`
+	Type constant.Exec `json:"type" default:"exec"`
 	// Optional timeout in milliseconds for the command.
 	TimeoutMs int64 `json:"timeout_ms" api:"nullable"`
 	// Optional user to run the command as.
@@ -769,7 +779,7 @@ type ConversationItemLocalShellCallOutput struct {
 	// A JSON string of the output of the local shell tool call.
 	Output string `json:"output" api:"required"`
 	// The type of the local shell tool call output. Always `local_shell_call_output`.
-	Type constant.LocalShellCallOutput `json:"type" api:"required"`
+	Type constant.LocalShellCallOutput `json:"type" default:"local_shell_call_output"`
 	// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
 	//
 	// Any of "in_progress", "completed", "incomplete".
@@ -800,7 +810,7 @@ type ConversationItemMcpListTools struct {
 	// The tools available on the server.
 	Tools []ConversationItemMcpListToolsTool `json:"tools" api:"required"`
 	// The type of the item. Always `mcp_list_tools`.
-	Type constant.McpListTools `json:"type" api:"required"`
+	Type constant.McpListTools `json:"type" default:"mcp_list_tools"`
 	// Error message if the server could not list tools.
 	Error string `json:"error" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -859,7 +869,7 @@ type ConversationItemMcpApprovalRequest struct {
 	// The label of the MCP server making the request.
 	ServerLabel string `json:"server_label" api:"required"`
 	// The type of the item. Always `mcp_approval_request`.
-	Type constant.McpApprovalRequest `json:"type" api:"required"`
+	Type constant.McpApprovalRequest `json:"type" default:"mcp_approval_request"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -887,7 +897,7 @@ type ConversationItemMcpApprovalResponse struct {
 	// Whether the request was approved.
 	Approve bool `json:"approve" api:"required"`
 	// The type of the item. Always `mcp_approval_response`.
-	Type constant.McpApprovalResponse `json:"type" api:"required"`
+	Type constant.McpApprovalResponse `json:"type" default:"mcp_approval_response"`
 	// Optional reason for the decision.
 	Reason string `json:"reason" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -919,7 +929,7 @@ type ConversationItemMcpCall struct {
 	// The label of the MCP server running the tool.
 	ServerLabel string `json:"server_label" api:"required"`
 	// The type of the item. Always `mcp_call`.
-	Type constant.McpCall `json:"type" api:"required"`
+	Type constant.McpCall `json:"type" default:"mcp_call"`
 	// Unique identifier for the MCP tool call approval request. Include this value in
 	// a subsequent `mcp_approval_response` input to approve or reject the
 	// corresponding tool call.
@@ -966,7 +976,7 @@ type ConversationItemList struct {
 	// The ID of the last item in the list.
 	LastID string `json:"last_id" api:"required"`
 	// The type of object returned, must be `list`.
-	Object constant.List `json:"object" api:"required"`
+	Object constant.List `json:"object" default:"list"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Data        respjson.Field

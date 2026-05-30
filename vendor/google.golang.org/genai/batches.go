@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -379,6 +379,11 @@ func createBatchJobConfigToMldev(fromObject map[string]any, parentObject map[str
 		return nil, fmt.Errorf("dest parameter is not supported in Gemini API")
 	}
 
+	fromWebhookConfig := InternalGetValueByPath(fromObject, []string{"webhookConfig"})
+	if fromWebhookConfig != nil {
+		InternalSetValueByPath(parentObject, []string{"batch", "webhookConfig"}, fromWebhookConfig)
+	}
+
 	return toObject, nil
 }
 
@@ -403,6 +408,10 @@ func createBatchJobConfigToVertex(fromObject map[string]any, parentObject map[st
 		}
 
 		InternalSetValueByPath(parentObject, []string{"outputConfig"}, fromDest)
+	}
+
+	if InternalGetValueByPath(fromObject, []string{"webhookConfig"}) != nil {
+		return nil, fmt.Errorf("webhookConfig parameter is not supported in Vertex AI")
 	}
 
 	return toObject, nil
@@ -1395,10 +1404,10 @@ func (m Batches) All(ctx context.Context) iter.Seq2[*BatchJob, error] {
 func (b Batches) Create(ctx context.Context, model string, src *BatchJobSource, config *CreateBatchJobConfig) (*BatchJob, error) {
 	if b.apiClient.clientConfig.Backend == BackendVertexAI {
 		if len(src.InlinedRequests) > 0 {
-			return nil, fmt.Errorf("InlinedRequests is not supported for Vertex AI backend.")
+			return nil, fmt.Errorf("inlinedRequests parameter is not supported in Vertex AI")
 		}
 		if src.FileName != "" {
-			return nil, fmt.Errorf("FileName is not supported for Vertex AI backend.")
+			return nil, fmt.Errorf("fileName parameter is not supported in Vertex AI")
 		}
 		if len(src.GCSURI) != 0 && src.BigqueryURI != "" {
 			return nil, fmt.Errorf("Only one of GCSURI ([]string) and BigqueryURI (string) can be set.")

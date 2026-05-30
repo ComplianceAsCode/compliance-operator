@@ -79,11 +79,11 @@ func (r *BetaFileService) Delete(ctx context.Context, fileID string, body BetaFi
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14")}, opts...)
 	if fileID == "" {
 		err = errors.New("missing required file_id parameter")
-		return
+		return nil, err
 	}
 	path := fmt.Sprintf("v1/files/%s?beta=true", fileID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
-	return
+	return res, err
 }
 
 // Download File
@@ -95,11 +95,11 @@ func (r *BetaFileService) Download(ctx context.Context, fileID string, query Bet
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14"), option.WithHeader("Accept", "application/binary")}, opts...)
 	if fileID == "" {
 		err = errors.New("missing required file_id parameter")
-		return
+		return nil, err
 	}
 	path := fmt.Sprintf("v1/files/%s/content?beta=true", fileID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
-	return
+	return res, err
 }
 
 // Get File Metadata
@@ -111,11 +111,11 @@ func (r *BetaFileService) GetMetadata(ctx context.Context, fileID string, query 
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14")}, opts...)
 	if fileID == "" {
 		err = errors.New("missing required file_id parameter")
-		return
+		return nil, err
 	}
 	path := fmt.Sprintf("v1/files/%s?beta=true", fileID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
-	return
+	return res, err
 }
 
 // Upload File
@@ -127,12 +127,32 @@ func (r *BetaFileService) Upload(ctx context.Context, params BetaFileUploadParam
 	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14")}, opts...)
 	path := "v1/files?beta=true"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
-	return
+	return res, err
+}
+
+type BetaFileScope struct {
+	// The ID of the scoping resource (e.g., the session ID).
+	ID string `json:"id" api:"required"`
+	// The type of scope (e.g., `"session"`).
+	Type constant.Session `json:"type" default:"session"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		ID          respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaFileScope) RawJSON() string { return r.JSON.raw }
+func (r *BetaFileScope) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
 }
 
 type DeletedFile struct {
 	// ID of the deleted file.
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// Deleted object type.
 	//
 	// For file deletion, this is always `"file_deleted"`.
@@ -167,21 +187,24 @@ type FileMetadata struct {
 	// Unique object identifier.
 	//
 	// The format and length of IDs may change over time.
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// RFC 3339 datetime string representing when the file was created.
-	CreatedAt time.Time `json:"created_at,required" format:"date-time"`
+	CreatedAt time.Time `json:"created_at" api:"required" format:"date-time"`
 	// Original filename of the uploaded file.
-	Filename string `json:"filename,required"`
+	Filename string `json:"filename" api:"required"`
 	// MIME type of the file.
-	MimeType string `json:"mime_type,required"`
+	MimeType string `json:"mime_type" api:"required"`
 	// Size of the file in bytes.
-	SizeBytes int64 `json:"size_bytes,required"`
+	SizeBytes int64 `json:"size_bytes" api:"required"`
 	// Object type.
 	//
 	// For files, this is always `"file"`.
-	Type constant.File `json:"type,required"`
+	Type constant.File `json:"type" default:"file"`
 	// Whether the file can be downloaded.
 	Downloadable bool `json:"downloadable"`
+	// The scope of this file, indicating the context in which it was created (e.g., a
+	// session).
+	Scope BetaFileScope `json:"scope" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID           respjson.Field
@@ -191,6 +214,7 @@ type FileMetadata struct {
 		SizeBytes    respjson.Field
 		Type         respjson.Field
 		Downloadable respjson.Field
+		Scope        respjson.Field
 		ExtraFields  map[string]respjson.Field
 		raw          string
 	} `json:"-"`
@@ -213,6 +237,9 @@ type BetaFileListParams struct {
 	//
 	// Defaults to `20`. Ranges from `1` to `1000`.
 	Limit param.Opt[int64] `query:"limit,omitzero" json:"-"`
+	// Filter by scope ID. Only returns files associated with the specified scope
+	// (e.g., a session ID).
+	ScopeID param.Opt[string] `query:"scope_id,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -246,7 +273,7 @@ type BetaFileGetMetadataParams struct {
 
 type BetaFileUploadParams struct {
 	// The file to upload
-	File io.Reader `json:"file,omitzero,required" format:"binary"`
+	File io.Reader `json:"file,omitzero" api:"required" format:"binary"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj

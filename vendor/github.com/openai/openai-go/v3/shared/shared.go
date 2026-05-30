@@ -15,6 +15,27 @@ import (
 type paramUnion = param.APIUnion
 type paramObj = param.APIObject
 
+// AllModels also accepts any [string] or [ChatModel]
+type AllModels = string
+
+const (
+	AllModelsO1Pro                        AllModels = "o1-pro"
+	AllModelsO1Pro2025_03_19              AllModels = "o1-pro-2025-03-19"
+	AllModelsO3Pro                        AllModels = "o3-pro"
+	AllModelsO3Pro2025_06_10              AllModels = "o3-pro-2025-06-10"
+	AllModelsO3DeepResearch               AllModels = "o3-deep-research"
+	AllModelsO3DeepResearch2025_06_26     AllModels = "o3-deep-research-2025-06-26"
+	AllModelsO4MiniDeepResearch           AllModels = "o4-mini-deep-research"
+	AllModelsO4MiniDeepResearch2025_06_26 AllModels = "o4-mini-deep-research-2025-06-26"
+	AllModelsComputerUsePreview           AllModels = "computer-use-preview"
+	AllModelsComputerUsePreview2025_03_11 AllModels = "computer-use-preview-2025-03-11"
+	AllModelsGPT5Codex                    AllModels = "gpt-5-codex"
+	AllModelsGPT5Pro                      AllModels = "gpt-5-pro"
+	AllModelsGPT5Pro2025_10_06            AllModels = "gpt-5-pro-2025-10-06"
+	AllModelsGPT5_1CodexMax               AllModels = "gpt-5.1-codex-max"
+	// Or some ...[ChatModel]
+)
+
 type ChatModel = string
 type ResponsesModel = string
 
@@ -22,6 +43,10 @@ type ResponsesModel = string
 
 const (
 	ChatModelGPT5_4                           ChatModel = "gpt-5.4"
+	ChatModelGPT5_4Mini                       ChatModel = "gpt-5.4-mini"
+	ChatModelGPT5_4Nano                       ChatModel = "gpt-5.4-nano"
+	ChatModelGPT5_4Mini2026_03_17             ChatModel = "gpt-5.4-mini-2026-03-17"
+	ChatModelGPT5_4Nano2026_03_17             ChatModel = "gpt-5.4-nano-2026-03-17"
 	ChatModelGPT5_3ChatLatest                 ChatModel = "gpt-5.3-chat-latest"
 	ChatModelGPT5_2                           ChatModel = "gpt-5.2"
 	ChatModelGPT5_2_2025_12_11                ChatModel = "gpt-5.2-2025-12-11"
@@ -114,7 +139,7 @@ type ComparisonFilter struct {
 	// - `in`: in
 	// - `nin`: not in
 	//
-	// Any of "eq", "ne", "gt", "gte", "lt", "lte".
+	// Any of "eq", "ne", "gt", "gte", "lt", "lte", "in", "nin".
 	Type ComparisonFilterType `json:"type" api:"required"`
 	// The value to compare against the attribute key; supports string, number, or
 	// boolean types.
@@ -164,6 +189,8 @@ const (
 	ComparisonFilterTypeGte ComparisonFilterType = "gte"
 	ComparisonFilterTypeLt  ComparisonFilterType = "lt"
 	ComparisonFilterTypeLte ComparisonFilterType = "lte"
+	ComparisonFilterTypeIn  ComparisonFilterType = "in"
+	ComparisonFilterTypeNin ComparisonFilterType = "nin"
 )
 
 // ComparisonFilterValueUnion contains all possible properties and values from
@@ -274,7 +301,7 @@ type ComparisonFilterParam struct {
 	// - `in`: in
 	// - `nin`: not in
 	//
-	// Any of "eq", "ne", "gt", "gte", "lt", "lte".
+	// Any of "eq", "ne", "gt", "gte", "lt", "lte", "in", "nin".
 	Type ComparisonFilterType `json:"type,omitzero" api:"required"`
 	// The value to compare against the attribute key; supports string, number, or
 	// boolean types.
@@ -485,7 +512,7 @@ func (r CustomToolInputFormatUnion) ToParam() CustomToolInputFormatUnionParam {
 // Unconstrained free-form text.
 type CustomToolInputFormatText struct {
 	// Unconstrained text format. Always `text`.
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -511,7 +538,7 @@ type CustomToolInputFormatGrammar struct {
 	// Any of "lark", "regex".
 	Syntax string `json:"syntax" api:"required"`
 	// Grammar format. Always `grammar`.
-	Type constant.Grammar `json:"type" api:"required"`
+	Type constant.Grammar `json:"type" default:"grammar"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Definition  respjson.Field
@@ -608,7 +635,7 @@ func NewCustomToolInputFormatTextParam() CustomToolInputFormatTextParam {
 // [NewCustomToolInputFormatTextParam].
 type CustomToolInputFormatTextParam struct {
 	// Unconstrained text format. Always `text`.
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	paramObj
 }
 
@@ -633,7 +660,7 @@ type CustomToolInputFormatGrammarParam struct {
 	// Grammar format. Always `grammar`.
 	//
 	// This field can be elided, and will marshal its zero value as "grammar".
-	Type constant.Grammar `json:"type" api:"required"`
+	Type constant.Grammar `json:"type" default:"grammar"`
 	paramObj
 }
 
@@ -756,6 +783,13 @@ func (r *FunctionDefinitionParam) UnmarshalJSON(data []byte) error {
 type FunctionParameters map[string]any
 
 type Metadata map[string]string
+
+type OAuthErrorCode string
+
+const (
+	OAuthErrorCodeInvalidGrant        OAuthErrorCode = "invalid_grant"
+	OAuthErrorCodeInvalidSubjectToken OAuthErrorCode = "invalid_subject_token"
+)
 
 // **gpt-5 and o-series models only**
 //
@@ -929,7 +963,7 @@ const (
 // will not generate JSON without a system or user message instructing it to do so.
 type ResponseFormatJSONObject struct {
 	// The type of response format being defined. Always `json_object`.
-	Type constant.JSONObject `json:"type" api:"required"`
+	Type constant.JSONObject `json:"type" default:"json_object"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -970,7 +1004,7 @@ func NewResponseFormatJSONObjectParam() ResponseFormatJSONObjectParam {
 // [NewResponseFormatJSONObjectParam].
 type ResponseFormatJSONObjectParam struct {
 	// The type of response format being defined. Always `json_object`.
-	Type constant.JSONObject `json:"type" api:"required"`
+	Type constant.JSONObject `json:"type" default:"json_object"`
 	paramObj
 }
 
@@ -989,7 +1023,7 @@ type ResponseFormatJSONSchema struct {
 	// Structured Outputs configuration options, including a JSON Schema.
 	JSONSchema ResponseFormatJSONSchemaJSONSchema `json:"json_schema" api:"required"`
 	// The type of response format being defined. Always `json_schema`.
-	Type constant.JSONSchema `json:"type" api:"required"`
+	Type constant.JSONSchema `json:"type" default:"json_schema"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		JSONSchema  respjson.Field
@@ -1060,7 +1094,7 @@ type ResponseFormatJSONSchemaParam struct {
 	// The type of response format being defined. Always `json_schema`.
 	//
 	// This field can be elided, and will marshal its zero value as "json_schema".
-	Type constant.JSONSchema `json:"type" api:"required"`
+	Type constant.JSONSchema `json:"type" default:"json_schema"`
 	paramObj
 }
 
@@ -1105,7 +1139,7 @@ func (r *ResponseFormatJSONSchemaJSONSchemaParam) UnmarshalJSON(data []byte) err
 // Default response format. Used to generate text responses.
 type ResponseFormatText struct {
 	// The type of response format being defined. Always `text`.
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -1143,7 +1177,7 @@ func NewResponseFormatTextParam() ResponseFormatTextParam {
 // [NewResponseFormatTextParam].
 type ResponseFormatTextParam struct {
 	// The type of response format being defined. Always `text`.
-	Type constant.Text `json:"type" api:"required"`
+	Type constant.Text `json:"type" default:"text"`
 	paramObj
 }
 

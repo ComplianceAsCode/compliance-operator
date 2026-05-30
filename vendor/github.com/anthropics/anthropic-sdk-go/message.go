@@ -54,6 +54,7 @@ func NewMessageService(opts ...option.RequestOption) (r MessageService) {
 // Note: If you choose to set a timeout for this request, we recommend 10 minutes.
 func (r *MessageService) New(ctx context.Context, body MessageNewParams, opts ...option.RequestOption) (res *Message, err error) {
 	opts = slices.Concat(r.Options, opts)
+	warnIfThinkingEnabled(body.Model, body.Thinking.OfEnabled != nil)
 
 	// For non-streaming requests, calculate the appropriate timeout based on maxTokens
 	// and check against model-specific limits
@@ -65,7 +66,7 @@ func (r *MessageService) New(ctx context.Context, body MessageNewParams, opts ..
 
 	path := "v1/messages"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
-	return
+	return res, err
 }
 
 // Send a structured list of input messages with text and/or image content, and the
@@ -84,6 +85,7 @@ func (r *MessageService) NewStreaming(ctx context.Context, body MessageNewParams
 		err error
 	)
 	opts = slices.Concat(r.Options, opts)
+	warnIfThinkingEnabled(body.Model, body.Thinking.OfEnabled != nil)
 	opts = append(opts, option.WithJSONSet("stream", true))
 	path := "v1/messages"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, opts...)
@@ -101,16 +103,16 @@ func (r *MessageService) CountTokens(ctx context.Context, body MessageCountToken
 	opts = slices.Concat(r.Options, opts)
 	path := "v1/messages/count_tokens"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
-	return
+	return res, err
 }
 
 // The properties Data, MediaType, Type are required.
 type Base64ImageSourceParam struct {
-	Data string `json:"data,required" format:"byte"`
+	Data string `json:"data" api:"required" format:"byte"`
 	// Any of "image/jpeg", "image/png", "image/gif", "image/webp".
-	MediaType Base64ImageSourceMediaType `json:"media_type,omitzero,required"`
+	MediaType Base64ImageSourceMediaType `json:"media_type,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as "base64".
-	Type constant.Base64 `json:"type,required"`
+	Type constant.Base64 `json:"type" default:"base64"`
 	paramObj
 }
 
@@ -132,9 +134,9 @@ const (
 )
 
 type Base64PDFSource struct {
-	Data      string                  `json:"data,required" format:"byte"`
-	MediaType constant.ApplicationPDF `json:"media_type,required"`
-	Type      constant.Base64         `json:"type,required"`
+	Data      string                  `json:"data" api:"required" format:"byte"`
+	MediaType constant.ApplicationPDF `json:"media_type" default:"application/pdf"`
+	Type      constant.Base64         `json:"type" default:"base64"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Data        respjson.Field
@@ -162,11 +164,11 @@ func (r Base64PDFSource) ToParam() Base64PDFSourceParam {
 
 // The properties Data, MediaType, Type are required.
 type Base64PDFSourceParam struct {
-	Data string `json:"data,required" format:"byte"`
+	Data string `json:"data" api:"required" format:"byte"`
 	// This field can be elided, and will marshal its zero value as "application/pdf".
-	MediaType constant.ApplicationPDF `json:"media_type,required"`
+	MediaType constant.ApplicationPDF `json:"media_type" default:"application/pdf"`
 	// This field can be elided, and will marshal its zero value as "base64".
-	Type constant.Base64 `json:"type,required"`
+	Type constant.Base64 `json:"type" default:"base64"`
 	paramObj
 }
 
@@ -179,8 +181,8 @@ func (r *Base64PDFSourceParam) UnmarshalJSON(data []byte) error {
 }
 
 type BashCodeExecutionOutputBlock struct {
-	FileID string                           `json:"file_id,required"`
-	Type   constant.BashCodeExecutionOutput `json:"type,required"`
+	FileID string                           `json:"file_id" api:"required"`
+	Type   constant.BashCodeExecutionOutput `json:"type" default:"bash_code_execution_output"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		FileID      respjson.Field
@@ -198,10 +200,10 @@ func (r *BashCodeExecutionOutputBlock) UnmarshalJSON(data []byte) error {
 
 // The properties FileID, Type are required.
 type BashCodeExecutionOutputBlockParam struct {
-	FileID string `json:"file_id,required"`
+	FileID string `json:"file_id" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "bash_code_execution_output".
-	Type constant.BashCodeExecutionOutput `json:"type,required"`
+	Type constant.BashCodeExecutionOutput `json:"type" default:"bash_code_execution_output"`
 	paramObj
 }
 
@@ -214,11 +216,11 @@ func (r *BashCodeExecutionOutputBlockParam) UnmarshalJSON(data []byte) error {
 }
 
 type BashCodeExecutionResultBlock struct {
-	Content    []BashCodeExecutionOutputBlock   `json:"content,required"`
-	ReturnCode int64                            `json:"return_code,required"`
-	Stderr     string                           `json:"stderr,required"`
-	Stdout     string                           `json:"stdout,required"`
-	Type       constant.BashCodeExecutionResult `json:"type,required"`
+	Content    []BashCodeExecutionOutputBlock   `json:"content" api:"required"`
+	ReturnCode int64                            `json:"return_code" api:"required"`
+	Stderr     string                           `json:"stderr" api:"required"`
+	Stdout     string                           `json:"stdout" api:"required"`
+	Type       constant.BashCodeExecutionResult `json:"type" default:"bash_code_execution_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -239,13 +241,13 @@ func (r *BashCodeExecutionResultBlock) UnmarshalJSON(data []byte) error {
 
 // The properties Content, ReturnCode, Stderr, Stdout, Type are required.
 type BashCodeExecutionResultBlockParam struct {
-	Content    []BashCodeExecutionOutputBlockParam `json:"content,omitzero,required"`
-	ReturnCode int64                               `json:"return_code,required"`
-	Stderr     string                              `json:"stderr,required"`
-	Stdout     string                              `json:"stdout,required"`
+	Content    []BashCodeExecutionOutputBlockParam `json:"content,omitzero" api:"required"`
+	ReturnCode int64                               `json:"return_code" api:"required"`
+	Stderr     string                              `json:"stderr" api:"required"`
+	Stdout     string                              `json:"stdout" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "bash_code_execution_result".
-	Type constant.BashCodeExecutionResult `json:"type,required"`
+	Type constant.BashCodeExecutionResult `json:"type" default:"bash_code_execution_result"`
 	paramObj
 }
 
@@ -258,9 +260,9 @@ func (r *BashCodeExecutionResultBlockParam) UnmarshalJSON(data []byte) error {
 }
 
 type BashCodeExecutionToolResultBlock struct {
-	Content   BashCodeExecutionToolResultBlockContentUnion `json:"content,required"`
-	ToolUseID string                                       `json:"tool_use_id,required"`
-	Type      constant.BashCodeExecutionToolResult         `json:"type,required"`
+	Content   BashCodeExecutionToolResultBlockContentUnion `json:"content" api:"required"`
+	ToolUseID string                                       `json:"tool_use_id" api:"required"`
+	Type      constant.BashCodeExecutionToolResult         `json:"type" default:"bash_code_execution_tool_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -324,13 +326,13 @@ func (r *BashCodeExecutionToolResultBlockContentUnion) UnmarshalJSON(data []byte
 
 // The properties Content, ToolUseID, Type are required.
 type BashCodeExecutionToolResultBlockParam struct {
-	Content   BashCodeExecutionToolResultBlockParamContentUnion `json:"content,omitzero,required"`
-	ToolUseID string                                            `json:"tool_use_id,required"`
+	Content   BashCodeExecutionToolResultBlockParamContentUnion `json:"content,omitzero" api:"required"`
+	ToolUseID string                                            `json:"tool_use_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "bash_code_execution_tool_result".
-	Type constant.BashCodeExecutionToolResult `json:"type,required"`
+	Type constant.BashCodeExecutionToolResult `json:"type" default:"bash_code_execution_tool_result"`
 	paramObj
 }
 
@@ -420,8 +422,8 @@ func (u BashCodeExecutionToolResultBlockParamContentUnion) GetType() *string {
 type BashCodeExecutionToolResultError struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded", "output_file_too_large".
-	ErrorCode BashCodeExecutionToolResultErrorCode      `json:"error_code,required"`
-	Type      constant.BashCodeExecutionToolResultError `json:"type,required"`
+	ErrorCode BashCodeExecutionToolResultErrorCode      `json:"error_code" api:"required"`
+	Type      constant.BashCodeExecutionToolResultError `json:"type" default:"bash_code_execution_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ErrorCode   respjson.Field
@@ -451,10 +453,10 @@ const (
 type BashCodeExecutionToolResultErrorParam struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded", "output_file_too_large".
-	ErrorCode BashCodeExecutionToolResultErrorCode `json:"error_code,omitzero,required"`
+	ErrorCode BashCodeExecutionToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "bash_code_execution_tool_result_error".
-	Type constant.BashCodeExecutionToolResultError `json:"type,required"`
+	Type constant.BashCodeExecutionToolResultError `json:"type" default:"bash_code_execution_tool_result_error"`
 	paramObj
 }
 
@@ -486,7 +488,7 @@ type CacheControlEphemeralParam struct {
 	//
 	// Any of "5m", "1h".
 	TTL  CacheControlEphemeralTTL `json:"ttl,omitzero"`
-	Type constant.Ephemeral       `json:"type,required"`
+	Type constant.Ephemeral       `json:"type" default:"ephemeral"`
 	paramObj
 }
 
@@ -515,9 +517,9 @@ const (
 
 type CacheCreation struct {
 	// The number of input tokens used to create the 1 hour cache entry.
-	Ephemeral1hInputTokens int64 `json:"ephemeral_1h_input_tokens,required"`
+	Ephemeral1hInputTokens int64 `json:"ephemeral_1h_input_tokens" api:"required"`
 	// The number of input tokens used to create the 5 minute cache entry.
-	Ephemeral5mInputTokens int64 `json:"ephemeral_5m_input_tokens,required"`
+	Ephemeral5mInputTokens int64 `json:"ephemeral_5m_input_tokens" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Ephemeral1hInputTokens respjson.Field
@@ -534,13 +536,13 @@ func (r *CacheCreation) UnmarshalJSON(data []byte) error {
 }
 
 type CitationCharLocation struct {
-	CitedText      string                `json:"cited_text,required"`
-	DocumentIndex  int64                 `json:"document_index,required"`
-	DocumentTitle  string                `json:"document_title,required"`
-	EndCharIndex   int64                 `json:"end_char_index,required"`
-	FileID         string                `json:"file_id,required"`
-	StartCharIndex int64                 `json:"start_char_index,required"`
-	Type           constant.CharLocation `json:"type,required"`
+	CitedText      string                `json:"cited_text" api:"required"`
+	DocumentIndex  int64                 `json:"document_index" api:"required"`
+	DocumentTitle  string                `json:"document_title" api:"required"`
+	EndCharIndex   int64                 `json:"end_char_index" api:"required"`
+	FileID         string                `json:"file_id" api:"required"`
+	StartCharIndex int64                 `json:"start_char_index" api:"required"`
+	Type           constant.CharLocation `json:"type" default:"char_location"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CitedText      respjson.Field
@@ -564,13 +566,13 @@ func (r *CitationCharLocation) UnmarshalJSON(data []byte) error {
 // The properties CitedText, DocumentIndex, DocumentTitle, EndCharIndex,
 // StartCharIndex, Type are required.
 type CitationCharLocationParam struct {
-	DocumentTitle  param.Opt[string] `json:"document_title,omitzero,required"`
-	CitedText      string            `json:"cited_text,required"`
-	DocumentIndex  int64             `json:"document_index,required"`
-	EndCharIndex   int64             `json:"end_char_index,required"`
-	StartCharIndex int64             `json:"start_char_index,required"`
+	DocumentTitle  param.Opt[string] `json:"document_title,omitzero" api:"required"`
+	CitedText      string            `json:"cited_text" api:"required"`
+	DocumentIndex  int64             `json:"document_index" api:"required"`
+	EndCharIndex   int64             `json:"end_char_index" api:"required"`
+	StartCharIndex int64             `json:"start_char_index" api:"required"`
 	// This field can be elided, and will marshal its zero value as "char_location".
-	Type constant.CharLocation `json:"type,required"`
+	Type constant.CharLocation `json:"type" default:"char_location"`
 	paramObj
 }
 
@@ -583,13 +585,13 @@ func (r *CitationCharLocationParam) UnmarshalJSON(data []byte) error {
 }
 
 type CitationContentBlockLocation struct {
-	CitedText       string                        `json:"cited_text,required"`
-	DocumentIndex   int64                         `json:"document_index,required"`
-	DocumentTitle   string                        `json:"document_title,required"`
-	EndBlockIndex   int64                         `json:"end_block_index,required"`
-	FileID          string                        `json:"file_id,required"`
-	StartBlockIndex int64                         `json:"start_block_index,required"`
-	Type            constant.ContentBlockLocation `json:"type,required"`
+	CitedText       string                        `json:"cited_text" api:"required"`
+	DocumentIndex   int64                         `json:"document_index" api:"required"`
+	DocumentTitle   string                        `json:"document_title" api:"required"`
+	EndBlockIndex   int64                         `json:"end_block_index" api:"required"`
+	FileID          string                        `json:"file_id" api:"required"`
+	StartBlockIndex int64                         `json:"start_block_index" api:"required"`
+	Type            constant.ContentBlockLocation `json:"type" default:"content_block_location"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CitedText       respjson.Field
@@ -613,14 +615,14 @@ func (r *CitationContentBlockLocation) UnmarshalJSON(data []byte) error {
 // The properties CitedText, DocumentIndex, DocumentTitle, EndBlockIndex,
 // StartBlockIndex, Type are required.
 type CitationContentBlockLocationParam struct {
-	DocumentTitle   param.Opt[string] `json:"document_title,omitzero,required"`
-	CitedText       string            `json:"cited_text,required"`
-	DocumentIndex   int64             `json:"document_index,required"`
-	EndBlockIndex   int64             `json:"end_block_index,required"`
-	StartBlockIndex int64             `json:"start_block_index,required"`
+	DocumentTitle   param.Opt[string] `json:"document_title,omitzero" api:"required"`
+	CitedText       string            `json:"cited_text" api:"required"`
+	DocumentIndex   int64             `json:"document_index" api:"required"`
+	EndBlockIndex   int64             `json:"end_block_index" api:"required"`
+	StartBlockIndex int64             `json:"start_block_index" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "content_block_location".
-	Type constant.ContentBlockLocation `json:"type,required"`
+	Type constant.ContentBlockLocation `json:"type" default:"content_block_location"`
 	paramObj
 }
 
@@ -633,13 +635,13 @@ func (r *CitationContentBlockLocationParam) UnmarshalJSON(data []byte) error {
 }
 
 type CitationPageLocation struct {
-	CitedText       string                `json:"cited_text,required"`
-	DocumentIndex   int64                 `json:"document_index,required"`
-	DocumentTitle   string                `json:"document_title,required"`
-	EndPageNumber   int64                 `json:"end_page_number,required"`
-	FileID          string                `json:"file_id,required"`
-	StartPageNumber int64                 `json:"start_page_number,required"`
-	Type            constant.PageLocation `json:"type,required"`
+	CitedText       string                `json:"cited_text" api:"required"`
+	DocumentIndex   int64                 `json:"document_index" api:"required"`
+	DocumentTitle   string                `json:"document_title" api:"required"`
+	EndPageNumber   int64                 `json:"end_page_number" api:"required"`
+	FileID          string                `json:"file_id" api:"required"`
+	StartPageNumber int64                 `json:"start_page_number" api:"required"`
+	Type            constant.PageLocation `json:"type" default:"page_location"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CitedText       respjson.Field
@@ -663,13 +665,13 @@ func (r *CitationPageLocation) UnmarshalJSON(data []byte) error {
 // The properties CitedText, DocumentIndex, DocumentTitle, EndPageNumber,
 // StartPageNumber, Type are required.
 type CitationPageLocationParam struct {
-	DocumentTitle   param.Opt[string] `json:"document_title,omitzero,required"`
-	CitedText       string            `json:"cited_text,required"`
-	DocumentIndex   int64             `json:"document_index,required"`
-	EndPageNumber   int64             `json:"end_page_number,required"`
-	StartPageNumber int64             `json:"start_page_number,required"`
+	DocumentTitle   param.Opt[string] `json:"document_title,omitzero" api:"required"`
+	CitedText       string            `json:"cited_text" api:"required"`
+	DocumentIndex   int64             `json:"document_index" api:"required"`
+	EndPageNumber   int64             `json:"end_page_number" api:"required"`
+	StartPageNumber int64             `json:"start_page_number" api:"required"`
 	// This field can be elided, and will marshal its zero value as "page_location".
-	Type constant.PageLocation `json:"type,required"`
+	Type constant.PageLocation `json:"type" default:"page_location"`
 	paramObj
 }
 
@@ -684,15 +686,15 @@ func (r *CitationPageLocationParam) UnmarshalJSON(data []byte) error {
 // The properties CitedText, EndBlockIndex, SearchResultIndex, Source,
 // StartBlockIndex, Title, Type are required.
 type CitationSearchResultLocationParam struct {
-	Title             param.Opt[string] `json:"title,omitzero,required"`
-	CitedText         string            `json:"cited_text,required"`
-	EndBlockIndex     int64             `json:"end_block_index,required"`
-	SearchResultIndex int64             `json:"search_result_index,required"`
-	Source            string            `json:"source,required"`
-	StartBlockIndex   int64             `json:"start_block_index,required"`
+	Title             param.Opt[string] `json:"title,omitzero" api:"required"`
+	CitedText         string            `json:"cited_text" api:"required"`
+	EndBlockIndex     int64             `json:"end_block_index" api:"required"`
+	SearchResultIndex int64             `json:"search_result_index" api:"required"`
+	Source            string            `json:"source" api:"required"`
+	StartBlockIndex   int64             `json:"start_block_index" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "search_result_location".
-	Type constant.SearchResultLocation `json:"type,required"`
+	Type constant.SearchResultLocation `json:"type" default:"search_result_location"`
 	paramObj
 }
 
@@ -706,13 +708,13 @@ func (r *CitationSearchResultLocationParam) UnmarshalJSON(data []byte) error {
 
 // The properties CitedText, EncryptedIndex, Title, Type, URL are required.
 type CitationWebSearchResultLocationParam struct {
-	Title          param.Opt[string] `json:"title,omitzero,required"`
-	CitedText      string            `json:"cited_text,required"`
-	EncryptedIndex string            `json:"encrypted_index,required"`
-	URL            string            `json:"url,required"`
+	Title          param.Opt[string] `json:"title,omitzero" api:"required"`
+	CitedText      string            `json:"cited_text" api:"required"`
+	EncryptedIndex string            `json:"encrypted_index" api:"required"`
+	URL            string            `json:"url" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_search_result_location".
-	Type constant.WebSearchResultLocation `json:"type,required"`
+	Type constant.WebSearchResultLocation `json:"type" default:"web_search_result_location"`
 	paramObj
 }
 
@@ -725,7 +727,7 @@ func (r *CitationWebSearchResultLocationParam) UnmarshalJSON(data []byte) error 
 }
 
 type CitationsConfig struct {
-	Enabled bool `json:"enabled,required"`
+	Enabled bool `json:"enabled" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Enabled     respjson.Field
@@ -754,8 +756,8 @@ func (r *CitationsConfigParam) UnmarshalJSON(data []byte) error {
 }
 
 type CitationsDelta struct {
-	Citation CitationsDeltaCitationUnion `json:"citation,required"`
-	Type     constant.CitationsDelta     `json:"type,required"`
+	Citation CitationsDeltaCitationUnion `json:"citation" api:"required"`
+	Type     constant.CitationsDelta     `json:"type" default:"citations_delta"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Citation    respjson.Field
@@ -899,13 +901,13 @@ func (r *CitationsDeltaCitationUnion) UnmarshalJSON(data []byte) error {
 }
 
 type CitationsSearchResultLocation struct {
-	CitedText         string                        `json:"cited_text,required"`
-	EndBlockIndex     int64                         `json:"end_block_index,required"`
-	SearchResultIndex int64                         `json:"search_result_index,required"`
-	Source            string                        `json:"source,required"`
-	StartBlockIndex   int64                         `json:"start_block_index,required"`
-	Title             string                        `json:"title,required"`
-	Type              constant.SearchResultLocation `json:"type,required"`
+	CitedText         string                        `json:"cited_text" api:"required"`
+	EndBlockIndex     int64                         `json:"end_block_index" api:"required"`
+	SearchResultIndex int64                         `json:"search_result_index" api:"required"`
+	Source            string                        `json:"source" api:"required"`
+	StartBlockIndex   int64                         `json:"start_block_index" api:"required"`
+	Title             string                        `json:"title" api:"required"`
+	Type              constant.SearchResultLocation `json:"type" default:"search_result_location"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CitedText         respjson.Field
@@ -927,11 +929,11 @@ func (r *CitationsSearchResultLocation) UnmarshalJSON(data []byte) error {
 }
 
 type CitationsWebSearchResultLocation struct {
-	CitedText      string                           `json:"cited_text,required"`
-	EncryptedIndex string                           `json:"encrypted_index,required"`
-	Title          string                           `json:"title,required"`
-	Type           constant.WebSearchResultLocation `json:"type,required"`
-	URL            string                           `json:"url,required"`
+	CitedText      string                           `json:"cited_text" api:"required"`
+	EncryptedIndex string                           `json:"encrypted_index" api:"required"`
+	Title          string                           `json:"title" api:"required"`
+	Type           constant.WebSearchResultLocation `json:"type" default:"web_search_result_location"`
+	URL            string                           `json:"url" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CitedText      respjson.Field
@@ -951,8 +953,8 @@ func (r *CitationsWebSearchResultLocation) UnmarshalJSON(data []byte) error {
 }
 
 type CodeExecutionOutputBlock struct {
-	FileID string                       `json:"file_id,required"`
-	Type   constant.CodeExecutionOutput `json:"type,required"`
+	FileID string                       `json:"file_id" api:"required"`
+	Type   constant.CodeExecutionOutput `json:"type" default:"code_execution_output"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		FileID      respjson.Field
@@ -970,10 +972,10 @@ func (r *CodeExecutionOutputBlock) UnmarshalJSON(data []byte) error {
 
 // The properties FileID, Type are required.
 type CodeExecutionOutputBlockParam struct {
-	FileID string `json:"file_id,required"`
+	FileID string `json:"file_id" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_output".
-	Type constant.CodeExecutionOutput `json:"type,required"`
+	Type constant.CodeExecutionOutput `json:"type" default:"code_execution_output"`
 	paramObj
 }
 
@@ -986,11 +988,11 @@ func (r *CodeExecutionOutputBlockParam) UnmarshalJSON(data []byte) error {
 }
 
 type CodeExecutionResultBlock struct {
-	Content    []CodeExecutionOutputBlock   `json:"content,required"`
-	ReturnCode int64                        `json:"return_code,required"`
-	Stderr     string                       `json:"stderr,required"`
-	Stdout     string                       `json:"stdout,required"`
-	Type       constant.CodeExecutionResult `json:"type,required"`
+	Content    []CodeExecutionOutputBlock   `json:"content" api:"required"`
+	ReturnCode int64                        `json:"return_code" api:"required"`
+	Stderr     string                       `json:"stderr" api:"required"`
+	Stdout     string                       `json:"stdout" api:"required"`
+	Type       constant.CodeExecutionResult `json:"type" default:"code_execution_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -1011,13 +1013,13 @@ func (r *CodeExecutionResultBlock) UnmarshalJSON(data []byte) error {
 
 // The properties Content, ReturnCode, Stderr, Stdout, Type are required.
 type CodeExecutionResultBlockParam struct {
-	Content    []CodeExecutionOutputBlockParam `json:"content,omitzero,required"`
-	ReturnCode int64                           `json:"return_code,required"`
-	Stderr     string                          `json:"stderr,required"`
-	Stdout     string                          `json:"stdout,required"`
+	Content    []CodeExecutionOutputBlockParam `json:"content,omitzero" api:"required"`
+	ReturnCode int64                           `json:"return_code" api:"required"`
+	Stderr     string                          `json:"stderr" api:"required"`
+	Stdout     string                          `json:"stdout" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_result".
-	Type constant.CodeExecutionResult `json:"type,required"`
+	Type constant.CodeExecutionResult `json:"type" default:"code_execution_result"`
 	paramObj
 }
 
@@ -1045,10 +1047,10 @@ type CodeExecutionTool20250522Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "code_execution".
-	Name constant.CodeExecution `json:"name,required"`
+	Name constant.CodeExecution `json:"name" default:"code_execution"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_20250522".
-	Type constant.CodeExecution20250522 `json:"type,required"`
+	Type constant.CodeExecution20250522 `json:"type" default:"code_execution_20250522"`
 	paramObj
 }
 
@@ -1076,10 +1078,10 @@ type CodeExecutionTool20250825Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "code_execution".
-	Name constant.CodeExecution `json:"name,required"`
+	Name constant.CodeExecution `json:"name" default:"code_execution"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_20250825".
-	Type constant.CodeExecution20250825 `json:"type,required"`
+	Type constant.CodeExecution20250825 `json:"type" default:"code_execution_20250825"`
 	paramObj
 }
 
@@ -1110,10 +1112,10 @@ type CodeExecutionTool20260120Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "code_execution".
-	Name constant.CodeExecution `json:"name,required"`
+	Name constant.CodeExecution `json:"name" default:"code_execution"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_20260120".
-	Type constant.CodeExecution20260120 `json:"type,required"`
+	Type constant.CodeExecution20260120 `json:"type" default:"code_execution_20260120"`
 	paramObj
 }
 
@@ -1127,9 +1129,9 @@ func (r *CodeExecutionTool20260120Param) UnmarshalJSON(data []byte) error {
 
 type CodeExecutionToolResultBlock struct {
 	// Code execution result with encrypted stdout for PFC + web_search results.
-	Content   CodeExecutionToolResultBlockContentUnion `json:"content,required"`
-	ToolUseID string                                   `json:"tool_use_id,required"`
-	Type      constant.CodeExecutionToolResult         `json:"type,required"`
+	Content   CodeExecutionToolResultBlockContentUnion `json:"content" api:"required"`
+	ToolUseID string                                   `json:"tool_use_id" api:"required"`
+	Type      constant.CodeExecutionToolResult         `json:"type" default:"code_execution_tool_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -1199,13 +1201,13 @@ func (r *CodeExecutionToolResultBlockContentUnion) UnmarshalJSON(data []byte) er
 // The properties Content, ToolUseID, Type are required.
 type CodeExecutionToolResultBlockParam struct {
 	// Code execution result with encrypted stdout for PFC + web_search results.
-	Content   CodeExecutionToolResultBlockParamContentUnion `json:"content,omitzero,required"`
-	ToolUseID string                                        `json:"tool_use_id,required"`
+	Content   CodeExecutionToolResultBlockParamContentUnion `json:"content,omitzero" api:"required"`
+	ToolUseID string                                        `json:"tool_use_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_tool_result".
-	Type constant.CodeExecutionToolResult `json:"type,required"`
+	Type constant.CodeExecutionToolResult `json:"type" default:"code_execution_tool_result"`
 	paramObj
 }
 
@@ -1320,8 +1322,8 @@ func (u CodeExecutionToolResultBlockParamContentUnion) GetContent() []CodeExecut
 type CodeExecutionToolResultError struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded".
-	ErrorCode CodeExecutionToolResultErrorCode      `json:"error_code,required"`
-	Type      constant.CodeExecutionToolResultError `json:"type,required"`
+	ErrorCode CodeExecutionToolResultErrorCode      `json:"error_code" api:"required"`
+	Type      constant.CodeExecutionToolResultError `json:"type" default:"code_execution_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ErrorCode   respjson.Field
@@ -1350,10 +1352,10 @@ const (
 type CodeExecutionToolResultErrorParam struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded".
-	ErrorCode CodeExecutionToolResultErrorCode `json:"error_code,omitzero,required"`
+	ErrorCode CodeExecutionToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_tool_result_error".
-	Type constant.CodeExecutionToolResultError `json:"type,required"`
+	Type constant.CodeExecutionToolResultError `json:"type" default:"code_execution_tool_result_error"`
 	paramObj
 }
 
@@ -1369,9 +1371,9 @@ func (r *CodeExecutionToolResultErrorParam) UnmarshalJSON(data []byte) error {
 // tool)
 type Container struct {
 	// Identifier for the container used in this request
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// The time at which the container will expire.
-	ExpiresAt time.Time `json:"expires_at,required" format:"date-time"`
+	ExpiresAt time.Time `json:"expires_at" api:"required" format:"date-time"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -1389,8 +1391,8 @@ func (r *Container) UnmarshalJSON(data []byte) error {
 
 // Response model for a file uploaded to the container.
 type ContainerUploadBlock struct {
-	FileID string                   `json:"file_id,required"`
-	Type   constant.ContainerUpload `json:"type,required"`
+	FileID string                   `json:"file_id" api:"required"`
+	Type   constant.ContainerUpload `json:"type" default:"container_upload"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		FileID      respjson.Field
@@ -1411,11 +1413,11 @@ func (r *ContainerUploadBlock) UnmarshalJSON(data []byte) error {
 //
 // The properties FileID, Type are required.
 type ContainerUploadBlockParam struct {
-	FileID string `json:"file_id,required"`
+	FileID string `json:"file_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as "container_upload".
-	Type constant.ContainerUpload `json:"type,required"`
+	Type constant.ContainerUpload `json:"type" default:"container_upload"`
 	paramObj
 }
 
@@ -2704,6 +2706,34 @@ func (u contentBlockParamUnionCaller) GetToolID() *string {
 }
 
 func init() {
+	apijson.RegisterCustomDecoder[[]ContentBlockParamUnion](func(node gjson.Result, value reflect.Value, defaultDecoder func(gjson.Result, reflect.Value) error) error {
+		if node.Type == gjson.String {
+			textBlock := TextBlockParam{Text: node.String(), Type: "text"}
+			contentUnion := ContentBlockParamUnion{OfText: &textBlock}
+			arrayValue := reflect.MakeSlice(value.Type(), 1, 1)
+			arrayValue.Index(0).Set(reflect.ValueOf(contentUnion))
+			value.Set(arrayValue)
+			return nil
+		}
+		return defaultDecoder(node, value)
+	})
+}
+
+func init() {
+	apijson.RegisterCustomDecoder[[]ToolResultBlockParamContentUnion](func(node gjson.Result, value reflect.Value, defaultDecoder func(gjson.Result, reflect.Value) error) error {
+		if node.Type == gjson.String {
+			textBlock := TextBlockParam{Text: node.String(), Type: "text"}
+			contentUnion := ToolResultBlockParamContentUnion{OfText: &textBlock}
+			arrayValue := reflect.MakeSlice(value.Type(), 1, 1)
+			arrayValue.Index(0).Set(reflect.ValueOf(contentUnion))
+			value.Set(arrayValue)
+			return nil
+		}
+		return defaultDecoder(node, value)
+	})
+}
+
+func init() {
 	apijson.RegisterUnion[ContentBlockParamUnion](
 		"type",
 		apijson.Discriminator[TextBlockParam]("text"),
@@ -2723,119 +2753,13 @@ func init() {
 		apijson.Discriminator[ToolSearchToolResultBlockParam]("tool_search_tool_result"),
 		apijson.Discriminator[ContainerUploadBlockParam]("container_upload"),
 	)
-
-	// Register custom decoder for []ContentBlockParamUnion to handle string content
-	apijson.RegisterCustomDecoder[[]ContentBlockParamUnion](func(node gjson.Result, value reflect.Value, defaultDecoder func(gjson.Result, reflect.Value) error) error {
-		// If it's a string, convert it to a TextBlock automatically
-		if node.Type == gjson.String {
-			textBlock := TextBlockParam{
-				Text: node.String(),
-				Type: "text",
-			}
-			contentUnion := ContentBlockParamUnion{
-				OfText: &textBlock,
-			}
-			arrayValue := reflect.MakeSlice(value.Type(), 1, 1)
-			arrayValue.Index(0).Set(reflect.ValueOf(contentUnion))
-			value.Set(arrayValue)
-			return nil
-		}
-
-		return defaultDecoder(node, value)
-	})
-}
-
-func init() {
-	apijson.RegisterUnion[ContentBlockSourceContentItemUnionParam](
-		"type",
-		apijson.Discriminator[TextBlockParam]("text"),
-		apijson.Discriminator[ImageBlockParam]("image"),
-	)
-}
-
-func init() {
-	apijson.RegisterUnion[DocumentBlockParamSourceUnion](
-		"type",
-		apijson.Discriminator[Base64PDFSourceParam]("base64"),
-		apijson.Discriminator[PlainTextSourceParam]("text"),
-		apijson.Discriminator[ContentBlockSourceParam]("content"),
-		apijson.Discriminator[URLPDFSourceParam]("url"),
-	)
-}
-
-func init() {
-	apijson.RegisterUnion[ImageBlockParamSourceUnion](
-		"type",
-		apijson.Discriminator[Base64ImageSourceParam]("base64"),
-		apijson.Discriminator[URLImageSourceParam]("url"),
-	)
-}
-
-func init() {
-	apijson.RegisterUnion[TextCitationParamUnion](
-		"type",
-		apijson.Discriminator[CitationCharLocationParam]("char_location"),
-		apijson.Discriminator[CitationPageLocationParam]("page_location"),
-		apijson.Discriminator[CitationContentBlockLocationParam]("content_block_location"),
-		apijson.Discriminator[CitationWebSearchResultLocationParam]("web_search_result_location"),
-		apijson.Discriminator[CitationSearchResultLocationParam]("search_result_location"),
-	)
-}
-
-func init() {
-	apijson.RegisterUnion[ThinkingConfigParamUnion](
-		"type",
-		apijson.Discriminator[ThinkingConfigEnabledParam]("enabled"),
-		apijson.Discriminator[ThinkingConfigDisabledParam]("disabled"),
-	)
-}
-
-func init() {
-	apijson.RegisterUnion[ToolChoiceUnionParam](
-		"type",
-		apijson.Discriminator[ToolChoiceAutoParam]("auto"),
-		apijson.Discriminator[ToolChoiceAnyParam]("any"),
-		apijson.Discriminator[ToolChoiceToolParam]("tool"),
-		apijson.Discriminator[ToolChoiceNoneParam]("none"),
-	)
-}
-
-func init() {
-	apijson.RegisterUnion[ToolResultBlockParamContentUnion](
-		"type",
-		apijson.Discriminator[TextBlockParam]("text"),
-		apijson.Discriminator[ImageBlockParam]("image"),
-		apijson.Discriminator[SearchResultBlockParam]("search_result"),
-		apijson.Discriminator[DocumentBlockParam]("document"),
-	)
-
-	// Register custom decoder for []ToolResultBlockParamContentUnion to handle string content
-	apijson.RegisterCustomDecoder[[]ToolResultBlockParamContentUnion](func(node gjson.Result, value reflect.Value, defaultDecoder func(gjson.Result, reflect.Value) error) error {
-		// If it's a string, convert it to a TextBlock automatically
-		if node.Type == gjson.String {
-			textBlock := TextBlockParam{
-				Text: node.String(),
-				Type: "text",
-			}
-			contentUnion := ToolResultBlockParamContentUnion{
-				OfText: &textBlock,
-			}
-			arrayValue := reflect.MakeSlice(value.Type(), 1, 1)
-			arrayValue.Index(0).Set(reflect.ValueOf(contentUnion))
-			value.Set(arrayValue)
-			return nil
-		}
-
-		// If it's already an array, use the default decoder
-		return defaultDecoder(node, value)
-	})
 }
 
 // The properties Content, Type are required.
 type ContentBlockSourceParam struct {
-	Content ContentBlockSourceContentUnionParam `json:"content,omitzero,required"`
+	Content ContentBlockSourceContentUnionParam `json:"content,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as "content".
-	Type constant.Content `json:"type,required"`
+	Type constant.Content `json:"type" default:"content"`
 	paramObj
 }
 
@@ -2968,7 +2892,7 @@ func init() {
 
 // Tool invocation directly from the model.
 type DirectCaller struct {
-	Type constant.Direct `json:"type,required"`
+	Type constant.Direct `json:"type" default:"direct"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -3002,7 +2926,7 @@ func NewDirectCallerParam() DirectCallerParam {
 //
 // This struct has a constant value, construct it with [NewDirectCallerParam].
 type DirectCallerParam struct {
-	Type constant.Direct `json:"type,required"`
+	Type constant.Direct `json:"type" default:"direct"`
 	paramObj
 }
 
@@ -3016,11 +2940,11 @@ func (r *DirectCallerParam) UnmarshalJSON(data []byte) error {
 
 type DocumentBlock struct {
 	// Citation configuration for the document
-	Citations CitationsConfig          `json:"citations,required"`
-	Source    DocumentBlockSourceUnion `json:"source,required"`
+	Citations CitationsConfig          `json:"citations" api:"required"`
+	Source    DocumentBlockSourceUnion `json:"source" api:"required"`
 	// The title of the document
-	Title string            `json:"title,required"`
-	Type  constant.Document `json:"type,required"`
+	Title string            `json:"title" api:"required"`
+	Type  constant.Document `json:"type" default:"document"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Citations   respjson.Field
@@ -3104,14 +3028,14 @@ func (r *DocumentBlockSourceUnion) UnmarshalJSON(data []byte) error {
 
 // The properties Source, Type are required.
 type DocumentBlockParam struct {
-	Source  DocumentBlockParamSourceUnion `json:"source,omitzero,required"`
+	Source  DocumentBlockParamSourceUnion `json:"source,omitzero" api:"required"`
 	Context param.Opt[string]             `json:"context,omitzero"`
 	Title   param.Opt[string]             `json:"title,omitzero"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	Citations    CitationsConfigParam       `json:"citations,omitzero"`
 	// This field can be elided, and will marshal its zero value as "document".
-	Type constant.Document `json:"type,required"`
+	Type constant.Document `json:"type" default:"document"`
 	paramObj
 }
 
@@ -3216,11 +3140,11 @@ func init() {
 
 // Code execution result with encrypted stdout for PFC + web_search results.
 type EncryptedCodeExecutionResultBlock struct {
-	Content         []CodeExecutionOutputBlock            `json:"content,required"`
-	EncryptedStdout string                                `json:"encrypted_stdout,required"`
-	ReturnCode      int64                                 `json:"return_code,required"`
-	Stderr          string                                `json:"stderr,required"`
-	Type            constant.EncryptedCodeExecutionResult `json:"type,required"`
+	Content         []CodeExecutionOutputBlock            `json:"content" api:"required"`
+	EncryptedStdout string                                `json:"encrypted_stdout" api:"required"`
+	ReturnCode      int64                                 `json:"return_code" api:"required"`
+	Stderr          string                                `json:"stderr" api:"required"`
+	Type            constant.EncryptedCodeExecutionResult `json:"type" default:"encrypted_code_execution_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content         respjson.Field
@@ -3243,13 +3167,13 @@ func (r *EncryptedCodeExecutionResultBlock) UnmarshalJSON(data []byte) error {
 //
 // The properties Content, EncryptedStdout, ReturnCode, Stderr, Type are required.
 type EncryptedCodeExecutionResultBlockParam struct {
-	Content         []CodeExecutionOutputBlockParam `json:"content,omitzero,required"`
-	EncryptedStdout string                          `json:"encrypted_stdout,required"`
-	ReturnCode      int64                           `json:"return_code,required"`
-	Stderr          string                          `json:"stderr,required"`
+	Content         []CodeExecutionOutputBlockParam `json:"content,omitzero" api:"required"`
+	EncryptedStdout string                          `json:"encrypted_stdout" api:"required"`
+	ReturnCode      int64                           `json:"return_code" api:"required"`
+	Stderr          string                          `json:"stderr" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "encrypted_code_execution_result".
-	Type constant.EncryptedCodeExecutionResult `json:"type,required"`
+	Type constant.EncryptedCodeExecutionResult `json:"type" default:"encrypted_code_execution_result"`
 	paramObj
 }
 
@@ -3263,11 +3187,11 @@ func (r *EncryptedCodeExecutionResultBlockParam) UnmarshalJSON(data []byte) erro
 
 // The properties Source, Type are required.
 type ImageBlockParam struct {
-	Source ImageBlockParamSourceUnion `json:"source,omitzero,required"`
+	Source ImageBlockParamSourceUnion `json:"source,omitzero" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as "image".
-	Type constant.Image `json:"type,required"`
+	Type constant.Image `json:"type" default:"image"`
 	paramObj
 }
 
@@ -3338,9 +3262,17 @@ func (u ImageBlockParamSourceUnion) GetType() *string {
 	return nil
 }
 
+func init() {
+	apijson.RegisterUnion[ImageBlockParamSourceUnion](
+		"type",
+		apijson.Discriminator[Base64ImageSourceParam]("base64"),
+		apijson.Discriminator[URLImageSourceParam]("url"),
+	)
+}
+
 type InputJSONDelta struct {
-	PartialJSON string                  `json:"partial_json,required"`
-	Type        constant.InputJSONDelta `json:"type,required"`
+	PartialJSON string                  `json:"partial_json" api:"required"`
+	Type        constant.InputJSONDelta `json:"type" default:"input_json_delta"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		PartialJSON respjson.Field
@@ -3359,9 +3291,9 @@ func (r *InputJSONDelta) UnmarshalJSON(data []byte) error {
 // The properties Schema, Type are required.
 type JSONOutputFormatParam struct {
 	// The JSON schema of the format
-	Schema map[string]any `json:"schema,omitzero,required"`
+	Schema map[string]any `json:"schema,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as "json_schema".
-	Type constant.JSONSchema `json:"type,required"`
+	Type constant.JSONSchema `json:"type" default:"json_schema"`
 	paramObj
 }
 
@@ -3390,9 +3322,9 @@ type MemoryTool20250818Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "memory".
-	Name constant.Memory `json:"name,required"`
+	Name constant.Memory `json:"name" default:"memory"`
 	// This field can be elided, and will marshal its zero value as "memory_20250818".
-	Type constant.Memory20250818 `json:"type,required"`
+	Type constant.Memory20250818 `json:"type" default:"memory_20250818"`
 	paramObj
 }
 
@@ -3408,10 +3340,10 @@ type Message struct {
 	// Unique object identifier.
 	//
 	// The format and length of IDs may change over time.
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// Information about the container used in the request (for the code execution
 	// tool)
-	Container Container `json:"container,required"`
+	Container Container `json:"container" api:"required"`
 	// Content generated by the model.
 	//
 	// This is an array of content blocks, each of which has a `type` that determines
@@ -3446,15 +3378,17 @@ type Message struct {
 	// ```json
 	// [{ "type": "text", "text": "B)" }]
 	// ```
-	Content []ContentBlockUnion `json:"content,required"`
+	Content []ContentBlockUnion `json:"content" api:"required"`
 	// The model that will complete your prompt.\n\nSee
 	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
-	Model Model `json:"model,required"`
+	Model Model `json:"model" api:"required"`
 	// Conversational role of the generated message.
 	//
 	// This will always be `"assistant"`.
-	Role constant.Assistant `json:"role,required"`
+	Role constant.Assistant `json:"role" default:"assistant"`
+	// Structured information about a refusal.
+	StopDetails RefusalStopDetails `json:"stop_details" api:"required"`
 	// The reason that we stopped.
 	//
 	// This may be one the following values:
@@ -3473,16 +3407,16 @@ type Message struct {
 	//
 	// Any of "end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn",
 	// "refusal".
-	StopReason StopReason `json:"stop_reason,required"`
+	StopReason StopReason `json:"stop_reason" api:"required"`
 	// Which custom stop sequence was generated, if any.
 	//
 	// This value will be a non-null string if one of your custom stop sequences was
 	// generated.
-	StopSequence string `json:"stop_sequence,required"`
+	StopSequence string `json:"stop_sequence" api:"required"`
 	// Object type.
 	//
 	// For Messages, this is always `"message"`.
-	Type constant.Message `json:"type,required"`
+	Type constant.Message `json:"type" default:"message"`
 	// Billing and rate-limit usage.
 	//
 	// Anthropic's API bills and rate-limits by token counts, as tokens represent the
@@ -3498,7 +3432,7 @@ type Message struct {
 	//
 	// Total input tokens in a request is the summation of `input_tokens`,
 	// `cache_creation_input_tokens`, and `cache_read_input_tokens`.
-	Usage Usage `json:"usage,required"`
+	Usage Usage `json:"usage" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID           respjson.Field
@@ -3506,6 +3440,7 @@ type Message struct {
 		Content      respjson.Field
 		Model        respjson.Field
 		Role         respjson.Field
+		StopDetails  respjson.Field
 		StopReason   respjson.Field
 		StopSequence respjson.Field
 		Type         respjson.Field
@@ -3521,25 +3456,6 @@ func (r *Message) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
-// The reason that we stopped.
-//
-// This may be one the following values:
-//
-// - `"end_turn"`: the model reached a natural stopping point
-// - `"max_tokens"`: we exceeded the requested `max_tokens` or the model's maximum
-// - `"stop_sequence"`: one of your provided custom `stop_sequences` was generated
-// - `"tool_use"`: the model invoked one or more tools
-//
-// In non-streaming mode this value is always non-null. In streaming mode, it is
-// null in the `message_start` event and non-null otherwise.
-type MessageStopReason string
-
-const (
-	MessageStopReasonEndTurn      MessageStopReason = "end_turn"
-	MessageStopReasonMaxTokens    MessageStopReason = "max_tokens"
-	MessageStopReasonStopSequence MessageStopReason = "stop_sequence"
-	MessageStopReasonToolUse      MessageStopReason = "tool_use"
-)
 
 func MessageCountTokensToolParamOfTool(inputSchema ToolInputSchemaParam, name string) MessageCountTokensToolUnionParam {
 	var variant ToolParam
@@ -3577,6 +3493,7 @@ type MessageCountTokensToolUnionParam struct {
 	OfWebFetchTool20250910        *WebFetchTool20250910Param        `json:",omitzero,inline"`
 	OfWebSearchTool20260209       *WebSearchTool20260209Param       `json:",omitzero,inline"`
 	OfWebFetchTool20260209        *WebFetchTool20260209Param        `json:",omitzero,inline"`
+	OfWebFetchTool20260309        *WebFetchTool20260309Param        `json:",omitzero,inline"`
 	OfToolSearchToolBm25_20251119 *ToolSearchToolBm25_20251119Param `json:",omitzero,inline"`
 	OfToolSearchToolRegex20251119 *ToolSearchToolRegex20251119Param `json:",omitzero,inline"`
 	paramUnion
@@ -3596,6 +3513,7 @@ func (u MessageCountTokensToolUnionParam) MarshalJSON() ([]byte, error) {
 		u.OfWebFetchTool20250910,
 		u.OfWebSearchTool20260209,
 		u.OfWebFetchTool20260209,
+		u.OfWebFetchTool20260309,
 		u.OfToolSearchToolBm25_20251119,
 		u.OfToolSearchToolRegex20251119)
 }
@@ -3630,6 +3548,8 @@ func (u *MessageCountTokensToolUnionParam) asAny() any {
 		return u.OfWebSearchTool20260209
 	} else if !param.IsOmitted(u.OfWebFetchTool20260209) {
 		return u.OfWebFetchTool20260209
+	} else if !param.IsOmitted(u.OfWebFetchTool20260309) {
+		return u.OfWebFetchTool20260309
 	} else if !param.IsOmitted(u.OfToolSearchToolBm25_20251119) {
 		return u.OfToolSearchToolBm25_20251119
 	} else if !param.IsOmitted(u.OfToolSearchToolRegex20251119) {
@@ -3671,6 +3591,14 @@ func (u MessageCountTokensToolUnionParam) GetMaxCharacters() *int64 {
 }
 
 // Returns a pointer to the underlying variant's property, if present.
+func (u MessageCountTokensToolUnionParam) GetUseCache() *bool {
+	if vt := u.OfWebFetchTool20260309; vt != nil && vt.UseCache.Valid() {
+		return &vt.UseCache.Value
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
 func (u MessageCountTokensToolUnionParam) GetName() *string {
 	if vt := u.OfTool; vt != nil {
 		return (*string)(&vt.Name)
@@ -3697,6 +3625,8 @@ func (u MessageCountTokensToolUnionParam) GetName() *string {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return (*string)(&vt.Name)
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return (*string)(&vt.Name)
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return (*string)(&vt.Name)
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return (*string)(&vt.Name)
@@ -3734,6 +3664,8 @@ func (u MessageCountTokensToolUnionParam) GetDeferLoading() *bool {
 		return &vt.DeferLoading.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.DeferLoading.Valid() {
 		return &vt.DeferLoading.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.DeferLoading.Valid() {
+		return &vt.DeferLoading.Value
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil && vt.DeferLoading.Valid() {
 		return &vt.DeferLoading.Value
 	} else if vt := u.OfToolSearchToolRegex20251119; vt != nil && vt.DeferLoading.Valid() {
@@ -3769,6 +3701,8 @@ func (u MessageCountTokensToolUnionParam) GetStrict() *bool {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil && vt.Strict.Valid() {
 		return &vt.Strict.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.Strict.Valid() {
+		return &vt.Strict.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.Strict.Valid() {
 		return &vt.Strict.Value
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil && vt.Strict.Valid() {
 		return &vt.Strict.Value
@@ -3806,6 +3740,8 @@ func (u MessageCountTokensToolUnionParam) GetType() *string {
 		return (*string)(&vt.Type)
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
 		return (*string)(&vt.Type)
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
+		return (*string)(&vt.Type)
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return (*string)(&vt.Type)
 	} else if vt := u.OfToolSearchToolRegex20251119; vt != nil {
@@ -3824,6 +3760,8 @@ func (u MessageCountTokensToolUnionParam) GetMaxUses() *int64 {
 		return &vt.MaxUses.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.MaxUses.Valid() {
 		return &vt.MaxUses.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.MaxUses.Valid() {
+		return &vt.MaxUses.Value
 	}
 	return nil
 }
@@ -3833,6 +3771,8 @@ func (u MessageCountTokensToolUnionParam) GetMaxContentTokens() *int64 {
 	if vt := u.OfWebFetchTool20250910; vt != nil && vt.MaxContentTokens.Valid() {
 		return &vt.MaxContentTokens.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.MaxContentTokens.Valid() {
+		return &vt.MaxContentTokens.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.MaxContentTokens.Valid() {
 		return &vt.MaxContentTokens.Value
 	}
 	return nil
@@ -3866,6 +3806,8 @@ func (u MessageCountTokensToolUnionParam) GetAllowedCallers() []string {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return vt.AllowedCallers
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return vt.AllowedCallers
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return vt.AllowedCallers
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return vt.AllowedCallers
@@ -3902,6 +3844,8 @@ func (u MessageCountTokensToolUnionParam) GetCacheControl() *CacheControlEphemer
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return &vt.CacheControl
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return &vt.CacheControl
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return &vt.CacheControl
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return &vt.CacheControl
@@ -3941,6 +3885,8 @@ func (u MessageCountTokensToolUnionParam) GetAllowedDomains() []string {
 		return vt.AllowedDomains
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
 		return vt.AllowedDomains
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
+		return vt.AllowedDomains
 	}
 	return nil
 }
@@ -3955,6 +3901,8 @@ func (u MessageCountTokensToolUnionParam) GetBlockedDomains() []string {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return vt.BlockedDomains
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return vt.BlockedDomains
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return vt.BlockedDomains
 	}
 	return nil
@@ -3976,21 +3924,23 @@ func (u MessageCountTokensToolUnionParam) GetCitations() *CitationsConfigParam {
 		return &vt.Citations
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
 		return &vt.Citations
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
+		return &vt.Citations
 	}
 	return nil
 }
 
 type MessageDeltaUsage struct {
 	// The cumulative number of input tokens used to create the cache entry.
-	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens,required"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens" api:"required"`
 	// The cumulative number of input tokens read from the cache.
-	CacheReadInputTokens int64 `json:"cache_read_input_tokens,required"`
+	CacheReadInputTokens int64 `json:"cache_read_input_tokens" api:"required"`
 	// The cumulative number of input tokens which were used.
-	InputTokens int64 `json:"input_tokens,required"`
+	InputTokens int64 `json:"input_tokens" api:"required"`
 	// The cumulative number of output tokens which were used.
-	OutputTokens int64 `json:"output_tokens,required"`
+	OutputTokens int64 `json:"output_tokens" api:"required"`
 	// The number of server tool requests.
-	ServerToolUse ServerToolUsage `json:"server_tool_use,required"`
+	ServerToolUse ServerToolUsage `json:"server_tool_use" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CacheCreationInputTokens respjson.Field
@@ -4011,9 +3961,9 @@ func (r *MessageDeltaUsage) UnmarshalJSON(data []byte) error {
 
 // The properties Content, Role are required.
 type MessageParam struct {
-	Content []ContentBlockParamUnion `json:"content,omitzero,required"`
+	Content []ContentBlockParamUnion `json:"content,omitzero" api:"required"`
 	// Any of "user", "assistant".
-	Role MessageParamRole `json:"role,omitzero,required"`
+	Role MessageParamRole `json:"role,omitzero" api:"required"`
 	paramObj
 }
 
@@ -4049,7 +3999,7 @@ const (
 type MessageTokensCount struct {
 	// The total number of tokens across the provided list of messages, system prompt,
 	// and tools.
-	InputTokens int64 `json:"input_tokens,required"`
+	InputTokens int64 `json:"input_tokens" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		InputTokens respjson.Field
@@ -4085,61 +4035,48 @@ func (r *MetadataParam) UnmarshalJSON(data []byte) error {
 // The model that will complete your prompt.\n\nSee
 // [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 // details and options.
-type Model string
+type Model = string
 
 const (
-	ModelClaudeOpus4_6          Model = "claude-opus-4-6"
-	ModelClaudeSonnet4_6        Model = "claude-sonnet-4-6"
-	ModelClaudeOpus4_5_20251101 Model = "claude-opus-4-5-20251101"
-	ModelClaudeOpus4_5          Model = "claude-opus-4-5"
-	// Deprecated: Will reach end-of-life on February 19th, 2026. Please migrate to a
-	// newer model. Visit
-	// https://docs.anthropic.com/en/docs/resources/model-deprecations for more
-	// information.
-	ModelClaude3_7SonnetLatest Model = "claude-3-7-sonnet-latest"
-	// Deprecated: Will reach end-of-life on February 19th, 2026. Please migrate to a
-	// newer model. Visit
-	// https://docs.anthropic.com/en/docs/resources/model-deprecations for more
-	// information.
-	ModelClaude3_7Sonnet20250219 Model = "claude-3-7-sonnet-20250219"
-	// Deprecated: Will reach end-of-life on February 19th, 2026. Please migrate to a
-	// newer model. Visit
-	// https://docs.anthropic.com/en/docs/resources/model-deprecations for more
-	// information.
-	ModelClaude3_5HaikuLatest Model = "claude-3-5-haiku-latest"
-	// Deprecated: Will reach end-of-life on February 19th, 2026. Please migrate to a
-	// newer model. Visit
-	// https://docs.anthropic.com/en/docs/resources/model-deprecations for more
-	// information.
-	ModelClaude3_5Haiku20241022   Model = "claude-3-5-haiku-20241022"
+	ModelClaudeOpus4_7            Model = "claude-opus-4-7"
+	ModelClaudeMythosPreview      Model = "claude-mythos-preview"
+	ModelClaudeOpus4_6            Model = "claude-opus-4-6"
+	ModelClaudeSonnet4_6          Model = "claude-sonnet-4-6"
 	ModelClaudeHaiku4_5           Model = "claude-haiku-4-5"
 	ModelClaudeHaiku4_5_20251001  Model = "claude-haiku-4-5-20251001"
-	ModelClaudeSonnet4_20250514   Model = "claude-sonnet-4-20250514"
-	ModelClaudeSonnet4_0          Model = "claude-sonnet-4-0"
-	ModelClaude4Sonnet20250514    Model = "claude-4-sonnet-20250514"
+	ModelClaudeOpus4_5            Model = "claude-opus-4-5"
+	ModelClaudeOpus4_5_20251101   Model = "claude-opus-4-5-20251101"
 	ModelClaudeSonnet4_5          Model = "claude-sonnet-4-5"
 	ModelClaudeSonnet4_5_20250929 Model = "claude-sonnet-4-5-20250929"
-	ModelClaudeOpus4_0            Model = "claude-opus-4-0"
-	ModelClaudeOpus4_20250514     Model = "claude-opus-4-20250514"
-	ModelClaude4Opus20250514      Model = "claude-4-opus-20250514"
+	ModelClaudeOpus4_1            Model = "claude-opus-4-1"
 	ModelClaudeOpus4_1_20250805   Model = "claude-opus-4-1-20250805"
-	// Deprecated: Will reach end-of-life on January 5th, 2026. Please migrate to a
-	// newer model. Visit
+	// Deprecated: Will reach end-of-life on June 15th, 2026. Please migrate to a newer
+	// model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for
+	// more information.
+	ModelClaudeOpus4_0 Model = "claude-opus-4-0"
+	// Deprecated: Will reach end-of-life on June 15th, 2026. Please migrate to a newer
+	// model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for
+	// more information.
+	ModelClaudeOpus4_20250514 Model = "claude-opus-4-20250514"
+	// Deprecated: Will reach end-of-life on June 15th, 2026. Please migrate to a newer
+	// model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for
+	// more information.
+	ModelClaudeSonnet4_0 Model = "claude-sonnet-4-0"
+	// Deprecated: Will reach end-of-life on June 15th, 2026. Please migrate to a newer
+	// model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for
+	// more information.
+	ModelClaudeSonnet4_20250514 Model = "claude-sonnet-4-20250514"
+	// Deprecated: Will reach end-of-life on April 20th, 2026. Please migrate to
+	// claude-haiku-4-5. Visit
 	// https://docs.anthropic.com/en/docs/resources/model-deprecations for more
 	// information.
-	ModelClaude3OpusLatest Model = "claude-3-opus-latest"
-	// Deprecated: Will reach end-of-life on January 5th, 2026. Please migrate to a
-	// newer model. Visit
-	// https://docs.anthropic.com/en/docs/resources/model-deprecations for more
-	// information.
-	ModelClaude_3_Opus_20240229  Model = "claude-3-opus-20240229"
 	ModelClaude_3_Haiku_20240307 Model = "claude-3-haiku-20240307"
 )
 
 type OutputConfigParam struct {
 	// All possible effort levels.
 	//
-	// Any of "low", "medium", "high", "max".
+	// Any of "low", "medium", "high", "xhigh", "max".
 	Effort OutputConfigEffort `json:"effort,omitzero"`
 	// A schema to specify Claude's output format in responses. See
 	// [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
@@ -4162,13 +4099,14 @@ const (
 	OutputConfigEffortLow    OutputConfigEffort = "low"
 	OutputConfigEffortMedium OutputConfigEffort = "medium"
 	OutputConfigEffortHigh   OutputConfigEffort = "high"
+	OutputConfigEffortXhigh  OutputConfigEffort = "xhigh"
 	OutputConfigEffortMax    OutputConfigEffort = "max"
 )
 
 type PlainTextSource struct {
-	Data      string             `json:"data,required"`
-	MediaType constant.TextPlain `json:"media_type,required"`
-	Type      constant.Text      `json:"type,required"`
+	Data      string             `json:"data" api:"required"`
+	MediaType constant.TextPlain `json:"media_type" default:"text/plain"`
+	Type      constant.Text      `json:"type" default:"text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Data        respjson.Field
@@ -4196,11 +4134,11 @@ func (r PlainTextSource) ToParam() PlainTextSourceParam {
 
 // The properties Data, MediaType, Type are required.
 type PlainTextSourceParam struct {
-	Data string `json:"data,required"`
+	Data string `json:"data" api:"required"`
 	// This field can be elided, and will marshal its zero value as "text/plain".
-	MediaType constant.TextPlain `json:"media_type,required"`
+	MediaType constant.TextPlain `json:"media_type" default:"text/plain"`
 	// This field can be elided, and will marshal its zero value as "text".
-	Type constant.Text `json:"type,required"`
+	Type constant.Text `json:"type" default:"text"`
 	paramObj
 }
 
@@ -4317,9 +4255,9 @@ func (r *RawContentBlockDeltaUnion) UnmarshalJSON(data []byte) error {
 }
 
 type ContentBlockDeltaEvent struct {
-	Delta RawContentBlockDeltaUnion  `json:"delta,required"`
-	Index int64                      `json:"index,required"`
-	Type  constant.ContentBlockDelta `json:"type,required"`
+	Delta RawContentBlockDeltaUnion  `json:"delta" api:"required"`
+	Index int64                      `json:"index" api:"required"`
+	Type  constant.ContentBlockDelta `json:"type" default:"content_block_delta"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Delta       respjson.Field
@@ -4338,9 +4276,9 @@ func (r *ContentBlockDeltaEvent) UnmarshalJSON(data []byte) error {
 
 type ContentBlockStartEvent struct {
 	// Response model for a file uploaded to the container.
-	ContentBlock ContentBlockStartEventContentBlockUnion `json:"content_block,required"`
-	Index        int64                                   `json:"index,required"`
-	Type         constant.ContentBlockStart              `json:"type,required"`
+	ContentBlock ContentBlockStartEventContentBlockUnion `json:"content_block" api:"required"`
+	Index        int64                                   `json:"index" api:"required"`
+	Type         constant.ContentBlockStart              `json:"type" default:"content_block_start"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ContentBlock respjson.Field
@@ -4697,8 +4635,8 @@ func (r *ContentBlockStartEventContentBlockUnionContentContent) UnmarshalJSON(da
 }
 
 type ContentBlockStopEvent struct {
-	Index int64                     `json:"index,required"`
-	Type  constant.ContentBlockStop `json:"type,required"`
+	Index int64                     `json:"index" api:"required"`
+	Type  constant.ContentBlockStop `json:"type" default:"content_block_stop"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Index       respjson.Field
@@ -4715,8 +4653,8 @@ func (r *ContentBlockStopEvent) UnmarshalJSON(data []byte) error {
 }
 
 type MessageDeltaEvent struct {
-	Delta MessageDeltaEventDelta `json:"delta,required"`
-	Type  constant.MessageDelta  `json:"type,required"`
+	Delta MessageDeltaEventDelta `json:"delta" api:"required"`
+	Type  constant.MessageDelta  `json:"type" default:"message_delta"`
 	// Billing and rate-limit usage.
 	//
 	// Anthropic's API bills and rate-limits by token counts, as tokens represent the
@@ -4732,7 +4670,7 @@ type MessageDeltaEvent struct {
 	//
 	// Total input tokens in a request is the summation of `input_tokens`,
 	// `cache_creation_input_tokens`, and `cache_read_input_tokens`.
-	Usage MessageDeltaUsage `json:"usage,required"`
+	Usage MessageDeltaUsage `json:"usage" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Delta       respjson.Field
@@ -4752,14 +4690,17 @@ func (r *MessageDeltaEvent) UnmarshalJSON(data []byte) error {
 type MessageDeltaEventDelta struct {
 	// Information about the container used in the request (for the code execution
 	// tool)
-	Container Container `json:"container,required"`
+	Container Container `json:"container" api:"required"`
+	// Structured information about a refusal.
+	StopDetails RefusalStopDetails `json:"stop_details" api:"required"`
 	// Any of "end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn",
 	// "refusal".
-	StopReason   StopReason `json:"stop_reason,required"`
-	StopSequence string     `json:"stop_sequence,required"`
+	StopReason   StopReason `json:"stop_reason" api:"required"`
+	StopSequence string     `json:"stop_sequence" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Container    respjson.Field
+		StopDetails  respjson.Field
 		StopReason   respjson.Field
 		StopSequence respjson.Field
 		ExtraFields  map[string]respjson.Field
@@ -4774,8 +4715,8 @@ func (r *MessageDeltaEventDelta) UnmarshalJSON(data []byte) error {
 }
 
 type MessageStartEvent struct {
-	Message Message               `json:"message,required"`
-	Type    constant.MessageStart `json:"type,required"`
+	Message Message               `json:"message" api:"required"`
+	Type    constant.MessageStart `json:"type" default:"message_start"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Message     respjson.Field
@@ -4792,7 +4733,7 @@ func (r *MessageStartEvent) UnmarshalJSON(data []byte) error {
 }
 
 type MessageStopEvent struct {
-	Type constant.MessageStop `json:"type,required"`
+	Type constant.MessageStop `json:"type" default:"message_stop"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -4929,6 +4870,8 @@ type MessageStreamEventUnionDelta struct {
 	// This field is from variant [MessageDeltaEventDelta].
 	Container Container `json:"container"`
 	// This field is from variant [MessageDeltaEventDelta].
+	StopDetails RefusalStopDetails `json:"stop_details"`
+	// This field is from variant [MessageDeltaEventDelta].
 	StopReason StopReason `json:"stop_reason"`
 	// This field is from variant [MessageDeltaEventDelta].
 	StopSequence string `json:"stop_sequence"`
@@ -4945,6 +4888,7 @@ type MessageStreamEventUnionDelta struct {
 	Signature string `json:"signature"`
 	JSON      struct {
 		Container    respjson.Field
+		StopDetails  respjson.Field
 		StopReason   respjson.Field
 		StopSequence respjson.Field
 		Text         respjson.Field
@@ -4962,8 +4906,8 @@ func (r *MessageStreamEventUnionDelta) UnmarshalJSON(data []byte) error {
 }
 
 type RedactedThinkingBlock struct {
-	Data string                    `json:"data,required"`
-	Type constant.RedactedThinking `json:"type,required"`
+	Data string                    `json:"data" api:"required"`
+	Type constant.RedactedThinking `json:"type" default:"redacted_thinking"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Data        respjson.Field
@@ -4981,10 +4925,10 @@ func (r *RedactedThinkingBlock) UnmarshalJSON(data []byte) error {
 
 // The properties Data, Type are required.
 type RedactedThinkingBlockParam struct {
-	Data string `json:"data,required"`
+	Data string `json:"data" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "redacted_thinking".
-	Type constant.RedactedThinking `json:"type,required"`
+	Type constant.RedactedThinking `json:"type" default:"redacted_thinking"`
 	paramObj
 }
 
@@ -4996,16 +4940,56 @@ func (r *RedactedThinkingBlockParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// Structured information about a refusal.
+type RefusalStopDetails struct {
+	// The policy category that triggered the refusal.
+	//
+	// `null` when the refusal doesn't map to a named category.
+	//
+	// Any of "cyber", "bio".
+	Category RefusalStopDetailsCategory `json:"category" api:"required"`
+	// Human-readable explanation of the refusal.
+	//
+	// This text is not guaranteed to be stable. `null` when no explanation is
+	// available for the category.
+	Explanation string           `json:"explanation" api:"required"`
+	Type        constant.Refusal `json:"type" default:"refusal"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Category    respjson.Field
+		Explanation respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r RefusalStopDetails) RawJSON() string { return r.JSON.raw }
+func (r *RefusalStopDetails) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The policy category that triggered the refusal.
+//
+// `null` when the refusal doesn't map to a named category.
+type RefusalStopDetailsCategory string
+
+const (
+	RefusalStopDetailsCategoryCyber RefusalStopDetailsCategory = "cyber"
+	RefusalStopDetailsCategoryBio   RefusalStopDetailsCategory = "bio"
+)
+
 // The properties Content, Source, Title, Type are required.
 type SearchResultBlockParam struct {
-	Content []TextBlockParam `json:"content,omitzero,required"`
-	Source  string           `json:"source,required"`
-	Title   string           `json:"title,required"`
+	Content []TextBlockParam `json:"content,omitzero" api:"required"`
+	Source  string           `json:"source" api:"required"`
+	Title   string           `json:"title" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	Citations    CitationsConfigParam       `json:"citations,omitzero"`
 	// This field can be elided, and will marshal its zero value as "search_result".
-	Type constant.SearchResult `json:"type,required"`
+	Type constant.SearchResult `json:"type" default:"search_result"`
 	paramObj
 }
 
@@ -5019,8 +5003,8 @@ func (r *SearchResultBlockParam) UnmarshalJSON(data []byte) error {
 
 // Tool invocation generated by a server-side tool.
 type ServerToolCaller struct {
-	ToolID string                         `json:"tool_id,required"`
-	Type   constant.CodeExecution20250825 `json:"type,required"`
+	ToolID string                         `json:"tool_id" api:"required"`
+	Type   constant.CodeExecution20250825 `json:"type" default:"code_execution_20250825"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ToolID      respjson.Field
@@ -5049,10 +5033,10 @@ func (r ServerToolCaller) ToParam() ServerToolCallerParam {
 //
 // The properties ToolID, Type are required.
 type ServerToolCallerParam struct {
-	ToolID string `json:"tool_id,required"`
+	ToolID string `json:"tool_id" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_20250825".
-	Type constant.CodeExecution20250825 `json:"type,required"`
+	Type constant.CodeExecution20250825 `json:"type" default:"code_execution_20250825"`
 	paramObj
 }
 
@@ -5065,8 +5049,8 @@ func (r *ServerToolCallerParam) UnmarshalJSON(data []byte) error {
 }
 
 type ServerToolCaller20260120 struct {
-	ToolID string                         `json:"tool_id,required"`
-	Type   constant.CodeExecution20260120 `json:"type,required"`
+	ToolID string                         `json:"tool_id" api:"required"`
+	Type   constant.CodeExecution20260120 `json:"type" default:"code_execution_20260120"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ToolID      respjson.Field
@@ -5094,10 +5078,10 @@ func (r ServerToolCaller20260120) ToParam() ServerToolCaller20260120Param {
 
 // The properties ToolID, Type are required.
 type ServerToolCaller20260120Param struct {
-	ToolID string `json:"tool_id,required"`
+	ToolID string `json:"tool_id" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "code_execution_20260120".
-	Type constant.CodeExecution20260120 `json:"type,required"`
+	Type constant.CodeExecution20260120 `json:"type" default:"code_execution_20260120"`
 	paramObj
 }
 
@@ -5111,9 +5095,9 @@ func (r *ServerToolCaller20260120Param) UnmarshalJSON(data []byte) error {
 
 type ServerToolUsage struct {
 	// The number of web fetch tool requests.
-	WebFetchRequests int64 `json:"web_fetch_requests,required"`
+	WebFetchRequests int64 `json:"web_fetch_requests" api:"required"`
 	// The number of web search tool requests.
-	WebSearchRequests int64 `json:"web_search_requests,required"`
+	WebSearchRequests int64 `json:"web_search_requests" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		WebFetchRequests  respjson.Field
@@ -5130,14 +5114,14 @@ func (r *ServerToolUsage) UnmarshalJSON(data []byte) error {
 }
 
 type ServerToolUseBlock struct {
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
 	// Tool invocation directly from the model.
-	Caller ServerToolUseBlockCallerUnion `json:"caller,required"`
-	Input  any                           `json:"input,required"`
+	Caller ServerToolUseBlockCallerUnion `json:"caller" api:"required"`
+	Input  any                           `json:"input" api:"required"`
 	// Any of "web_search", "web_fetch", "code_execution", "bash_code_execution",
 	// "text_editor_code_execution", "tool_search_tool_regex", "tool_search_tool_bm25".
-	Name ServerToolUseBlockName `json:"name,required"`
-	Type constant.ServerToolUse `json:"type,required"`
+	Name ServerToolUseBlockName `json:"name" api:"required"`
+	Type constant.ServerToolUse `json:"type" default:"server_tool_use"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -5241,17 +5225,17 @@ const (
 
 // The properties ID, Input, Name, Type are required.
 type ServerToolUseBlockParam struct {
-	ID    string `json:"id,required"`
-	Input any    `json:"input,omitzero,required"`
+	ID    string         `json:"id" api:"required"`
+	Input any            `json:"input,omitzero" api:"required"`
+	// Any of "web_search", "web_fetch", "code_execution", "bash_code_execution",
+	// "text_editor_code_execution", "tool_search_tool_regex", "tool_search_tool_bm25".
+	Name ServerToolUseBlockParamName `json:"name,omitzero" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// Tool invocation directly from the model.
 	Caller ServerToolUseBlockParamCallerUnion `json:"caller,omitzero"`
-	// Any of "web_search", "web_fetch", "code_execution", "bash_code_execution",
-	// "text_editor_code_execution", "tool_search_tool_regex", "tool_search_tool_bm25".
-	Name ServerToolUseBlockParamName `json:"name,required"`
 	// This field can be elided, and will marshal its zero value as "server_tool_use".
-	Type constant.ServerToolUse `json:"type,required"`
+	Type constant.ServerToolUse `json:"type" default:"server_tool_use"`
 	paramObj
 }
 
@@ -5335,8 +5319,8 @@ func init() {
 }
 
 type SignatureDelta struct {
-	Signature string                  `json:"signature,required"`
-	Type      constant.SignatureDelta `json:"type,required"`
+	Signature string                  `json:"signature" api:"required"`
+	Type      constant.SignatureDelta `json:"type" default:"signature_delta"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Signature   respjson.Field
@@ -5369,9 +5353,9 @@ type TextBlock struct {
 	// The type of citation returned will depend on the type of document being cited.
 	// Citing a PDF results in `page_location`, plain text results in `char_location`,
 	// and content document results in `content_block_location`.
-	Citations []TextCitationUnion `json:"citations,required"`
-	Text      string              `json:"text,required"`
-	Type      constant.Text       `json:"type,required"`
+	Citations []TextCitationUnion `json:"citations" api:"required"`
+	Text      string              `json:"text" api:"required"`
+	Type      constant.Text       `json:"type" default:"text"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Citations   respjson.Field
@@ -5390,12 +5374,12 @@ func (r *TextBlock) UnmarshalJSON(data []byte) error {
 
 // The properties Text, Type are required.
 type TextBlockParam struct {
-	Text      string                   `json:"text,required"`
+	Text      string                   `json:"text" api:"required"`
 	Citations []TextCitationParamUnion `json:"citations,omitzero"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as "text".
-	Type constant.Text `json:"type,required"`
+	Type constant.Text `json:"type" default:"text"`
 	paramObj
 }
 
@@ -5722,9 +5706,20 @@ func (u TextCitationParamUnion) GetTitle() *string {
 	return nil
 }
 
+func init() {
+	apijson.RegisterUnion[TextCitationParamUnion](
+		"type",
+		apijson.Discriminator[CitationCharLocationParam]("char_location"),
+		apijson.Discriminator[CitationPageLocationParam]("page_location"),
+		apijson.Discriminator[CitationContentBlockLocationParam]("content_block_location"),
+		apijson.Discriminator[CitationWebSearchResultLocationParam]("web_search_result_location"),
+		apijson.Discriminator[CitationSearchResultLocationParam]("search_result_location"),
+	)
+}
+
 type TextDelta struct {
-	Text string             `json:"text,required"`
-	Type constant.TextDelta `json:"type,required"`
+	Text string             `json:"text" api:"required"`
+	Type constant.TextDelta `json:"type" default:"text_delta"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Text        respjson.Field
@@ -5741,8 +5736,8 @@ func (r *TextDelta) UnmarshalJSON(data []byte) error {
 }
 
 type TextEditorCodeExecutionCreateResultBlock struct {
-	IsFileUpdate bool                                         `json:"is_file_update,required"`
-	Type         constant.TextEditorCodeExecutionCreateResult `json:"type,required"`
+	IsFileUpdate bool                                         `json:"is_file_update" api:"required"`
+	Type         constant.TextEditorCodeExecutionCreateResult `json:"type" default:"text_editor_code_execution_create_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		IsFileUpdate respjson.Field
@@ -5760,10 +5755,10 @@ func (r *TextEditorCodeExecutionCreateResultBlock) UnmarshalJSON(data []byte) er
 
 // The properties IsFileUpdate, Type are required.
 type TextEditorCodeExecutionCreateResultBlockParam struct {
-	IsFileUpdate bool `json:"is_file_update,required"`
+	IsFileUpdate bool `json:"is_file_update" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_code_execution_create_result".
-	Type constant.TextEditorCodeExecutionCreateResult `json:"type,required"`
+	Type constant.TextEditorCodeExecutionCreateResult `json:"type" default:"text_editor_code_execution_create_result"`
 	paramObj
 }
 
@@ -5776,12 +5771,12 @@ func (r *TextEditorCodeExecutionCreateResultBlockParam) UnmarshalJSON(data []byt
 }
 
 type TextEditorCodeExecutionStrReplaceResultBlock struct {
-	Lines    []string                                         `json:"lines,required"`
-	NewLines int64                                            `json:"new_lines,required"`
-	NewStart int64                                            `json:"new_start,required"`
-	OldLines int64                                            `json:"old_lines,required"`
-	OldStart int64                                            `json:"old_start,required"`
-	Type     constant.TextEditorCodeExecutionStrReplaceResult `json:"type,required"`
+	Lines    []string                                         `json:"lines" api:"required"`
+	NewLines int64                                            `json:"new_lines" api:"required"`
+	NewStart int64                                            `json:"new_start" api:"required"`
+	OldLines int64                                            `json:"old_lines" api:"required"`
+	OldStart int64                                            `json:"old_start" api:"required"`
+	Type     constant.TextEditorCodeExecutionStrReplaceResult `json:"type" default:"text_editor_code_execution_str_replace_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Lines       respjson.Field
@@ -5810,7 +5805,7 @@ type TextEditorCodeExecutionStrReplaceResultBlockParam struct {
 	Lines    []string         `json:"lines,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_code_execution_str_replace_result".
-	Type constant.TextEditorCodeExecutionStrReplaceResult `json:"type,required"`
+	Type constant.TextEditorCodeExecutionStrReplaceResult `json:"type" default:"text_editor_code_execution_str_replace_result"`
 	paramObj
 }
 
@@ -5823,9 +5818,9 @@ func (r *TextEditorCodeExecutionStrReplaceResultBlockParam) UnmarshalJSON(data [
 }
 
 type TextEditorCodeExecutionToolResultBlock struct {
-	Content   TextEditorCodeExecutionToolResultBlockContentUnion `json:"content,required"`
-	ToolUseID string                                             `json:"tool_use_id,required"`
-	Type      constant.TextEditorCodeExecutionToolResult         `json:"type,required"`
+	Content   TextEditorCodeExecutionToolResultBlockContentUnion `json:"content" api:"required"`
+	ToolUseID string                                             `json:"tool_use_id" api:"required"`
+	Type      constant.TextEditorCodeExecutionToolResult         `json:"type" default:"text_editor_code_execution_tool_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -5925,13 +5920,13 @@ func (r *TextEditorCodeExecutionToolResultBlockContentUnion) UnmarshalJSON(data 
 
 // The properties Content, ToolUseID, Type are required.
 type TextEditorCodeExecutionToolResultBlockParam struct {
-	Content   TextEditorCodeExecutionToolResultBlockParamContentUnion `json:"content,omitzero,required"`
-	ToolUseID string                                                  `json:"tool_use_id,required"`
+	Content   TextEditorCodeExecutionToolResultBlockParamContentUnion `json:"content,omitzero" api:"required"`
+	ToolUseID string                                                  `json:"tool_use_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_code_execution_tool_result".
-	Type constant.TextEditorCodeExecutionToolResult `json:"type,required"`
+	Type constant.TextEditorCodeExecutionToolResult `json:"type" default:"text_editor_code_execution_tool_result"`
 	paramObj
 }
 
@@ -6095,9 +6090,9 @@ func (u TextEditorCodeExecutionToolResultBlockParamContentUnion) GetType() *stri
 type TextEditorCodeExecutionToolResultError struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded", "file_not_found".
-	ErrorCode    TextEditorCodeExecutionToolResultErrorCode      `json:"error_code,required"`
-	ErrorMessage string                                          `json:"error_message,required"`
-	Type         constant.TextEditorCodeExecutionToolResultError `json:"type,required"`
+	ErrorCode    TextEditorCodeExecutionToolResultErrorCode      `json:"error_code" api:"required"`
+	ErrorMessage string                                          `json:"error_message" api:"required"`
+	Type         constant.TextEditorCodeExecutionToolResultError `json:"type" default:"text_editor_code_execution_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ErrorCode    respjson.Field
@@ -6128,11 +6123,11 @@ const (
 type TextEditorCodeExecutionToolResultErrorParam struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded", "file_not_found".
-	ErrorCode    TextEditorCodeExecutionToolResultErrorCode `json:"error_code,omitzero,required"`
+	ErrorCode    TextEditorCodeExecutionToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	ErrorMessage param.Opt[string]                          `json:"error_message,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_code_execution_tool_result_error".
-	Type constant.TextEditorCodeExecutionToolResultError `json:"type,required"`
+	Type constant.TextEditorCodeExecutionToolResultError `json:"type" default:"text_editor_code_execution_tool_result_error"`
 	paramObj
 }
 
@@ -6145,13 +6140,13 @@ func (r *TextEditorCodeExecutionToolResultErrorParam) UnmarshalJSON(data []byte)
 }
 
 type TextEditorCodeExecutionViewResultBlock struct {
-	Content string `json:"content,required"`
+	Content string `json:"content" api:"required"`
 	// Any of "text", "image", "pdf".
-	FileType   TextEditorCodeExecutionViewResultBlockFileType `json:"file_type,required"`
-	NumLines   int64                                          `json:"num_lines,required"`
-	StartLine  int64                                          `json:"start_line,required"`
-	TotalLines int64                                          `json:"total_lines,required"`
-	Type       constant.TextEditorCodeExecutionViewResult     `json:"type,required"`
+	FileType   TextEditorCodeExecutionViewResultBlockFileType `json:"file_type" api:"required"`
+	NumLines   int64                                          `json:"num_lines" api:"required"`
+	StartLine  int64                                          `json:"start_line" api:"required"`
+	TotalLines int64                                          `json:"total_lines" api:"required"`
+	Type       constant.TextEditorCodeExecutionViewResult     `json:"type" default:"text_editor_code_execution_view_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -6181,15 +6176,15 @@ const (
 
 // The properties Content, FileType, Type are required.
 type TextEditorCodeExecutionViewResultBlockParam struct {
-	Content string `json:"content,required"`
+	Content string `json:"content" api:"required"`
 	// Any of "text", "image", "pdf".
-	FileType   TextEditorCodeExecutionViewResultBlockParamFileType `json:"file_type,omitzero,required"`
+	FileType   TextEditorCodeExecutionViewResultBlockParamFileType `json:"file_type,omitzero" api:"required"`
 	NumLines   param.Opt[int64]                                    `json:"num_lines,omitzero"`
 	StartLine  param.Opt[int64]                                    `json:"start_line,omitzero"`
 	TotalLines param.Opt[int64]                                    `json:"total_lines,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_code_execution_view_result".
-	Type constant.TextEditorCodeExecutionViewResult `json:"type,required"`
+	Type constant.TextEditorCodeExecutionViewResult `json:"type" default:"text_editor_code_execution_view_result"`
 	paramObj
 }
 
@@ -6210,9 +6205,9 @@ const (
 )
 
 type ThinkingBlock struct {
-	Signature string            `json:"signature,required"`
-	Thinking  string            `json:"thinking,required"`
-	Type      constant.Thinking `json:"type,required"`
+	Signature string            `json:"signature" api:"required"`
+	Thinking  string            `json:"thinking" api:"required"`
+	Type      constant.Thinking `json:"type" default:"thinking"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Signature   respjson.Field
@@ -6231,10 +6226,10 @@ func (r *ThinkingBlock) UnmarshalJSON(data []byte) error {
 
 // The properties Signature, Thinking, Type are required.
 type ThinkingBlockParam struct {
-	Signature string `json:"signature,required"`
-	Thinking  string `json:"thinking,required"`
+	Signature string `json:"signature" api:"required"`
+	Thinking  string `json:"thinking" api:"required"`
 	// This field can be elided, and will marshal its zero value as "thinking".
-	Type constant.Thinking `json:"type,required"`
+	Type constant.Thinking `json:"type" default:"thinking"`
 	paramObj
 }
 
@@ -6246,16 +6241,17 @@ func (r *ThinkingBlockParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
-func NewThinkingConfigAdaptiveParam() ThinkingConfigAdaptiveParam {
-	return ThinkingConfigAdaptiveParam{
-		Type: "adaptive",
-	}
-}
-
-// This struct has a constant value, construct it with
-// [NewThinkingConfigAdaptiveParam].
+// The property Type is required.
 type ThinkingConfigAdaptiveParam struct {
-	Type constant.Adaptive `json:"type,required"`
+	// Controls how thinking content appears in the response. When set to `summarized`,
+	// thinking is returned normally. When set to `omitted`, thinking content is
+	// redacted but a signature is returned for multi-turn continuity. Defaults to
+	// `summarized`.
+	//
+	// Any of "summarized", "omitted".
+	Display ThinkingConfigAdaptiveDisplay `json:"display,omitzero"`
+	// This field can be elided, and will marshal its zero value as "adaptive".
+	Type constant.Adaptive `json:"type" default:"adaptive"`
 	paramObj
 }
 
@@ -6267,6 +6263,17 @@ func (r *ThinkingConfigAdaptiveParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// Controls how thinking content appears in the response. When set to `summarized`,
+// thinking is returned normally. When set to `omitted`, thinking content is
+// redacted but a signature is returned for multi-turn continuity. Defaults to
+// `summarized`.
+type ThinkingConfigAdaptiveDisplay string
+
+const (
+	ThinkingConfigAdaptiveDisplaySummarized ThinkingConfigAdaptiveDisplay = "summarized"
+	ThinkingConfigAdaptiveDisplayOmitted    ThinkingConfigAdaptiveDisplay = "omitted"
+)
+
 func NewThinkingConfigDisabledParam() ThinkingConfigDisabledParam {
 	return ThinkingConfigDisabledParam{
 		Type: "disabled",
@@ -6276,7 +6283,7 @@ func NewThinkingConfigDisabledParam() ThinkingConfigDisabledParam {
 // This struct has a constant value, construct it with
 // [NewThinkingConfigDisabledParam].
 type ThinkingConfigDisabledParam struct {
-	Type constant.Disabled `json:"type,required"`
+	Type constant.Disabled `json:"type" default:"disabled"`
 	paramObj
 }
 
@@ -6299,9 +6306,16 @@ type ThinkingConfigEnabledParam struct {
 	// See
 	// [extended thinking](https://docs.claude.com/en/docs/build-with-claude/extended-thinking)
 	// for details.
-	BudgetTokens int64 `json:"budget_tokens,required"`
+	BudgetTokens int64 `json:"budget_tokens" api:"required"`
+	// Controls how thinking content appears in the response. When set to `summarized`,
+	// thinking is returned normally. When set to `omitted`, thinking content is
+	// redacted but a signature is returned for multi-turn continuity. Defaults to
+	// `summarized`.
+	//
+	// Any of "summarized", "omitted".
+	Display ThinkingConfigEnabledDisplay `json:"display,omitzero"`
 	// This field can be elided, and will marshal its zero value as "enabled".
-	Type constant.Enabled `json:"type,required"`
+	Type constant.Enabled `json:"type" default:"enabled"`
 	paramObj
 }
 
@@ -6312,6 +6326,17 @@ func (r ThinkingConfigEnabledParam) MarshalJSON() (data []byte, err error) {
 func (r *ThinkingConfigEnabledParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
+
+// Controls how thinking content appears in the response. When set to `summarized`,
+// thinking is returned normally. When set to `omitted`, thinking content is
+// redacted but a signature is returned for multi-turn continuity. Defaults to
+// `summarized`.
+type ThinkingConfigEnabledDisplay string
+
+const (
+	ThinkingConfigEnabledDisplaySummarized ThinkingConfigEnabledDisplay = "summarized"
+	ThinkingConfigEnabledDisplayOmitted    ThinkingConfigEnabledDisplay = "omitted"
+)
 
 func ThinkingConfigParamOfEnabled(budgetTokens int64) ThinkingConfigParamUnion {
 	var enabled ThinkingConfigEnabledParam
@@ -6367,10 +6392,28 @@ func (u ThinkingConfigParamUnion) GetType() *string {
 	return nil
 }
 
+// Returns a pointer to the underlying variant's property, if present.
+func (u ThinkingConfigParamUnion) GetDisplay() *string {
+	if vt := u.OfEnabled; vt != nil {
+		return (*string)(&vt.Display)
+	} else if vt := u.OfAdaptive; vt != nil {
+		return (*string)(&vt.Display)
+	}
+	return nil
+}
+
+func init() {
+	apijson.RegisterUnion[ThinkingConfigParamUnion](
+		"type",
+		apijson.Discriminator[ThinkingConfigEnabledParam]("enabled"),
+		apijson.Discriminator[ThinkingConfigDisabledParam]("disabled"),
+		apijson.Discriminator[ThinkingConfigAdaptiveParam]("adaptive"),
+	)
+}
 
 type ThinkingDelta struct {
-	Thinking string                 `json:"thinking,required"`
-	Type     constant.ThinkingDelta `json:"type,required"`
+	Thinking string                 `json:"thinking" api:"required"`
+	Type     constant.ThinkingDelta `json:"type" default:"thinking_delta"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Thinking    respjson.Field
@@ -6392,11 +6435,11 @@ type ToolParam struct {
 	//
 	// This defines the shape of the `input` that your tool accepts and that the model
 	// will produce.
-	InputSchema ToolInputSchemaParam `json:"input_schema,omitzero,required"`
+	InputSchema ToolInputSchemaParam `json:"input_schema,omitzero" api:"required"`
 	// Name of the tool.
 	//
 	// This is how the tool will be called by the model and in `tool_use` blocks.
-	Name string `json:"name,required"`
+	Name string `json:"name" api:"required"`
 	// Enable eager input streaming for this tool. When true, tool input parameters
 	// will be streamed incrementally as they are generated, and types will be inferred
 	// on-the-fly rather than buffering the full JSON output. When false, streaming is
@@ -6443,7 +6486,7 @@ type ToolInputSchemaParam struct {
 	Properties any      `json:"properties,omitzero"`
 	Required   []string `json:"required,omitzero"`
 	// This field can be elided, and will marshal its zero value as "object".
-	Type        constant.Object `json:"type,required"`
+	Type        constant.Object `json:"type" default:"object"`
 	ExtraFields map[string]any  `json:"-"`
 	paramObj
 }
@@ -6479,9 +6522,9 @@ type ToolBash20250124Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "bash".
-	Name constant.Bash `json:"name,required"`
+	Name constant.Bash `json:"name" default:"bash"`
 	// This field can be elided, and will marshal its zero value as "bash_20250124".
-	Type constant.Bash20250124 `json:"type,required"`
+	Type constant.Bash20250124 `json:"type" default:"bash_20250124"`
 	paramObj
 }
 
@@ -6564,6 +6607,16 @@ func (u ToolChoiceUnionParam) GetDisableParallelToolUse() *bool {
 	return nil
 }
 
+func init() {
+	apijson.RegisterUnion[ToolChoiceUnionParam](
+		"type",
+		apijson.Discriminator[ToolChoiceAutoParam]("auto"),
+		apijson.Discriminator[ToolChoiceAnyParam]("any"),
+		apijson.Discriminator[ToolChoiceToolParam]("tool"),
+		apijson.Discriminator[ToolChoiceNoneParam]("none"),
+	)
+}
+
 // The model will use any available tools.
 //
 // The property Type is required.
@@ -6574,7 +6627,7 @@ type ToolChoiceAnyParam struct {
 	// use.
 	DisableParallelToolUse param.Opt[bool] `json:"disable_parallel_tool_use,omitzero"`
 	// This field can be elided, and will marshal its zero value as "any".
-	Type constant.Any `json:"type,required"`
+	Type constant.Any `json:"type" default:"any"`
 	paramObj
 }
 
@@ -6596,7 +6649,7 @@ type ToolChoiceAutoParam struct {
 	// use.
 	DisableParallelToolUse param.Opt[bool] `json:"disable_parallel_tool_use,omitzero"`
 	// This field can be elided, and will marshal its zero value as "auto".
-	Type constant.Auto `json:"type,required"`
+	Type constant.Auto `json:"type" default:"auto"`
 	paramObj
 }
 
@@ -6618,7 +6671,7 @@ func NewToolChoiceNoneParam() ToolChoiceNoneParam {
 //
 // This struct has a constant value, construct it with [NewToolChoiceNoneParam].
 type ToolChoiceNoneParam struct {
-	Type constant.None `json:"type,required"`
+	Type constant.None `json:"type" default:"none"`
 	paramObj
 }
 
@@ -6635,14 +6688,14 @@ func (r *ToolChoiceNoneParam) UnmarshalJSON(data []byte) error {
 // The properties Name, Type are required.
 type ToolChoiceToolParam struct {
 	// The name of the tool to use.
-	Name string `json:"name,required"`
+	Name string `json:"name" api:"required"`
 	// Whether to disable parallel tool use.
 	//
 	// Defaults to `false`. If set to `true`, the model will output exactly one tool
 	// use.
 	DisableParallelToolUse param.Opt[bool] `json:"disable_parallel_tool_use,omitzero"`
 	// This field can be elided, and will marshal its zero value as "tool".
-	Type constant.Tool `json:"type,required"`
+	Type constant.Tool `json:"type" default:"tool"`
 	paramObj
 }
 
@@ -6655,8 +6708,8 @@ func (r *ToolChoiceToolParam) UnmarshalJSON(data []byte) error {
 }
 
 type ToolReferenceBlock struct {
-	ToolName string                 `json:"tool_name,required"`
-	Type     constant.ToolReference `json:"type,required"`
+	ToolName string                 `json:"tool_name" api:"required"`
+	Type     constant.ToolReference `json:"type" default:"tool_reference"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ToolName    respjson.Field
@@ -6676,11 +6729,11 @@ func (r *ToolReferenceBlock) UnmarshalJSON(data []byte) error {
 //
 // The properties ToolName, Type are required.
 type ToolReferenceBlockParam struct {
-	ToolName string `json:"tool_name,required"`
+	ToolName string `json:"tool_name" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as "tool_reference".
-	Type constant.ToolReference `json:"type,required"`
+	Type constant.ToolReference `json:"type" default:"tool_reference"`
 	paramObj
 }
 
@@ -6694,13 +6747,13 @@ func (r *ToolReferenceBlockParam) UnmarshalJSON(data []byte) error {
 
 // The properties ToolUseID, Type are required.
 type ToolResultBlockParam struct {
-	ToolUseID string          `json:"tool_use_id,required"`
+	ToolUseID string          `json:"tool_use_id" api:"required"`
 	IsError   param.Opt[bool] `json:"is_error,omitzero"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam         `json:"cache_control,omitzero"`
 	Content      []ToolResultBlockParamContentUnion `json:"content,omitzero"`
 	// This field can be elided, and will marshal its zero value as "tool_result".
-	Type constant.ToolResult `json:"type,required"`
+	Type constant.ToolResult `json:"type" default:"tool_result"`
 	paramObj
 }
 
@@ -6947,11 +7000,21 @@ func (u toolResultBlockParamContentUnionSource) GetURL() *string {
 	return nil
 }
 
+func init() {
+	apijson.RegisterUnion[ToolResultBlockParamContentUnion](
+		"type",
+		apijson.Discriminator[TextBlockParam]("text"),
+		apijson.Discriminator[ImageBlockParam]("image"),
+		apijson.Discriminator[SearchResultBlockParam]("search_result"),
+		apijson.Discriminator[DocumentBlockParam]("document"),
+		apijson.Discriminator[ToolReferenceBlockParam]("tool_reference"),
+	)
+}
 
 // The properties Name, Type are required.
 type ToolSearchToolBm25_20251119Param struct {
 	// Any of "tool_search_tool_bm25_20251119", "tool_search_tool_bm25".
-	Type ToolSearchToolBm25_20251119Type `json:"type,omitzero,required"`
+	Type ToolSearchToolBm25_20251119Type `json:"type,omitzero" api:"required"`
 	// If true, tool will not be included in initial system prompt. Only loaded when
 	// returned via tool_reference from tool search.
 	DeferLoading param.Opt[bool] `json:"defer_loading,omitzero"`
@@ -6967,7 +7030,7 @@ type ToolSearchToolBm25_20251119Param struct {
 	//
 	// This field can be elided, and will marshal its zero value as
 	// "tool_search_tool_bm25".
-	Name constant.ToolSearchToolBm25 `json:"name,required"`
+	Name constant.ToolSearchToolBm25 `json:"name" default:"tool_search_tool_bm25"`
 	paramObj
 }
 
@@ -6989,7 +7052,7 @@ const (
 // The properties Name, Type are required.
 type ToolSearchToolRegex20251119Param struct {
 	// Any of "tool_search_tool_regex_20251119", "tool_search_tool_regex".
-	Type ToolSearchToolRegex20251119Type `json:"type,omitzero,required"`
+	Type ToolSearchToolRegex20251119Type `json:"type,omitzero" api:"required"`
 	// If true, tool will not be included in initial system prompt. Only loaded when
 	// returned via tool_reference from tool search.
 	DeferLoading param.Opt[bool] `json:"defer_loading,omitzero"`
@@ -7005,7 +7068,7 @@ type ToolSearchToolRegex20251119Param struct {
 	//
 	// This field can be elided, and will marshal its zero value as
 	// "tool_search_tool_regex".
-	Name constant.ToolSearchToolRegex `json:"name,required"`
+	Name constant.ToolSearchToolRegex `json:"name" default:"tool_search_tool_regex"`
 	paramObj
 }
 
@@ -7025,9 +7088,9 @@ const (
 )
 
 type ToolSearchToolResultBlock struct {
-	Content   ToolSearchToolResultBlockContentUnion `json:"content,required"`
-	ToolUseID string                                `json:"tool_use_id,required"`
-	Type      constant.ToolSearchToolResult         `json:"type,required"`
+	Content   ToolSearchToolResultBlockContentUnion `json:"content" api:"required"`
+	ToolUseID string                                `json:"tool_use_id" api:"required"`
+	Type      constant.ToolSearchToolResult         `json:"type" default:"tool_search_tool_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -7084,13 +7147,13 @@ func (r *ToolSearchToolResultBlockContentUnion) UnmarshalJSON(data []byte) error
 
 // The properties Content, ToolUseID, Type are required.
 type ToolSearchToolResultBlockParam struct {
-	Content   ToolSearchToolResultBlockParamContentUnion `json:"content,omitzero,required"`
-	ToolUseID string                                     `json:"tool_use_id,required"`
+	Content   ToolSearchToolResultBlockParamContentUnion `json:"content,omitzero" api:"required"`
+	ToolUseID string                                     `json:"tool_use_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "tool_search_tool_result".
-	Type constant.ToolSearchToolResult `json:"type,required"`
+	Type constant.ToolSearchToolResult `json:"type" default:"tool_search_tool_result"`
 	paramObj
 }
 
@@ -7156,9 +7219,9 @@ func (u ToolSearchToolResultBlockParamContentUnion) GetType() *string {
 type ToolSearchToolResultError struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded".
-	ErrorCode    ToolSearchToolResultErrorCode      `json:"error_code,required"`
-	ErrorMessage string                             `json:"error_message,required"`
-	Type         constant.ToolSearchToolResultError `json:"type,required"`
+	ErrorCode    ToolSearchToolResultErrorCode      `json:"error_code" api:"required"`
+	ErrorMessage string                             `json:"error_message" api:"required"`
+	Type         constant.ToolSearchToolResultError `json:"type" default:"tool_search_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ErrorCode    respjson.Field
@@ -7188,10 +7251,10 @@ const (
 type ToolSearchToolResultErrorParam struct {
 	// Any of "invalid_tool_input", "unavailable", "too_many_requests",
 	// "execution_time_exceeded".
-	ErrorCode ToolSearchToolResultErrorCode `json:"error_code,omitzero,required"`
+	ErrorCode ToolSearchToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "tool_search_tool_result_error".
-	Type constant.ToolSearchToolResultError `json:"type,required"`
+	Type constant.ToolSearchToolResultError `json:"type" default:"tool_search_tool_result_error"`
 	paramObj
 }
 
@@ -7204,8 +7267,8 @@ func (r *ToolSearchToolResultErrorParam) UnmarshalJSON(data []byte) error {
 }
 
 type ToolSearchToolSearchResultBlock struct {
-	ToolReferences []ToolReferenceBlock                `json:"tool_references,required"`
-	Type           constant.ToolSearchToolSearchResult `json:"type,required"`
+	ToolReferences []ToolReferenceBlock                `json:"tool_references" api:"required"`
+	Type           constant.ToolSearchToolSearchResult `json:"type" default:"tool_search_tool_search_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ToolReferences respjson.Field
@@ -7223,10 +7286,10 @@ func (r *ToolSearchToolSearchResultBlock) UnmarshalJSON(data []byte) error {
 
 // The properties ToolReferences, Type are required.
 type ToolSearchToolSearchResultBlockParam struct {
-	ToolReferences []ToolReferenceBlockParam `json:"tool_references,omitzero,required"`
+	ToolReferences []ToolReferenceBlockParam `json:"tool_references,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "tool_search_tool_search_result".
-	Type constant.ToolSearchToolSearchResult `json:"type,required"`
+	Type constant.ToolSearchToolSearchResult `json:"type" default:"tool_search_tool_search_result"`
 	paramObj
 }
 
@@ -7256,10 +7319,10 @@ type ToolTextEditor20250124Param struct {
 	//
 	// This field can be elided, and will marshal its zero value as
 	// "str_replace_editor".
-	Name constant.StrReplaceEditor `json:"name,required"`
+	Name constant.StrReplaceEditor `json:"name" default:"str_replace_editor"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_20250124".
-	Type constant.TextEditor20250124 `json:"type,required"`
+	Type constant.TextEditor20250124 `json:"type" default:"text_editor_20250124"`
 	paramObj
 }
 
@@ -7289,10 +7352,10 @@ type ToolTextEditor20250429Param struct {
 	//
 	// This field can be elided, and will marshal its zero value as
 	// "str_replace_based_edit_tool".
-	Name constant.StrReplaceBasedEditTool `json:"name,required"`
+	Name constant.StrReplaceBasedEditTool `json:"name" default:"str_replace_based_edit_tool"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_20250429".
-	Type constant.TextEditor20250429 `json:"type,required"`
+	Type constant.TextEditor20250429 `json:"type" default:"text_editor_20250429"`
 	paramObj
 }
 
@@ -7325,10 +7388,10 @@ type ToolTextEditor20250728Param struct {
 	//
 	// This field can be elided, and will marshal its zero value as
 	// "str_replace_based_edit_tool".
-	Name constant.StrReplaceBasedEditTool `json:"name,required"`
+	Name constant.StrReplaceBasedEditTool `json:"name" default:"str_replace_based_edit_tool"`
 	// This field can be elided, and will marshal its zero value as
 	// "text_editor_20250728".
-	Type constant.TextEditor20250728 `json:"type,required"`
+	Type constant.TextEditor20250728 `json:"type" default:"text_editor_20250728"`
 	paramObj
 }
 
@@ -7376,6 +7439,7 @@ type ToolUnionParam struct {
 	OfWebFetchTool20250910        *WebFetchTool20250910Param        `json:",omitzero,inline"`
 	OfWebSearchTool20260209       *WebSearchTool20260209Param       `json:",omitzero,inline"`
 	OfWebFetchTool20260209        *WebFetchTool20260209Param        `json:",omitzero,inline"`
+	OfWebFetchTool20260309        *WebFetchTool20260309Param        `json:",omitzero,inline"`
 	OfToolSearchToolBm25_20251119 *ToolSearchToolBm25_20251119Param `json:",omitzero,inline"`
 	OfToolSearchToolRegex20251119 *ToolSearchToolRegex20251119Param `json:",omitzero,inline"`
 	paramUnion
@@ -7395,6 +7459,7 @@ func (u ToolUnionParam) MarshalJSON() ([]byte, error) {
 		u.OfWebFetchTool20250910,
 		u.OfWebSearchTool20260209,
 		u.OfWebFetchTool20260209,
+		u.OfWebFetchTool20260309,
 		u.OfToolSearchToolBm25_20251119,
 		u.OfToolSearchToolRegex20251119)
 }
@@ -7429,6 +7494,8 @@ func (u *ToolUnionParam) asAny() any {
 		return u.OfWebSearchTool20260209
 	} else if !param.IsOmitted(u.OfWebFetchTool20260209) {
 		return u.OfWebFetchTool20260209
+	} else if !param.IsOmitted(u.OfWebFetchTool20260309) {
+		return u.OfWebFetchTool20260309
 	} else if !param.IsOmitted(u.OfToolSearchToolBm25_20251119) {
 		return u.OfToolSearchToolBm25_20251119
 	} else if !param.IsOmitted(u.OfToolSearchToolRegex20251119) {
@@ -7470,6 +7537,14 @@ func (u ToolUnionParam) GetMaxCharacters() *int64 {
 }
 
 // Returns a pointer to the underlying variant's property, if present.
+func (u ToolUnionParam) GetUseCache() *bool {
+	if vt := u.OfWebFetchTool20260309; vt != nil && vt.UseCache.Valid() {
+		return &vt.UseCache.Value
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
 func (u ToolUnionParam) GetName() *string {
 	if vt := u.OfTool; vt != nil {
 		return (*string)(&vt.Name)
@@ -7496,6 +7571,8 @@ func (u ToolUnionParam) GetName() *string {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return (*string)(&vt.Name)
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return (*string)(&vt.Name)
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return (*string)(&vt.Name)
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return (*string)(&vt.Name)
@@ -7533,6 +7610,8 @@ func (u ToolUnionParam) GetDeferLoading() *bool {
 		return &vt.DeferLoading.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.DeferLoading.Valid() {
 		return &vt.DeferLoading.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.DeferLoading.Valid() {
+		return &vt.DeferLoading.Value
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil && vt.DeferLoading.Valid() {
 		return &vt.DeferLoading.Value
 	} else if vt := u.OfToolSearchToolRegex20251119; vt != nil && vt.DeferLoading.Valid() {
@@ -7568,6 +7647,8 @@ func (u ToolUnionParam) GetStrict() *bool {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil && vt.Strict.Valid() {
 		return &vt.Strict.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.Strict.Valid() {
+		return &vt.Strict.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.Strict.Valid() {
 		return &vt.Strict.Value
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil && vt.Strict.Valid() {
 		return &vt.Strict.Value
@@ -7605,6 +7686,8 @@ func (u ToolUnionParam) GetType() *string {
 		return (*string)(&vt.Type)
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
 		return (*string)(&vt.Type)
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
+		return (*string)(&vt.Type)
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return (*string)(&vt.Type)
 	} else if vt := u.OfToolSearchToolRegex20251119; vt != nil {
@@ -7623,6 +7706,8 @@ func (u ToolUnionParam) GetMaxUses() *int64 {
 		return &vt.MaxUses.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.MaxUses.Valid() {
 		return &vt.MaxUses.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.MaxUses.Valid() {
+		return &vt.MaxUses.Value
 	}
 	return nil
 }
@@ -7632,6 +7717,8 @@ func (u ToolUnionParam) GetMaxContentTokens() *int64 {
 	if vt := u.OfWebFetchTool20250910; vt != nil && vt.MaxContentTokens.Valid() {
 		return &vt.MaxContentTokens.Value
 	} else if vt := u.OfWebFetchTool20260209; vt != nil && vt.MaxContentTokens.Valid() {
+		return &vt.MaxContentTokens.Value
+	} else if vt := u.OfWebFetchTool20260309; vt != nil && vt.MaxContentTokens.Valid() {
 		return &vt.MaxContentTokens.Value
 	}
 	return nil
@@ -7665,6 +7752,8 @@ func (u ToolUnionParam) GetAllowedCallers() []string {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return vt.AllowedCallers
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return vt.AllowedCallers
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return vt.AllowedCallers
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return vt.AllowedCallers
@@ -7701,6 +7790,8 @@ func (u ToolUnionParam) GetCacheControl() *CacheControlEphemeralParam {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return &vt.CacheControl
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return &vt.CacheControl
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return &vt.CacheControl
 	} else if vt := u.OfToolSearchToolBm25_20251119; vt != nil {
 		return &vt.CacheControl
@@ -7740,6 +7831,8 @@ func (u ToolUnionParam) GetAllowedDomains() []string {
 		return vt.AllowedDomains
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
 		return vt.AllowedDomains
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
+		return vt.AllowedDomains
 	}
 	return nil
 }
@@ -7754,6 +7847,8 @@ func (u ToolUnionParam) GetBlockedDomains() []string {
 	} else if vt := u.OfWebSearchTool20260209; vt != nil {
 		return vt.BlockedDomains
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
+		return vt.BlockedDomains
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
 		return vt.BlockedDomains
 	}
 	return nil
@@ -7775,16 +7870,20 @@ func (u ToolUnionParam) GetCitations() *CitationsConfigParam {
 		return &vt.Citations
 	} else if vt := u.OfWebFetchTool20260209; vt != nil {
 		return &vt.Citations
+	} else if vt := u.OfWebFetchTool20260309; vt != nil {
+		return &vt.Citations
 	}
 	return nil
 }
 
 type ToolUseBlock struct {
-	ID string `json:"id,required"`
+	ID string `json:"id" api:"required"`
+	// Tool invocation directly from the model.
+	Caller ToolUseBlockCallerUnion `json:"caller" api:"required"`
 	// necessary custom code modification
-	Input json.RawMessage  `json:"input,required"`
-	Name  string           `json:"name,required"`
-	Type  constant.ToolUse `json:"type,required"`
+	Input json.RawMessage          `json:"input,required"`
+	Name   string                  `json:"name" api:"required"`
+	Type   constant.ToolUse        `json:"type" default:"tool_use"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -7876,15 +7975,15 @@ func (r *ToolUseBlockCallerUnion) UnmarshalJSON(data []byte) error {
 
 // The properties ID, Input, Name, Type are required.
 type ToolUseBlockParam struct {
-	ID    string `json:"id,required"`
-	Input any    `json:"input,omitzero,required"`
-	Name  string `json:"name,required"`
+	ID    string `json:"id" api:"required"`
+	Input any    `json:"input,omitzero" api:"required"`
+	Name  string `json:"name" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// Tool invocation directly from the model.
 	Caller ToolUseBlockParamCallerUnion `json:"caller,omitzero"`
 	// This field can be elided, and will marshal its zero value as "tool_use".
-	Type constant.ToolUse `json:"type,required"`
+	Type constant.ToolUse `json:"type" default:"tool_use"`
 	paramObj
 }
 
@@ -7957,9 +8056,9 @@ func init() {
 
 // The properties Type, URL are required.
 type URLImageSourceParam struct {
-	URL string `json:"url,required"`
+	URL string `json:"url" api:"required"`
 	// This field can be elided, and will marshal its zero value as "url".
-	Type constant.URL `json:"type,required"`
+	Type constant.URL `json:"type" default:"url"`
 	paramObj
 }
 
@@ -7973,9 +8072,9 @@ func (r *URLImageSourceParam) UnmarshalJSON(data []byte) error {
 
 // The properties Type, URL are required.
 type URLPDFSourceParam struct {
-	URL string `json:"url,required"`
+	URL string `json:"url" api:"required"`
 	// This field can be elided, and will marshal its zero value as "url".
-	Type constant.URL `json:"type,required"`
+	Type constant.URL `json:"type" default:"url"`
 	paramObj
 }
 
@@ -7989,23 +8088,23 @@ func (r *URLPDFSourceParam) UnmarshalJSON(data []byte) error {
 
 type Usage struct {
 	// Breakdown of cached tokens by TTL
-	CacheCreation CacheCreation `json:"cache_creation,required"`
+	CacheCreation CacheCreation `json:"cache_creation" api:"required"`
 	// The number of input tokens used to create the cache entry.
-	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens,required"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens" api:"required"`
 	// The number of input tokens read from the cache.
-	CacheReadInputTokens int64 `json:"cache_read_input_tokens,required"`
+	CacheReadInputTokens int64 `json:"cache_read_input_tokens" api:"required"`
 	// The geographic region where inference was performed for this request.
-	InferenceGeo string `json:"inference_geo,required"`
+	InferenceGeo string `json:"inference_geo" api:"required"`
 	// The number of input tokens which were used.
-	InputTokens int64 `json:"input_tokens,required"`
+	InputTokens int64 `json:"input_tokens" api:"required"`
 	// The number of output tokens which were used.
-	OutputTokens int64 `json:"output_tokens,required"`
+	OutputTokens int64 `json:"output_tokens" api:"required"`
 	// The number of server tool requests.
-	ServerToolUse ServerToolUsage `json:"server_tool_use,required"`
+	ServerToolUse ServerToolUsage `json:"server_tool_use" api:"required"`
 	// If the request used the priority, standard, or batch tier.
 	//
 	// Any of "standard", "priority", "batch".
-	ServiceTier UsageServiceTier `json:"service_tier,required"`
+	ServiceTier UsageServiceTier `json:"service_tier" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CacheCreation            respjson.Field
@@ -8049,7 +8148,7 @@ type UserLocationParam struct {
 	// The [IANA timezone](https://nodatime.org/TimeZones) of the user.
 	Timezone param.Opt[string] `json:"timezone,omitzero"`
 	// This field can be elided, and will marshal its zero value as "approximate".
-	Type constant.Approximate `json:"type,required"`
+	Type constant.Approximate `json:"type" default:"approximate"`
 	paramObj
 }
 
@@ -8062,12 +8161,12 @@ func (r *UserLocationParam) UnmarshalJSON(data []byte) error {
 }
 
 type WebFetchBlock struct {
-	Content DocumentBlock `json:"content,required"`
+	Content DocumentBlock `json:"content" api:"required"`
 	// ISO 8601 timestamp when the content was retrieved
-	RetrievedAt string                  `json:"retrieved_at,required"`
-	Type        constant.WebFetchResult `json:"type,required"`
+	RetrievedAt string                  `json:"retrieved_at" api:"required"`
+	Type        constant.WebFetchResult `json:"type" default:"web_fetch_result"`
 	// Fetched content URL
-	URL string `json:"url,required"`
+	URL string `json:"url" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Content     respjson.Field
@@ -8087,13 +8186,13 @@ func (r *WebFetchBlock) UnmarshalJSON(data []byte) error {
 
 // The properties Content, Type, URL are required.
 type WebFetchBlockParam struct {
-	Content DocumentBlockParam `json:"content,omitzero,required"`
+	Content DocumentBlockParam `json:"content,omitzero" api:"required"`
 	// Fetched content URL
-	URL string `json:"url,required"`
+	URL string `json:"url" api:"required"`
 	// ISO 8601 timestamp when the content was retrieved
 	RetrievedAt param.Opt[string] `json:"retrieved_at,omitzero"`
 	// This field can be elided, and will marshal its zero value as "web_fetch_result".
-	Type constant.WebFetchResult `json:"type,required"`
+	Type constant.WebFetchResult `json:"type" default:"web_fetch_result"`
 	paramObj
 }
 
@@ -8133,10 +8232,10 @@ type WebFetchTool20250910Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "web_fetch".
-	Name constant.WebFetch `json:"name,required"`
+	Name constant.WebFetch `json:"name" default:"web_fetch"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_fetch_20250910".
-	Type constant.WebFetch20250910 `json:"type,required"`
+	Type constant.WebFetch20250910 `json:"type" default:"web_fetch_20250910"`
 	paramObj
 }
 
@@ -8176,10 +8275,10 @@ type WebFetchTool20260209Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "web_fetch".
-	Name constant.WebFetch `json:"name,required"`
+	Name constant.WebFetch `json:"name" default:"web_fetch"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_fetch_20260209".
-	Type constant.WebFetch20260209 `json:"type,required"`
+	Type constant.WebFetch20260209 `json:"type" default:"web_fetch_20260209"`
 	paramObj
 }
 
@@ -8191,12 +8290,61 @@ func (r *WebFetchTool20260209Param) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// Web fetch tool with use_cache parameter for bypassing cached content.
+//
+// The properties Name, Type are required.
+type WebFetchTool20260309Param struct {
+	// Maximum number of tokens used by including web page text content in the context.
+	// The limit is approximate and does not apply to binary content such as PDFs.
+	MaxContentTokens param.Opt[int64] `json:"max_content_tokens,omitzero"`
+	// Maximum number of times the tool can be used in the API request.
+	MaxUses param.Opt[int64] `json:"max_uses,omitzero"`
+	// If true, tool will not be included in initial system prompt. Only loaded when
+	// returned via tool_reference from tool search.
+	DeferLoading param.Opt[bool] `json:"defer_loading,omitzero"`
+	// When true, guarantees schema validation on tool names and inputs
+	Strict param.Opt[bool] `json:"strict,omitzero"`
+	// Whether to use cached content. Set to false to bypass the cache and fetch fresh
+	// content. Only set to false when the user explicitly requests fresh content or
+	// when fetching rapidly-changing sources.
+	UseCache param.Opt[bool] `json:"use_cache,omitzero"`
+	// List of domains to allow fetching from
+	AllowedDomains []string `json:"allowed_domains,omitzero"`
+	// List of domains to block fetching from
+	BlockedDomains []string `json:"blocked_domains,omitzero"`
+	// Any of "direct", "code_execution_20250825", "code_execution_20260120".
+	AllowedCallers []string `json:"allowed_callers,omitzero"`
+	// Create a cache control breakpoint at this content block.
+	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
+	// Citations configuration for fetched documents. Citations are disabled by
+	// default.
+	Citations CitationsConfigParam `json:"citations,omitzero"`
+	// Name of the tool.
+	//
+	// This is how the tool will be called by the model and in `tool_use` blocks.
+	//
+	// This field can be elided, and will marshal its zero value as "web_fetch".
+	Name constant.WebFetch `json:"name" default:"web_fetch"`
+	// This field can be elided, and will marshal its zero value as
+	// "web_fetch_20260309".
+	Type constant.WebFetch20260309 `json:"type" default:"web_fetch_20260309"`
+	paramObj
+}
+
+func (r WebFetchTool20260309Param) MarshalJSON() (data []byte, err error) {
+	type shadow WebFetchTool20260309Param
+	return param.MarshalObject(r, (*shadow)(&r))
+}
+func (r *WebFetchTool20260309Param) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
 type WebFetchToolResultBlock struct {
 	// Tool invocation directly from the model.
-	Caller    WebFetchToolResultBlockCallerUnion  `json:"caller,required"`
-	Content   WebFetchToolResultBlockContentUnion `json:"content,required"`
-	ToolUseID string                              `json:"tool_use_id,required"`
-	Type      constant.WebFetchToolResult         `json:"type,required"`
+	Caller    WebFetchToolResultBlockCallerUnion  `json:"caller" api:"required"`
+	Content   WebFetchToolResultBlockContentUnion `json:"content" api:"required"`
+	ToolUseID string                              `json:"tool_use_id" api:"required"`
+	Type      constant.WebFetchToolResult         `json:"type" default:"web_fetch_tool_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Caller      respjson.Field
@@ -8329,15 +8477,15 @@ func (r *WebFetchToolResultBlockContentUnion) UnmarshalJSON(data []byte) error {
 
 // The properties Content, ToolUseID, Type are required.
 type WebFetchToolResultBlockParam struct {
-	Content   WebFetchToolResultBlockParamContentUnion `json:"content,omitzero,required"`
-	ToolUseID string                                   `json:"tool_use_id,required"`
+	Content   WebFetchToolResultBlockParamContentUnion `json:"content,omitzero" api:"required"`
+	ToolUseID string                                   `json:"tool_use_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// Tool invocation directly from the model.
 	Caller WebFetchToolResultBlockParamCallerUnion `json:"caller,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_fetch_tool_result".
-	Type constant.WebFetchToolResult `json:"type,required"`
+	Type constant.WebFetchToolResult `json:"type" default:"web_fetch_tool_result"`
 	paramObj
 }
 
@@ -8479,8 +8627,8 @@ type WebFetchToolResultErrorBlock struct {
 	// Any of "invalid_tool_input", "url_too_long", "url_not_allowed",
 	// "url_not_accessible", "unsupported_content_type", "too_many_requests",
 	// "max_uses_exceeded", "unavailable".
-	ErrorCode WebFetchToolResultErrorCode      `json:"error_code,required"`
-	Type      constant.WebFetchToolResultError `json:"type,required"`
+	ErrorCode WebFetchToolResultErrorCode      `json:"error_code" api:"required"`
+	Type      constant.WebFetchToolResultError `json:"type" default:"web_fetch_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ErrorCode   respjson.Field
@@ -8501,10 +8649,10 @@ type WebFetchToolResultErrorBlockParam struct {
 	// Any of "invalid_tool_input", "url_too_long", "url_not_allowed",
 	// "url_not_accessible", "unsupported_content_type", "too_many_requests",
 	// "max_uses_exceeded", "unavailable".
-	ErrorCode WebFetchToolResultErrorCode `json:"error_code,omitzero,required"`
+	ErrorCode WebFetchToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_fetch_tool_result_error".
-	Type constant.WebFetchToolResultError `json:"type,required"`
+	Type constant.WebFetchToolResultError `json:"type" default:"web_fetch_tool_result_error"`
 	paramObj
 }
 
@@ -8530,11 +8678,11 @@ const (
 )
 
 type WebSearchResultBlock struct {
-	EncryptedContent string                   `json:"encrypted_content,required"`
-	PageAge          string                   `json:"page_age,required"`
-	Title            string                   `json:"title,required"`
-	Type             constant.WebSearchResult `json:"type,required"`
-	URL              string                   `json:"url,required"`
+	EncryptedContent string                   `json:"encrypted_content" api:"required"`
+	PageAge          string                   `json:"page_age" api:"required"`
+	Title            string                   `json:"title" api:"required"`
+	Type             constant.WebSearchResult `json:"type" default:"web_search_result"`
+	URL              string                   `json:"url" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		EncryptedContent respjson.Field
@@ -8555,13 +8703,13 @@ func (r *WebSearchResultBlock) UnmarshalJSON(data []byte) error {
 
 // The properties EncryptedContent, Title, Type, URL are required.
 type WebSearchResultBlockParam struct {
-	EncryptedContent string            `json:"encrypted_content,required"`
-	Title            string            `json:"title,required"`
-	URL              string            `json:"url,required"`
+	EncryptedContent string            `json:"encrypted_content" api:"required"`
+	Title            string            `json:"title" api:"required"`
+	URL              string            `json:"url" api:"required"`
 	PageAge          param.Opt[string] `json:"page_age,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_search_result".
-	Type constant.WebSearchResult `json:"type,required"`
+	Type constant.WebSearchResult `json:"type" default:"web_search_result"`
 	paramObj
 }
 
@@ -8600,10 +8748,10 @@ type WebSearchTool20250305Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "web_search".
-	Name constant.WebSearch `json:"name,required"`
+	Name constant.WebSearch `json:"name" default:"web_search"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_search_20250305".
-	Type constant.WebSearch20250305 `json:"type,required"`
+	Type constant.WebSearch20250305 `json:"type" default:"web_search_20250305"`
 	paramObj
 }
 
@@ -8642,10 +8790,10 @@ type WebSearchTool20260209Param struct {
 	// This is how the tool will be called by the model and in `tool_use` blocks.
 	//
 	// This field can be elided, and will marshal its zero value as "web_search".
-	Name constant.WebSearch `json:"name,required"`
+	Name constant.WebSearch `json:"name" default:"web_search"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_search_20260209".
-	Type constant.WebSearch20260209 `json:"type,required"`
+	Type constant.WebSearch20260209 `json:"type" default:"web_search_20260209"`
 	paramObj
 }
 
@@ -8661,10 +8809,10 @@ func (r *WebSearchTool20260209Param) UnmarshalJSON(data []byte) error {
 type WebSearchToolRequestErrorParam struct {
 	// Any of "invalid_tool_input", "unavailable", "max_uses_exceeded",
 	// "too_many_requests", "query_too_long", "request_too_large".
-	ErrorCode WebSearchToolResultErrorCode `json:"error_code,omitzero,required"`
+	ErrorCode WebSearchToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_search_tool_result_error".
-	Type constant.WebSearchToolResultError `json:"type,required"`
+	Type constant.WebSearchToolResultError `json:"type" default:"web_search_tool_result_error"`
 	paramObj
 }
 
@@ -8678,10 +8826,10 @@ func (r *WebSearchToolRequestErrorParam) UnmarshalJSON(data []byte) error {
 
 type WebSearchToolResultBlock struct {
 	// Tool invocation directly from the model.
-	Caller    WebSearchToolResultBlockCallerUnion  `json:"caller,required"`
-	Content   WebSearchToolResultBlockContentUnion `json:"content,required"`
-	ToolUseID string                               `json:"tool_use_id,required"`
-	Type      constant.WebSearchToolResult         `json:"type,required"`
+	Caller    WebSearchToolResultBlockCallerUnion  `json:"caller" api:"required"`
+	Content   WebSearchToolResultBlockContentUnion `json:"content" api:"required"`
+	ToolUseID string                               `json:"tool_use_id" api:"required"`
+	Type      constant.WebSearchToolResult         `json:"type" default:"web_search_tool_result"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Caller      respjson.Field
@@ -8813,15 +8961,15 @@ func (r *WebSearchToolResultBlockContentUnion) UnmarshalJSON(data []byte) error 
 
 // The properties Content, ToolUseID, Type are required.
 type WebSearchToolResultBlockParam struct {
-	Content   WebSearchToolResultBlockParamContentUnion `json:"content,omitzero,required"`
-	ToolUseID string                                    `json:"tool_use_id,required"`
+	Content   WebSearchToolResultBlockParamContentUnion `json:"content,omitzero" api:"required"`
+	ToolUseID string                                    `json:"tool_use_id" api:"required"`
 	// Create a cache control breakpoint at this content block.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
 	// Tool invocation directly from the model.
 	Caller WebSearchToolResultBlockParamCallerUnion `json:"caller,omitzero"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_search_tool_result".
-	Type constant.WebSearchToolResult `json:"type,required"`
+	Type constant.WebSearchToolResult `json:"type" default:"web_search_tool_result"`
 	paramObj
 }
 
@@ -8926,8 +9074,8 @@ func (u *WebSearchToolResultBlockParamContentUnion) asAny() any {
 type WebSearchToolResultError struct {
 	// Any of "invalid_tool_input", "unavailable", "max_uses_exceeded",
 	// "too_many_requests", "query_too_long", "request_too_large".
-	ErrorCode WebSearchToolResultErrorCode      `json:"error_code,required"`
-	Type      constant.WebSearchToolResultError `json:"type,required"`
+	ErrorCode WebSearchToolResultErrorCode      `json:"error_code" api:"required"`
+	Type      constant.WebSearchToolResultError `json:"type" default:"web_search_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ErrorCode   respjson.Field
@@ -8962,7 +9110,7 @@ type MessageNewParams struct {
 	//
 	// Different models have different maximum values for this parameter. See
 	// [models](https://docs.claude.com/en/docs/models-overview) for details.
-	MaxTokens int64 `json:"max_tokens,required"`
+	MaxTokens int64 `json:"max_tokens" api:"required"`
 	// Input messages.
 	//
 	// Our models are trained to operate on alternating `user` and `assistant`
@@ -9032,11 +9180,11 @@ type MessageNewParams struct {
 	// the Messages API.
 	//
 	// There is a limit of 100,000 messages in a single request.
-	Messages []MessageParam `json:"messages,omitzero,required"`
+	Messages []MessageParam `json:"messages,omitzero" api:"required"`
 	// The model that will complete your prompt.\n\nSee
 	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
-	Model Model `json:"model,omitzero,required"`
+	Model Model `json:"model,omitzero" api:"required"`
 	// Container identifier for reuse across requests.
 	Container param.Opt[string] `json:"container,omitzero"`
 	// Specifies the geographic region for inference processing. If not specified, the
@@ -9056,18 +9204,15 @@ type MessageNewParams struct {
 	// Used to remove "long tail" low probability responses.
 	// [Learn more technical details here](https://towardsdatascience.com/how-to-sample-from-language-models-682bceb97277).
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	TopK param.Opt[int64] `json:"top_k,omitzero"`
 	// Use nucleus sampling.
 	//
 	// In nucleus sampling, we compute the cumulative distribution over all the options
 	// for each subsequent token in decreasing probability order and cut it off once it
-	// reaches a particular probability specified by `top_p`. You should either alter
-	// `temperature` or `top_p`, but not both.
+	// reaches a particular probability specified by `top_p`.
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	TopP param.Opt[float64] `json:"top_p,omitzero"`
 	// Top-level cache control automatically applies a cache_control marker to the last
 	// cacheable block in the request.
@@ -9288,11 +9433,11 @@ type MessageCountTokensParams struct {
 	// the Messages API.
 	//
 	// There is a limit of 100,000 messages in a single request.
-	Messages []MessageParam `json:"messages,omitzero,required"`
+	Messages []MessageParam `json:"messages,omitzero" api:"required"`
 	// The model that will complete your prompt.\n\nSee
 	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
-	Model Model `json:"model,omitzero,required"`
+	Model Model `json:"model,omitzero" api:"required"`
 	// Top-level cache control automatically applies a cache_control marker to the last
 	// cacheable block in the request.
 	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`

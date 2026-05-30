@@ -30,7 +30,7 @@ Or to pin the version:
 <!-- x-release-please-start-version -->
 
 ```sh
-go get -u 'github.com/openai/openai-go/v3@v3.28.0'
+go get -u 'github.com/openai/openai-go/v3@v3.32.0'
 ```
 
 <!-- x-release-please-end -->
@@ -367,7 +367,7 @@ func main() {
 The openai library uses the [`omitzero`](https://tip.golang.org/doc/go1.24#encodingjsonpkgencodingjson)
 semantics from the Go 1.24+ `encoding/json` release for request fields.
 
-Required primitive fields (`int64`, `string`, etc.) feature the tag <code>\`json:"...,required"\`</code>. These
+Required primitive fields (`int64`, `string`, etc.) feature the tag <code>\`api:"required"\`</code>. These
 fields are always serialized, even their zero values.
 
 Optional primitive types are wrapped in a `param.Opt[T]`. These fields can be set with the provided constructors, `openai.String(string)`, `openai.Int(int64)`, etc.
@@ -952,6 +952,104 @@ You may also replace the default `http.Client` with
 `option.WithHTTPClient(client)`. Only one http client is
 accepted (this overwrites any previous client) and receives requests after any
 middleware has been applied.
+
+## Workload Identity Authentication
+
+For cloud workloads (Kubernetes, Azure, Google Cloud Platform), you can use workload identity authentication instead of API keys. This provides short-lived tokens that are automatically refreshed.
+
+### Kubernetes
+
+```go
+import (
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/auth"
+	"github.com/openai/openai-go/v3/option"
+)
+
+client := openai.NewClient(
+	option.WithWorkloadIdentity(auth.WorkloadIdentity{
+		ClientID:           "your-client-id",
+		IdentityProviderID: "idp-123",
+		ServiceAccountID:   "sa-456",
+		Provider:           auth.K8sServiceAccountTokenProvider(""),
+	}),
+)
+```
+
+### Azure Managed Identity
+
+```go
+client := openai.NewClient(
+	option.WithWorkloadIdentity(auth.WorkloadIdentity{
+		ClientID:           "your-client-id",
+		IdentityProviderID: "idp-123",
+		ServiceAccountID:   "sa-456",
+		Provider:           auth.AzureManagedIdentityTokenProvider(nil),
+	}),
+)
+```
+
+### Google Cloud Compute Engine
+
+```go
+client := openai.NewClient(
+	option.WithWorkloadIdentity(auth.WorkloadIdentity{
+		ClientID:           "your-client-id",
+		IdentityProviderID: "idp-123",
+		ServiceAccountID:   "sa-456",
+		Provider:           auth.GCPIDTokenProvider(nil),
+	}),
+)
+```
+
+### Custom Subject Token Provider
+
+You can implement your own subject token provider:
+
+```go
+import (
+	"context"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/auth"
+	"github.com/openai/openai-go/v3/option"
+)
+
+type customTokenProvider struct{}
+
+func (p *customTokenProvider) TokenType() auth.SubjectTokenType {
+	return auth.SubjectTokenTypeJWT
+}
+
+func (p *customTokenProvider) GetToken(ctx context.Context, httpClient auth.HTTPDoer) (string, error) {
+	return "your-token", nil
+}
+
+client := openai.NewClient(
+	option.WithWorkloadIdentity(auth.WorkloadIdentity{
+		ClientID:           "your-client-id",
+		IdentityProviderID: "idp-123",
+		ServiceAccountID:   "sa-456",
+		Provider:           &customTokenProvider{},
+	}),
+)
+```
+
+### Customizing Refresh Buffer
+
+By default, tokens are refreshed 20 minutes (1200 seconds) before expiry. You can customize this:
+
+```go
+client := openai.NewClient(
+	option.WithWorkloadIdentity(auth.WorkloadIdentity{
+		ClientID:             "your-client-id",
+		IdentityProviderID:   "idp-123",
+		ServiceAccountID:     "sa-456",
+		Provider:             auth.K8sServiceAccountTokenProvider(""),
+		RefreshBufferSeconds: 600,
+	}),
+)
+```
 
 ## Microsoft Azure OpenAI
 

@@ -107,6 +107,15 @@ func (rac *replayAPIClient) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 
 	// Set Content-Type header
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	for k, v := range interaction.Response.Headers {
+		// Skip transport-level headers that don't apply to the mock server's
+		// uncompressed response body.
+		lk := strings.ToLower(k)
+		if lk == "content-encoding" || lk == "transfer-encoding" || lk == "content-length" {
+			continue
+		}
+		w.Header().Set(k, v)
+	}
 
 	var bodySegments []string
 	for i := 0; i < len(interaction.Response.BodySegments); i++ {
@@ -356,6 +365,8 @@ func convertKeysToCamelCase(v any, parentKey string) any {
 			}
 			camelCaseKey := toCamelCase(key)
 			if parentKey == "response" && key == "body_segments" {
+				newMap[camelCaseKey] = value
+			} else if parentKey == "tool_response" && key == "response" {
 				newMap[camelCaseKey] = value
 			} else {
 				newMap[camelCaseKey] = convertKeysToCamelCase(value, key)

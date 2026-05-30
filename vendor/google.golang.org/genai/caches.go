@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -124,12 +124,22 @@ func createCachedContentConfigToVertex(fromObject map[string]any, parentObject m
 			return nil, err
 		}
 
+		fromContents, err = applyConverterToSliceWithRoot(fromContents.([]any), contentToVertex, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
 		InternalSetValueByPath(parentObject, []string{"contents"}, fromContents)
 	}
 
 	fromSystemInstruction := InternalGetValueByPath(fromObject, []string{"systemInstruction"})
 	if fromSystemInstruction != nil {
 		fromSystemInstruction, err = InternalTContent(fromSystemInstruction)
+		if err != nil {
+			return nil, err
+		}
+
+		fromSystemInstruction, err = contentToVertex(fromSystemInstruction.(map[string]any), toObject, rootObject)
 		if err != nil {
 			return nil, err
 		}
@@ -149,6 +159,11 @@ func createCachedContentConfigToVertex(fromObject map[string]any, parentObject m
 
 	fromToolConfig := InternalGetValueByPath(fromObject, []string{"toolConfig"})
 	if fromToolConfig != nil {
+		fromToolConfig, err = toolConfigToVertex(fromToolConfig.(map[string]any), toObject, rootObject)
+		if err != nil {
+			return nil, err
+		}
+
 		InternalSetValueByPath(parentObject, []string{"toolConfig"}, fromToolConfig)
 	}
 

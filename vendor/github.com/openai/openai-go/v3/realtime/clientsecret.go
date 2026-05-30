@@ -88,7 +88,7 @@ type RealtimeSessionCreateResponse struct {
 	// Ephemeral key returned by the API.
 	ClientSecret RealtimeSessionClientSecret `json:"client_secret" api:"required"`
 	// The type of session to create. Always `realtime` for the Realtime API.
-	Type constant.Realtime `json:"type" api:"required"`
+	Type constant.Realtime `json:"type" default:"realtime"`
 	// Configuration for input and output audio.
 	Audio RealtimeSessionCreateResponseAudio `json:"audio"`
 	// Additional fields to include in server outputs.
@@ -132,8 +132,9 @@ type RealtimeSessionCreateResponse struct {
 	// Tools available to the model.
 	Tools []RealtimeSessionCreateResponseToolUnion `json:"tools"`
 	// Realtime API can write session traces to the
-	// [Traces Dashboard](/logs?api=traces). Set to null to disable tracing. Once
-	// tracing is enabled for a session, the configuration cannot be modified.
+	// [Traces Dashboard](https://platform.openai.com/logs?api=traces). Set to null to
+	// disable tracing. Once tracing is enabled for a session, the configuration cannot
+	// be modified.
 	//
 	// `auto` will create a trace for the session with default values for the workflow
 	// name, group id, and metadata.
@@ -373,7 +374,7 @@ func (r *RealtimeSessionCreateResponseAudioInputTurnDetectionUnion) UnmarshalJSO
 // detected and off after a period of silence.
 type RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad struct {
 	// Type of turn detection, `server_vad` to turn on simple Server VAD.
-	Type constant.ServerVad `json:"type" api:"required"`
+	Type constant.ServerVad `json:"type" default:"server_vad"`
 	// Whether or not to automatically generate a response when a VAD stop event
 	// occurs. If `interrupt_response` is set to `false` this may fail to create a
 	// response if the model is already responding.
@@ -439,7 +440,7 @@ func (r *RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad) Unmarsha
 // user has finished speaking.
 type RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVad struct {
 	// Type of turn detection, `semantic_vad` to turn on Semantic VAD.
-	Type constant.SemanticVad `json:"type" api:"required"`
+	Type constant.SemanticVad `json:"type" default:"semantic_vad"`
 	// Whether or not to automatically generate a response when a VAD stop event
 	// occurs.
 	CreateResponse bool `json:"create_response"`
@@ -683,7 +684,7 @@ type RealtimeSessionCreateResponseToolMcpTool struct {
 	// A label for this MCP server, used to identify it in tool calls.
 	ServerLabel string `json:"server_label" api:"required"`
 	// The type of the MCP tool. Always `mcp`.
-	Type constant.Mcp `json:"type" api:"required"`
+	Type constant.Mcp `json:"type" default:"mcp"`
 	// List of allowed tool names or a filter object.
 	AllowedTools RealtimeSessionCreateResponseToolMcpToolAllowedToolsUnion `json:"allowed_tools" api:"nullable"`
 	// An OAuth access token that can be used with a remote MCP server, either with a
@@ -1027,7 +1028,7 @@ type RealtimeTranscriptionSessionCreateResponse struct {
 	// The object type. Always `realtime.transcription_session`.
 	Object string `json:"object" api:"required"`
 	// The type of session. Always `transcription` for transcription sessions.
-	Type constant.Transcription `json:"type" api:"required"`
+	Type constant.Transcription `json:"type" default:"transcription"`
 	// Configuration for input audio for the session.
 	Audio RealtimeTranscriptionSessionCreateResponseAudio `json:"audio"`
 	// Expiration timestamp for the session, in seconds since epoch.
