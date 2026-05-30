@@ -1,5 +1,337 @@
 # Changelog
 
+## 1.46.0 (2026-05-28)
+
+Full Changelog: [v1.45.0...v1.46.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.45.0...v1.46.0)
+
+### Features
+
+* **api:** Add support for claude-opus-4-8, mid-conversation system blocks, and usage.output_tokens_details ([4cd860b](https://github.com/anthropics/anthropic-sdk-go/commit/4cd860b8bd5365709f7f86466f449797a5f01875))
+* support custom file size caps ([#876](https://github.com/anthropics/anthropic-sdk-go/issues/876)) ([99634e8](https://github.com/anthropics/anthropic-sdk-go/commit/99634e85815be2215a8beb05f2deeec895133b3b))
+
+
+### Chores
+
+* **examples:** rename managed-agents private-sandbox-worker to self-hosted-sandbox-worker ([#873](https://github.com/anthropics/anthropic-sdk-go/issues/873)) ([07d3e46](https://github.com/anthropics/anthropic-sdk-go/commit/07d3e461f094d40a1bcf25fa8cefee7a90835193))
+
+
+### Documentation
+
+* replace literal newlines ([cbb7ea5](https://github.com/anthropics/anthropic-sdk-go/commit/cbb7ea55b131f492753ce9fdcfc73df2847daafd))
+
+## 1.45.0 (2026-05-21)
+
+Full Changelog: [v1.44.1...v1.45.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.44.1...v1.45.0)
+
+### Features
+
+* **api:** Add support for thinking-token-count beta for estimated tokens in thinking block deltas when streaming ([dedeb6d](https://github.com/anthropics/anthropic-sdk-go/commit/dedeb6d263a651d63c95bd360befbd53dd26ec12))
+
+## 1.44.1 (2026-05-19)
+
+Full Changelog: [v1.44.0...v1.44.1](https://github.com/anthropics/anthropic-sdk-go/compare/v1.44.0...v1.44.1)
+
+### Bug Fixes
+
+* **runner:** skip tool calls SessionToolRunner does not own ([93afc65](https://github.com/anthropics/anthropic-sdk-go/commit/93afc65f2f1b811d760f2e5149e13dd5eb328f79))
+
+## 1.44.0 (2026-05-19)
+
+Full Changelog: [v1.43.0...v1.44.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.43.0...v1.44.0)
+
+### Features
+
+* **client:** Add support for self-hosted sandboxes in CMA with sandbox helpers ([34354c4](https://github.com/anthropics/anthropic-sdk-go/commit/34354c43f329852a88682bb6665a1453754d61be))
+
+## 1.43.0 (2026-05-13)
+
+Full Changelog: [v1.42.0...v1.43.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.42.0...v1.43.0)
+
+### Features
+
+* **api:** Add BetaManagedAgentsSearchResultBlock types ([498fafc](https://github.com/anthropics/anthropic-sdk-go/commit/498fafcadd46be3a53e24ca2e7c40d00da6361bd))
+* **api:** Add support for cache diagnostics beta ([eac032f](https://github.com/anthropics/anthropic-sdk-go/commit/eac032f440e19fe9407d856dc4494029c606cd3d))
+* **client:** add compatibility aliases for old type names ([38e1f89](https://github.com/anthropics/anthropic-sdk-go/commit/38e1f89eeffeb40295a5796c97d9966ab1a8703b))
+* **client:** add compatibility aliases for old type names ([a98b0fb](https://github.com/anthropics/anthropic-sdk-go/commit/a98b0fb44693ee6c4bcd7575414b1cab0fc114c7))
+* **client:** optimize json encoder for internal types ([f379c42](https://github.com/anthropics/anthropic-sdk-go/commit/f379c4255c6485a02afb8136d84f1cf995794a08))
+
+
+### Bug Fixes
+
+* **structured outputs:** allowlist enum, const, pattern, allOf in transformSchema ([#823](https://github.com/anthropics/anthropic-sdk-go/issues/823)) ([d368786](https://github.com/anthropics/anthropic-sdk-go/commit/d3687868eb9c40427c731b12e9291ddeeb74f557))
+
+
+### Chores
+
+* **api:** spec updates ([502b9f1](https://github.com/anthropics/anthropic-sdk-go/commit/502b9f13f72a691c3b440c66d964a25caf2db8e1))
+* fix standard webhooks version ([#842](https://github.com/anthropics/anthropic-sdk-go/issues/842)) ([1fdda46](https://github.com/anthropics/anthropic-sdk-go/commit/1fdda46d63004bfec8c977319554cb609a0b4041))
+* **internal:** simplify release-please config ([69da3d6](https://github.com/anthropics/anthropic-sdk-go/commit/69da3d60e46540256c75fc2a0d1b1814ed608dfc))
+
+## 1.42.0 (2026-05-11)
+
+Full Changelog: [v1.41.0...v1.42.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.41.0...v1.42.0)
+
+### Features
+
+* **aws:** Add AWS client for Claude Platform on AWS ([596baf4](https://github.com/anthropics/anthropic-sdk-go/commit/596baf4d3811bc48d24f3e298573581c861384b1))
+
+
+### Bug Fixes
+
+* **examples:** update examples dependencies ([e832b79](https://github.com/anthropics/anthropic-sdk-go/commit/e832b79299ddee8c48cc8f77c83203f58e17b9ec))
+* **go:** avoid panic when http.DefaultTransport is wrapped ([6b75bef](https://github.com/anthropics/anthropic-sdk-go/commit/6b75bef5a2cd15a969b5d787498e550f6f039719))
+
+
+### Chores
+
+* **client:** update dependency checksums ([64c1d95](https://github.com/anthropics/anthropic-sdk-go/commit/64c1d9502775801539ea492f29784a89535226bd))
+* go mod tidy ([#816](https://github.com/anthropics/anthropic-sdk-go/issues/816)) ([09b5f9c](https://github.com/anthropics/anthropic-sdk-go/commit/09b5f9cc4965ed3ca5b458996db3c030d66482c4))
+* **internal:** codegen related update ([6e83495](https://github.com/anthropics/anthropic-sdk-go/commit/6e83495da8dfb2efb905213204627483b4afc3e2))
+* **internal:** codegen related update ([34d1379](https://github.com/anthropics/anthropic-sdk-go/commit/34d1379207570fd26f7a262a960c424adf8d265d))
+* **internal:** codegen related update ([c068475](https://github.com/anthropics/anthropic-sdk-go/commit/c068475a5c67c7b0d544195b4a62187c4e35c578))
+* redact api-key headers in debug logs ([46a074f](https://github.com/anthropics/anthropic-sdk-go/commit/46a074f588c30c2a88e6f46093be606b37dd3fef))
+* redact api-key headers in debug logs ([1fe2ebb](https://github.com/anthropics/anthropic-sdk-go/commit/1fe2ebbb5d1f458f7013aec5c61e31ae2b52e619))
+
+## 1.41.0 (2026-05-06)
+
+Full Changelog: [v1.40.0...v1.41.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.40.0...v1.41.0)
+
+### Features
+
+* **api:** add support for Managed Agents multiagents and outcomes, webhooks, vault validation ([33762b0](https://github.com/anthropics/anthropic-sdk-go/commit/33762b055b2ef20d09a3764bb69d183fcf283b18))
+* **mcp:** add mcp tool helpers ([#752](https://github.com/anthropics/anthropic-sdk-go/issues/752)) ([4edf9f5](https://github.com/anthropics/anthropic-sdk-go/commit/4edf9f5cbc10f0acc7e11ae6b248c20be606ac63))
+
+
+### Bug Fixes
+
+* **api:** Adjust webhook configuration ([8b2f194](https://github.com/anthropics/anthropic-sdk-go/commit/8b2f194315cc5bc9d723ea682e94a2a216ed57cd))
+
+## 1.40.0 (2026-05-05)
+
+Full Changelog: [v1.39.0...v1.40.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.39.0...v1.40.0)
+
+### Features
+
+* **client:** allow targeting a workspace for OIDC federation token exchange ([6bf66ac](https://github.com/anthropics/anthropic-sdk-go/commit/6bf66ac19fa598800549ea188e849d0d45f632ea))
+
+## 1.39.0 (2026-05-04)
+
+Full Changelog: [v1.38.0...v1.39.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.38.0...v1.39.0)
+
+### Features
+
+* **api:** improve Managed Agents APIs ([eadf509](https://github.com/anthropics/anthropic-sdk-go/commit/eadf509d8ea79d3f0db7cbdbf3ade6f24aaeb76f))
+* **client:** add Workload Identity Federation, interactive OAuth, and auth profiles ([0f0cc01](https://github.com/anthropics/anthropic-sdk-go/commit/0f0cc0191f3bc059f22939644a0584662c469305))
+* **go:** add default http client with timeout ([b81c287](https://github.com/anthropics/anthropic-sdk-go/commit/b81c28758ee76db006216b771ff3803adf4cbefb))
+* support setting headers via env ([641015d](https://github.com/anthropics/anthropic-sdk-go/commit/641015da9ea17c4ef2696857d6b4eb4cdb4f854e))
+
+
+### Bug Fixes
+
+* **client:** add 10 min timeout ([#770](https://github.com/anthropics/anthropic-sdk-go/issues/770)) ([917fe19](https://github.com/anthropics/anthropic-sdk-go/commit/917fe19c2591586d9c14fd5916bb95f713ab0c8f))
+
+
+### Chores
+
+* avoid embedding reflect.Type for dead code elimination ([11168b4](https://github.com/anthropics/anthropic-sdk-go/commit/11168b403a3b3ab2d7b3edc023faf214d9eededd))
+
+## 1.38.0 (2026-04-23)
+
+Full Changelog: [v1.37.0...v1.38.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.37.0...v1.38.0)
+
+### Features
+
+* add Type() method to API errors for error kind identification ([#676](https://github.com/anthropics/anthropic-sdk-go/issues/676)) ([0db1712](https://github.com/anthropics/anthropic-sdk-go/commit/0db1712b237930416461c2411d263e6d1150d957))
+* **api:** CMA Memory public beta ([180e00c](https://github.com/anthropics/anthropic-sdk-go/commit/180e00cdc4863a6a64986e03fed9eb4a04117f40))
+* structured outputs via Schema any with auto-parse ([#759](https://github.com/anthropics/anthropic-sdk-go/issues/759)) ([46073d8](https://github.com/anthropics/anthropic-sdk-go/commit/46073d8f489a88fdf5ebf33163e4f0d364759eae))
+
+
+### Bug Fixes
+
+* **api:** fix errors in api spec ([e47c178](https://github.com/anthropics/anthropic-sdk-go/commit/e47c178b3ee1b5c47834239635b5a3abdff9a432))
+* **api:** restore missing features ([0fc6fac](https://github.com/anthropics/anthropic-sdk-go/commit/0fc6fac141980cfce023ce2d0b30175980741db0))
+
+
+### Chores
+
+* **internal:** more robust bootstrap script ([5bde204](https://github.com/anthropics/anthropic-sdk-go/commit/5bde204d267187622a5228330235c9c048abeae1))
+* **tests:** bump steady to v0.22.1 ([4578c15](https://github.com/anthropics/anthropic-sdk-go/commit/4578c15e9a2f6ed05a05acfa608083c3a893d6dd))
+
+## 1.37.0 (2026-04-16)
+
+Full Changelog: [v1.36.0...v1.37.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.36.0...v1.37.0)
+
+### Features
+
+* **api:** add claude-opus-4-7, token budgets and user_profiles ([6e758a9](https://github.com/anthropics/anthropic-sdk-go/commit/6e758a9e9ebde8298100869e9fb60c276aeb2572))
+
+## 1.36.0 (2026-04-14)
+
+Full Changelog: [v1.35.1...v1.36.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.35.1...v1.36.0)
+
+### Features
+
+* **api:** mark Sonnet and Opus 4 as deprecated ([fc49d21](https://github.com/anthropics/anthropic-sdk-go/commit/fc49d213a3de80dd37836ef3ede4199943a81b12))
+* **bedrock:** use auth header for mantle client ([#734](https://github.com/anthropics/anthropic-sdk-go/issues/734)) ([629eec1](https://github.com/anthropics/anthropic-sdk-go/commit/629eec1290d19ccfb529eca411324bc9a8673e00))
+
+## 1.35.1 (2026-04-13)
+
+Full Changelog: [v1.35.0...v1.35.1](https://github.com/anthropics/anthropic-sdk-go/compare/v1.35.0...v1.35.1)
+
+### Bug Fixes
+
+* **streaming:** add missing events ([227b83e](https://github.com/anthropics/anthropic-sdk-go/commit/227b83eeb617185d16547f466e1a0b8c120d2f79))
+
+## 1.35.0 (2026-04-10)
+
+Full Changelog: [v1.34.0...v1.35.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.34.0...v1.35.0)
+
+### Features
+
+* vertex eu region ([#740](https://github.com/anthropics/anthropic-sdk-go/issues/740)) ([e8bda03](https://github.com/anthropics/anthropic-sdk-go/commit/e8bda03b9488abe87a9bc819dfb090fa3d72f554))
+
+
+### Bug Fixes
+
+* **tools:** convert tool response type to array ([#748](https://github.com/anthropics/anthropic-sdk-go/issues/748)) ([3a18787](https://github.com/anthropics/anthropic-sdk-go/commit/3a18787a46fb9188752240a4730a17eb3eb72cb8))
+
+
+### Documentation
+
+* update examples ([aff7b24](https://github.com/anthropics/anthropic-sdk-go/commit/aff7b24064036f9b8c069f3587d4992aaecd685a))
+
+## 1.34.0 (2026-04-09)
+
+Full Changelog: [v1.33.0...v1.34.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.33.0...v1.34.0)
+
+### Features
+
+* **api:** Add beta advisor tool ([3a6ddba](https://github.com/anthropics/anthropic-sdk-go/commit/3a6ddba23f7763d502c0bdd0842f0f90bb662c7e))
+
+## 1.33.0 (2026-04-08)
+
+Full Changelog: [v1.32.0...v1.33.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.32.0...v1.33.0)
+
+### Features
+
+* **api:** add support for Claude Managed Agents ([722b2ac](https://github.com/anthropics/anthropic-sdk-go/commit/722b2accb2ad73715639dd03339e14345304d5fc))
+
+## 1.32.0 (2026-04-07)
+
+Full Changelog: [v1.31.0...v1.32.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.31.0...v1.32.0)
+
+### Features
+
+* **bedrock:** add AnthropicBedrockMantle client ([#704](https://github.com/anthropics/anthropic-sdk-go/issues/704)) ([058e8fa](https://github.com/anthropics/anthropic-sdk-go/commit/058e8fa51bcdaf3eaa8d9c4dfb51606647eb6fae))
+
+## 1.31.0 (2026-04-07)
+
+Full Changelog: [v1.30.0...v1.31.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.30.0...v1.31.0)
+
+### Features
+
+* **api:** Add support for claude-mythos-preview ([7144a65](https://github.com/anthropics/anthropic-sdk-go/commit/7144a657108e2194c0ac1a667aef49c0a06e6af3))
+
+## 1.30.0 (2026-04-03)
+
+Full Changelog: [v1.29.0...v1.30.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.29.0...v1.30.0)
+
+### Features
+
+* **vertex:** add support for US multi-region endpoint ([6f40457](https://github.com/anthropics/anthropic-sdk-go/commit/6f404579492f3502a818118797557678b703cefa))
+
+## 1.29.0 (2026-04-01)
+
+Full Changelog: [v1.28.0...v1.29.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.28.0...v1.29.0)
+
+### Features
+
+* **api:** add structured stop_details to message responses ([1053799](https://github.com/anthropics/anthropic-sdk-go/commit/1053799aca55f0986a2e7728a4490e0cc0b99f50))
+
+
+### Chores
+
+* **internal:** client updates ([531283d](https://github.com/anthropics/anthropic-sdk-go/commit/531283d7a49e249062dd5e095774ce163550c3ae))
+
+## 1.28.0 (2026-03-31)
+
+Full Changelog: [v1.27.1...v1.28.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.27.1...v1.28.0)
+
+### Features
+
+* **internal:** support comma format in multipart form encoding ([97ed8a1](https://github.com/anthropics/anthropic-sdk-go/commit/97ed8a14ccbe7e37464a2932a57ce986da967f08))
+
+
+### Bug Fixes
+
+* bump buger/jsonparser to v1.1.2 (GO-2026-4514) ([#665](https://github.com/anthropics/anthropic-sdk-go/issues/665)) ([96565eb](https://github.com/anthropics/anthropic-sdk-go/commit/96565ebd58e078a60eacd4437dfc3f1f599a7a1e))
+* prevent duplicate ? in query params ([0afa75c](https://github.com/anthropics/anthropic-sdk-go/commit/0afa75c82abdf5a34f4ca129457f8078c0c483a4))
+* **types:** generate shared enum types that are not referenced by other schemas ([5dc86f2](https://github.com/anthropics/anthropic-sdk-go/commit/5dc86f2b8369ff472a9bbbc6c4ff701006f1f72f))
+
+
+### Chores
+
+* **ci:** run builds on CI even if only spec metadata changed ([010a16f](https://github.com/anthropics/anthropic-sdk-go/commit/010a16f68d58c7d1187393f77a3c26cc92d5af65))
+* **ci:** skip lint on metadata-only changes ([8cc7cec](https://github.com/anthropics/anthropic-sdk-go/commit/8cc7cec0512d4b1298beacf11b23d0eebdabe468))
+* **ci:** support opting out of skipping builds on metadata-only commits ([adc7184](https://github.com/anthropics/anthropic-sdk-go/commit/adc71844b3b3e5773d213ec0751fdbe48976a537))
+* **client:** fix multipart serialisation of Default() fields ([3fc3613](https://github.com/anthropics/anthropic-sdk-go/commit/3fc36133b89aa264b2c94407e10596d20251695a))
+* **internal:** bump go toolchain to go1.25.8 to address std lib vulnerabilities ([e3feecb](https://github.com/anthropics/anthropic-sdk-go/commit/e3feecb7d0bf74892dd5a4fd13911bda38fead2a))
+* **internal:** support default value struct tag ([fc68556](https://github.com/anthropics/anthropic-sdk-go/commit/fc68556dad8696182ebb519be3bc2cba598bd9a8))
+* **internal:** update gitignore ([e2a5dd1](https://github.com/anthropics/anthropic-sdk-go/commit/e2a5dd16ed98b30e2b08c3856f8255c5653adac1))
+* remove unnecessary error check for url parsing ([6d42216](https://github.com/anthropics/anthropic-sdk-go/commit/6d422163c7e240045339b16a0b9b2a6d6231a123))
+* **tests:** bump steady to v0.19.4 ([3ca1569](https://github.com/anthropics/anthropic-sdk-go/commit/3ca1569b286f1e138b4517a77ee25b379707ce35))
+* **tests:** bump steady to v0.19.5 ([7364e49](https://github.com/anthropics/anthropic-sdk-go/commit/7364e49eeeb34e4750dbdad7bd5d50e518025355))
+* **tests:** bump steady to v0.19.6 ([28ebd01](https://github.com/anthropics/anthropic-sdk-go/commit/28ebd015e3eb072f571937322b938dd0ea39713d))
+* **tests:** bump steady to v0.19.7 ([77fc869](https://github.com/anthropics/anthropic-sdk-go/commit/77fc869429038406b543b60d8c39fee09f2aa5c7))
+* **tests:** bump steady to v0.20.1 ([e52beb5](https://github.com/anthropics/anthropic-sdk-go/commit/e52beb539f44912d839ba9f95b407c5bb9a42bd8))
+* **tests:** bump steady to v0.20.2 ([3a20191](https://github.com/anthropics/anthropic-sdk-go/commit/3a20191368126e38d1cb47cd737cd8642c311a33))
+* update docs for api:"required" ([aa0a03a](https://github.com/anthropics/anthropic-sdk-go/commit/aa0a03aa573cc1565dcffae2d079bbd18aa4c69b))
+
+## 1.27.1 (2026-03-18)
+
+Full Changelog: [v1.27.0...v1.27.1](https://github.com/anthropics/anthropic-sdk-go/compare/v1.27.0...v1.27.1)
+
+### Chores
+
+* **internal:** regenerate SDK with no functional changes ([c963fd0](https://github.com/anthropics/anthropic-sdk-go/commit/c963fd0fd1e591bfd572f100a3a444ba40fe4ad4))
+* **internal:** tweak CI branches ([95e3410](https://github.com/anthropics/anthropic-sdk-go/commit/95e3410a6892afae8b1b4631d05b5bfd4bf12eb2))
+
+## 1.27.0 (2026-03-16)
+
+Full Changelog: [v1.26.0...v1.27.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.26.0...v1.27.0)
+
+### Features
+
+* **api:** change array_format to brackets ([ca5ae6e](https://github.com/anthropics/anthropic-sdk-go/commit/ca5ae6eaf8243aece877d33eb88653db2e439a36))
+* **api:** chore(config): clean up model enum list ([#31](https://github.com/anthropics/anthropic-sdk-go/issues/31)) ([1db4ea7](https://github.com/anthropics/anthropic-sdk-go/commit/1db4ea7956259bb217bc2523a5244b6029c4bd15))
+* **api:** GA thinking-display-setting ([1924af2](https://github.com/anthropics/anthropic-sdk-go/commit/1924af22e00fad68ccf31a3809c8cab8d442c048))
+* **api:** remove publishing section from cli target ([514282e](https://github.com/anthropics/anthropic-sdk-go/commit/514282e1728881f7ef4c6782f3000ca0ec632d53))
+* **tests:** update mock server ([cf24ced](https://github.com/anthropics/anthropic-sdk-go/commit/cf24ced2844da5d0f645e7a2afbabb936c891892))
+
+
+### Bug Fixes
+
+* allow canceling a request while it is waiting to retry ([32ee053](https://github.com/anthropics/anthropic-sdk-go/commit/32ee05317970d99df3147c65c2055efabe354472))
+* **client:** update model reference from claude-3-7-sonnet-latest to claude-sonnet-4-5 ([2f42e73](https://github.com/anthropics/anthropic-sdk-go/commit/2f42e7336295d898d18c66ddd6f9f70bab108cc6))
+
+
+### Chores
+
+* **client:** reorganize code in Messages files to lead to less conflicts ([c677bb5](https://github.com/anthropics/anthropic-sdk-go/commit/c677bb58a3da8f17f0dbc630b5b28faed995aa6b))
+* **internal:** codegen related update ([c978aac](https://github.com/anthropics/anthropic-sdk-go/commit/c978aacf53bbcf6555ba97bdc6bdfc9be9d8f98d))
+* **internal:** codegen related update ([4ac31a2](https://github.com/anthropics/anthropic-sdk-go/commit/4ac31a2fb9dc45a41bcbaa25dfbf8848119768ec))
+* **internal:** codegen related update ([5b2b2fa](https://github.com/anthropics/anthropic-sdk-go/commit/5b2b2fa276ad9365ddcb53270f307db05e5b6363))
+* **internal:** codegen related update ([9678c6c](https://github.com/anthropics/anthropic-sdk-go/commit/9678c6c5d375f66cb569a537a0766a5ed4d8f7f0))
+* **internal:** codegen related update ([f6035d2](https://github.com/anthropics/anthropic-sdk-go/commit/f6035d2bb0c50cf97cea78fb3fe854289b11a34c))
+* **internal:** codegen related update ([9246bbb](https://github.com/anthropics/anthropic-sdk-go/commit/9246bbb15553cee531b5caef2c7876e84a8fe8f2))
+* **internal:** move custom custom `json` tags to `api` ([4392627](https://github.com/anthropics/anthropic-sdk-go/commit/4392627107c43726c242923c16b0f5ac2b432082))
+* **tests:** unskip tests that are now supported in steady ([b0ca374](https://github.com/anthropics/anthropic-sdk-go/commit/b0ca37403486c65ae171d2b330ff82c938fe9b58))
+
+
+### Documentation
+
+* streamline README, centralize documentation at docs.anthropic.com ([33f6943](https://github.com/anthropics/anthropic-sdk-go/commit/33f69431abd96025134d8967c20a1f313af3382d)), closes [#587](https://github.com/anthropics/anthropic-sdk-go/issues/587)
+
 ## 1.26.0 (2026-02-19)
 
 Full Changelog: [v1.25.1...v1.26.0](https://github.com/anthropics/anthropic-sdk-go/compare/v1.25.1...v1.26.0)

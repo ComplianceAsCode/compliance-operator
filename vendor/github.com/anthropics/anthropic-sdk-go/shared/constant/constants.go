@@ -32,6 +32,13 @@ func ValueOf[T Constant[T]]() T {
 }
 
 type Adaptive string                                // Always "adaptive"
+type Advisor string                                 // Always "advisor"
+type Advisor20260301 string                         // Always "advisor_20260301"
+type AdvisorMessage string                          // Always "advisor_message"
+type AdvisorRedactedResult string                   // Always "advisor_redacted_result"
+type AdvisorResult string                           // Always "advisor_result"
+type AdvisorToolResult string                       // Always "advisor_tool_result"
+type AdvisorToolResultError string                  // Always "advisor_tool_result_error"
 type All string                                     // Always "all"
 type Any string                                     // Always "any"
 type APIError string                                // Always "api_error"
@@ -54,6 +61,7 @@ type CharLocation string                            // Always "char_location"
 type CitationsDelta string                          // Always "citations_delta"
 type ClearThinking20251015 string                   // Always "clear_thinking_20251015"
 type ClearToolUses20250919 string                   // Always "clear_tool_uses_20250919"
+type Cloud string                                   // Always "cloud"
 type CodeExecution string                           // Always "code_execution"
 type CodeExecution20250522 string                   // Always "code_execution_20250522"
 type CodeExecution20250825 string                   // Always "code_execution_20250825"
@@ -83,9 +91,12 @@ type Disabled string                                // Always "disabled"
 type Document string                                // Always "document"
 type Enabled string                                 // Always "enabled"
 type EncryptedCodeExecutionResult string            // Always "encrypted_code_execution_result"
+type Environment string                             // Always "environment"
+type EnvironmentDeleted string                      // Always "environment_deleted"
 type Ephemeral string                               // Always "ephemeral"
 type Error string                                   // Always "error"
 type Errored string                                 // Always "errored"
+type Event string                                   // Always "event"
 type Expired string                                 // Always "expired"
 type File string                                    // Always "file"
 type Image string                                   // Always "image"
@@ -94,6 +105,7 @@ type InputTokens string                             // Always "input_tokens"
 type Insert string                                  // Always "insert"
 type InvalidRequestError string                     // Always "invalid_request_error"
 type JSONSchema string                              // Always "json_schema"
+type Limited string                                 // Always "limited"
 type MCPToolResult string                           // Always "mcp_tool_result"
 type MCPToolUse string                              // Always "mcp_tool_use"
 type MCPToolset string                              // Always "mcp_toolset"
@@ -105,24 +117,47 @@ type MessageBatchDeleted string                     // Always "message_batch_del
 type MessageDelta string                            // Always "message_delta"
 type MessageStart string                            // Always "message_start"
 type MessageStop string                             // Always "message_stop"
+type MessagesChanged string                         // Always "messages_changed"
+type MidConvSystem string                           // Always "mid_conv_system"
 type Model string                                   // Always "model"
+type ModelChanged string                            // Always "model_changed"
 type None string                                    // Always "none"
 type NotFoundError string                           // Always "not_found_error"
 type Object string                                  // Always "object"
 type OverloadedError string                         // Always "overloaded_error"
 type PageLocation string                            // Always "page_location"
 type PermissionError string                         // Always "permission_error"
+type PreviousMessageNotFound string                 // Always "previous_message_not_found"
 type RateLimitError string                          // Always "rate_limit_error"
 type RedactedThinking string                        // Always "redacted_thinking"
+type Refusal string                                 // Always "refusal"
 type Rename string                                  // Always "rename"
 type SearchResult string                            // Always "search_result"
 type SearchResultLocation string                    // Always "search_result_location"
+type SelfHosted string                              // Always "self_hosted"
 type ServerToolUse string                           // Always "server_tool_use"
+type Session string                                 // Always "session"
+type SessionArchived string                         // Always "session.archived"
+type SessionCreated string                          // Always "session.created"
+type SessionDeleted string                          // Always "session.deleted"
+type SessionIdled string                            // Always "session.idled"
+type SessionOutcomeEvaluationEnded string           // Always "session.outcome_evaluation_ended"
+type SessionPending string                          // Always "session.pending"
+type SessionRequiresAction string                   // Always "session.requires_action"
+type SessionRunning string                          // Always "session.running"
+type SessionStatusIdled string                      // Always "session.status_idled"
+type SessionStatusRescheduled string                // Always "session.status_rescheduled"
+type SessionStatusRunStarted string                 // Always "session.status_run_started"
+type SessionStatusTerminated string                 // Always "session.status_terminated"
+type SessionThreadCreated string                    // Always "session.thread_created"
+type SessionThreadIdled string                      // Always "session.thread_idled"
+type SessionThreadTerminated string                 // Always "session.thread_terminated"
 type SignatureDelta string                          // Always "signature_delta"
 type StrReplace string                              // Always "str_replace"
 type StrReplaceBasedEditTool string                 // Always "str_replace_based_edit_tool"
 type StrReplaceEditor string                        // Always "str_replace_editor"
 type Succeeded string                               // Always "succeeded"
+type SystemChanged string                           // Always "system_changed"
 type Text string                                    // Always "text"
 type TextDelta string                               // Always "text_delta"
 type TextEditor20241022 string                      // Always "text_editor_20241022"
@@ -139,6 +174,7 @@ type Thinking string                                // Always "thinking"
 type ThinkingDelta string                           // Always "thinking_delta"
 type ThinkingTurns string                           // Always "thinking_turns"
 type TimeoutError string                            // Always "timeout_error"
+type Tokens string                                  // Always "tokens"
 type Tool string                                    // Always "tool"
 type ToolReference string                           // Always "tool_reference"
 type ToolResult string                              // Always "tool_result"
@@ -149,11 +185,22 @@ type ToolSearchToolResultError string               // Always "tool_search_tool_
 type ToolSearchToolSearchResult string              // Always "tool_search_tool_search_result"
 type ToolUse string                                 // Always "tool_use"
 type ToolUses string                                // Always "tool_uses"
+type ToolsChanged string                            // Always "tools_changed"
+type Unavailable string                             // Always "unavailable"
+type Unrestricted string                            // Always "unrestricted"
 type URL string                                     // Always "url"
+type VaultCredentialArchived string                 // Always "vault_credential.archived"
+type VaultCredentialCreated string                  // Always "vault_credential.created"
+type VaultCredentialDeleted string                  // Always "vault_credential.deleted"
+type VaultCredentialRefreshFailed string            // Always "vault_credential.refresh_failed"
+type VaultArchived string                           // Always "vault.archived"
+type VaultCreated string                            // Always "vault.created"
+type VaultDeleted string                            // Always "vault.deleted"
 type View string                                    // Always "view"
 type WebFetch string                                // Always "web_fetch"
 type WebFetch20250910 string                        // Always "web_fetch_20250910"
 type WebFetch20260209 string                        // Always "web_fetch_20260209"
+type WebFetch20260309 string                        // Always "web_fetch_20260309"
 type WebFetchResult string                          // Always "web_fetch_result"
 type WebFetchToolResult string                      // Always "web_fetch_tool_result"
 type WebFetchToolResultError string                 // Always "web_fetch_tool_result_error"
@@ -164,20 +211,30 @@ type WebSearchResult string                         // Always "web_search_result
 type WebSearchResultLocation string                 // Always "web_search_result_location"
 type WebSearchToolResult string                     // Always "web_search_tool_result"
 type WebSearchToolResultError string                // Always "web_search_tool_result_error"
+type Work string                                    // Always "work"
+type WorkHeartbeat string                           // Always "work_heartbeat"
+type WorkQueueStats string                          // Always "work_queue_stats"
 
-func (c Adaptive) Default() Adaptive                       { return "adaptive" }
-func (c All) Default() All                                 { return "all" }
-func (c Any) Default() Any                                 { return "any" }
-func (c APIError) Default() APIError                       { return "api_error" }
-func (c ApplicationPDF) Default() ApplicationPDF           { return "application/pdf" }
-func (c Approximate) Default() Approximate                 { return "approximate" }
-func (c Assistant) Default() Assistant                     { return "assistant" }
-func (c AuthenticationError) Default() AuthenticationError { return "authentication_error" }
-func (c Auto) Default() Auto                               { return "auto" }
-func (c Base64) Default() Base64                           { return "base64" }
-func (c Bash) Default() Bash                               { return "bash" }
-func (c Bash20241022) Default() Bash20241022               { return "bash_20241022" }
-func (c Bash20250124) Default() Bash20250124               { return "bash_20250124" }
+func (c Adaptive) Default() Adaptive                             { return "adaptive" }
+func (c Advisor) Default() Advisor                               { return "advisor" }
+func (c Advisor20260301) Default() Advisor20260301               { return "advisor_20260301" }
+func (c AdvisorMessage) Default() AdvisorMessage                 { return "advisor_message" }
+func (c AdvisorRedactedResult) Default() AdvisorRedactedResult   { return "advisor_redacted_result" }
+func (c AdvisorResult) Default() AdvisorResult                   { return "advisor_result" }
+func (c AdvisorToolResult) Default() AdvisorToolResult           { return "advisor_tool_result" }
+func (c AdvisorToolResultError) Default() AdvisorToolResultError { return "advisor_tool_result_error" }
+func (c All) Default() All                                       { return "all" }
+func (c Any) Default() Any                                       { return "any" }
+func (c APIError) Default() APIError                             { return "api_error" }
+func (c ApplicationPDF) Default() ApplicationPDF                 { return "application/pdf" }
+func (c Approximate) Default() Approximate                       { return "approximate" }
+func (c Assistant) Default() Assistant                           { return "assistant" }
+func (c AuthenticationError) Default() AuthenticationError       { return "authentication_error" }
+func (c Auto) Default() Auto                                     { return "auto" }
+func (c Base64) Default() Base64                                 { return "base64" }
+func (c Bash) Default() Bash                                     { return "bash" }
+func (c Bash20241022) Default() Bash20241022                     { return "bash_20241022" }
+func (c Bash20250124) Default() Bash20250124                     { return "bash_20250124" }
 func (c BashCodeExecutionOutput) Default() BashCodeExecutionOutput {
 	return "bash_code_execution_output"
 }
@@ -196,6 +253,7 @@ func (c CharLocation) Default() CharLocation                   { return "char_lo
 func (c CitationsDelta) Default() CitationsDelta               { return "citations_delta" }
 func (c ClearThinking20251015) Default() ClearThinking20251015 { return "clear_thinking_20251015" }
 func (c ClearToolUses20250919) Default() ClearToolUses20250919 { return "clear_tool_uses_20250919" }
+func (c Cloud) Default() Cloud                                 { return "cloud" }
 func (c CodeExecution) Default() CodeExecution                 { return "code_execution" }
 func (c CodeExecution20250522) Default() CodeExecution20250522 { return "code_execution_20250522" }
 func (c CodeExecution20250825) Default() CodeExecution20250825 { return "code_execution_20250825" }
@@ -231,48 +289,87 @@ func (c Enabled) Default() Enabled                           { return "enabled" 
 func (c EncryptedCodeExecutionResult) Default() EncryptedCodeExecutionResult {
 	return "encrypted_code_execution_result"
 }
-func (c Ephemeral) Default() Ephemeral                       { return "ephemeral" }
-func (c Error) Default() Error                               { return "error" }
-func (c Errored) Default() Errored                           { return "errored" }
-func (c Expired) Default() Expired                           { return "expired" }
-func (c File) Default() File                                 { return "file" }
-func (c Image) Default() Image                               { return "image" }
-func (c InputJSONDelta) Default() InputJSONDelta             { return "input_json_delta" }
-func (c InputTokens) Default() InputTokens                   { return "input_tokens" }
-func (c Insert) Default() Insert                             { return "insert" }
-func (c InvalidRequestError) Default() InvalidRequestError   { return "invalid_request_error" }
-func (c JSONSchema) Default() JSONSchema                     { return "json_schema" }
-func (c MCPToolResult) Default() MCPToolResult               { return "mcp_tool_result" }
-func (c MCPToolUse) Default() MCPToolUse                     { return "mcp_tool_use" }
-func (c MCPToolset) Default() MCPToolset                     { return "mcp_toolset" }
-func (c Memory) Default() Memory                             { return "memory" }
-func (c Memory20250818) Default() Memory20250818             { return "memory_20250818" }
-func (c Message) Default() Message                           { return "message" }
-func (c MessageBatch) Default() MessageBatch                 { return "message_batch" }
-func (c MessageBatchDeleted) Default() MessageBatchDeleted   { return "message_batch_deleted" }
-func (c MessageDelta) Default() MessageDelta                 { return "message_delta" }
-func (c MessageStart) Default() MessageStart                 { return "message_start" }
-func (c MessageStop) Default() MessageStop                   { return "message_stop" }
-func (c Model) Default() Model                               { return "model" }
-func (c None) Default() None                                 { return "none" }
-func (c NotFoundError) Default() NotFoundError               { return "not_found_error" }
-func (c Object) Default() Object                             { return "object" }
-func (c OverloadedError) Default() OverloadedError           { return "overloaded_error" }
-func (c PageLocation) Default() PageLocation                 { return "page_location" }
-func (c PermissionError) Default() PermissionError           { return "permission_error" }
+func (c Environment) Default() Environment                 { return "environment" }
+func (c EnvironmentDeleted) Default() EnvironmentDeleted   { return "environment_deleted" }
+func (c Ephemeral) Default() Ephemeral                     { return "ephemeral" }
+func (c Error) Default() Error                             { return "error" }
+func (c Errored) Default() Errored                         { return "errored" }
+func (c Event) Default() Event                             { return "event" }
+func (c Expired) Default() Expired                         { return "expired" }
+func (c File) Default() File                               { return "file" }
+func (c Image) Default() Image                             { return "image" }
+func (c InputJSONDelta) Default() InputJSONDelta           { return "input_json_delta" }
+func (c InputTokens) Default() InputTokens                 { return "input_tokens" }
+func (c Insert) Default() Insert                           { return "insert" }
+func (c InvalidRequestError) Default() InvalidRequestError { return "invalid_request_error" }
+func (c JSONSchema) Default() JSONSchema                   { return "json_schema" }
+func (c Limited) Default() Limited                         { return "limited" }
+func (c MCPToolResult) Default() MCPToolResult             { return "mcp_tool_result" }
+func (c MCPToolUse) Default() MCPToolUse                   { return "mcp_tool_use" }
+func (c MCPToolset) Default() MCPToolset                   { return "mcp_toolset" }
+func (c Memory) Default() Memory                           { return "memory" }
+func (c Memory20250818) Default() Memory20250818           { return "memory_20250818" }
+func (c Message) Default() Message                         { return "message" }
+func (c MessageBatch) Default() MessageBatch               { return "message_batch" }
+func (c MessageBatchDeleted) Default() MessageBatchDeleted { return "message_batch_deleted" }
+func (c MessageDelta) Default() MessageDelta               { return "message_delta" }
+func (c MessageStart) Default() MessageStart               { return "message_start" }
+func (c MessageStop) Default() MessageStop                 { return "message_stop" }
+func (c MessagesChanged) Default() MessagesChanged         { return "messages_changed" }
+func (c MidConvSystem) Default() MidConvSystem             { return "mid_conv_system" }
+func (c Model) Default() Model                             { return "model" }
+func (c ModelChanged) Default() ModelChanged               { return "model_changed" }
+func (c None) Default() None                               { return "none" }
+func (c NotFoundError) Default() NotFoundError             { return "not_found_error" }
+func (c Object) Default() Object                           { return "object" }
+func (c OverloadedError) Default() OverloadedError         { return "overloaded_error" }
+func (c PageLocation) Default() PageLocation               { return "page_location" }
+func (c PermissionError) Default() PermissionError         { return "permission_error" }
+func (c PreviousMessageNotFound) Default() PreviousMessageNotFound {
+	return "previous_message_not_found"
+}
 func (c RateLimitError) Default() RateLimitError             { return "rate_limit_error" }
 func (c RedactedThinking) Default() RedactedThinking         { return "redacted_thinking" }
+func (c Refusal) Default() Refusal                           { return "refusal" }
 func (c Rename) Default() Rename                             { return "rename" }
 func (c SearchResult) Default() SearchResult                 { return "search_result" }
 func (c SearchResultLocation) Default() SearchResultLocation { return "search_result_location" }
+func (c SelfHosted) Default() SelfHosted                     { return "self_hosted" }
 func (c ServerToolUse) Default() ServerToolUse               { return "server_tool_use" }
-func (c SignatureDelta) Default() SignatureDelta             { return "signature_delta" }
-func (c StrReplace) Default() StrReplace                     { return "str_replace" }
+func (c Session) Default() Session                           { return "session" }
+func (c SessionArchived) Default() SessionArchived           { return "session.archived" }
+func (c SessionCreated) Default() SessionCreated             { return "session.created" }
+func (c SessionDeleted) Default() SessionDeleted             { return "session.deleted" }
+func (c SessionIdled) Default() SessionIdled                 { return "session.idled" }
+func (c SessionOutcomeEvaluationEnded) Default() SessionOutcomeEvaluationEnded {
+	return "session.outcome_evaluation_ended"
+}
+func (c SessionPending) Default() SessionPending               { return "session.pending" }
+func (c SessionRequiresAction) Default() SessionRequiresAction { return "session.requires_action" }
+func (c SessionRunning) Default() SessionRunning               { return "session.running" }
+func (c SessionStatusIdled) Default() SessionStatusIdled       { return "session.status_idled" }
+func (c SessionStatusRescheduled) Default() SessionStatusRescheduled {
+	return "session.status_rescheduled"
+}
+func (c SessionStatusRunStarted) Default() SessionStatusRunStarted {
+	return "session.status_run_started"
+}
+func (c SessionStatusTerminated) Default() SessionStatusTerminated {
+	return "session.status_terminated"
+}
+func (c SessionThreadCreated) Default() SessionThreadCreated { return "session.thread_created" }
+func (c SessionThreadIdled) Default() SessionThreadIdled     { return "session.thread_idled" }
+func (c SessionThreadTerminated) Default() SessionThreadTerminated {
+	return "session.thread_terminated"
+}
+func (c SignatureDelta) Default() SignatureDelta { return "signature_delta" }
+func (c StrReplace) Default() StrReplace         { return "str_replace" }
 func (c StrReplaceBasedEditTool) Default() StrReplaceBasedEditTool {
 	return "str_replace_based_edit_tool"
 }
 func (c StrReplaceEditor) Default() StrReplaceEditor     { return "str_replace_editor" }
 func (c Succeeded) Default() Succeeded                   { return "succeeded" }
+func (c SystemChanged) Default() SystemChanged           { return "system_changed" }
 func (c Text) Default() Text                             { return "text" }
 func (c TextDelta) Default() TextDelta                   { return "text_delta" }
 func (c TextEditor20241022) Default() TextEditor20241022 { return "text_editor_20241022" }
@@ -299,6 +396,7 @@ func (c Thinking) Default() Thinking                         { return "thinking"
 func (c ThinkingDelta) Default() ThinkingDelta               { return "thinking_delta" }
 func (c ThinkingTurns) Default() ThinkingTurns               { return "thinking_turns" }
 func (c TimeoutError) Default() TimeoutError                 { return "timeout_error" }
+func (c Tokens) Default() Tokens                             { return "tokens" }
 func (c Tool) Default() Tool                                 { return "tool" }
 func (c ToolReference) Default() ToolReference               { return "tool_reference" }
 func (c ToolResult) Default() ToolResult                     { return "tool_result" }
@@ -311,13 +409,28 @@ func (c ToolSearchToolResultError) Default() ToolSearchToolResultError {
 func (c ToolSearchToolSearchResult) Default() ToolSearchToolSearchResult {
 	return "tool_search_tool_search_result"
 }
-func (c ToolUse) Default() ToolUse                       { return "tool_use" }
-func (c ToolUses) Default() ToolUses                     { return "tool_uses" }
-func (c URL) Default() URL                               { return "url" }
+func (c ToolUse) Default() ToolUse           { return "tool_use" }
+func (c ToolUses) Default() ToolUses         { return "tool_uses" }
+func (c ToolsChanged) Default() ToolsChanged { return "tools_changed" }
+func (c Unavailable) Default() Unavailable   { return "unavailable" }
+func (c Unrestricted) Default() Unrestricted { return "unrestricted" }
+func (c URL) Default() URL                   { return "url" }
+func (c VaultCredentialArchived) Default() VaultCredentialArchived {
+	return "vault_credential.archived"
+}
+func (c VaultCredentialCreated) Default() VaultCredentialCreated { return "vault_credential.created" }
+func (c VaultCredentialDeleted) Default() VaultCredentialDeleted { return "vault_credential.deleted" }
+func (c VaultCredentialRefreshFailed) Default() VaultCredentialRefreshFailed {
+	return "vault_credential.refresh_failed"
+}
+func (c VaultArchived) Default() VaultArchived           { return "vault.archived" }
+func (c VaultCreated) Default() VaultCreated             { return "vault.created" }
+func (c VaultDeleted) Default() VaultDeleted             { return "vault.deleted" }
 func (c View) Default() View                             { return "view" }
 func (c WebFetch) Default() WebFetch                     { return "web_fetch" }
 func (c WebFetch20250910) Default() WebFetch20250910     { return "web_fetch_20250910" }
 func (c WebFetch20260209) Default() WebFetch20260209     { return "web_fetch_20260209" }
+func (c WebFetch20260309) Default() WebFetch20260309     { return "web_fetch_20260309" }
 func (c WebFetchResult) Default() WebFetchResult         { return "web_fetch_result" }
 func (c WebFetchToolResult) Default() WebFetchToolResult { return "web_fetch_tool_result" }
 func (c WebFetchToolResultError) Default() WebFetchToolResultError {
@@ -334,8 +447,18 @@ func (c WebSearchToolResult) Default() WebSearchToolResult { return "web_search_
 func (c WebSearchToolResultError) Default() WebSearchToolResultError {
 	return "web_search_tool_result_error"
 }
+func (c Work) Default() Work                     { return "work" }
+func (c WorkHeartbeat) Default() WorkHeartbeat   { return "work_heartbeat" }
+func (c WorkQueueStats) Default() WorkQueueStats { return "work_queue_stats" }
 
 func (c Adaptive) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
+func (c Advisor) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
+func (c Advisor20260301) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c AdvisorMessage) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c AdvisorRedactedResult) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c AdvisorResult) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
+func (c AdvisorToolResult) MarshalJSON() ([]byte, error)                   { return marshalString(c) }
+func (c AdvisorToolResultError) MarshalJSON() ([]byte, error)              { return marshalString(c) }
 func (c All) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
 func (c Any) MarshalJSON() ([]byte, error)                                 { return marshalString(c) }
 func (c APIError) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
@@ -358,6 +481,7 @@ func (c CharLocation) MarshalJSON() ([]byte, error)                        { ret
 func (c CitationsDelta) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c ClearThinking20251015) MarshalJSON() ([]byte, error)               { return marshalString(c) }
 func (c ClearToolUses20250919) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c Cloud) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
 func (c CodeExecution) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
 func (c CodeExecution20250522) MarshalJSON() ([]byte, error)               { return marshalString(c) }
 func (c CodeExecution20250825) MarshalJSON() ([]byte, error)               { return marshalString(c) }
@@ -387,9 +511,12 @@ func (c Disabled) MarshalJSON() ([]byte, error)                            { ret
 func (c Document) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
 func (c Enabled) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c EncryptedCodeExecutionResult) MarshalJSON() ([]byte, error)        { return marshalString(c) }
+func (c Environment) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
+func (c EnvironmentDeleted) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
 func (c Ephemeral) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
 func (c Error) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
 func (c Errored) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
+func (c Event) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
 func (c Expired) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c File) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
 func (c Image) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
@@ -398,6 +525,7 @@ func (c InputTokens) MarshalJSON() ([]byte, error)                         { ret
 func (c Insert) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
 func (c InvalidRequestError) MarshalJSON() ([]byte, error)                 { return marshalString(c) }
 func (c JSONSchema) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c Limited) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c MCPToolResult) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
 func (c MCPToolUse) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
 func (c MCPToolset) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
@@ -409,24 +537,47 @@ func (c MessageBatchDeleted) MarshalJSON() ([]byte, error)                 { ret
 func (c MessageDelta) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c MessageStart) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c MessageStop) MarshalJSON() ([]byte, error)                         { return marshalString(c) }
+func (c MessagesChanged) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c MidConvSystem) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
 func (c Model) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c ModelChanged) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c None) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
 func (c NotFoundError) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
 func (c Object) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
 func (c OverloadedError) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
 func (c PageLocation) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c PermissionError) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c PreviousMessageNotFound) MarshalJSON() ([]byte, error)             { return marshalString(c) }
 func (c RateLimitError) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c RedactedThinking) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
+func (c Refusal) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
 func (c Rename) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
 func (c SearchResult) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
 func (c SearchResultLocation) MarshalJSON() ([]byte, error)                { return marshalString(c) }
+func (c SelfHosted) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
 func (c ServerToolUse) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
+func (c Session) MarshalJSON() ([]byte, error)                             { return marshalString(c) }
+func (c SessionArchived) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c SessionCreated) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c SessionDeleted) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c SessionIdled) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
+func (c SessionOutcomeEvaluationEnded) MarshalJSON() ([]byte, error)       { return marshalString(c) }
+func (c SessionPending) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c SessionRequiresAction) MarshalJSON() ([]byte, error)               { return marshalString(c) }
+func (c SessionRunning) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c SessionStatusIdled) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c SessionStatusRescheduled) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c SessionStatusRunStarted) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c SessionStatusTerminated) MarshalJSON() ([]byte, error)             { return marshalString(c) }
+func (c SessionThreadCreated) MarshalJSON() ([]byte, error)                { return marshalString(c) }
+func (c SessionThreadIdled) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c SessionThreadTerminated) MarshalJSON() ([]byte, error)             { return marshalString(c) }
 func (c SignatureDelta) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c StrReplace) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
 func (c StrReplaceBasedEditTool) MarshalJSON() ([]byte, error)             { return marshalString(c) }
 func (c StrReplaceEditor) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
 func (c Succeeded) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
+func (c SystemChanged) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
 func (c Text) MarshalJSON() ([]byte, error)                                { return marshalString(c) }
 func (c TextDelta) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
 func (c TextEditor20241022) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
@@ -447,6 +598,7 @@ func (c Thinking) MarshalJSON() ([]byte, error)                          { retur
 func (c ThinkingDelta) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
 func (c ThinkingTurns) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
 func (c TimeoutError) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c Tokens) MarshalJSON() ([]byte, error)                            { return marshalString(c) }
 func (c Tool) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
 func (c ToolReference) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
 func (c ToolResult) MarshalJSON() ([]byte, error)                        { return marshalString(c) }
@@ -457,11 +609,22 @@ func (c ToolSearchToolResultError) MarshalJSON() ([]byte, error)         { retur
 func (c ToolSearchToolSearchResult) MarshalJSON() ([]byte, error)        { return marshalString(c) }
 func (c ToolUse) MarshalJSON() ([]byte, error)                           { return marshalString(c) }
 func (c ToolUses) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
+func (c ToolsChanged) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c Unavailable) MarshalJSON() ([]byte, error)                       { return marshalString(c) }
+func (c Unrestricted) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c URL) MarshalJSON() ([]byte, error)                               { return marshalString(c) }
+func (c VaultCredentialArchived) MarshalJSON() ([]byte, error)           { return marshalString(c) }
+func (c VaultCredentialCreated) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c VaultCredentialDeleted) MarshalJSON() ([]byte, error)            { return marshalString(c) }
+func (c VaultCredentialRefreshFailed) MarshalJSON() ([]byte, error)      { return marshalString(c) }
+func (c VaultArchived) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c VaultCreated) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
+func (c VaultDeleted) MarshalJSON() ([]byte, error)                      { return marshalString(c) }
 func (c View) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
 func (c WebFetch) MarshalJSON() ([]byte, error)                          { return marshalString(c) }
 func (c WebFetch20250910) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
 func (c WebFetch20260209) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
+func (c WebFetch20260309) MarshalJSON() ([]byte, error)                  { return marshalString(c) }
 func (c WebFetchResult) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
 func (c WebFetchToolResult) MarshalJSON() ([]byte, error)                { return marshalString(c) }
 func (c WebFetchToolResultError) MarshalJSON() ([]byte, error)           { return marshalString(c) }
@@ -472,6 +635,9 @@ func (c WebSearchResult) MarshalJSON() ([]byte, error)                   { retur
 func (c WebSearchResultLocation) MarshalJSON() ([]byte, error)           { return marshalString(c) }
 func (c WebSearchToolResult) MarshalJSON() ([]byte, error)               { return marshalString(c) }
 func (c WebSearchToolResultError) MarshalJSON() ([]byte, error)          { return marshalString(c) }
+func (c Work) MarshalJSON() ([]byte, error)                              { return marshalString(c) }
+func (c WorkHeartbeat) MarshalJSON() ([]byte, error)                     { return marshalString(c) }
+func (c WorkQueueStats) MarshalJSON() ([]byte, error)                    { return marshalString(c) }
 
 type constant[T any] interface {
 	Constant[T]
