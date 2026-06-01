@@ -154,9 +154,24 @@ numbers shift per PR, so key off the *message*, not the number.
 downloading: `curl -sI .../gather-must-gather/artifacts/must-gather.tar | grep -i content-length`.
 A **76-byte** tar is empty (common); even a real ~20 MB one is a *generic*
 cluster gather that typically omits the `openshift-compliance` namespace pod
-logs. Operator/parser pod logs and transient PB/scan objects are generally
-**not** recoverable post-hoc (tests `defer Delete` them) — reproduce live
-instead (see `/deflake` Phase 3).
+logs. Operator/parser pod logs and the transient PB/scan *objects* are generally
+**not** recoverable post-hoc (tests `defer Delete` them).
+
+**5. `events.json` IS recoverable — the best post-hoc source for a transient
+race.** `gather-extra/artifacts/events.json` keeps Pod/ReplicaSet/Deployment
+events (`Pulling`, `Created`, `BackOff`, `ScalingReplicaSet`, `Killing`) for the
+~1h before gather, *including objects already deleted*. e2e workloads run in a
+dynamic `osdk-e2e-<uuid>` namespace, so grep by object name, not namespace:
+
+```bash
+jq -r '.items[]? | select((.involvedObject.name // "") | test("<name>"))
+       | "\(.firstTimestamp) \(.involvedObject.kind)/\(.reason): \(.message)"' events.json | sort
+```
+
+Two overlapping ReplicaSets for a singleton == concurrent writers; a `BackOff`
+on one pod overlapping another going Ready == the race. (This is how CMP-4324 was
+proven from CI alone.) Reproduce live (`/deflake` Phase 3) to *validate a fix*,
+not to find the mechanism — events.json usually already shows it.
 
 ## Known CO + content jobs (verified 2026-05-21 against prow + dptools)
 

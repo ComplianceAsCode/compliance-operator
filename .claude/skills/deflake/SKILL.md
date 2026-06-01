@@ -81,22 +81,37 @@ For the top-N flakes the user wants planned, launch parallel **`general-purpose`
 
 **Launch in a single message** so they run concurrently.
 
-### Post-hoc CI artifacts often can't prove a transient race
+### Post-hoc evidence: `events.json` is the go-to source for transient races
 
-Before sinking time into log archaeology, know its ceiling. For a flake that's a
-**transient race** (two pods, a status flap, a brief conflict), the end-state
-prow artifacts frequently **cannot** show it:
+Most artifacts are useless for a transient race (two pods, a status flap, a
+brief conflict): the *objects* are gone by gather time (e2e `defer Delete`s
+them), the compliance `must-gather` is usually **empty (~76 bytes)** — even a
+real ~20 MB one is a *generic* cluster gather that omits `openshift-compliance`
+pod logs — and operator logs aren't in the `go test` stdout (`build-log.txt`).
 
-- e2e tests tear down their objects with `defer ...Delete(...)`, so the failing
-  ProfileBundle / scan / pods are **gone** by gather time.
-- the compliance `must-gather` is often **empty (~76 bytes)** on CO jobs; even a
-  real one (~20 MB) is a *generic* cluster gather that usually omits the
-  `openshift-compliance` namespace pod logs.
-- operator logs are **not** interleaved into the `go test` stdout (`build-log.txt`).
+**But `gather-extra/artifacts/events.json` is the exception, and it's gold.** It
+retains Pod / ReplicaSet / Deployment events (`Pulling`/`Pulled`, `Created`,
+`Started`, `BackOff`, `ScalingReplicaSet`, `Killing`) for the ~1h before gather —
+*including objects the test already deleted*. e2e parser/scan pods live in the
+dynamic `osdk-e2e-<uuid>` namespace, so **grep by object name, not namespace**:
 
-So the build-log usually gives you only the *symptom* (which assertion timed
-out, e.g. `failed to reach state VALID`) — enough to **localize** the flake to a
-code path, not to prove the mechanism. Use it to localize, then reproduce live.
+```bash
+curl -s ".../gather-extra/artifacts/events.json" -o /tmp/events.json
+jq -r '.items[]? | select((.involvedObject.name // "") | test("<pb-or-test-name>"))
+       | "\(.firstTimestamp) x\(.count // 1) \(.involvedObject.kind)/\(.reason): \(.message)"' \
+   /tmp/events.json | sort
+```
+
+This is what proved CMP-4324 from CI alone — the timeline showed a RollingUpdate
+**surge** (new ReplicaSet scaled up ~20s *before* the old one scaled down), the
+old pod's parser in `BackOff` (writing INVALID) overlapping the new pod going
+Ready (writing VALID), then ~30 min of stuck non-VALID until the test's `Killing`
+cleanup. Two overlapping ReplicaSets for a singleton workload == concurrent
+writers == your race.
+
+Use `events.json` to **prove the mechanism**, the build-log to **localize** the
+failing assertion (`failed to reach state VALID`), and a live repro to
+**validate the fix**. They're complementary, not substitutes.
 
 ### Validate the hypothesis on a live cluster — without rebuilding the operator
 
