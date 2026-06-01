@@ -112,6 +112,52 @@ The prow job-history page renders the run table client-side, so curl/WebFetch on
 - Use dptools with `groupBy=none` and any common test name — each result is a `view/gs/...` URL with the build ID in the last path segment.
 - Or grep recent dptools failure results.
 
+## GCS artifact archaeology (scripting against the bucket)
+
+When you need to go past the dptools index into raw run artifacts (build-logs,
+must-gather, gathered resources), hit the GCS bucket directly. Concrete recipes
+and the traps that waste time:
+
+**1. dptools JSON endpoint (not the HTML root).** For programmatic aggregation,
+use `/search` (returns JSON keyed by run URL), not `/` (returns HTML):
+
+```bash
+curl -s "https://search.dptools.openshift.org/search?search=FAIL%3A%20Test&maxAge=336h&type=junit&name=<job>&groupBy=none&maxMatches=500"
+# → { "<prow view URL>": { "FAIL: Test": [ { "context": ["--- FAIL: TestX (1830.05s)", ...] } ] }, ... }
+```
+
+Aggregate failures by test across runs:
+```bash
+jq -r '[.[] | .["FAIL: Test"][]?.context[]?] | .[]' out.json \
+  | grep -oE 'FAIL: Test[A-Za-z0-9_]+' | sort | uniq -c | sort -rn
+```
+
+**2. Bucket = `test-platform-results`; object keys start at `pr-logs/...`.** The
+single biggest time-sink: do **not** put the bucket name in the `?prefix=`. A
+prow `view/gs/test-platform-results/pr-logs/...` URL includes the bucket; strip
+it for the object API.
+
+```bash
+RUN="pr-logs/pull/ComplianceAsCode_compliance-operator/<pr>/<job>/<buildId>"   # NO leading test-platform-results/
+# list immediate subdirs:
+curl -s "https://storage.googleapis.com/storage/v1/b/test-platform-results/o?prefix=${RUN}/artifacts/<job>/&delimiter=/&fields=prefixes" | jq -r '.prefixes[]?'
+# fetch a file (this host DOES take the bucket in the path):
+curl -s "https://storage.googleapis.com/test-platform-results/${RUN}/artifacts/<job>/test/build-log.txt"
+```
+
+**3. Go test stdout lives at** `artifacts/<job-step>/test/build-log.txt` (the
+step name == the test name, e.g. `e2e-aws-parallel`). The failing assertion line
+(`main_test.go:NNN: ... failed to reach state VALID`) is the symptom; line
+numbers shift per PR, so key off the *message*, not the number.
+
+**4. must-gather is usually useless for CO flakes.** Check size before
+downloading: `curl -sI .../gather-must-gather/artifacts/must-gather.tar | grep -i content-length`.
+A **76-byte** tar is empty (common); even a real ~20 MB one is a *generic*
+cluster gather that typically omits the `openshift-compliance` namespace pod
+logs. Operator/parser pod logs and transient PB/scan objects are generally
+**not** recoverable post-hoc (tests `defer Delete` them) — reproduce live
+instead (see `/deflake` Phase 3).
+
 ## Known CO + content jobs (verified 2026-05-21 against prow + dptools)
 
 **Pull-request jobs (compliance-operator):**

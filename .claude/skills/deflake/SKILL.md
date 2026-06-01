@@ -81,6 +81,56 @@ For the top-N flakes the user wants planned, launch parallel **`general-purpose`
 
 **Launch in a single message** so they run concurrently.
 
+### Post-hoc CI artifacts often can't prove a transient race
+
+Before sinking time into log archaeology, know its ceiling. For a flake that's a
+**transient race** (two pods, a status flap, a brief conflict), the end-state
+prow artifacts frequently **cannot** show it:
+
+- e2e tests tear down their objects with `defer ...Delete(...)`, so the failing
+  ProfileBundle / scan / pods are **gone** by gather time.
+- the compliance `must-gather` is often **empty (~76 bytes)** on CO jobs; even a
+  real one (~20 MB) is a *generic* cluster gather that usually omits the
+  `openshift-compliance` namespace pod logs.
+- operator logs are **not** interleaved into the `go test` stdout (`build-log.txt`).
+
+So the build-log usually gives you only the *symptom* (which assertion timed
+out, e.g. `failed to reach state VALID`) — enough to **localize** the flake to a
+code path, not to prove the mechanism. Use it to localize, then reproduce live.
+
+### Validate the hypothesis on a live cluster — without rebuilding the operator
+
+The fastest, most decisive step for a controller-side race: reproduce the
+trigger on a cluster and watch the live objects. Crucially, you can often test a
+**fix hypothesis** without building/pushing a new operator image, by patching
+the live resource directly — the controller may not reconcile the field you're
+testing.
+
+Example (the ProfileBundle parser race, CMP-4324): drive the ProfileBundle
+through the bad→good content-image transition and watch pod count / status /
+restartCounts:
+
+```bash
+export KUBECONFIG=/tmp/x.kubeconfig   # never clobber the user's default kubeconfig
+oc apply -f pb-bad.yaml               # contentImage :from  -> wait INVALID + parser restart
+oc patch profilebundle X --type=merge -p '{"spec":{"contentImage":".../:to"}}'
+# watch: are there 2 parser pods at once? does status flap? (that's the race window)
+```
+
+To test "would a Recreate strategy fix it?" patch the *existing* deployment and
+re-run the transition — the controller's update path only copies `Spec.Template`,
+so a manual `Spec.Strategy` patch sticks:
+
+```bash
+oc patch deploy <pb>-<ns>-pp -n openshift-compliance --type=merge \
+  -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+```
+
+If the behavioral change you'd make in code (here: max 1 pod instead of 2) is
+observable this way, you've validated the fix mechanism before writing it. Then
+implement, and (optionally) `make image-to-cluster` for end-to-end proof. Always
+clean up objects you created and the temp kubeconfig.
+
 ---
 
 ## Phase 4: Plan
@@ -118,6 +168,7 @@ Present all plans to the user. **Do not edit any test code** until the user appr
 |--------|------|-----|
 | **Polling timeout too tight** | `waitFor*` returns before status converges. | Bump the polling timeout in the framework helper, not in the test. Adds robustness everywhere. |
 | **ProfileBundle race** | Test depends on a ProfileBundle reaching VALID; flaky on slow init container pulls. | Use `waitForProfileBundleStatus` with the existing helper; never assert state-change immediately after `Create`. |
+| **ProfileBundle concurrent status writers** (CMP-4324) | A ProfileBundle's content image changes (e.g. broken→fixed) and it gets stuck non-VALID. The `profileparser` init container *writes the PB status*; under the parser Deployment's default RollingUpdate, the old pod keeps crash-looping (writing INVALID) while the new pod parses the fixed image (writing VALID) — two writers race. The parser also `os.Exit(1)`s on any status-update error, so a resourceVersion conflict CrashLoopBackOffs it. | Root cause is in the controller, not the test. Set the parser Deployment `Spec.Strategy.Type = Recreate` (single writer at a time) and wrap the parser's status write in `RetryOnConflict`. Validate live by patching the deployment strategy (see Phase 3). |
 | **Shared scan namespace contention** | Two parallel tests racing on the same `default` ScanSetting. | Test should create its own ScanSetting with a unique name. |
 | **MachineConfigPool churn (serial)** | Node remediation tests fail when MCP doesn't reach Updated within timeout. | Increase the per-test timeout; consider extracting the `mcTctx.ensureE2EPool()` setup to a fixture. |
 | **Content image flakiness** | Failure logs reference `failed to parse` or `image pull`. | Not a CO issue — file with ComplianceAsCode/content. |
