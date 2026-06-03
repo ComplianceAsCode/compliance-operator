@@ -2565,18 +2565,33 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 	if len(podList.Items) == 0 {
 		t.Fatal("no compliance-operator pods found before patch")
 	}
-	oldPodUID := podList.Items[0].UID
 
-	// Apply the patch
+	var oldPodUID types.UID
+	foundRunning := false
+	for i := range podList.Items {
+		if podList.Items[i].Status.Phase == corev1.PodRunning {
+			oldPodUID = podList.Items[i].UID
+			foundRunning = true
+			break
+		}
+	}
+	if !foundRunning {
+		t.Fatal("no Running compliance-operator pod found before patch")
+	}
+
+	// Patch the Deployment directly. OLM does not continuously reconcile
+	// Deployment specs back to the CSV; it only does so on CSV updates or
+	// operator upgrades, so the patch persists for the duration of this test.
 	err = f.Client.Patch(context.TODO(), deployment, client.RawPatch(types.StrategicMergePatchType, patchData))
 	if err != nil {
 		t.Fatalf("failed to patch deployment: %s", err)
 	}
 
-	// Defer cleanup: restore original resource limits
+	// Defer cleanup: restore original resource limits using the values captured
+	// from the deployment before patching
 	defer func() {
 		t.Log("Restoring original resource limits")
-		restorePatch := []byte(`{
+		restorePatch := []byte(fmt.Sprintf(`{
 			"spec": {
 				"template": {
 					"spec": {
@@ -2584,19 +2599,19 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 							"name": "compliance-operator",
 							"resources": {
 								"limits": {
-									"cpu": "200m",
-									"memory": "500Mi"
+									"cpu": "%s",
+									"memory": "%s"
 								},
 								"requests": {
-									"cpu": "10m",
-									"memory": "20Mi"
+									"cpu": "%s",
+									"memory": "%s"
 								}
 							}
 						}]
 					}
 				}
 			}
-		}`)
+		}`, defaultCPULimit, defaultMemLimit, defaultCPURequest, defaultMemRequest))
 
 		// Get fresh deployment object for restore
 		freshDeployment := &appsv1.Deployment{}
@@ -2637,24 +2652,22 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 			return false, nil
 		}
 
-		pod := &podList.Items[0]
-
-		// Check if this is a new pod (different UID)
-		if pod.UID == oldPodUID {
-			log.Printf("old pod still exists (UID: %s), waiting for new pod...", oldPodUID)
-			return false, nil
+		for i := range podList.Items {
+			pod := &podList.Items[i]
+			if pod.UID == oldPodUID {
+				continue
+			}
+			if pod.Status.Phase != corev1.PodRunning {
+				log.Printf("new pod exists but not running yet (phase: %s), waiting...", pod.Status.Phase)
+				return false, nil
+			}
+			newPod = pod
+			log.Printf("new pod found with UID: %s, phase: %s", pod.UID, pod.Status.Phase)
+			return true, nil
 		}
 
-		// Check if the new pod is running
-		if pod.Status.Phase != corev1.PodRunning {
-			log.Printf("new pod exists but not running yet (phase: %s), waiting...", pod.Status.Phase)
-			return false, nil
-		}
-
-		// Found a new running pod
-		newPod = pod
-		log.Printf("new pod found with UID: %s, phase: %s", pod.UID, pod.Status.Phase)
-		return true, nil
+		log.Printf("no new pod found yet (old UID: %s), waiting...", oldPodUID)
+		return false, nil
 	})
 	if err != nil {
 		t.Fatalf("timed out waiting for new pod with updated resources: %s", err)
@@ -3574,7 +3587,7 @@ func TestPrometheusRuleComplianceAlert(t *testing.T) {
 //							NodeSelector: workerNodesLabel,
 //							ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 //								Debug: true,
-//			},
+//							},
 //						},
 //						Name: scanName,
 //					},
