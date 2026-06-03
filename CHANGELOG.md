@@ -13,9 +13,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixes
 
-- Fix typo in OpenShift Virtualization sample `tailored-profile.yaml` and
-  `kustomization.yaml`: rename `kubevirt-no-vms-overcommiting-guest-memory` to
-  `kubevirt-no-vms-overcommitting-guest-memory` to match the CustomRule name.
+-
 
 ### Internal Changes
 
