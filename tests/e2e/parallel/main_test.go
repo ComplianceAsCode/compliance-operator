@@ -544,9 +544,6 @@ func TestParsingErrorRestartsParserInitContainer(t *testing.T) {
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestRulesAreClassifiedAppropriately(t *testing.T) {
