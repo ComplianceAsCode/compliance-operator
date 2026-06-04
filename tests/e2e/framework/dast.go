@@ -125,11 +125,11 @@ func RunRapidASTScan(f *Framework, namespace string) error {
 	}
 
 	// Replace token placeholder
-	config := strings.Replace(string(configTemplate), "Bearer sha256~xxxxxxxx", "Bearer "+token, -1)
+	config := strings.Replace(string(configTemplate), "TOKEN_PLACEHOLDER", "Bearer "+token, -1)
 
 	// Create temporary config file
 	tmpConfigPath := filepath.Join(os.TempDir(), fmt.Sprintf("rapidast-config-%d.yaml", time.Now().Unix()))
-	if err := os.WriteFile(tmpConfigPath, []byte(config), 0644); err != nil {
+	if err := os.WriteFile(tmpConfigPath, []byte(config), 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 	defer os.Remove(tmpConfigPath)
@@ -168,6 +168,15 @@ func RunRapidASTScan(f *Framework, namespace string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create ConfigMap: %w", err)
 	}
+	defer func() {
+		log.Printf("Cleaning up ConfigMap rapidast-configmap in namespace %s", namespace)
+		err := f.KubeClient.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), "rapidast-configmap", metav1.DeleteOptions{})
+		if err != nil {
+			log.Printf("Warning: failed to delete ConfigMap rapidast-configmap: %v", err)
+		} else {
+			log.Printf("Successfully deleted ConfigMap rapidast-configmap")
+		}
+	}()
 
 	// Read and create Job
 	log.Printf("Creating Job rapidast-job in namespace %s", namespace)
@@ -186,6 +195,18 @@ func RunRapidASTScan(f *Framework, namespace string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create Job: %w", err)
 	}
+	defer func() {
+		log.Printf("Cleaning up Job rapidast-job in namespace %s", namespace)
+		propagation := metav1.DeletePropagationBackground
+		err := f.KubeClient.BatchV1().Jobs(namespace).Delete(context.TODO(), "rapidast-job", metav1.DeleteOptions{
+			PropagationPolicy: &propagation,
+		})
+		if err != nil {
+			log.Printf("Warning: failed to delete Job rapidast-job: %v", err)
+		} else {
+			log.Printf("Successfully deleted Job rapidast-job")
+		}
+	}()
 
 	// Wait for job to complete (up to 10 minutes)
 	log.Printf("Waiting for RapidAST job to complete...")

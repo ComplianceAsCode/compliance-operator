@@ -13,7 +13,7 @@ general:
         type: "http_header"
         parameters:
             name: "Authorization"
-            value: "Bearer sha256~xxxxxxxx"
+            value: "TOKEN_PLACEHOLDER"
     container:
         # currently supported: `podman` and `none`
         type: "none"
