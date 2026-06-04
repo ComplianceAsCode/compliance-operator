@@ -31,11 +31,13 @@ import (
 	"syscall"
 	"time"
 
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 
 	utils "github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
@@ -179,12 +181,7 @@ func server(c *resultServerConfig) {
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		NextProtos: []string{"http/1.1"},
-	}
-	// Configures TLS 1.2
-	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	tlsConfig := getServerTLSConfig()
 	tlsConfig.ClientCAs = caCertPool
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.BuildNameToCertificate()
@@ -250,4 +247,47 @@ func server(c *resultServerConfig) {
 	}
 
 	cmdLog.Info("Server exited gracefully")
+}
+
+// getServerTLSConfig returns a TLS config that honors the cluster-wide TLS
+// security profile when strict adherence is required, falling back to secure
+// defaults otherwise.
+func getServerTLSConfig() *tls.Config {
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"http/1.1"},
+	}
+	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		cmdLog.Info("Not running in cluster, skipping cluster TLS profile lookup")
+		return tlsConfig
+	}
+	cl, err := client.New(cfg, client.Options{})
+	if err != nil {
+		cmdLog.Info("Could not create client for TLS profile lookup")
+		return tlsConfig
+	}
+
+	adherence, err := tlspkg.FetchAPIServerTLSAdherencePolicy(context.Background(), cl)
+	if err != nil {
+		cmdLog.Info("Could not fetch TLS adherence policy, using defaults", "error", err)
+		return tlsConfig
+	}
+	if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
+		return tlsConfig
+	}
+
+	profile, err := tlspkg.FetchAPIServerTLSProfile(context.Background(), cl)
+	if err != nil {
+		cmdLog.Info("Could not fetch TLS profile, using defaults", "error", err)
+		return tlsConfig
+	}
+	tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(profile)
+	if len(unsupported) > 0 {
+		cmdLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+	}
+	tlsConfigFn(tlsConfig)
+	return tlsConfig
 }

@@ -616,6 +616,13 @@ e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests con
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
+.PHONY: e2e-deployment
+e2e-deployment: e2e-set-image prep-e2e ## Run deployment end-to-end tests.
+	# SKIP_MCP_SETUP: deployment tests validate operator-level behavior (e.g., TLS
+	# profile adherence) and don't require MachineConfigPool setup or teardown.
+	# Skipping MCP avoids node convergence waits that increase overall test time.
+	@SKIP_MCP_SETUP=true CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
 .PHONY: e2e-rosa

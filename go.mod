@@ -7,6 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
+	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v1.5.2
 	open-cluster-management.io/api v0.15.0
