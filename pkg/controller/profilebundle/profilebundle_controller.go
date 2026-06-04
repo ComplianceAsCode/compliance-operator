@@ -474,6 +474,16 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
+			// Use Recreate so the previous parser pod is fully torn down
+			// before the new one starts. The profileparser writes the
+			// ProfileBundle status, so two pods running at once (e.g. the old
+			// pod still crash-looping on a bad content image while the new pod
+			// parses the fixed image during a RollingUpdate) would race to set
+			// the status and clobber each other, leaving the ProfileBundle
+			// stuck non-VALID.
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
