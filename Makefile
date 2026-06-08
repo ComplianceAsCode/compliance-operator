@@ -8,7 +8,7 @@ export PLATFORM?=openshift # target platform for the operator (openshift, generi
 
 # Runtime variables
 # =================
-DEFAULT_REPO=ghcr.io/complianceascode
+DEFAULT_REPO=quay.io/redhat-user-workloads/ocp-isc-tenant
 IMAGE_REPO?=$(DEFAULT_REPO)
 RUNTIME?=podman
 # Required for podman < 3.4.7 and buildah to use microdnf in fedora 35
@@ -60,13 +60,13 @@ PREVIOUS_VERSION?=$(shell ./utils/get-current-version.sh)
 
 # Image variables
 # ===============
-DEFAULT_TAG=latest
+DEFAULT_TAG=master
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
 TAG?=$(DEFAULT_TAG)
 
-OPENSCAP_NAME=openscap-ocp
-DEFAULT_OPENSCAP_TAG=latest
+OPENSCAP_NAME=compliance-operator-openscap-dev
+DEFAULT_OPENSCAP_TAG=master
 OPENSCAP_TAG?=$(DEFAULT_OPENSCAP_TAG)
 OPENSCAP_DOCKER_FILE=./images/openscap/Containerfile
 DEFAULT_OPENSCAP_IMAGE=$(DEFAULT_REPO)/$(OPENSCAP_NAME):$(DEFAULT_OPENSCAP_TAG)
@@ -75,7 +75,7 @@ OPENSCAP_IMAGE?=$(DEFAULT_OPENSCAP_IMAGE)
 # Image path to use. Set this if you want to use a specific path for building
 # or your e2e tests. This is overwritten if we build the image and push it to
 # the cluster or if we're on CI.
-OPERATOR_TAG_BASE=$(IMAGE_REPO)/$(APP_NAME)
+OPERATOR_TAG_BASE=$(IMAGE_REPO)/$(APP_NAME)-dev
 OPERATOR_IMAGE?=$(OPERATOR_TAG_BASE):$(TAG)
 
 # Build variables
@@ -94,7 +94,7 @@ BENCHMARK_PKG?=github.com/ComplianceAsCode/compliance-operator/pkg/utils
 # go source files, ignore vendor directory
 SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./_output/*")
 
-MUST_GATHER_IMAGE_PATH?=$(IMAGE_REPO)/must-gather-ocp
+MUST_GATHER_IMAGE_PATH?=$(IMAGE_REPO)/compliance-operator-must-gather-dev
 MUST_GATHER_IMAGE_TAG?=$(TAG)
 
 # Kubernetes variables
@@ -137,16 +137,16 @@ E2E_USE_DEFAULT_IMAGES?=false
 E2E_SKIP_CONTAINER_BUILD?=false
 
 # Used for substitutions
-DEFAULT_CONTENT_IMAGE=ghcr.io/complianceascode/k8scontent:latest
+DEFAULT_CONTENT_IMAGE=quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
 CONTENT_IMAGE?=$(DEFAULT_CONTENT_IMAGE)
 # Specifies the image path to use for the content in the tests
-E2E_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/k8scontent:latest
+E2E_CONTENT_IMAGE_PATH?=quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
 # We specifically omit the tag here since we use this for testing
 # different images referenced by different tags.
 E2E_BROKEN_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/test-broken-content-ocp
 
-MUST_GATHER_IMAGE_PATH?=ghcr.io/complianceascode/must-gather-ocp
-MUST_GATHER_IMAGE_TAG?=latest
+MUST_GATHER_IMAGE_PATH?=quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-dev
+MUST_GATHER_IMAGE_TAG?=master
 
 # New Makefile variables
 
@@ -179,7 +179,7 @@ IMAGE_TAG_BASE=$(IMAGE_REPO)/$(APP_NAME)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_TAG_BASE= $(IMAGE_TAG_BASE)-bundle
+BUNDLE_TAG_BASE= $(IMAGE_TAG_BASE)-bundle-dev
 BUNDLE_IMG ?= $(BUNDLE_TAG_BASE):$(TAG)
 
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
