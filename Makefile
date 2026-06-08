@@ -252,7 +252,7 @@ endif
 CATALOG_DEPLOY_NS ?= $(NAMESPACE)
 
 BUNDLE_CSV_FILE=bundle/manifests/compliance-operator.clusterserviceversion.yaml
-DEFAULT_OPERATOR_IMAGE=$(DEFAULT_REPO)/$(APP_NAME):$(DEFAULT_TAG)
+DEFAULT_OPERATOR_IMAGE=$(DEFAULT_REPO)/$(APP_NAME)-dev:$(DEFAULT_TAG)
 
 ##@ General
 
@@ -514,7 +514,7 @@ deploy: manifests kustomize install ## Deploy controller to the K8s cluster spec
 	$(KUSTOMIZE) build config/default | sed -e 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' -e 's%$(DEFAULT_CONTENT_IMAGE)%$(CONTENT_IMAGE)%' | kubectl apply -f -
 
 .PHONY: deploy-local
-deploy-local: manifests kustomize image-to-cluster install  ## Deploy after pushing images to the cluster registry.
+deploy-local: manifests kustomize image-to-cluster install  ## Deploy after pushing images to the cluster registry with imagePullPolicy: Always.
 	cd config/manager && $(KUSTOMIZE) edit set image $(APP_NAME)=${OPERATOR_IMAGE}
 	$(KUSTOMIZE) build config/$(PLATFORM) | sed -e 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' -e 's%$(DEFAULT_CONTENT_IMAGE)%$(CONTENT_IMAGE)%' -e 's%$(DEFAULT_OPENSCAP_IMAGE)%$(OPENSCAP_IMAGE)%' | kubectl apply -f -
 
@@ -682,6 +682,21 @@ must-gather-push: must-gather-image
 must-gather: must-gather-image must-gather-push  ## Build and push the must-gather image
 
 ##@ Release
+
+.PHONY: release-pin-images
+release-pin-images: ## Pin Konflux images in upstream manifests for release
+	@echo "Extracting Konflux image specs from bundle-hack/update_csv.go"
+	$(eval KONFLUX_OPERATOR_IMAGE := $(shell go run ./bundle-hack/extract-images/main.go --format=makefile | grep KONFLUX_OPERATOR_IMAGE | cut -d= -f2))
+	$(eval KONFLUX_CONTENT_IMAGE := $(shell go run ./bundle-hack/extract-images/main.go --format=makefile | grep KONFLUX_CONTENT_IMAGE | cut -d= -f2))
+	$(eval KONFLUX_OPENSCAP_IMAGE := $(shell go run ./bundle-hack/extract-images/main.go --format=makefile | grep KONFLUX_OPENSCAP_IMAGE | cut -d= -f2))
+	@echo "Pinning images in config/manager/deployment.yaml"
+	@sed 's|value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev:master"|value: "$(KONFLUX_OPENSCAP_IMAGE)"|' config/manager/deployment.yaml > config/manager/deployment.yaml.tmp && mv config/manager/deployment.yaml.tmp config/manager/deployment.yaml
+	@sed 's|value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master"|value: "$(KONFLUX_OPERATOR_IMAGE)"|' config/manager/deployment.yaml > config/manager/deployment.yaml.tmp && mv config/manager/deployment.yaml.tmp config/manager/deployment.yaml
+	@sed 's|value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master"|value: "$(KONFLUX_CONTENT_IMAGE)"|' config/manager/deployment.yaml > config/manager/deployment.yaml.tmp && mv config/manager/deployment.yaml.tmp config/manager/deployment.yaml
+	@echo "Pinning image in config/manager/kustomization.yaml"
+	@sed 's|newName: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev|newName: $(shell echo $(KONFLUX_OPERATOR_IMAGE) | cut -d@ -f1)|' config/manager/kustomization.yaml > config/manager/kustomization.yaml.tmp && mv config/manager/kustomization.yaml.tmp config/manager/kustomization.yaml
+	@sed 's|newTag: master|newTag: $(shell echo $(KONFLUX_OPERATOR_IMAGE) | cut -d@ -f2)|' config/manager/kustomization.yaml > config/manager/kustomization.yaml.tmp && mv config/manager/kustomization.yaml.tmp config/manager/kustomization.yaml
+	@echo "Successfully pinned Konflux images in upstream manifests"
 
 .PHONY: package-version-to-tag
 package-version-to-tag: check-operator-version ## Explicitly override $TAG with $VERSION. This is a useful utility for other release targets.
