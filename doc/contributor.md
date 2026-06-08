@@ -193,7 +193,7 @@ The following is an example release note for a feature with a security note.
 
 ## Proposing Releases
 
-The release process is separated into three phases, with dedicated `make`
+The release process is separated into multiple phases, with dedicated `make`
 targets. All targets require that you set the environment variable `VERSION` prior to
 running `make`, which should be a semantic version formatted string (e.g.,
 `VERSION=0.1.49`).
@@ -203,26 +203,49 @@ to unset the `IMAGE_REPO` and  `TAG` environment variables in your shell, if you
 have been previously developing test images. This ensures that the release applies
 to the correct upstream images.
 
-### Preparing the Release
+### Step 1: Update Konflux Image References
 
-The first phase of the release process is preparing the release locally. You
-can do this by running the `make prepare-release` target. All changes are
+Before preparing the release, update the Konflux image references in
+`bundle-hack/update_csv.go` with the latest SHA256 digests from the Konflux builds.
+These digests will be used to pin images in the upstream manifests.
+
+### Step 2: Pin Images for Upstream Release
+
+Pin the Konflux images with SHA256 digests in the upstream manifests by running:
+
+```
+make release-pin-images
+```
+
+This target:
+- Extracts the latest Konflux image specs from `bundle-hack/update_csv.go`
+- Pins them in `config/manager/deployment.yaml` with SHA256 digests
+- Pins them in `config/manager/kustomization.yaml`
+
+This ensures that upstream users installing from the release get deterministic,
+SHA-pinned images that match the tested Konflux builds.
+
+### Step 3: Preparing the Release
+
+Prepare the release locally by running the `make prepare-release` target. All changes are
 staged locally. This is intentional so that you have the opportunity to
 review the changes before proposing the release in the next step.
 
-### Proposing the Release
+**Note:** The `prepare-release` target internally runs `make bundle`, which will
+preserve the SHA-pinned images from the previous step.
 
-The second phase of the release is to push the release to a dedicated branch
-against the origin repository. You can perform this step using the `make
+### Step 4: Proposing the Release
+
+Push the release to a dedicated branch against the origin repository using the `make
 push-release` target.
 
 Please note, this step makes changes to the upstream repository, so it is
 imperative that you review the changes you're committing prior to this step.
 This step also requires that you have necessary permissions on the repository.
 
-### Releasing Images
+### Step 5: Releasing Images
 
-The third and final step of the release is to build new images and push them to
+The final step of the release is to build new images and push them to
 an official image registry. You can build new images and push using `make
 release-images`. Note that this operation also requires you have proper
 permissions on the remote registry.
