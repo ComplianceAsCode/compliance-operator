@@ -203,6 +203,31 @@ to unset the `IMAGE_REPO` and  `TAG` environment variables in your shell, if you
 have been previously developing test images. This ensures that the release applies
 to the correct upstream images.
 
+### Understanding the Dual Release Workflow
+
+The compliance-operator has **two separate release workflows** that produce different artifacts:
+
+**Upstream Releases (GitHub → ghcr.io)**
+- **Purpose**: Community users and upstream installations
+- **Triggered by**: Git tags (v*)
+- **Destination**: ghcr.io/complianceascode (GitHub Container Registry)
+- **Bundle images**: Use quay.io Konflux images with SHA256 digests (deterministic, publicly accessible)
+- **Process**: GitHub Actions builds bundle image from committed bundle/manifests in git
+
+**Downstream Releases (Tekton → registry.redhat.io)**
+- **Purpose**: Red Hat customers and downstream installations
+- **Triggered by**: Changes to bundle/*** or bundle-hack/*** paths in any branch
+- **Destination**: registry.redhat.io (Red Hat Container Registry)
+- **Bundle images**: Use registry.redhat.io images (automatically copied from quay.io)
+- **Process**: Tekton builds bundle using bundle.openshift.Dockerfile which regenerates the CSV with registry.redhat.io URLs
+
+**Key distinction**: Upstream bundles use what's committed to git (quay.io images). Downstream bundles are regenerated during the Tekton build to replace quay.io → registry.redhat.io.
+
+**Image naming conventions:**
+- Master branch: Images have `-dev` suffix (e.g., compliance-operator-dev)
+- Release branches: Images have `-release` suffix (e.g., compliance-operator-release)
+- This is managed in bundle-hack/update_csv.go per branch
+
 ### Step 1: Update Konflux Image References
 
 Before preparing the release, update the Konflux image references in
@@ -210,6 +235,9 @@ Before preparing the release, update the Konflux image references in
 These digests will be used to pin images in the upstream manifests.
 
 ### Step 2: Pin Images for Upstream Release
+
+**This step is for upstream GitHub releases only.** Downstream Tekton builds automatically
+handle image registry replacement via bundle.openshift.Dockerfile and do not use these pinned manifests.
 
 Pin the Konflux images with SHA256 digests in the upstream manifests by running:
 
@@ -219,11 +247,19 @@ make release-pin-images
 
 This target:
 - Extracts the latest Konflux image specs from `bundle-hack/update_csv.go`
-- Pins them in `config/manager/deployment.yaml` with SHA256 digests
+- Pins them in `config/manager/deployment.yaml` with SHA256 digests (RELATED_IMAGE_* env vars)
 - Pins them in `config/manager/kustomization.yaml`
 
-This ensures that upstream users installing from the release get deterministic,
-SHA-pinned images that match the tested Konflux builds.
+This ensures that upstream users installing from GitHub releases get deterministic,
+SHA-pinned quay.io images that match the exact images tested in Konflux CI.
+
+**What gets committed to git:**
+- config/manager/deployment.yaml with SHA-pinned quay.io images
+- bundle/manifests/*.clusterserviceversion.yaml with SHA-pinned quay.io images (generated in Step 3)
+- These files are used by GitHub Actions to build the ghcr.io bundle image
+
+**Downstream workflow:** Tekton builds ignore these git files and regenerate the bundle
+during the image build process, automatically replacing quay.io → registry.redhat.io.
 
 ### Step 3: Preparing the Release
 
