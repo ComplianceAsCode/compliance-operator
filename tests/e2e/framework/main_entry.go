@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -51,11 +52,86 @@ func (f *Framework) CleanUpOnError() bool {
 	return f.cleanupOnError
 }
 
+// RunE2ESuite is the shared TestMain entry point for e2e test packages.
+func RunE2ESuite(m *testing.M) {
+	f := NewFramework()
+
+	if tearDownOnly() {
+		runFrameworkTearDownOnly(f)
+		return
+	}
+
+	if envBool(SkipFrameworkSetupEnv) {
+		log.Println("E2E_SKIP_FRAMEWORK_SETUP is set, skipping framework setup")
+		if err := f.prepareForTests(); err != nil {
+			log.Fatal(err)
+		}
+		if err := f.addFrameworks(); err != nil {
+			log.Fatal(err)
+		}
+	} else if err := f.SetUp(); err != nil {
+		log.Fatal(err)
+	}
+
+	if os.Getenv("CONTENT_IMAGE") == "" {
+		fmt.Println("Please set the 'CONTENT_IMAGE' environment variable")
+		os.Exit(1)
+	}
+	if os.Getenv("BROKEN_CONTENT_IMAGE") == "" {
+		fmt.Println("Please set the 'BROKEN_CONTENT_IMAGE' environment variable")
+		os.Exit(1)
+	}
+
+	exitCode := m.Run()
+	if shouldRunFrameworkTearDown(exitCode, f.CleanUpOnError()) {
+		if err := f.TearDown(); err != nil {
+			log.Fatal(err)
+		}
+	} else if envBool(SkipFrameworkTearDownEnv) {
+		log.Println("E2E_SKIP_FRAMEWORK_TEARDOWN is set, skipping framework teardown")
+	}
+	os.Exit(exitCode)
+}
+
+func tearDownOnly() bool {
+	return envBool(TearDownOnlyEnv)
+}
+
+func runFrameworkTearDownOnly(f *Framework) {
+	log.Println("E2E_TEARDOWN_ONLY is set, running framework teardown only")
+	if err := f.prepareForTests(); err != nil {
+		log.Fatal(err)
+	}
+	if err := f.addFrameworks(); err != nil {
+		log.Fatal(err)
+	}
+	if err := f.TearDown(); err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(0)
+}
+
+func shouldRunFrameworkTearDown(exitCode int, cleanupOnError bool) bool {
+	if envBool(SkipFrameworkTearDownEnv) {
+		return false
+	}
+	return exitCode == 0 || cleanupOnError
+}
+
+func (f *Framework) prepareForTests() error {
+	log.Printf("switching to %s directory to execute tests", f.projectRoot)
+	return os.Chdir(f.projectRoot)
+}
+
 func (f *Framework) SetUp() error {
 	log.Printf("switching to %s directory to setup and execute tests", f.projectRoot)
 	err := os.Chdir(f.projectRoot)
 	if err != nil {
 		return fmt.Errorf("failed to change directory to project root: %w", err)
+	}
+
+	if f.useExistingOperator {
+		return f.setUpExistingOperator()
 	}
 
 	err = f.ensureTestNamespaceExists()
@@ -85,7 +161,26 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("failed to setup test resources: %w", err)
 	}
 
-	err = f.initializeMetricsTestResources()
+	return f.finishSetUp()
+}
+
+func (f *Framework) setUpExistingOperator() error {
+	log.Printf("using existing compliance-operator in namespace %s", f.OperatorNamespace)
+	err := f.ensureExistingOperatorNamespace()
+	if err != nil {
+		return fmt.Errorf("unable to use namespace %s for testing: %w", f.OperatorNamespace, err)
+	}
+
+	err = f.addFrameworks()
+	if err != nil {
+		return err
+	}
+
+	return f.finishSetUp()
+}
+
+func (f *Framework) finishSetUp() error {
+	err := f.initializeMetricsTestResources()
 	if err != nil {
 		return fmt.Errorf("failed to initialize cluster resources for metrics: %v", err)
 	}
@@ -147,6 +242,10 @@ func (f *Framework) TearDown() error {
 	err := f.WaitForScanCleanup()
 	if err != nil {
 		return err
+	}
+
+	if f.useExistingOperator {
+		return f.tearDownExistingOperator()
 	}
 
 	log.Printf("cleaning up Profile Bundles")
@@ -221,6 +320,38 @@ func (f *Framework) TearDown() error {
 		return fmt.Errorf("namespace %s deletion did not complete: %w", f.OperatorNamespace, err)
 	}
 	log.Printf("Namespace %s successfully deleted\n", f.OperatorNamespace)
+
+	return nil
+}
+
+func (f *Framework) tearDownExistingOperator() error {
+	log.Printf("skipping operator uninstall for existing deployment in namespace %s", f.OperatorNamespace)
+
+	if os.Getenv("SKIP_MCP_SETUP") != "" {
+		log.Println("SKIP_MCP_SETUP is set, skipping e2e ScanSettings and MachineConfigPool cleanup")
+		return nil
+	}
+
+	err := f.deleteScanSettings("e2e-default")
+	if err != nil {
+		return err
+	}
+	err = f.deleteScanSettings("e2e-default-auto-apply")
+	if err != nil {
+		return err
+	}
+	err = f.restoreNodeLabelsForPool("e2e")
+	if err != nil {
+		return err
+	}
+	err = f.cleanUpMachineConfigPool("e2e")
+	if err != nil {
+		return err
+	}
+	err = f.cleanUpMachineConfigPool("e2e-invalid")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

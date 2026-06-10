@@ -469,6 +469,15 @@ func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, 
 	return nil
 }
 
+func (f *Framework) ensureExistingOperatorNamespace() error {
+	_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), f.OperatorNamespace, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return fmt.Errorf("namespace %s not found; deploy the operator first or unset %s",
+			f.OperatorNamespace, UseExistingOperatorEnv)
+	}
+	return err
+}
+
 func (f *Framework) ensureTestNamespaceExists() error {
 	// create namespace only if it doesn't already exist
 	_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), f.OperatorNamespace, metav1.GetOptions{})

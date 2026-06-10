@@ -127,6 +127,10 @@ E2E_TEST_TYPE?=all
 # variable to true if you prefer the tests to cleanup regardless of test status, e.g.:
 # E2E_CLEANUP_ON_ERROR=true make e2e
 E2E_CLEANUP_ON_ERROR?=false
+# Namespace of the compliance-operator when running make e2e-existing.
+E2E_OPERATOR_NAMESPACE?=$(OPERATOR_NAMESPACE)
+# Env prefix for make e2e-existing only.
+E2E_EXISTING_TEST_ENV=E2E_USE_EXISTING_OPERATOR=true TEST_OPERATOR_NAMESPACE=$(E2E_OPERATOR_NAMESPACE) CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH)
 E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
 TEST_OPTIONS?=-timeout=20m
 # Skip pushing the container to your cluster
@@ -611,6 +615,15 @@ e2e-test-wait:
 .PHONY: e2e-parallel
 e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests concurrently.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-periodic
+e2e-periodic: ## Run parallel, serial, and tailoring e2e tests against an already-installed compliance-operator (setup once, teardown once). Used for periodic test runs.
+	@set -o pipefail; e2e_exit=0; \
+	$(E2E_EXISTING_TEST_ENV) E2E_SKIP_FRAMEWORK_TEARDOWN=true $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log || e2e_exit=1; \
+	$(E2E_EXISTING_TEST_ENV) E2E_SKIP_FRAMEWORK_SETUP=true E2E_SKIP_FRAMEWORK_TEARDOWN=true $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log || e2e_exit=1; \
+	$(E2E_EXISTING_TEST_ENV) E2E_SKIP_FRAMEWORK_SETUP=true E2E_SKIP_FRAMEWORK_TEARDOWN=true $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log || e2e_exit=1; \
+	E2E_USE_EXISTING_OPERATOR=true E2E_TEARDOWN_ONLY=true TEST_OPERATOR_NAMESPACE=$(E2E_OPERATOR_NAMESPACE) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) || { echo "e2e-existing: framework teardown failed"; exit 1; }; \
+	exit $$e2e_exit
 
 .PHONY: e2e-serial
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
