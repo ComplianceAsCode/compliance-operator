@@ -1564,6 +1564,7 @@ spec:
           - watch
           - list
           - update
+          - patch
         - apiGroups:
           - compliance.openshift.io
           resources:

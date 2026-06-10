@@ -19,6 +19,10 @@ const ProfileImageDigestAnnotation = "compliance.openshift.io/image-digest"
 // ProfileStatusAnnotation is the parsed out status from the data stream
 const ProfileStatusAnnotation = "compliance.openshift.io/profile-status"
 
+// XCCDFGroupsAnnotation stores a comma-separated list of all XCCDF Group IDs
+// found in the datastream. Used for re-enabling groups in TailoredProfiles.
+const XCCDFGroupsAnnotation = "compliance.openshift.io/xccdf-groups"
+
 // DataStreamStatusType is the type for the data stream status
 type DataStreamStatusType string
 
