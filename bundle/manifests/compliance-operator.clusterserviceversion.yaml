@@ -160,9 +160,9 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    createdAt: "2026-04-02T21:16:58Z"
+    createdAt: "2026-06-11T13:25:22Z"
     must-gather-image: ghcr.io/complianceascode/must-gather-ocp:latest
-    olm.skipRange: '>=0.1.17 <1.9.0'
+    olm.skipRange: '>=0.1.17 <1.9.1'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
     operators.openshift.io/infrastructure-features: '["disconnected", "fips", "proxy-aware"]'
@@ -177,7 +177,7 @@ metadata:
     operatorframework.io/arch.arm64: supported
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
-  name: compliance-operator.v1.9.0
+  name: compliance-operator.v1.9.1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1370,7 +1370,7 @@ spec:
                 - name: RELATED_IMAGE_PROFILE
                   value: ghcr.io/complianceascode/k8scontent:latest
                 image: ghcr.io/complianceascode/compliance-operator:latest
-                imagePullPolicy: Always
+                imagePullPolicy: IfNotPresent
                 name: compliance-operator
                 resources:
                   limits:
@@ -1564,6 +1564,7 @@ spec:
           - watch
           - list
           - update
+          - patch
         - apiGroups:
           - compliance.openshift.io
           resources:
@@ -1744,5 +1745,5 @@ spec:
     name: operator
   - image: ghcr.io/complianceascode/k8scontent:latest
     name: profile
-  replaces: compliance-operator.v1.7.1
-  version: 1.9.0
+  replaces: compliance-operator.v1.9.0
+  version: 1.9.1

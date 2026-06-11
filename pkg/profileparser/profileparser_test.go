@@ -3,7 +3,9 @@ package profileparser
 import (
 	"context"
 	"os"
+	"strings"
 
+	compapis "github.com/ComplianceAsCode/compliance-operator/pkg/apis"
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/antchfx/xmlquery"
 	"github.com/go-logr/zapr"
@@ -19,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // FIXME: code duplication
@@ -710,5 +713,62 @@ var _ = Describe("Testing CPE string parsing in isolation", func() {
 			Expect(pType).To(BeEquivalentTo(cmpv1alpha1.ScanTypePlatform))
 			Expect(pName).To(BeEquivalentTo(""))
 		})
+	})
+})
+
+var _ = Describe("Testing extractAndStoreXCCDFGroups", func() {
+	var (
+		testPb     *cmpv1alpha1.ProfileBundle
+		testClient runtimeclient.Client
+		testPcfg   *ParserConfig
+	)
+
+	BeforeEach(func() {
+		testScheme := k8sruntime.NewScheme()
+		err := compapis.AddToScheme(testScheme)
+		Expect(err).To(BeNil())
+
+		testPb = &cmpv1alpha1.ProfileBundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pb",
+				Namespace: testNamespace,
+			},
+		}
+
+		testClient = fake.NewClientBuilder().WithScheme(testScheme).WithObjects(testPb).Build()
+		testPcfg = &ParserConfig{Client: testClient}
+	})
+
+	It("Extracts and stores group IDs from datastream", func() {
+		xmlContent := `<?xml version="1.0" encoding="UTF-8"?>
+<root xmlns:xccdf-1.2="http://checklists.nist.gov/xccdf/1.2">
+	<xccdf-1.2:Group id="group1"/>
+	<xccdf-1.2:Group id="group2"/>
+</root>`
+		contentDom, err := xmlquery.Parse(strings.NewReader(xmlContent))
+		Expect(err).To(BeNil())
+
+		err = extractAndStoreXCCDFGroups(contentDom, testPb, testPcfg)
+		Expect(err).To(BeNil())
+
+		updated := &cmpv1alpha1.ProfileBundle{}
+		err = testClient.Get(context.TODO(), types.NamespacedName{Name: testPb.Name, Namespace: testPb.Namespace}, updated)
+		Expect(err).To(BeNil())
+
+		annotations := updated.GetAnnotations()
+		Expect(annotations).To(HaveKey(cmpv1alpha1.XCCDFGroupsAnnotation))
+		Expect(annotations[cmpv1alpha1.XCCDFGroupsAnnotation]).To(Equal("group1,group2"))
+	})
+
+	It("Returns nil when no groups are found", func() {
+		xmlContent := `<?xml version="1.0" encoding="UTF-8"?>
+<root xmlns:xccdf-1.2="http://checklists.nist.gov/xccdf/1.2">
+	<xccdf-1.2:Profile id="test-profile"/>
+</root>`
+		contentDom, err := xmlquery.Parse(strings.NewReader(xmlContent))
+		Expect(err).To(BeNil())
+
+		err = extractAndStoreXCCDFGroups(contentDom, testPb, testPcfg)
+		Expect(err).To(BeNil())
 	})
 })

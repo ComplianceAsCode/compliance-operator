@@ -121,7 +121,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"-c",
 						fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: &falseP,
 						ReadOnlyRootFilesystem:   &trueP,
@@ -154,7 +154,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"-c",
 						fmt.Sprintf("mkdir -p %s && ln -s %s %s | /bin/true", KubeletConfigLinkFolder, KubeletConfigMapPath, KubeletConfigLinkPath),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:             &trueP,
 						ReadOnlyRootFilesystem: &trueP,
@@ -189,7 +189,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"-c",
 						runtimeSSHConfigCommand(),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:             &trueP,
 						ReadOnlyRootFilesystem: &falseP,
@@ -236,7 +236,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"--tls-ca=/etc/pki/tls/ca.crt",
 						"--raw-results-output=" + getRawResultsOutputValue(scanInstance),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: &falseP,
 						ReadOnlyRootFilesystem:   &trueP,
@@ -259,6 +259,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 				{
 					Name:    OpenSCAPScanContainerName,
 					Image:   utils.GetComponentImage(utils.OPENSCAP),
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command: []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:               &falseP,
@@ -360,6 +361,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
 			Name:  CELScannerContainerName,
 			Image: utils.GetComponentImage(utils.OPERATOR),
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command: []string{
 				"compliance-operator", "cel-scanner",
 				// "--api-resource-dir=" + PlatformScanDataRoot,
@@ -409,6 +411,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
 			Name:    OpenSCAPScanContainerName,
 			Image:   utils.GetComponentImage(utils.OPENSCAP),
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command: []string{OpenScapScriptPath},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
@@ -556,7 +559,7 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 				"--tls-ca=/etc/pki/tls/ca.crt",
 				"--raw-results-output=" + getRawResultsOutputValue(scanInstance),
 			},
-			ImagePullPolicy: corev1.PullAlways,
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,
@@ -646,7 +649,7 @@ func addScannerInitContainer(scanInstance *compv1alpha1.ComplianceScan, pod *cor
 				"-c",
 				fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
 			},
-			ImagePullPolicy: corev1.PullAlways,
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,
@@ -675,7 +678,7 @@ func addScannerInitContainer(scanInstance *compv1alpha1.ComplianceScan, pod *cor
 			Name:            PlatformScanResourceCollectorName,
 			Image:           utils.GetComponentImage(utils.OPERATOR),
 			Command:         collectorCmd,
-			ImagePullPolicy: corev1.PullAlways,
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,

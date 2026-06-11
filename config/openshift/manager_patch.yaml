@@ -1,4 +1,8 @@
-# Patch the deployment to run on master nodes
+# Patch the deployment to run on master nodes and use PullAlways for the
+# local dev workflow (make deploy-local pushes a fresh :latest tag and
+# expects kubelet to pull it). Production/OLM-installed deployments use
+# the base default (IfNotPresent) so a registry outage cannot prevent
+# the operator pod from starting.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,6 +10,9 @@ metadata:
 spec:
   template:
     spec:
+      containers:
+        - name: compliance-operator
+          imagePullPolicy: Always
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:

@@ -58,7 +58,7 @@ func (r *ReconcileComplianceScan) newAggregatorPod(scanInstance *compv1alpha1.Co
 						"-c",
 						fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: &falseP,
 						ReadOnlyRootFilesystem:   &trueP,
@@ -78,6 +78,7 @@ func (r *ReconcileComplianceScan) newAggregatorPod(scanInstance *compv1alpha1.Co
 				{
 					Name:  "aggregator",
 					Image: utils.GetComponentImage(utils.OPERATOR),
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command: []string{
 						"compliance-operator", "aggregator",
 						"--content=" + absContentPath(scanInstance.Spec.Content),
