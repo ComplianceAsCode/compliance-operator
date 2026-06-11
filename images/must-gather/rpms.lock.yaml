@@ -4,13 +4,13 @@ lockfileVendor: redhat
 arches:
 - arch: aarch64
   packages:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/aarch64/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/aarch64/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.aarch64.rpm
     repoid: rhocp-4.20-for-rhel-9-aarch64-rpms
-    size: 27652597
-    checksum: sha256:6418abd0ee478391d36c447ce6fca4b04baf9bc144684bc73bce8006129e7cd5
+    size: 27625501
+    checksum: sha256:a44ec6818aa0af3978d48c504c25e57e526b71253f2801c9aea96e03ddc6339e
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
-    sourcerpm: openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
+    sourcerpm: openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/b/bash-completion-2.11-5.el9.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 469639
@@ -18,13 +18,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/j/jq-1.6-19.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/j/jq-1.6-19.el9_8.2.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 185334
-    checksum: sha256:a70a2f81df88595008fb897ee875af42150e11d1420b6e4989d40628816d4731
+    size: 191195
+    checksum: sha256:633aaf3e87b19d4a591bd9f47cd81fde8ec49629d3f58932addfc8a134b7949d
     name: jq
-    evr: 1.6-19.el9
-    sourcerpm: jq-1.6-19.el9.src.rpm
+    evr: 1.6-19.el9_8.2
+    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 38310
@@ -60,39 +60,39 @@ arches:
     name: pkgconf-pkg-config
     evr: 1.7.3-10.el9
     sourcerpm: pkgconf-1.7.3-10.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/rsync-3.2.5-3.el9_7.2.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/rsync-3.2.5-7.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 418979
-    checksum: sha256:25f8e769ed6e442259025b1c33d11aa1be0746b0a6fc9e68b942fbd04c01f31a
+    size: 420142
+    checksum: sha256:39ba71d3677854505524df265ed828c7e00f026ecfe83df6ba86c7586588cae7
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-    sourcerpm: rsync-3.2.5-3.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/t/tar-1.34-9.el9_7.aarch64.rpm
+    evr: 3.2.5-7.el9_8
+    sourcerpm: rsync-3.2.5-7.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/t/tar-1.34-11.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 898317
-    checksum: sha256:2d0bd44116c3f5c229d25fdc6458f6ce24a7ad4fdb463767eea48dcab78c5062
+    size: 904777
+    checksum: sha256:62f985a87e048caa3ef883966d6176448398abc42df00ebff07e7311ff5f425d
     name: tar
-    evr: 2:1.34-9.el9_7
-    sourcerpm: tar-1.34-9.el9_7.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/aarch64/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/aarch64/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
     repoid: rhocp-4.20-for-rhel-9-aarch64-source-rpms
-    size: 17390925
-    checksum: sha256:759247a5e4dede6b6e0b06209ea9a4deb8a4276acae0442517bc692da9df1eab
+    size: 17410484
+    checksum: sha256:029e736ca314427f20869ab0a0f60aecd814d71a326155858fed45bd1e943f9d
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/b/bash-completion-2.11-5.el9.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
     size: 323037
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
-    size: 1505339
-    checksum: sha256:a36173a7f5461f8cc1b6aa9e62f3e0435d6fde658a8795c909fd62cb5bfc9565
+    size: 1512470
+    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
     name: jq
-    evr: 1.6-19.el9
+    evr: 1.6-19.el9_8.2
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
     size: 935874
@@ -105,28 +105,28 @@ arches:
     checksum: sha256:4d53718592b298ca7c49665b1f4e7bd32dcb42cad15c89345585da9f20d4fcae
     name: pkgconf
     evr: 1.7.3-10.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/r/rsync-3.2.5-3.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/r/rsync-3.2.5-7.el9_8.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
-    size: 1311295
-    checksum: sha256:a0b3038cb71a7ab8450ef8141f32e8d05b47e1f6d703a0b0e4b927ca4729d662
+    size: 1317820
+    checksum: sha256:881675c5bba9391d19536569a133069ffe0dd132468a04b3ea52fb697ebf926f
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/t/tar-1.34-9.el9_7.src.rpm
+    evr: 3.2.5-7.el9_8
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
-    size: 2282680
-    checksum: sha256:9b84935c6072500fa28674521fe13816a8be44c50bb8eaf5ec73994782161250
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-9.el9_7
+    evr: 2:1.34-11.el9
   module_metadata: []
 - arch: ppc64le
   packages:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/ppc64le/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/ppc64le/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.ppc64le.rpm
     repoid: rhocp-4.20-for-rhel-9-ppc64le-rpms
-    size: 27426788
-    checksum: sha256:a3a5351bc0653fc4904e0223b0d526f941355972d049c933ff84ae2ab4f5f205
+    size: 27414970
+    checksum: sha256:ea9f44028f2974d650d34214e9c6031067277763bc3ba08df0b5ee46ea14d34e
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
-    sourcerpm: openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
+    sourcerpm: openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/b/bash-completion-2.11-5.el9.noarch.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
     size: 469639
@@ -134,13 +134,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/j/jq-1.6-19.el9.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/j/jq-1.6-19.el9_8.2.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 204601
-    checksum: sha256:c38289578cc683b9416a895745218ab23eea5b537d26710f0b63117a1bc012d6
+    size: 210467
+    checksum: sha256:bd22f9b12aaae090e7d6d6a94eae6cd2a0de75b1f983696066b5c8691075012e
     name: jq
-    evr: 1.6-19.el9
-    sourcerpm: jq-1.6-19.el9.src.rpm
+    evr: 1.6-19.el9_8.2
+    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
     size: 42712
@@ -176,39 +176,39 @@ arches:
     name: pkgconf-pkg-config
     evr: 1.7.3-10.el9
     sourcerpm: pkgconf-1.7.3-10.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/r/rsync-3.2.5-3.el9_7.2.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/r/rsync-3.2.5-7.el9_8.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 452530
-    checksum: sha256:146da2c7f92cea7c0642d1d584a0e2435d4ef288bbe10db55dbdb9cdd2919ed6
+    size: 453342
+    checksum: sha256:0570a89b350ada78d86d87afa90b101a7dc9791e5868b6f33fba00727440cd74
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-    sourcerpm: rsync-3.2.5-3.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/t/tar-1.34-9.el9_7.ppc64le.rpm
+    evr: 3.2.5-7.el9_8
+    sourcerpm: rsync-3.2.5-7.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/t/tar-1.34-11.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 938310
-    checksum: sha256:6b32b0c5b960f836c91fae329c0d2786d932a44b9e44711639646b5e55146c8b
+    size: 945887
+    checksum: sha256:cb2fe4ca6c89e1a9fff648629cc7b9b7f33a7853a8ae74c10baa1d5b731d2447
     name: tar
-    evr: 2:1.34-9.el9_7
-    sourcerpm: tar-1.34-9.el9_7.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/ppc64le/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/ppc64le/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
     repoid: rhocp-4.20-for-rhel-9-ppc64le-source-rpms
-    size: 17390925
-    checksum: sha256:759247a5e4dede6b6e0b06209ea9a4deb8a4276acae0442517bc692da9df1eab
+    size: 17410484
+    checksum: sha256:029e736ca314427f20869ab0a0f60aecd814d71a326155858fed45bd1e943f9d
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/b/bash-completion-2.11-5.el9.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
     size: 323037
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 1505339
-    checksum: sha256:a36173a7f5461f8cc1b6aa9e62f3e0435d6fde658a8795c909fd62cb5bfc9565
+    size: 1512470
+    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
     name: jq
-    evr: 1.6-19.el9
+    evr: 1.6-19.el9_8.2
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
     size: 935874
@@ -221,28 +221,28 @@ arches:
     checksum: sha256:4d53718592b298ca7c49665b1f4e7bd32dcb42cad15c89345585da9f20d4fcae
     name: pkgconf
     evr: 1.7.3-10.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/r/rsync-3.2.5-3.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/r/rsync-3.2.5-7.el9_8.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 1311295
-    checksum: sha256:a0b3038cb71a7ab8450ef8141f32e8d05b47e1f6d703a0b0e4b927ca4729d662
+    size: 1317820
+    checksum: sha256:881675c5bba9391d19536569a133069ffe0dd132468a04b3ea52fb697ebf926f
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/t/tar-1.34-9.el9_7.src.rpm
+    evr: 3.2.5-7.el9_8
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 2282680
-    checksum: sha256:9b84935c6072500fa28674521fe13816a8be44c50bb8eaf5ec73994782161250
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-9.el9_7
+    evr: 2:1.34-11.el9
   module_metadata: []
 - arch: s390x
   packages:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/s390x/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/s390x/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.s390x.rpm
     repoid: rhocp-4.20-for-rhel-9-s390x-rpms
-    size: 29022828
-    checksum: sha256:7f52c709ef73067283d96e30a2e7ecffb7dd5de013546fa5864a20db7cd17fd2
+    size: 29028284
+    checksum: sha256:8a3779929667a32bce11ea3215643d6e9129ababc7e1220b45f6201183b38bea
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
-    sourcerpm: openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
+    sourcerpm: openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/b/bash-completion-2.11-5.el9.noarch.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
     size: 469639
@@ -250,13 +250,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/j/jq-1.6-19.el9.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/j/jq-1.6-19.el9_8.2.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 200998
-    checksum: sha256:9ca12fe83c126e62e9ea4f45ed4a3972d833b815aa4914716564553d952fb59c
+    size: 206781
+    checksum: sha256:0d4d0ea445c687665a70906d2ed4c5e959fc8cd82f7e961d19317881ce26851e
     name: jq
-    evr: 1.6-19.el9
-    sourcerpm: jq-1.6-19.el9.src.rpm
+    evr: 1.6-19.el9_8.2
+    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
     size: 37876
@@ -292,39 +292,39 @@ arches:
     name: pkgconf-pkg-config
     evr: 1.7.3-10.el9
     sourcerpm: pkgconf-1.7.3-10.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/r/rsync-3.2.5-3.el9_7.2.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/r/rsync-3.2.5-7.el9_8.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 421587
-    checksum: sha256:0de316c64f8546c2809d3d7ac732ba96bbeaad9b285a92c994c576adab21bab9
+    size: 422461
+    checksum: sha256:e937047c63e4f5501bc08aeada17ec184254cdc2d5cd6a1a9e39b6477bf2bb72
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-    sourcerpm: rsync-3.2.5-3.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/t/tar-1.34-9.el9_7.s390x.rpm
+    evr: 3.2.5-7.el9_8
+    sourcerpm: rsync-3.2.5-7.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/t/tar-1.34-11.el9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 900131
-    checksum: sha256:ae335ed3e594cdb4123c6732c5dd9d4250050e96117e2593b31f8c4ee4ee2b8f
+    size: 907745
+    checksum: sha256:2eee88e1c470b033bd44432f4ed5b1a41ffc7132ebe51f8ce12fa9268314e841
     name: tar
-    evr: 2:1.34-9.el9_7
-    sourcerpm: tar-1.34-9.el9_7.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/s390x/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/s390x/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
     repoid: rhocp-4.20-for-rhel-9-s390x-source-rpms
-    size: 17390925
-    checksum: sha256:759247a5e4dede6b6e0b06209ea9a4deb8a4276acae0442517bc692da9df1eab
+    size: 17410484
+    checksum: sha256:029e736ca314427f20869ab0a0f60aecd814d71a326155858fed45bd1e943f9d
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/b/bash-completion-2.11-5.el9.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
     size: 323037
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 1505339
-    checksum: sha256:a36173a7f5461f8cc1b6aa9e62f3e0435d6fde658a8795c909fd62cb5bfc9565
+    size: 1512470
+    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
     name: jq
-    evr: 1.6-19.el9
+    evr: 1.6-19.el9_8.2
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
     size: 935874
@@ -337,28 +337,28 @@ arches:
     checksum: sha256:4d53718592b298ca7c49665b1f4e7bd32dcb42cad15c89345585da9f20d4fcae
     name: pkgconf
     evr: 1.7.3-10.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/r/rsync-3.2.5-3.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/r/rsync-3.2.5-7.el9_8.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 1311295
-    checksum: sha256:a0b3038cb71a7ab8450ef8141f32e8d05b47e1f6d703a0b0e4b927ca4729d662
+    size: 1317820
+    checksum: sha256:881675c5bba9391d19536569a133069ffe0dd132468a04b3ea52fb697ebf926f
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/t/tar-1.34-9.el9_7.src.rpm
+    evr: 3.2.5-7.el9_8
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 2282680
-    checksum: sha256:9b84935c6072500fa28674521fe13816a8be44c50bb8eaf5ec73994782161250
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-9.el9_7
+    evr: 2:1.34-11.el9
   module_metadata: []
 - arch: x86_64
   packages:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/x86_64/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/x86_64/rhocp/4.20/os/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.x86_64.rpm
     repoid: rhocp-4.20-for-rhel-9-x86_64-rpms
-    size: 30478707
-    checksum: sha256:be918e12ecc530fbfd47ffc7faa9af30de5dedf892fad5c8ab46e9bab0675960
+    size: 30516510
+    checksum: sha256:6eeb411ea4990499fe1e458d081f07647397e2a80d3f8b46accf7e57542a2097
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
-    sourcerpm: openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
+    sourcerpm: openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/b/bash-completion-2.11-5.el9.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 469639
@@ -366,13 +366,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/j/jq-1.6-19.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/j/jq-1.6-19.el9_8.2.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 191662
-    checksum: sha256:6b4d82714813d7b4a3200bf2856a3c1493d186e9caa916d7a700ec25e4996462
+    size: 197453
+    checksum: sha256:9793a39a4746a09ba89c3d9ccc70150ac6c878286deee26d7e3aabede4666417
     name: jq
-    evr: 1.6-19.el9
-    sourcerpm: jq-1.6-19.el9.src.rpm
+    evr: 1.6-19.el9_8.2
+    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 38387
@@ -408,39 +408,39 @@ arches:
     name: pkgconf-pkg-config
     evr: 1.7.3-10.el9
     sourcerpm: pkgconf-1.7.3-10.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/rsync-3.2.5-3.el9_7.2.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/rsync-3.2.5-7.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 424416
-    checksum: sha256:8ee9ecceb953b6083284a9fb595fb1b98be7382e269ec9cfc7ecb1c9d27fbe5c
+    size: 424707
+    checksum: sha256:6c1d064c38e4a3f4bcb756cb9ea0382cccf7a262433c286db45931d114074ff3
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-    sourcerpm: rsync-3.2.5-3.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/t/tar-1.34-9.el9_7.x86_64.rpm
+    evr: 3.2.5-7.el9_8
+    sourcerpm: rsync-3.2.5-7.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/t/tar-1.34-11.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 906521
-    checksum: sha256:4c0beb933074a5254c297e8968b3f41ec5a02b23056997ddcf526fe7e6166482
+    size: 913256
+    checksum: sha256:58b622ab7bc225731a2473e677f16c9eb51b1ed218a86a7aa039a6fed665f245
     name: tar
-    evr: 2:1.34-9.el9_7
-    sourcerpm: tar-1.34-9.el9_7.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/layered/rhel9/x86_64/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/layered/rhel9/x86_64/rhocp/4.20/source/SRPMS/Packages/o/openshift-clients-4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9.src.rpm
     repoid: rhocp-4.20-for-rhel-9-x86_64-source-rpms
-    size: 17390925
-    checksum: sha256:759247a5e4dede6b6e0b06209ea9a4deb8a4276acae0442517bc692da9df1eab
+    size: 17410484
+    checksum: sha256:029e736ca314427f20869ab0a0f60aecd814d71a326155858fed45bd1e943f9d
     name: openshift-clients
-    evr: 4.20.0-202604221638.p2.g92a3a16.assembly.stream.el9
+    evr: 4.20.0-202605211651.p2.g02b0b2d.assembly.stream.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/b/bash-completion-2.11-5.el9.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
     size: 323037
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 1505339
-    checksum: sha256:a36173a7f5461f8cc1b6aa9e62f3e0435d6fde658a8795c909fd62cb5bfc9565
+    size: 1512470
+    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
     name: jq
-    evr: 1.6-19.el9
+    evr: 1.6-19.el9_8.2
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
     size: 935874
@@ -453,16 +453,16 @@ arches:
     checksum: sha256:4d53718592b298ca7c49665b1f4e7bd32dcb42cad15c89345585da9f20d4fcae
     name: pkgconf
     evr: 1.7.3-10.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/r/rsync-3.2.5-3.el9_7.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/r/rsync-3.2.5-7.el9_8.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 1311295
-    checksum: sha256:a0b3038cb71a7ab8450ef8141f32e8d05b47e1f6d703a0b0e4b927ca4729d662
+    size: 1317820
+    checksum: sha256:881675c5bba9391d19536569a133069ffe0dd132468a04b3ea52fb697ebf926f
     name: rsync
-    evr: 3.2.5-3.el9_7.2
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/t/tar-1.34-9.el9_7.src.rpm
+    evr: 3.2.5-7.el9_8
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 2282680
-    checksum: sha256:9b84935c6072500fa28674521fe13816a8be44c50bb8eaf5ec73994782161250
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-9.el9_7
+    evr: 2:1.34-11.el9
   module_metadata: []
