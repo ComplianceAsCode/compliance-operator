@@ -863,7 +863,7 @@ func newStandardParser() *referenceParser {
 	if crherr != nil {
 		log.Error(crherr, "Could not register CIS Red Hat Linux reference parser") // not much we can do here..
 	}
-	nciperr := p.registerStandard("NERC-CIP", `^https://www\.nerc\.com/pa/Stand/AlignRep/One%20Stop%20Shop\.xlsx$`)
+	nciperr := p.registerStandard("NERC-CIP", `^https://www\.nerc\.com/(pa/Stand/AlignRep/One%20Stop%20Shop\.xlsx|standards/reliability-standards/cip)$`)
 	if nciperr != nil {
 		log.Error(nciperr, "Could not register NERC-CIP reference parser") // not much we can do here..
 	}
@@ -875,9 +875,36 @@ func newStandardParser() *referenceParser {
 	if pcidss4perr != nil {
 		log.Error(nciperr, "Could not register PCI-DSS-4-0 reference parser") // not much we can do here..
 	}
-	stigperr := p.registerStandard("STIG", `^https://public\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=container-platform`)
+	// Legacy STIG annotation, retained for backward compatibility. ComplianceAsCode
+	// PR #13793 moved the STIG reference URLs from public.cyber.mil to www.cyber.mil,
+	// so match both domains to keep the existing annotation populated.
+	stigperr := p.registerStandard("STIG", `^https://(www|public)\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=container-platform`)
 	if stigperr != nil {
 		log.Error(stigperr, "Could not register STIG reference parser") // not much we can do here..
+	}
+	// SRG (Security Requirements Guide) IDs, e.g. SRG-APP-000429-CTR-001060. These use
+	// the app-security/application-servers/general-purpose-os facets (see ComplianceAsCode
+	// ssg/constants.py). Matching exact facets keeps SRG distinct from the container-platform
+	// STIGID facet so the same href never lands in two annotations.
+	srgperr := p.registerStandard("SRG", `^https://(www|public)\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=(operating-systems%2Cgeneral-purpose-os|application-servers|app-security)$`)
+	if srgperr != nil {
+		log.Error(srgperr, "Could not register SRG reference parser") // not much we can do here..
+	}
+	// STIG IDs, e.g. CNTR-OS-000780. OCP4 and RHCOS4 - the only products the
+	// Compliance Operator parses - override this facet to container-platform.
+	stigidperr := p.registerStandard("STIGID", `^https://(www|public)\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=container-platform$`)
+	if stigidperr != nil {
+		log.Error(stigidperr, "Could not register STIGID reference parser") // not much we can do here..
+	}
+	// STIG Rule IDs, e.g. SV-257564r1050650_rule.
+	stigruleperr := p.registerStandard("STIG-RULE", `^https://(www|public)\.cyber\.mil/stigs/srg-stig-tools/$`)
+	if stigruleperr != nil {
+		log.Error(stigruleperr, "Could not register STIG-RULE reference parser") // not much we can do here..
+	}
+	// CCI (Control Correlation Identifier) IDs, e.g. CCI-000048.
+	cciperr := p.registerStandard("CCI", `^https://(www|public)\.cyber\.mil/stigs/cci/$`)
+	if cciperr != nil {
+		log.Error(cciperr, "Could not register CCI reference parser") // not much we can do here..
 	}
 
 	p.registerFormatter(profileOperatorFormatter)
