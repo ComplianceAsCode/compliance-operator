@@ -73,6 +73,50 @@ func TestProfileVersion(t *testing.T) {
 	}
 }
 
+func TestProfileBundleXCCDFGroupsAnnotation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	pbName := framework.GetObjNameFromTest(t)
+	pb, err := f.CreateProfileBundle(pbName, contentImagePath, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
+	}
+
+	// Get the updated ProfileBundle to check annotations
+	updatedPb := &compv1alpha1.ProfileBundle{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: pbName, Namespace: f.OperatorNamespace}, updatedPb); err != nil {
+		t.Fatalf("failed to get ProfileBundle %s: %s", pbName, err)
+	}
+
+	annotations := updatedPb.GetAnnotations()
+	if annotations == nil {
+		t.Fatalf("ProfileBundle %s has no annotations", pbName)
+	}
+
+	groupsAnnotation, exists := annotations[compv1alpha1.XCCDFGroupsAnnotation]
+	if !exists {
+		t.Fatalf("ProfileBundle %s is missing the %s annotation", pbName, compv1alpha1.XCCDFGroupsAnnotation)
+	}
+
+	if groupsAnnotation == "" {
+		t.Fatalf("ProfileBundle %s has empty %s annotation", pbName, compv1alpha1.XCCDFGroupsAnnotation)
+	}
+
+	// Verify it's a comma-separated list with at least one group
+	groups := strings.Split(groupsAnnotation, ",")
+	if len(groups) == 0 {
+		t.Fatalf("ProfileBundle %s has no groups in %s annotation", pbName, compv1alpha1.XCCDFGroupsAnnotation)
+	}
+
+	t.Logf("ProfileBundle %s has %d XCCDF groups", pbName, len(groups))
+}
+
 func TestProfileModification(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -541,9 +585,6 @@ func TestParsingErrorRestartsParserInitContainer(t *testing.T) {
 		t.Fatalf("failed to update ProfileBundle %s: %s", pbName, err)
 	}
 
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatal(err)
-	}
 	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
 		t.Fatal(err)
 	}

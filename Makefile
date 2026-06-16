@@ -120,7 +120,7 @@ TEST_DEPLOY=$(TEST_SETUP_DIR)/deploy_rbac.yaml
 # 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/Parallel_tests/TestScanWithNodeSelectorFiltersCorrectly"
 E2E_GO_TEST_FLAGS?=-v -test.timeout 120m
 
-# By default we run all tests; available options: all, parallel, serial
+# By default we run all tests; available options: all, parallel, deployment, serial
 E2E_TEST_TYPE?=all
 
 # By default, the test runner won't cleanup resources from failed test runs. Set this
@@ -602,7 +602,7 @@ endif
 	@$(GO) test -v ./pkg/utils/ -ginkgo.v
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e e2e-parallel e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+e2e: e2e-set-image prep-e2e e2e-parallel e2e-deployment e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
 
 .PHONY: e2e
 e2e-test-wait:
@@ -612,9 +612,28 @@ e2e-test-wait:
 e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests concurrently.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
+.PHONY: e2e-deployment
+e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tests concurrently.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
+
 .PHONY: e2e-serial
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-tailoring
+e2e-tailoring: e2e-set-image prep-e2e ## Run profile tailoring end-to-end tests.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-tailoring-critical
+e2e-tailoring-critical: e2e-set-image prep-e2e ## Run critical profile tailoring e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
+.PHONY: e2e-parsing
+e2e-parsing: e2e-set-image prep-e2e ## Run profile parsing end-to-end tests.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
+.PHONY: e2e-parsing-critical
+e2e-parsing-critical: e2e-set-image prep-e2e ## Run critical profile parsing e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
 
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.

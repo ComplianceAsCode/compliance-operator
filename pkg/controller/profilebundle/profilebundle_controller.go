@@ -506,7 +506,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 								"-c",
 								contentCopyCommand(pb),
 							},
-							ImagePullPolicy: corev1.PullAlways,
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: &falseP,
 								ReadOnlyRootFilesystem:   &trueP,
@@ -535,6 +535,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 						{
 							Name:  "profileparser",
 							Image: utils.GetComponentImage(utils.OPERATOR),
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: &falseP,
 								ReadOnlyRootFilesystem:   &trueP,
@@ -571,6 +572,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 						{
 							Name:  "pauser",
 							Image: utils.GetComponentImage(utils.OPERATOR),
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: &falseP,
 								ReadOnlyRootFilesystem:   &trueP,

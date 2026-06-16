@@ -1,3 +1,6 @@
+# Local dev workflow uses PullAlways so make deploy-local always picks up
+# freshly-pushed :latest images. Production/OLM-installed deployments use
+# the base default (IfNotPresent).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +10,7 @@ spec:
     spec:
       containers:
         - name: compliance-operator
+          imagePullPolicy: Always
           command:
             - compliance-operator
             - operator

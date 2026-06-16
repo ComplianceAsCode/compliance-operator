@@ -1253,7 +1253,7 @@ spec:
                 - name: RELATED_IMAGE_PROFILE
                   value: ghcr.io/complianceascode/k8scontent:latest
                 image: ghcr.io/complianceascode/compliance-operator:latest
-                imagePullPolicy: Always
+                imagePullPolicy: IfNotPresent
                 name: compliance-operator
                 resources:
                   limits:
