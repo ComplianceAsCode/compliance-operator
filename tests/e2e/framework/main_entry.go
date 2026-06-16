@@ -106,6 +106,11 @@ func (f *Framework) SetUp() error {
 		return err
 	}
 
+	if os.Getenv("SKIP_MCP_SETUP") != "" {
+		log.Println("SKIP_MCP_SETUP is set, skipping e2e ScanSettings and MachineConfigPool setup")
+		return nil
+	}
+
 	err = f.updateScanSettingsForDebug()
 	if err != nil {
 		return fmt.Errorf("failed to set scan setting bindings to debug: %w", err)
@@ -139,7 +144,7 @@ func (f *Framework) TearDown() error {
 	// by each individual test either directly or through deferred cleanup. If the test fails
 	// because there are scans that haven't been cleaned up, we could have a bug in the
 	// tests.
-	err := f.waitForScanCleanup()
+	err := f.WaitForScanCleanup()
 	if err != nil {
 		return err
 	}
@@ -154,28 +159,31 @@ func (f *Framework) TearDown() error {
 		return fmt.Errorf("failed to cleanup ocp4 profile bundle: %w", err)
 	}
 
-	err = f.deleteScanSettings("e2e-default")
-	if err != nil {
-		return err
-	}
-	err = f.deleteScanSettings("e2e-default-auto-apply")
-	if err != nil {
-		return err
-	}
-
-	// unlabel nodes
-	err = f.restoreNodeLabelsForPool("e2e")
-	if err != nil {
-		return err
-	}
-	err = f.cleanUpMachineConfigPool("e2e")
-	if err != nil {
-		return err
-	}
-	// e2e-invalid mcp
-	err = f.cleanUpMachineConfigPool("e2e-invalid")
-	if err != nil {
-		return err
+	if os.Getenv("SKIP_MCP_SETUP") != "" {
+		log.Println("SKIP_MCP_SETUP is set, skipping e2e ScanSettings and MachineConfigPool cleanup")
+	} else {
+		err = f.deleteScanSettings("e2e-default")
+		if err != nil {
+			return err
+		}
+		err = f.deleteScanSettings("e2e-default-auto-apply")
+		if err != nil {
+			return err
+		}
+		// unlabel nodes
+		err = f.restoreNodeLabelsForPool("e2e")
+		if err != nil {
+			return err
+		}
+		err = f.cleanUpMachineConfigPool("e2e")
+		if err != nil {
+			return err
+		}
+		// e2e-invalid mcp
+		err = f.cleanUpMachineConfigPool("e2e-invalid")
+		if err != nil {
+			return err
+		}
 	}
 
 	// Clean up these resources explicitly in this method because it's guaranteed to run
@@ -203,5 +211,16 @@ func (f *Framework) TearDown() error {
 	if err != nil {
 		return fmt.Errorf("failed to cleanup namespace %s: %w", f.OperatorNamespace, err)
 	}
+
+	// Verify namespace deletion completes successfully
+	// This ensures that all resources, including those with finalizers, are properly cleaned up
+	// and that the operator can be deleted without resources getting stuck in terminating state
+	log.Printf("Verifying namespace %s deletion \n", f.OperatorNamespace)
+	err = f.waitForNamespaceDeletion(f.OperatorNamespace, time.Second*5, time.Minute*5)
+	if err != nil {
+		return fmt.Errorf("namespace %s deletion did not complete: %w", f.OperatorNamespace, err)
+	}
+	log.Printf("Namespace %s successfully deleted\n", f.OperatorNamespace)
+
 	return nil
 }

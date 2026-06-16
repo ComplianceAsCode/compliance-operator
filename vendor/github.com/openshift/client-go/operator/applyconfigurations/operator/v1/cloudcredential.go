@@ -3,21 +3,27 @@
 package v1
 
 import (
-	apioperatorv1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	internal "github.com/openshift/client-go/operator/applyconfigurations/internal"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
 // CloudCredentialApplyConfiguration represents a declarative configuration of the CloudCredential type for use
 // with apply.
+//
+// CloudCredential provides a means to configure an operator to manage CredentialsRequests.
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 type CloudCredentialApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
-	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *CloudCredentialSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *CloudCredentialStatusApplyConfiguration `json:"status,omitempty"`
+	metav1.TypeMetaApplyConfiguration `json:",inline"`
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
+	Spec                                 *CloudCredentialSpecApplyConfiguration   `json:"spec,omitempty"`
+	Status                               *CloudCredentialStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // CloudCredential constructs a declarative configuration of the CloudCredential type for use with
@@ -30,29 +36,14 @@ func CloudCredential(name string) *CloudCredentialApplyConfiguration {
 	return b
 }
 
-// ExtractCloudCredential extracts the applied configuration owned by fieldManager from
-// cloudCredential. If no managedFields are found in cloudCredential for fieldManager, a
-// CloudCredentialApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractCloudCredentialFrom extracts the applied configuration owned by fieldManager from
+// cloudCredential for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // cloudCredential must be a unmodified CloudCredential API object that was retrieved from the Kubernetes API.
-// ExtractCloudCredential provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractCloudCredentialFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractCloudCredential(cloudCredential *apioperatorv1.CloudCredential, fieldManager string) (*CloudCredentialApplyConfiguration, error) {
-	return extractCloudCredential(cloudCredential, fieldManager, "")
-}
-
-// ExtractCloudCredentialStatus is the same as ExtractCloudCredential except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractCloudCredentialStatus(cloudCredential *apioperatorv1.CloudCredential, fieldManager string) (*CloudCredentialApplyConfiguration, error) {
-	return extractCloudCredential(cloudCredential, fieldManager, "status")
-}
-
-func extractCloudCredential(cloudCredential *apioperatorv1.CloudCredential, fieldManager string, subresource string) (*CloudCredentialApplyConfiguration, error) {
+func ExtractCloudCredentialFrom(cloudCredential *operatorv1.CloudCredential, fieldManager string, subresource string) (*CloudCredentialApplyConfiguration, error) {
 	b := &CloudCredentialApplyConfiguration{}
 	err := managedfields.ExtractInto(cloudCredential, internal.Parser().Type("com.github.openshift.api.operator.v1.CloudCredential"), fieldManager, b, subresource)
 	if err != nil {
@@ -65,11 +56,33 @@ func extractCloudCredential(cloudCredential *apioperatorv1.CloudCredential, fiel
 	return b, nil
 }
 
+// ExtractCloudCredential extracts the applied configuration owned by fieldManager from
+// cloudCredential. If no managedFields are found in cloudCredential for fieldManager, a
+// CloudCredentialApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// cloudCredential must be a unmodified CloudCredential API object that was retrieved from the Kubernetes API.
+// ExtractCloudCredential provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractCloudCredential(cloudCredential *operatorv1.CloudCredential, fieldManager string) (*CloudCredentialApplyConfiguration, error) {
+	return ExtractCloudCredentialFrom(cloudCredential, fieldManager, "")
+}
+
+// ExtractCloudCredentialStatus extracts the applied configuration owned by fieldManager from
+// cloudCredential for the status subresource.
+func ExtractCloudCredentialStatus(cloudCredential *operatorv1.CloudCredential, fieldManager string) (*CloudCredentialApplyConfiguration, error) {
+	return ExtractCloudCredentialFrom(cloudCredential, fieldManager, "status")
+}
+
+func (b CloudCredentialApplyConfiguration) IsApplyConfiguration() {}
+
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithKind(value string) *CloudCredentialApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -77,7 +90,7 @@ func (b *CloudCredentialApplyConfiguration) WithKind(value string) *CloudCredent
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithAPIVersion(value string) *CloudCredentialApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -86,7 +99,7 @@ func (b *CloudCredentialApplyConfiguration) WithAPIVersion(value string) *CloudC
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithName(value string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -95,7 +108,7 @@ func (b *CloudCredentialApplyConfiguration) WithName(value string) *CloudCredent
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithGenerateName(value string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -104,7 +117,7 @@ func (b *CloudCredentialApplyConfiguration) WithGenerateName(value string) *Clou
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithNamespace(value string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -113,7 +126,7 @@ func (b *CloudCredentialApplyConfiguration) WithNamespace(value string) *CloudCr
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithUID(value types.UID) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -122,7 +135,7 @@ func (b *CloudCredentialApplyConfiguration) WithUID(value types.UID) *CloudCrede
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithResourceVersion(value string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -131,25 +144,25 @@ func (b *CloudCredentialApplyConfiguration) WithResourceVersion(value string) *C
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithGeneration(value int64) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *CloudCredentialApplyConfiguration) WithCreationTimestamp(value metav1.Time) *CloudCredentialApplyConfiguration {
+func (b *CloudCredentialApplyConfiguration) WithCreationTimestamp(value apismetav1.Time) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *CloudCredentialApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *CloudCredentialApplyConfiguration {
+func (b *CloudCredentialApplyConfiguration) WithDeletionTimestamp(value apismetav1.Time) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -158,7 +171,7 @@ func (b *CloudCredentialApplyConfiguration) WithDeletionTimestamp(value metav1.T
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *CloudCredentialApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -168,11 +181,11 @@ func (b *CloudCredentialApplyConfiguration) WithDeletionGracePeriodSeconds(value
 // overwriting an existing map entries in Labels field with the same key.
 func (b *CloudCredentialApplyConfiguration) WithLabels(entries map[string]string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -183,11 +196,11 @@ func (b *CloudCredentialApplyConfiguration) WithLabels(entries map[string]string
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *CloudCredentialApplyConfiguration) WithAnnotations(entries map[string]string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -195,13 +208,13 @@ func (b *CloudCredentialApplyConfiguration) WithAnnotations(entries map[string]s
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *CloudCredentialApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *CloudCredentialApplyConfiguration {
+func (b *CloudCredentialApplyConfiguration) WithOwnerReferences(values ...*metav1.OwnerReferenceApplyConfiguration) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -212,14 +225,14 @@ func (b *CloudCredentialApplyConfiguration) WithOwnerReferences(values ...*v1.Ow
 func (b *CloudCredentialApplyConfiguration) WithFinalizers(values ...string) *CloudCredentialApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
 	return b
 }
 
 func (b *CloudCredentialApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
-		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
+		b.ObjectMetaApplyConfiguration = &metav1.ObjectMetaApplyConfiguration{}
 	}
 }
 
@@ -239,8 +252,24 @@ func (b *CloudCredentialApplyConfiguration) WithStatus(value *CloudCredentialSta
 	return b
 }
 
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *CloudCredentialApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *CloudCredentialApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
 // GetName retrieves the value of the Name field in the declarative configuration.
 func (b *CloudCredentialApplyConfiguration) GetName() *string {
 	b.ensureObjectMetaApplyConfigurationExists()
-	return b.Name
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *CloudCredentialApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

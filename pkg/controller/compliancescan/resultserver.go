@@ -201,7 +201,7 @@ func resultServer(scanInstance *compv1alpha1.ComplianceScan, labels map[string]s
 						{
 							Name:            "result-server",
 							Image:           utils.GetComponentImage(utils.OPERATOR),
-							ImagePullPolicy: corev1.PullAlways,
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command: []string{
 								"compliance-operator", "resultserver",
 								"--path=/reports/",
@@ -420,6 +420,12 @@ func getNodeScannerPodVolumes(instance *compv1alpha1.ComplianceScan, node *corev
 					},
 					DefaultMode: &kubeMode,
 				},
+			},
+		},
+		{
+			Name: RuntimeConfigVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
 	}

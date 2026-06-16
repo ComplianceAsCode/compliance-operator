@@ -3,20 +3,33 @@
 package v1
 
 import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeStatusApplyConfiguration represents a declarative configuration of the NodeStatus type for use
 // with apply.
+//
+// NodeStatus provides information about the current state of a particular node managed by this operator.
 type NodeStatusApplyConfiguration struct {
-	NodeName                 *string  `json:"nodeName,omitempty"`
-	CurrentRevision          *int32   `json:"currentRevision,omitempty"`
-	TargetRevision           *int32   `json:"targetRevision,omitempty"`
-	LastFailedRevision       *int32   `json:"lastFailedRevision,omitempty"`
-	LastFailedTime           *v1.Time `json:"lastFailedTime,omitempty"`
-	LastFailedReason         *string  `json:"lastFailedReason,omitempty"`
-	LastFailedCount          *int     `json:"lastFailedCount,omitempty"`
-	LastFallbackCount        *int     `json:"lastFallbackCount,omitempty"`
+	// nodeName is the name of the node
+	NodeName *string `json:"nodeName,omitempty"`
+	// currentRevision is the generation of the most recently successful deployment.
+	// Can not be set on creation of a nodeStatus. Updates must only increase the value.
+	CurrentRevision *int32 `json:"currentRevision,omitempty"`
+	// targetRevision is the generation of the deployment we're trying to apply.
+	// Can not be set on creation of a nodeStatus.
+	TargetRevision *int32 `json:"targetRevision,omitempty"`
+	// lastFailedRevision is the generation of the deployment we tried and failed to deploy.
+	LastFailedRevision *int32 `json:"lastFailedRevision,omitempty"`
+	// lastFailedTime is the time the last failed revision failed the last time.
+	LastFailedTime *metav1.Time `json:"lastFailedTime,omitempty"`
+	// lastFailedReason is a machine readable failure reason string.
+	LastFailedReason *string `json:"lastFailedReason,omitempty"`
+	// lastFailedCount is how often the installer pod of the last failed revision failed.
+	LastFailedCount *int `json:"lastFailedCount,omitempty"`
+	// lastFallbackCount is how often a fallback to a previous revision happened.
+	LastFallbackCount *int `json:"lastFallbackCount,omitempty"`
+	// lastFailedRevisionErrors is a list of human readable errors during the failed deployment referenced in lastFailedRevision.
 	LastFailedRevisionErrors []string `json:"lastFailedRevisionErrors,omitempty"`
 }
 
@@ -61,7 +74,7 @@ func (b *NodeStatusApplyConfiguration) WithLastFailedRevision(value int32) *Node
 // WithLastFailedTime sets the LastFailedTime field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LastFailedTime field is set to the value of the last call.
-func (b *NodeStatusApplyConfiguration) WithLastFailedTime(value v1.Time) *NodeStatusApplyConfiguration {
+func (b *NodeStatusApplyConfiguration) WithLastFailedTime(value metav1.Time) *NodeStatusApplyConfiguration {
 	b.LastFailedTime = &value
 	return b
 }

@@ -29,7 +29,9 @@ const (
 
 func (r *ReconcileComplianceScan) launchScanPod(instance *compv1alpha1.ComplianceScan, pod *corev1.Pod, logger logr.Logger) error {
 	podLogger := logger.WithValues("Pod.Name", pod.Name)
-	if instance.Spec.TailoringConfigMap != nil {
+	// CEL scans use TailoringConfigMap as a signal for the tailoring flag
+	// but don't have an actual XML tailoring configmap to reconcile.
+	if instance.Spec.TailoringConfigMap != nil && instance.Spec.ScannerType != compv1alpha1.ScannerTypeCEL {
 		if err := r.reconcileTailoring(instance, pod, logger); err != nil {
 			return err
 		}
@@ -66,6 +68,25 @@ func scanLimits(scanInstance *compv1alpha1.ComplianceScan, defaultMem, defaultCp
 	return &limits
 }
 
+func runtimeSSHConfigCommand() string {
+	return fmt.Sprintf(`mkdir -p %[1]s && \
+if [ -x /host/usr/sbin/sshd ]; then \
+  chroot /host /usr/sbin/sshd -T > /tmp/sshd_out 2>/tmp/sshd_err; \
+  SSHD_EXIT=$?; \
+  if [ $SSHD_EXIT -eq 0 ] && [ -s /tmp/sshd_out ]; then \
+    tr '[:upper:]' '[:lower:]' < /tmp/sshd_out > %[2]s && \
+    chmod 644 %[2]s 2>/dev/null || true; \
+    echo "INFO: Successfully generated effective SSH configuration"; \
+  else \
+    MSG="sshd -T failed (exit code: $SSHD_EXIT). $(cat /tmp/sshd_err 2>/dev/null)"; \
+    echo "WARNING: $MSG"; \
+    echo "$MSG" > /dev/termination-log; \
+  fi; \
+else \
+  echo "INFO: sshd not found at /host/usr/sbin/sshd, skipping runtime SSH config generation"; \
+fi`, RuntimeConfigFolder, RuntimeSSHConfigPath)
+}
+
 func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.Node, logger logr.Logger) *corev1.Pod {
 
 	podName := getPodForNodeName(scanInstance.Name, node.Name)
@@ -100,7 +121,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"-c",
 						fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: &falseP,
 						ReadOnlyRootFilesystem:   &trueP,
@@ -133,9 +154,9 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"-c",
 						fmt.Sprintf("mkdir -p %s && ln -s %s %s | /bin/true", KubeletConfigLinkFolder, KubeletConfigMapPath, KubeletConfigLinkPath),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
-						Privileged:             &trueVal,
+						Privileged:             &trueP,
 						ReadOnlyRootFilesystem: &trueP,
 					},
 					Resources: corev1.ResourceRequirements{
@@ -160,6 +181,40 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						},
 					},
 				},
+				{
+					Name:  RuntimeSSHConfigInitContainer,
+					Image: utils.GetComponentImage(utils.OPERATOR),
+					Command: []string{
+						"sh",
+						"-c",
+						runtimeSSHConfigCommand(),
+					},
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:             &trueP,
+						ReadOnlyRootFilesystem: &falseP,
+					},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("10Mi"),
+							corev1.ResourceCPU:    resource.MustParse("10m"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("50Mi"),
+							corev1.ResourceCPU:    resource.MustParse("50m"),
+						},
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host",
+							MountPath: "/host",
+						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
+						},
+					},
+				},
 			},
 			Containers: []corev1.Container{
 				{
@@ -181,7 +236,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						"--tls-ca=/etc/pki/tls/ca.crt",
 						"--raw-results-output=" + getRawResultsOutputValue(scanInstance),
 					},
-					ImagePullPolicy: corev1.PullAlways,
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: &falseP,
 						ReadOnlyRootFilesystem:   &trueP,
@@ -204,6 +259,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 				{
 					Name:    OpenSCAPScanContainerName,
 					Image:   utils.GetComponentImage(utils.OPENSCAP),
+					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command: []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:               &falseP,
@@ -255,6 +311,11 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 							MountPath: KubeletConfigMapPath,
 							ReadOnly:  true,
 						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
+							ReadOnly:  true,
+						},
 					},
 					Env: []corev1.EnvVar{
 						{
@@ -300,6 +361,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
 			Name:  CELScannerContainerName,
 			Image: utils.GetComponentImage(utils.OPERATOR),
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command: []string{
 				"compliance-operator", "cel-scanner",
 				// "--api-resource-dir=" + PlatformScanDataRoot,
@@ -310,9 +372,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 				"--scan-type=" + "Platform",
 				"--platform=" + os.Getenv("PLATFORM"),
 				"--debug=" + fmt.Sprintf("%t", scanInstance.Spec.Debug),
-				// TODO(@Vincent056): make this configurable, we need to update this to
-				// fetch this value dynamically when we start supporting CEL in Rule CRs
-				"--tailoring=" + "true",
+				"--tailoring=" + fmt.Sprintf("%t", scanInstance.Spec.TailoringConfigMap != nil),
 				"--scan-name=" + scanInstance.Name,
 				"--namespace=" + scanInstance.Namespace,
 			},
@@ -351,6 +411,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
 			Name:    OpenSCAPScanContainerName,
 			Image:   utils.GetComponentImage(utils.OPENSCAP),
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command: []string{OpenScapScriptPath},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
@@ -498,7 +559,7 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 				"--tls-ca=/etc/pki/tls/ca.crt",
 				"--raw-results-output=" + getRawResultsOutputValue(scanInstance),
 			},
-			ImagePullPolicy: corev1.PullAlways,
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,
@@ -516,18 +577,7 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 					corev1.ResourceCPU:    resource.MustParse("100m"),
 				},
 			},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      "report-dir",
-					MountPath: "/reports",
-					ReadOnly:  true,
-				},
-				{
-					Name:      "tls",
-					MountPath: "/etc/pki/tls",
-					ReadOnly:  true,
-				},
-			},
+			VolumeMounts: getLogCollectorVolumeMounts(scanInstance),
 		},
 	}
 
@@ -549,14 +599,16 @@ func addResultsCollectionPods(scanInstance *compv1alpha1.ComplianceScan, pod *co
 				},
 			},
 		},
-		{
+	}
+	if scanInstance.Spec.RawResultStorage.Enabled != nil && *scanInstance.Spec.RawResultStorage.Enabled {
+		podVolumes = append(podVolumes, corev1.Volume{
 			Name: "tls",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: ClientCertPrefix + scanInstance.Name,
 				},
 			},
-		},
+		})
 	}
 
 	pod.Spec.Volumes = append(pod.Spec.Volumes, podVolumes...)
@@ -597,7 +649,7 @@ func addScannerInitContainer(scanInstance *compv1alpha1.ComplianceScan, pod *cor
 				"-c",
 				fmt.Sprintf("cp %s /content | /bin/true", path.Join("/", scanInstance.Spec.Content)),
 			},
-			ImagePullPolicy: corev1.PullAlways,
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,
@@ -626,7 +678,7 @@ func addScannerInitContainer(scanInstance *compv1alpha1.ComplianceScan, pod *cor
 			Name:            PlatformScanResourceCollectorName,
 			Image:           utils.GetComponentImage(utils.OPERATOR),
 			Command:         collectorCmd,
-			ImagePullPolicy: corev1.PullAlways,
+			ImagePullPolicy: corev1.PullIfNotPresent,
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,

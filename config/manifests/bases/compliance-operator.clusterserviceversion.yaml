@@ -220,7 +220,7 @@ spec:
       kind: ComplianceSuite
       name: compliancesuites.compliance.openshift.io
       version: v1alpha1
-    - description: CustomRule represents a rule that can be used with TailoredProfiles
+    - description: CustomRule represents a user-created rule for use with TailoredProfiles
         to execute arbitrary checks against the cluster.
       displayName: Custom Rule
       kind: CustomRule
@@ -1253,7 +1253,7 @@ spec:
                 - name: RELATED_IMAGE_PROFILE
                   value: ghcr.io/complianceascode/k8scontent:latest
                 image: ghcr.io/complianceascode/compliance-operator:latest
-                imagePullPolicy: Always
+                imagePullPolicy: IfNotPresent
                 name: compliance-operator
                 resources:
                   limits:
@@ -1516,6 +1516,12 @@ spec:
           - tailoredprofiles
           verbs:
           - get
+        - apiGroups:
+          - compliance.openshift.io
+          resources:
+          - rules
+          verbs:
+          - list
         serviceAccountName: remediation-aggregator
       - rules:
         - apiGroups:

@@ -39,6 +39,7 @@ var log = logf.Log.WithName("profileparser")
 
 type ParserConfig struct {
 	DataStreamPath   string
+	CELContentPath   string
 	ProfileBundleKey types.NamespacedName
 	Client           runtimeclient.Client
 	Scheme           *k8sruntime.Scheme
@@ -54,6 +55,12 @@ func GetPrefixedName(pbName, objName string) string {
 }
 
 func ParseBundle(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserConfig) error {
+	// Extract all XCCDF Group IDs from the datastream and store in ProfileBundle annotation
+	if err := extractAndStoreXCCDFGroups(contentDom, pb, pcfg); err != nil {
+		log.Error(err, "Failed to extract XCCDF groups")
+		// Don't fail the whole parse if group extraction fails
+	}
+
 	// One go routine per type
 	errChan := make(chan error)
 	done := make(chan string)
@@ -107,9 +114,12 @@ func ParseBundle(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg 
 					return fmt.Errorf("unexpected type")
 				}
 
-				foundRule.Annotations = updatedRule.Annotations
-				// if the check type has changed, add an annotation to the rule
-				// to indicate that the rule needs to be checked in TailoredProfile validation
+				if foundRule.Annotations == nil {
+					foundRule.Annotations = make(map[string]string)
+				}
+				for k, v := range updatedRule.Annotations {
+					foundRule.Annotations[k] = v
+				}
 				if foundRule.CheckType != updatedRule.CheckType {
 					log.Info("Rule check type has changed", "rule", foundRule.Name, "oldCheckType", foundRule.CheckType, "newCheckType", updatedRule.CheckType)
 					foundRule.Annotations[cmpv1alpha1.RuleLastCheckTypeChangedAnnotationKey] = foundRule.CheckType
@@ -387,6 +397,9 @@ func parseProfileFromNode(profileRoot *xmlquery.Node, pb *cmpv1alpha1.ProfileBun
 				Version:     version,
 			},
 		}
+
+		// XCCDF profiles use the OpenSCAP scanner
+		p.Annotations[cmpv1alpha1.ScannerTypeAnnotation] = string(cmpv1alpha1.ScannerTypeOpenSCAP)
 
 		annotateWithNonce(&p, nonce)
 		annotateWithStatus(&p, status)
@@ -699,6 +712,7 @@ func ParseRulesAndDo(contentDom *xmlquery.Node, stdParser *referenceParser, pb *
 				RulePayload: cmpv1alpha1.RulePayload{
 					ID:             id,
 					Title:          title.InnerText(),
+					ScannerType:    cmpv1alpha1.ScannerTypeOpenSCAP,
 					AvailableFixes: nil,
 				},
 			}
@@ -849,7 +863,7 @@ func newStandardParser() *referenceParser {
 	if crherr != nil {
 		log.Error(crherr, "Could not register CIS Red Hat Linux reference parser") // not much we can do here..
 	}
-	nciperr := p.registerStandard("NERC-CIP", `^https://www\.nerc\.com/pa/Stand/AlignRep/One%20Stop%20Shop\.xlsx$`)
+	nciperr := p.registerStandard("NERC-CIP", `^https://www\.nerc\.com/(pa/Stand/AlignRep/One%20Stop%20Shop\.xlsx|standards/reliability-standards/cip)$`)
 	if nciperr != nil {
 		log.Error(nciperr, "Could not register NERC-CIP reference parser") // not much we can do here..
 	}
@@ -861,9 +875,36 @@ func newStandardParser() *referenceParser {
 	if pcidss4perr != nil {
 		log.Error(nciperr, "Could not register PCI-DSS-4-0 reference parser") // not much we can do here..
 	}
-	stigperr := p.registerStandard("STIG", `^https://public\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=container-platform`)
+	// Legacy STIG annotation, retained for backward compatibility. ComplianceAsCode
+	// PR #13793 moved the STIG reference URLs from public.cyber.mil to www.cyber.mil,
+	// so match both domains to keep the existing annotation populated.
+	stigperr := p.registerStandard("STIG", `^https://(www|public)\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=container-platform`)
 	if stigperr != nil {
 		log.Error(stigperr, "Could not register STIG reference parser") // not much we can do here..
+	}
+	// SRG (Security Requirements Guide) IDs, e.g. SRG-APP-000429-CTR-001060. These use
+	// the app-security/application-servers/general-purpose-os facets (see ComplianceAsCode
+	// ssg/constants.py). Matching exact facets keeps SRG distinct from the container-platform
+	// STIGID facet so the same href never lands in two annotations.
+	srgperr := p.registerStandard("SRG", `^https://(www|public)\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=(operating-systems%2Cgeneral-purpose-os|application-servers|app-security)$`)
+	if srgperr != nil {
+		log.Error(srgperr, "Could not register SRG reference parser") // not much we can do here..
+	}
+	// STIG IDs, e.g. CNTR-OS-000780. OCP4 and RHCOS4 - the only products the
+	// Compliance Operator parses - override this facet to container-platform.
+	stigidperr := p.registerStandard("STIGID", `^https://(www|public)\.cyber\.mil/stigs/downloads/\?_dl_facet_stigs=container-platform$`)
+	if stigidperr != nil {
+		log.Error(stigidperr, "Could not register STIGID reference parser") // not much we can do here..
+	}
+	// STIG Rule IDs, e.g. SV-257564r1050650_rule.
+	stigruleperr := p.registerStandard("STIG-RULE", `^https://(www|public)\.cyber\.mil/stigs/srg-stig-tools/$`)
+	if stigruleperr != nil {
+		log.Error(stigruleperr, "Could not register STIG-RULE reference parser") // not much we can do here..
+	}
+	// CCI (Control Correlation Identifier) IDs, e.g. CCI-000048.
+	cciperr := p.registerStandard("CCI", `^https://(www|public)\.cyber\.mil/stigs/cci/$`)
+	if cciperr != nil {
+		log.Error(cciperr, "Could not register CCI reference parser") // not much we can do here..
 	}
 
 	p.registerFormatter(profileOperatorFormatter)
@@ -941,4 +982,45 @@ func appendKeyWithSep(annotations map[string]string, key, item, sep string) {
 		}
 	}
 	annotations[key] = strings.Join(append(curList, item), sep)
+}
+
+// extractAndStoreXCCDFGroups extracts all XCCDF Group IDs from the datastream
+// and stores them as a comma-separated list in the ProfileBundle annotation.
+// This allows TailoredProfiles to re-enable all groups when extending a parent profile.
+func extractAndStoreXCCDFGroups(contentDom *xmlquery.Node, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserConfig) error {
+	// Find all Group elements in the datastream
+	groupNodes := xmlquery.Find(contentDom, "//xccdf-1.2:Group")
+	if len(groupNodes) == 0 {
+		log.Info("No XCCDF groups found in datastream")
+		return nil
+	}
+
+	groupIDs := make([]string, 0, len(groupNodes))
+	for _, groupNode := range groupNodes {
+		id := groupNode.SelectAttr("id")
+		if id != "" {
+			groupIDs = append(groupIDs, id)
+		}
+	}
+
+	if len(groupIDs) == 0 {
+		return nil
+	}
+
+	// Store as comma-separated list in ProfileBundle annotation
+	patch := runtimeclient.MergeFrom(pb.DeepCopy())
+	annotations := pb.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[cmpv1alpha1.XCCDFGroupsAnnotation] = strings.Join(groupIDs, ",")
+	pb.SetAnnotations(annotations)
+
+	// Patch the ProfileBundle with the new annotation
+	if err := pcfg.Client.Patch(context.TODO(), pb, patch); err != nil {
+		return fmt.Errorf("failed to patch ProfileBundle with XCCDF groups: %w", err)
+	}
+
+	log.Info("Extracted XCCDF groups", "count", len(groupIDs), "profileBundle", pb.Name)
+	return nil
 }

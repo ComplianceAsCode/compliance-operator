@@ -3,18 +3,30 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // CSIDriverConfigSpecApplyConfiguration represents a declarative configuration of the CSIDriverConfigSpec type for use
 // with apply.
+//
+// CSIDriverConfigSpec defines configuration spec that can be
+// used to optionally configure a specific CSI Driver.
 type CSIDriverConfigSpecApplyConfiguration struct {
-	DriverType *v1.CSIDriverType                              `json:"driverType,omitempty"`
-	AWS        *AWSCSIDriverConfigSpecApplyConfiguration      `json:"aws,omitempty"`
-	Azure      *AzureCSIDriverConfigSpecApplyConfiguration    `json:"azure,omitempty"`
-	GCP        *GCPCSIDriverConfigSpecApplyConfiguration      `json:"gcp,omitempty"`
-	IBMCloud   *IBMCloudCSIDriverConfigSpecApplyConfiguration `json:"ibmcloud,omitempty"`
-	VSphere    *VSphereCSIDriverConfigSpecApplyConfiguration  `json:"vSphere,omitempty"`
+	// driverType indicates type of CSI driver for which the
+	// driverConfig is being applied to.
+	// Valid values are: AWS, Azure, GCP, IBMCloud, vSphere and omitted.
+	// Consumers should treat unknown values as a NO-OP.
+	DriverType *operatorv1.CSIDriverType `json:"driverType,omitempty"`
+	// aws is used to configure the AWS CSI driver.
+	AWS *AWSCSIDriverConfigSpecApplyConfiguration `json:"aws,omitempty"`
+	// azure is used to configure the Azure CSI driver.
+	Azure *AzureCSIDriverConfigSpecApplyConfiguration `json:"azure,omitempty"`
+	// gcp is used to configure the GCP CSI driver.
+	GCP *GCPCSIDriverConfigSpecApplyConfiguration `json:"gcp,omitempty"`
+	// ibmcloud is used to configure the IBM Cloud CSI driver.
+	IBMCloud *IBMCloudCSIDriverConfigSpecApplyConfiguration `json:"ibmcloud,omitempty"`
+	// vSphere is used to configure the vsphere CSI driver.
+	VSphere *VSphereCSIDriverConfigSpecApplyConfiguration `json:"vSphere,omitempty"`
 }
 
 // CSIDriverConfigSpecApplyConfiguration constructs a declarative configuration of the CSIDriverConfigSpec type for use with
@@ -26,7 +38,7 @@ func CSIDriverConfigSpec() *CSIDriverConfigSpecApplyConfiguration {
 // WithDriverType sets the DriverType field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DriverType field is set to the value of the last call.
-func (b *CSIDriverConfigSpecApplyConfiguration) WithDriverType(value v1.CSIDriverType) *CSIDriverConfigSpecApplyConfiguration {
+func (b *CSIDriverConfigSpecApplyConfiguration) WithDriverType(value operatorv1.CSIDriverType) *CSIDriverConfigSpecApplyConfiguration {
 	b.DriverType = &value
 	return b
 }

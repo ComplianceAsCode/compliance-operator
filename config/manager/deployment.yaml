@@ -23,7 +23,7 @@ spec:
           command:
             - compliance-operator
             - operator
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false

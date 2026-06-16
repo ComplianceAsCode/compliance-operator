@@ -11,6 +11,7 @@ import (
 	"github.com/antchfx/xmlquery"
 	"github.com/spf13/cobra"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -32,6 +33,7 @@ func init() {
 
 func defineProfileParserFlags(cmd *cobra.Command) {
 	cmd.Flags().String("ds-path", "/content/ssg-ocp4-ds.xml", "Path to the datastream xml file")
+	cmd.Flags().String("cel-path", "", "Path to the CEL content YAML file (optional)")
 	cmd.Flags().String("name", "", "Name of the ProfileBundle object")
 	cmd.Flags().String("namespace", "", "Namespace of the ProfileBundle object")
 
@@ -49,6 +51,7 @@ func newParserConfig(cmd *cobra.Command) *profileparser.ParserConfig {
 	flags.AddGoFlagSet(flag.CommandLine)
 
 	pcfg.DataStreamPath = getValidStringArg(cmd, "ds-path")
+	pcfg.CELContentPath, _ = cmd.Flags().GetString("cel-path")
 	pcfg.ProfileBundleKey.Name = getValidStringArg(cmd, "name")
 	pcfg.ProfileBundleKey.Namespace = getValidStringArg(cmd, "namespace")
 
@@ -87,29 +90,34 @@ func getProfileBundle(pcfg *profileparser.ParserConfig) (*cmpv1alpha1.ProfileBun
 }
 
 // updateProfileBundleStatus updates the status of the given ProfileBundle. If
-// the given error is nil, the status will be valid, else it'll be invalid
-func updateProfileBundleStatus(pcfg *profileparser.ParserConfig, pb *cmpv1alpha1.ProfileBundle, err error) {
-	if err != nil {
-		// Never update a fetched object, always just a copy
-		pbCopy := pb.DeepCopy()
-		pbCopy.Status.DataStreamStatus = cmpv1alpha1.DataStreamInvalid
-		pbCopy.Status.ErrorMessage = err.Error()
-		pbCopy.Status.SetConditionInvalid()
-		err = pcfg.Client.Status().Update(context.TODO(), pbCopy)
-		if err != nil {
-			cmdLog.Error(err, "Couldn't update ProfileBundle status")
-			os.Exit(1)
+// the given error is nil, the status will be valid, else it'll be invalid.
+//
+// The update is retried on conflict, re-fetching the ProfileBundle each time.
+// A concurrent writer (the controller flipping the status to Pending, or
+// another parser pod during a rollout) bumps the resourceVersion, which would
+// otherwise make our single Status().Update fail and crash the init container
+// into CrashLoopBackOff, leaving the ProfileBundle stuck non-VALID.
+func updateProfileBundleStatus(pcfg *profileparser.ParserConfig, pb *cmpv1alpha1.ProfileBundle, parseErr error) {
+	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Re-fetch on every attempt so we update the latest resourceVersion.
+		fresh := &cmpv1alpha1.ProfileBundle{}
+		if getErr := pcfg.Client.Get(context.TODO(), pcfg.ProfileBundleKey, fresh); getErr != nil {
+			return getErr
 		}
-	} else {
-		// Never update a fetched object, always just a copy
-		pbCopy := pb.DeepCopy()
-		pbCopy.Status.DataStreamStatus = cmpv1alpha1.DataStreamValid
-		pbCopy.Status.SetConditionReady()
-		err = pcfg.Client.Status().Update(context.TODO(), pbCopy)
-		if err != nil {
-			cmdLog.Error(err, "Couldn't update ProfileBundle status")
-			os.Exit(1)
+		if parseErr != nil {
+			fresh.Status.DataStreamStatus = cmpv1alpha1.DataStreamInvalid
+			fresh.Status.ErrorMessage = parseErr.Error()
+			fresh.Status.SetConditionInvalid()
+		} else {
+			fresh.Status.DataStreamStatus = cmpv1alpha1.DataStreamValid
+			fresh.Status.ErrorMessage = ""
+			fresh.Status.SetConditionReady()
 		}
+		return pcfg.Client.Status().Update(context.TODO(), fresh)
+	})
+	if updateErr != nil {
+		cmdLog.Error(updateErr, "Couldn't update ProfileBundle status")
+		os.Exit(1)
 	}
 }
 
@@ -141,17 +149,26 @@ func runProfileParser(cmd *cobra.Command, args []string) {
 	}
 
 	err = profileparser.ParseBundle(contentDom, pb, pcfg)
-
-	// The err variable might be nil, this is fine, it'll just update the status
-	// to valid
-	updateProfileBundleStatus(pcfg, pb, err)
-
 	if err != nil {
-		cmdLog.Error(err, "Parsing the bundle failed, will restart the container")
+		updateProfileBundleStatus(pcfg, pb, err)
+		cmdLog.Error(err, "Parsing the XCCDF bundle failed, will restart the container")
 		os.Exit(1)
 	}
 
 	if closeErr := contentFile.Close(); closeErr != nil {
-		cmdLog.Error(err, "Couldn't close the content file")
+		cmdLog.Error(closeErr, "Couldn't close the content file")
 	}
+
+	// Parse CEL content if provided
+	if pcfg.CELContentPath != "" {
+		celErr := profileparser.ParseCELBundle(pcfg.CELContentPath, pb, pcfg)
+		if celErr != nil {
+			updateProfileBundleStatus(pcfg, pb, celErr)
+			cmdLog.Error(celErr, "Parsing the CEL bundle failed, will restart the container")
+			os.Exit(1)
+		}
+	}
+
+	// Both XCCDF and CEL parsing succeeded
+	updateProfileBundleStatus(pcfg, pb, nil)
 }
