@@ -688,8 +688,127 @@ var _ = Describe("Testing parse rules", func() {
 		})
 
 		It("Has the expected control NIST annotations in RHACM format", func() {
-			Expect(pwMinLenRule.Annotations).To(HaveKeyWithValue(rhacmStdsAnnotationKey, "NIST-800-53"))
-			Expect(pwMinLenRule.Annotations).To(HaveKeyWithValue(rhacmCtrlsAnnotationsKey, "IA-5(f),IA-5(1)(a),CM-6(a)"))
+			// The rule also carries an SRG (general-purpose-os facet) reference, which
+			// the parser now recognizes, so it appears alongside NIST-800-53.
+			Expect(pwMinLenRule.Annotations).To(HaveKeyWithValue(rhacmStdsAnnotationKey, "NIST-800-53,SRG"))
+			Expect(pwMinLenRule.Annotations).To(HaveKeyWithValue(rhacmCtrlsAnnotationsKey, "IA-5(f),IA-5(1)(a),CM-6(a),SRG-OS-000078-GPOS-00046"))
+		})
+
+		It("Has the expected SRG control annotation in profile operator format", func() {
+			srgKey := controlAnnotationBase + "SRG"
+			Expect(pwMinLenRule.Annotations).To(HaveKeyWithValue(srgKey, "SRG-OS-000078-GPOS-00046"))
+		})
+	})
+})
+
+var _ = Describe("Testing reference parser standard matching", func() {
+	var stdParser *referenceParser
+
+	BeforeEach(func() {
+		stdParser = newStandardParser()
+	})
+
+	Context("NERC-CIP URL matching", func() {
+		It("Matches the legacy NERC-CIP URL", func() {
+			href := "https://www.nerc.com/pa/Stand/AlignRep/One%20Stop%20Shop.xlsx"
+			matched := false
+			for _, std := range stdParser.registeredStds {
+				if std.hrefMatcher.MatchString(href) {
+					Expect(std.Name).To(Equal("NERC-CIP"))
+					matched = true
+					break
+				}
+			}
+			Expect(matched).To(BeTrue())
+		})
+
+		It("Matches the new NERC-CIP URL", func() {
+			href := "https://www.nerc.com/standards/reliability-standards/cip"
+			matched := false
+			for _, std := range stdParser.registeredStds {
+				if std.hrefMatcher.MatchString(href) {
+					Expect(std.Name).To(Equal("NERC-CIP"))
+					matched = true
+					break
+				}
+			}
+			Expect(matched).To(BeTrue())
+		})
+
+		It("Does not match an unrelated NERC URL", func() {
+			href := "https://www.nerc.com/something-else"
+			for _, std := range stdParser.registeredStds {
+				if std.Name == "NERC-CIP" {
+					Expect(std.hrefMatcher.MatchString(href)).To(BeFalse())
+				}
+			}
+		})
+	})
+
+	Context("STIG reference URL matching", func() {
+		// matchingStds returns the names of every registered standard whose href
+		// matcher matches the given href. The parser applies all matching standards
+		// (it does not stop at the first), so overlapping regexes would populate
+		// multiple annotations from a single reference.
+		matchingStds := func(href string) []string {
+			var names []string
+			for _, std := range stdParser.registeredStds {
+				if std.hrefMatcher.MatchString(href) {
+					names = append(names, std.Name)
+				}
+			}
+			return names
+		}
+
+		It("matches the www.cyber.mil STIG reference URLs", func() {
+			cases := map[string]string{
+				"https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=app-security":                           "SRG",
+				"https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=application-servers":                    "SRG",
+				"https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cgeneral-purpose-os": "SRG",
+				"https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=container-platform":                     "STIGID",
+				"https://www.cyber.mil/stigs/srg-stig-tools/":                                                   "STIG-RULE",
+				"https://www.cyber.mil/stigs/cci/":                                                              "CCI",
+			}
+			for href, expectedStd := range cases {
+				Expect(matchingStds(href)).To(ContainElement(expectedStd), "href %q should match %s", href, expectedStd)
+			}
+		})
+
+		It("still matches the legacy public.cyber.mil URLs (backward compatibility)", func() {
+			cases := map[string]string{
+				"https://public.cyber.mil/stigs/downloads/?_dl_facet_stigs=app-security":       "SRG",
+				"https://public.cyber.mil/stigs/downloads/?_dl_facet_stigs=container-platform": "STIGID",
+				"https://public.cyber.mil/stigs/srg-stig-tools/":                               "STIG-RULE",
+				"https://public.cyber.mil/stigs/cci/":                                          "CCI",
+			}
+			for href, expectedStd := range cases {
+				Expect(matchingStds(href)).To(ContainElement(expectedStd), "href %q should match %s", href, expectedStd)
+			}
+		})
+
+		It("keeps SRG and STIGID disjoint - a container-platform href is never tagged SRG", func() {
+			href := "https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=container-platform"
+			Expect(matchingStds(href)).NotTo(ContainElement("SRG"))
+		})
+
+		It("keeps SRG and STIGID disjoint - an app-security href is never tagged STIGID", func() {
+			href := "https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=app-security"
+			Expect(matchingStds(href)).NotTo(ContainElement("STIGID"))
+		})
+
+		It("retains the legacy STIG annotation for the container-platform facet", func() {
+			href := "https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=container-platform"
+			Expect(matchingStds(href)).To(ContainElement("STIG"))
+		})
+
+		It("does not match an unrelated cyber.mil URL", func() {
+			href := "https://www.cyber.mil/stigs/something-else/"
+			for _, std := range stdParser.registeredStds {
+				switch std.Name {
+				case "SRG", "STIGID", "STIG-RULE", "CCI", "STIG":
+					Expect(std.hrefMatcher.MatchString(href)).To(BeFalse())
+				}
+			}
 		})
 	})
 })
