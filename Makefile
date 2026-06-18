@@ -610,53 +610,53 @@ e2e-test-wait:
 
 .PHONY: e2e-parallel
 e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests concurrently.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-parallel.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-parallel.log
 
 .PHONY: e2e-scan-config
 e2e-scan-config: e2e-set-image prep-e2e ## Run scan and suite configuration end-to-end tests concurrently.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scan-config $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-scan-config.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scan-config $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-scan-config.log
 
 .PHONY: e2e-deployment
 e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tests concurrently.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
 
 .PHONY: e2e-serial
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-serial.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-serial.log
 
 .PHONY: e2e-tailoring
 e2e-tailoring: e2e-set-image prep-e2e ## Run profile tailoring end-to-end tests.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 .PHONY: e2e-tailoring-critical
 e2e-tailoring-critical: e2e-set-image prep-e2e ## Run critical profile tailoring e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/tailoring_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
 
 .PHONY: e2e-parsing
 e2e-parsing: e2e-set-image prep-e2e ## Run profile parsing end-to-end tests.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 .PHONY: e2e-parsing-critical
 e2e-parsing-critical: e2e-set-image prep-e2e ## Run critical profile parsing e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parsing_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
 
 .PHONY: e2e-cel
 e2e-cel: e2e-set-image prep-e2e ## Run profile parsing end-to-end tests.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/cel_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/cel_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 .PHONY: e2e-cel-critical
 e2e-cel-critical: e2e-set-image prep-e2e ## ## Run critical cel e2e tests. That are all the tests that lack the criticalOnly skip check at the beginning.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/cel_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/cel_tests $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) -critical | tee tests/e2e-test.log
 
 .PHONY: e2e-prerelease
 e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease e2e tests (e.g. default ProfileBundles and Profiles per architecture).
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/prerelease $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/prerelease $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
 
 ## Convert --platform to using $PLATFORM if we make this target more generic
 ## for other offerings.
 .PHONY: e2e-rosa
 e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment concurrently
-	@$(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-rosa.log
+	@LOG_CONTAINER_OUTPUT=1 $(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-rosa.log
 
 .PHONY: prep-e2e
 prep-e2e: kustomize
