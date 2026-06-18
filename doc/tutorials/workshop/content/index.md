@@ -2,7 +2,7 @@ Introduction
 ============
 
 This workshop provides an introduction to deploying a the
-[compliance-operator](https://github.com/openshift/compliance-operator).
+[compliance-operator](https://github.com/ComplianceAsCode/compliance-operator).
 
 In this lab we'll use the E8 benchmark. This benchmark was chosen
 as it's fairly lightweight compared to other benchmarks.
