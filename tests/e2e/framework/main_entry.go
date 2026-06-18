@@ -63,6 +63,11 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("unable to create or use namespace %s for testing: %w", f.OperatorNamespace, err)
 	}
 
+	// Start streaming pod logs to $ARTIFACT_DIR as early as possible so that
+	// short-lived scan pods are captured before the operator reaps them. No-op
+	// when ARTIFACT_DIR is unset (local runs).
+	f.stopPodLogs = f.StartPodLogCollector()
+
 	log.Printf("creating cluster resources in %s", f.globalManPath)
 	err = f.createFromYAMLFile(&f.globalManPath)
 	if err != nil {
@@ -139,6 +144,12 @@ func (f *Framework) SetUp() error {
 // If we don't properly cleanup resources before deleting CRDs, it leaves resources in a
 // terminating state, making them harder to cleanup.
 func (f *Framework) TearDown() error {
+	// Stop the pod-log collector first so its log files are flushed and closed
+	// before we start deleting resources.
+	if f.stopPodLogs != nil {
+		f.stopPodLogs()
+	}
+
 	// Make sure all scans are cleaned up before we delete the CRDs. Scans should be cleaned up
 	// because they're owned by ScanSettingBindings or ScanSuites, which should be cleaned up
 	// by each individual test either directly or through deferred cleanup. If the test fails
