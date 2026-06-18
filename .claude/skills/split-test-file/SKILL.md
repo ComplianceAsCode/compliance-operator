@@ -5,7 +5,7 @@ description: Mechanically extract a feature_group's tests out of tests/e2e/paral
 
 # Split Test File
 
-Takes a feature_group (e.g. `profile_parsing`) plus the test-suite-planner output, and physically moves those tests from the monolithic `main_test.go` into a new per-feature file. Preserves package name, `t.Parallel()` calls, helper references, and import order.
+Takes a feature_group (e.g. `profile_parsing`) plus the test-suite-planner output, and physically moves those tests from the monolithic `main_test.go` into a new per-feature file. Preserves package name, `t.Parallel()` calls, helper references, import order, and all comments (doc comments above each `func`, inline `// NOTE`/`// TODO`/`NOTE(rhmdnd)` markers, and any explanatory blocks) verbatim — comments often carry intent that is lost if dropped.
 
 ## Arguments
 
@@ -54,7 +54,7 @@ For each Test in the set, find its line range in `tests/e2e/{parallel|serial}/ma
 grep -n "^func Test" tests/e2e/parallel/main_test.go
 ```
 
-Identify the start line and the next `^func ` (or EOF) to bound each test. Include any test-local `func` helpers immediately above/below if they're only called by tests in this set — verify with a grep across the rest of the file.
+Identify the start line and the next `^func ` (or EOF) to bound each test. **Extend the start upward to capture the test's leading doc comment** — any contiguous run of `//` lines (or a `/* */` block) directly above `func Test*` belongs to that test and must move with it. Include any test-local `func` helpers immediately above/below if they're only called by tests in this set (with their comments too) — verify with a grep across the rest of the file.
 
 ### 3. Create the new file
 
@@ -106,7 +106,7 @@ make e2e-parallel E2E_GO_TEST_FLAGS="-v -timeout 45m -run ^<TestName>$"
 - **Moved**: N tests (list)
 - **New file**: tests/e2e/<package>/<feature_group>_test.go (LOC: X)
 - **main_test.go remaining**: Y tests, Z lines
-- **Sample run**: ✅ TestName passed in Ns
+- **Sample run**: TestName passed in Ns
 - **Next**: <next feature_group from planner output>
 ```
 
@@ -116,5 +116,6 @@ make e2e-parallel E2E_GO_TEST_FLAGS="-v -timeout 45m -run ^<TestName>$"
 
 - **One feature_group per invocation.** Don't bundle multiple groups.
 - **No semantic changes.** This skill is mechanical — if a test needs refactoring, that's a separate task. Move first; refactor later.
+- **Preserve comments verbatim.** Move each test's leading doc comment and any inline comments with it — including `NOTE(rhmdnd)` / `TODO` markers, which the downstream-triage workflow depends on. Don't reword, reflow, or drop them. A split that loses a comment has lost intent.
 - **Preserve `t.Parallel()`** exactly. Don't add it to a `serial_e2e` file. Don't remove it from a `parallel_e2e` move.
 - **Don't promote helpers to `framework/`** in this skill. If a helper is now shared across multiple files, leave it in `main_test.go` and flag it for a follow-up.

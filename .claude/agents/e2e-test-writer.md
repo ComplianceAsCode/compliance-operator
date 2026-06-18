@@ -1,6 +1,6 @@
 ---
 name: e2e-test-writer
-description: Write new end-to-end tests in tests/e2e/parallel or tests/e2e/serial against the existing framework helpers. Use when adding upstream coverage for a feature, upstreaming a downstream test, or adding a regression test for a bug fix.
+description: Write new end-to-end tests in the appropriate tests/e2e suite (parallel, serial, rosa, or any per-feature suite split out of main_test.go) against the existing framework helpers. Use when adding upstream coverage for a feature, upstreaming a downstream test, or adding a regression test for a bug fix.
 tools: [Read, Write, Edit, Glob, Grep, Bash]
 permissionMode: acceptEdits
 model: inherit
@@ -21,8 +21,8 @@ Do NOT invoke for: unit tests (`unit-test-writer`), moving existing tests betwee
 
 `.claude/rules/testing-e2e.md` is loaded whenever you touch `tests/e2e/**`. Follow it. Highlights:
 
-- Pick the right package: `parallel_e2e` if the test is non-mutating (no `Apply: true`, no node taint, no MachineConfig); `serial_e2e` otherwise.
-- New file goes to `tests/e2e/parallel/<feature_group>_test.go` or `tests/e2e/serial/<feature_group>_test.go`. Don't add to `main_test.go` — that file is being shrunk.
+- Pick the right package: `parallel_e2e` if the test is non-mutating (no `Apply: true`, no node taint, no MachineConfig); `serial_e2e` otherwise. (`rosa_e2e` is a platform-specific variant — only use it when the test is ROSA-specific.)
+- Don't hardcode a suite list — the file-split refactor is actively adding per-feature suites, so discover the current ones first. Run `ls tests/e2e/parallel/ tests/e2e/serial/` (or `Glob tests/e2e/{parallel,serial}/*_test.go`) and place your test in the existing `<feature_group>_test.go` that matches. If none exists yet for that feature_group, the tests still live in `main_test.go` — add there, or split via `/split-test-file` first. Either way, never let this list go stale: read the directory, don't trust a list memorized here.
 - Use `framework.Global` — never construct your own `Framework`.
 - Always call `t.Parallel()` as the first line of a parallel test (matches the existing convention).
 - Use `framework.GetObjNameFromTest(t)` for resource names so each test gets a unique, traceable name.

@@ -106,8 +106,8 @@ Regenerated:
 - N file(s) under config/manifests/bases/
 
 Audit:
-- ✅ all changes are expected codegen output
-- ✅ new field <name> appears in bundle/manifests/<crd>.crd.yaml schema
+- all changes are expected codegen output
+- new field <name> appears in bundle/manifests/<crd>.crd.yaml schema
 
 Next: stage with `git add pkg/apis/ bundle/ config/` and commit alongside the trigger.
 ```
