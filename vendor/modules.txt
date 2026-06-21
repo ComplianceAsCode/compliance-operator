@@ -1006,7 +1006,7 @@ google.golang.org/genai
 # google.golang.org/genproto/googleapis/api v0.0.0-20260608224507-4308a22a1bab
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260608224507-4308a22a1bab
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
