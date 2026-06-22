@@ -2676,7 +2676,7 @@ func getMustGatherImage(f *framework.Framework) string {
 	}
 
 	// Fall back to default upstream image
-	defaultImage := "ghcr.io/complianceascode/must-gather-ocp:latest"
+	defaultImage := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-dev:master"
 	log.Printf("Using default must-gather image: %s", defaultImage)
 	return defaultImage
 }
