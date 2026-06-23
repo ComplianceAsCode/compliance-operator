@@ -152,7 +152,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					Command: []string{
 						"sh",
 						"-c",
-						fmt.Sprintf("mkdir -p %s && ln -s %s %s | /bin/true", KubeletConfigLinkFolder, KubeletConfigMapPath, KubeletConfigLinkPath),
+						fmt.Sprintf("mkdir -p %s && cp %s/%s %s && chmod 644 %s", RuntimeConfigFolder, KubeletConfigMapPath, KubeletConfigMapName, RuntimeKubeletConfigPath, RuntimeKubeletConfigPath),
 					},
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
@@ -171,13 +171,13 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					},
 					VolumeMounts: []corev1.VolumeMount{
 						{
-							Name:      "host",
-							MountPath: "/host",
-						},
-						{
 							Name:      "kubeletconfig",
 							ReadOnly:  true,
 							MountPath: KubeletConfigMapPath,
+						},
+						{
+							Name:      RuntimeConfigVolumeName,
+							MountPath: RuntimeConfigFolder,
 						},
 					},
 				},
