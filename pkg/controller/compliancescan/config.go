@@ -22,18 +22,19 @@ const (
 
 	// configMap that contains the runtime kubeletconfig
 	KubeletConfigMapName = "openscap-kubeletconfig"
-	// This is how the kubeletconfig would be mounted
+	// This is how the kubeletconfig configMap is mounted (read-only source for the copy)
 	KubeletConfigMapPath = "/kubeletconfig"
-	// This is how the kubeletconfig would be linked in the host
-	KubeletConfigLinkPath = "/host/var/run/compliance-operator/kubeletconfig"
-	// This is the folder where the kubeletconfig would be linked in the host
-	KubeletConfigLinkFolder = "/host/var/run/compliance-operator"
 
 	// Runtime SSH configuration constants
 	RuntimeConfigVolumeName       = "runtime-config"
 	RuntimeConfigFolder           = "/host/tmp/runtime"
 	RuntimeSSHConfigPath          = "/host/tmp/runtime/sshd_effective_config"
 	RuntimeSSHConfigInitContainer = "runtime-sshd-config-helper"
+	// RuntimeKubeletConfigPath is where the runtime kubeletconfig is published for
+	// the scanner, inside the shared runtime-config emptyDir (mirrors the runtime
+	// SSH config approach). This avoids creating a host symlink under the
+	// read-only /var/run, which is non-idempotent and fails on re-scans.
+	RuntimeKubeletConfigPath = "/host/tmp/runtime/openscap-kubeletconfig"
 
 	// a configMap with env vars for the script
 	OpenScapEnvConfigMapName = "openscap-env-map"
