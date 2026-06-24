@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -5714,10 +5715,7 @@ func TestRuleVariableAnnotation(t *testing.T) {
 	}
 }
 
-// TestCSVInfrastructureFeaturesAnnotation tests that the Compliance Operator CSV
-// has the proper infrastructure features annotation for disconnected environments.
-// This test verifies support for disconnected, FIPS, and proxy-aware configurations.
-func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
+func TestTimeoutDisabledWithZeroValue(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
@@ -6267,6 +6265,112 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
 	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("ScanSettingBinding did not become ready: %v", err)
+	}
+	t.Log("ScanSettingBinding is ready with CEL + XCCDF profiles")
+
+	suiteName := ssbName
+
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+		if err != nil {
+			t.Fatalf("Suite did not complete: %v", err)
+		}
+	}
+	t.Log("Suite completed")
+
+	// Verify CEL scan produced check results
+	celRuleNames := []string{
+		"check-default-namespace-has-no-pods",
+		"check-default-sa-exists-in-kube-system",
+		"check-namespaces-have-network-policies",
+		"check-no-privileged-containers",
+	}
+	for _, ruleName := range celRuleNames {
+		checkName := fmt.Sprintf("%s-%s", celProfileName, ruleName)
+		check := &compv1alpha1.ComplianceCheckResult{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: checkName, Namespace: testNamespace,
+		}, check)
+		if err != nil {
+			t.Fatalf("CEL ComplianceCheckResult %s not found: %v", checkName, err)
+		}
+		if check.Status != compv1alpha1.CheckResultPass && check.Status != compv1alpha1.CheckResultFail {
+			t.Fatalf("CEL check %s has unexpected status: %s", checkName, check.Status)
+		}
+		t.Logf("CEL check %s: status=%s", checkName, check.Status)
+	}
+
+	// Verify XCCDF scan also produced check results
+	xccdfChecks := &compv1alpha1.ComplianceCheckResultList{}
+	err = f.Client.List(context.TODO(), xccdfChecks, client.MatchingLabels{
+		"compliance.openshift.io/scan-name": xccdfProfileName,
+	})
+	if err != nil {
+		t.Fatalf("Failed to list XCCDF check results: %v", err)
+	}
+	if len(xccdfChecks.Items) == 0 {
+		t.Fatalf("No XCCDF ComplianceCheckResults found for scan %s", xccdfProfileName)
+	}
+	t.Logf("XCCDF scan %s produced %d check results", xccdfProfileName, len(xccdfChecks.Items))
+
+	t.Log("Mixed CEL + XCCDF scan test completed successfully")
+}
+
+// TestCSVInfrastructureFeaturesAnnotation tests that the Compliance Operator CSV
+// has the proper infrastructure features annotation for disconnected environments.
+// This test verifies support for disconnected, FIPS, and proxy-aware configurations.
+func TestCSVInfrastructureFeaturesAnnotation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	// Get all CSVs in the operator namespace
+	csvList := &unstructured.UnstructuredList{}
+	csvList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v1alpha1",
+		Kind:    "ClusterServiceVersionList",
+	})
+
+	listOpts := &client.ListOptions{
+		Namespace: f.OperatorNamespace,
+	}
+
+	err := f.Client.List(context.TODO(), csvList, listOpts)
+	if err != nil {
+		t.Skipf("failed to list CSVs (not an OLM-managed installation): %s", err)
+	}
+
+	if len(csvList.Items) == 0 {
+		t.Skip("no CSVs found in namespace - test only runs on OLM-managed installations")
+	}
+
+	// Find the compliance-operator CSV
+	var csv *unstructured.Unstructured
+	for i := range csvList.Items {
+		name := csvList.Items[i].GetName()
+		// CSV names typically start with "compliance-operator"
+		if len(name) >= 19 && name[:19] == "compliance-operator" {
+			csv = &csvList.Items[i]
+			break
+		}
+	}
+
+	if csv == nil {
+		t.Skip("compliance-operator CSV not found - test only runs on OLM-managed installations")
+	}
+
+	// Check the infrastructure-features annotation
+	annotations := csv.GetAnnotations()
+	infraFeatures, exists := annotations["operators.openshift.io/infrastructure-features"]
+	if !exists {
+		t.Fatal("CSV is missing operators.openshift.io/infrastructure-features annotation")
+	}
 
 	// Parse the annotation as JSON
 	var features []string
@@ -6290,6 +6394,127 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 		if !found {
 			t.Errorf("Expected infrastructure feature %q not found in annotation: %s", feature, infraFeatures)
 		}
+	}
+
+	t.Logf("CSV %s correctly has infrastructure-features annotation: %s", csv.GetName(), infraFeatures)
+}
+
+// TestMultipleProfileBundlesWithTailoredProfiles tests that the profileparser can handle
+// multiple ProfileBundles being parsed concurrently without corrupting each other or the
+// default bundles, and that scans using TailoredProfiles from each bundle complete successfully.
+func TestMultipleProfileBundlesWithTailoredProfiles(t *testing.T) {
+	f := framework.Global
+	var (
+		pb1Image = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_baseline")
+		pb2Image = fmt.Sprintf("%s:%s", brokenContentImagePath, "proff_diff_mod")
+	)
+
+	// Use a short base name so that derived scan/service names stay under the 63-char DNS label limit.
+	// The longest name is the result server service: {tpName}-{role}-rs.
+	baseName := "multi-pb"
+
+	// Create both ProfileBundles before waiting, so the operator parses them concurrently
+	pb1Name := baseName + "-pb1"
+	pb1, err := f.CreateProfileBundle(pb1Name, pb1Image, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), pb1)
+
+	pb2Name := baseName + "-pb2"
+	pb2, err := f.CreateProfileBundle(pb2Name, pb2Image, framework.RhcosContentFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), pb2)
+
+	// Wait for both ProfileBundles to become valid
+	if err := f.WaitForProfileBundleStatus(pb1Name, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForProfileBundleStatus(pb2Name, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that default ProfileBundles remain valid after concurrent custom bundle parsing
+	if err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create TailoredProfiles extending from each ProfileBundle using the e8 profile
+	tp1Name := baseName + "-tp1"
+	tp1 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tp1Name,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: string(compv1alpha1.ScanTypeNode),
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Test Multiple ProfileBundles - TP1",
+			Description: "TailoredProfile extending from first custom ProfileBundle",
+			Extends:     pb1Name + "-e8",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb1Name + "-account-disable-post-pw-expiration",
+					Rationale: "Test enabling rule from custom ProfileBundle",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb1Name + "-account-unique-name",
+					Rationale: "Test disabling rule from custom ProfileBundle",
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp1, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp1)
+
+	tp2Name := baseName + "-tp2"
+	tp2 := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tp2Name,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: string(compv1alpha1.ScanTypeNode),
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Test Multiple ProfileBundles - TP2",
+			Description: "TailoredProfile extending from second custom ProfileBundle",
+			Extends:     pb2Name + "-e8",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb2Name + "-wireless-disable-in-bios",
+					Rationale: "Test enabling rule from second custom ProfileBundle",
+				},
+			},
+			DisableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      pb2Name + "-account-unique-name",
+					Rationale: "Test disabling rule from second custom ProfileBundle",
+				},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp2, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp2)
+
+	// Wait for both TailoredProfiles to become ready
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp1Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForTailoredProfileStatus(f.OperatorNamespace, tp2Name, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
 	}
 
 	// Run scans using both TailoredProfiles to exercise the full workflow
