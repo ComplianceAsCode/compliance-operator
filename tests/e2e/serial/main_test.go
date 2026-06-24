@@ -3305,3 +3305,94 @@ func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
 		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
 	}
 }
+
+// TestKubeletConfigIsScannedAcrossReruns is a regression test for the runtime
+// kubeletconfig delivery path. The operator collects each node's kubeletconfig
+// and makes it available to the scanner at the path the kubelet content rules
+// read. If that delivery breaks (e.g. the file is not present where the rule
+// looks), every kubelet `yamlfile_value` check with check_existence:all_exist
+// silently fails. This test scans two kubelet rules that PASS on a default
+// OpenShift node (anonymous auth disabled, authorization mode Webhook) and
+// asserts they actually PASS - which can only happen if the runtime
+// kubeletconfig was delivered and read. It then re-runs the scan on the same
+// nodes and asserts the checks still PASS, guarding against a non-idempotent
+// delivery that only fails on the second and later scans on a node.
+func TestKubeletConfigIsScannedAcrossReruns(t *testing.T) {
+	f := framework.Global
+	tpName := framework.GetObjNameFromTest(t)
+	bindingName := tpName + "-binding"
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "kubeletconfig runtime delivery regression",
+			Description: "Verifies the runtime kubeletconfig is delivered to the scanner",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{Name: "ocp4-kubelet-anonymous-auth", Rationale: "verify runtime kubeletconfig delivery"},
+				{Name: "ocp4-kubelet-authorization-mode", Rationale: "verify runtime kubeletconfig delivery"},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp, nil); err != nil {
+		t.Fatalf("failed to create tailored profile %s: %s", tpName, err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{Name: tpName, Kind: "TailoredProfile", APIGroup: "compliance.openshift.io/v1alpha1"},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name: "default", Kind: "ScanSetting", APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), ssb, nil); err != nil {
+		t.Fatalf("failed to create scan setting binding %s: %s", bindingName, err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// A node TailoredProfile produces per-role scans; assert against the master scan.
+	scanName := tpName + "-master"
+	kubeletChecks := []struct{ suffix, id string }{
+		{"kubelet-anonymous-auth", "xccdf_org.ssgproject.content_rule_kubelet_anonymous_auth"},
+		{"kubelet-authorization-mode", "xccdf_org.ssgproject.content_rule_kubelet_authorization_mode"},
+	}
+
+	assertKubeletChecksPass := func(phase string) {
+		if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone,
+			compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant); err != nil {
+			t.Fatalf("%s: scan did not finish: %s", phase, err)
+		}
+		for _, c := range kubeletChecks {
+			check := compv1alpha1.ComplianceCheckResult{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-%s", scanName, c.suffix),
+					Namespace: f.OperatorNamespace,
+				},
+				ID:       c.id,
+				Status:   compv1alpha1.CheckResultPass,
+				Severity: compv1alpha1.CheckResultSeverityMedium,
+			}
+			if err := f.AssertHasCheck(bindingName, scanName, check); err != nil {
+				t.Fatalf("%s: kubelet check %q is not PASS - the runtime kubeletconfig was likely not delivered to the scanner: %s", phase, c.suffix, err)
+			}
+		}
+	}
+
+	// First scan: the kubeletconfig must be delivered and read.
+	assertKubeletChecksPass("initial scan")
+
+	// Re-run on the same nodes: catches a non-idempotent delivery that only
+	// breaks on the second and later scans on a node.
+	if err := f.ReRunScan(scanName, f.OperatorNamespace); err != nil {
+		t.Fatalf("failed to re-run scan %s: %s", scanName, err)
+	}
+	assertKubeletChecksPass("re-run scan")
+}
