@@ -6070,9 +6070,11 @@ func TestCISProfileVersionConsistency(t *testing.T) {
 		matchedPairs++
 	}
 
-	// Summary
+	if matchedPairs == 0 || matchedPairs != len(baseCounts) || len(baseCounts) != len(versionedCounts) {
+		t.Fatalf("scan count mismatch: base=%d versioned=%d matched=%d",
+			len(baseCounts), len(versionedCounts), matchedPairs)
+	}
 	t.Logf("Successfully verified %d scan pairs between base and versioned CIS profiles", matchedPairs)
-	t.Log("CIS profile versions produce consistent results")
 }
 
 // TestResultServerSAAndSecurityContext tests that resultserver uses a separate service account
