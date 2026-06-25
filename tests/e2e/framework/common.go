@@ -3103,9 +3103,9 @@ func (f *Framework) WaitForGenericRemediationToBeAutoApplied(remName, remNamespa
 		log.Printf("found remediation: %s\n", remName)
 		if rem.Status.ApplicationState == compv1alpha1.RemediationNotApplied || rem.Status.ApplicationState == compv1alpha1.RemediationPending {
 			log.Printf("retrying. remediation not yet applied. Remediation Name: %s, ApplicationState: %s\n", remName, rem.Status.ApplicationState)
+			return false, nil
 		}
-		// wait for the remediation to get applied
-		time.Sleep(5 * time.Second)
+		// the remediation has been applied; stop polling
 		return true, nil
 	})
 	if lastErr != nil {
