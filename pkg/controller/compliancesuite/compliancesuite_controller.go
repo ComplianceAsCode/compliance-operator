@@ -172,6 +172,13 @@ func (r *ReconcileComplianceSuite) Reconcile(ctx context.Context, request reconc
 	}
 
 	if suiteCopy.IsResultAvailable() {
+		// Re-assert the compliance_state metric from the authoritative suite
+		// result on every reconcile. The gauge lives only in the operator's
+		// in-memory registry, so without this it goes missing after an operator
+		// restart until the next scan phase transition re-emits it (CMP-4373).
+		if err := r.setSuiteMetric(suiteCopy); err != nil {
+			return reconcile.Result{}, err
+		}
 		sCopy := suite.DeepCopy()
 		sCopy.Status.SetConditionReady()
 		updateErr := r.Client.Status().Update(context.TODO(), sCopy)
@@ -188,6 +195,12 @@ func (r *ReconcileComplianceSuite) suiteDeleteHandler(suite *compv1alpha1.Compli
 	if err := r.handleRerunnerDelete(suite, logger); err != nil {
 		return err
 	}
+
+	// Drop the compliance_state series for this suite so a deleted suite stops
+	// being reported. The gauge is keyed by suite name and is otherwise never
+	// cleared, leaving stale series (e.g. a NON-COMPLIANT value) firing alerts
+	// indefinitely after the suite is gone (CMP-4373).
+	r.Metrics.DeleteComplianceStateMetric(suite.Name)
 
 	suiteCopy := suite.DeepCopy()
 	// remove our finalizer from the list and update it.
@@ -349,9 +362,13 @@ func (r *ReconcileComplianceSuite) reconcileScanSpec(scanWrap *compv1alpha1.Comp
 
 // updates the status of a scan in the compliance suite. Note that the suite that this takes is already a copy, so it's safe to modify
 func (r *ReconcileComplianceSuite) updateScanStatus(suite *compv1alpha1.ComplianceSuite, idx int, scanStatusWrap *compv1alpha1.ComplianceScanStatusWrapper, scan *compv1alpha1.ComplianceScan, logger logr.Logger) error {
-	// if yes, update it, if the status differs
-	if scanStatusWrap.Phase == scan.Status.Phase {
-		logger.Info("Not updating scan, the phase is the same", "ComplianceScan.Name", scanStatusWrap.Name, "ComplianceScan.Phase", scanStatusWrap.Phase)
+	// if yes, update it, if the status differs. We compare both the phase and
+	// the result: a rescan returns a scan to the same terminal phase (DONE) it
+	// started from but may carry a different result, so a phase-only check would
+	// miss the change and leave the suite status, events, and the
+	// compliance_state metric stale (CMP-4373).
+	if scanStatusWrap.Phase == scan.Status.Phase && scanStatusWrap.Result == scan.Status.Result {
+		logger.Info("Not updating scan, the phase and result are the same", "ComplianceScan.Name", scanStatusWrap.Name, "ComplianceScan.Phase", scanStatusWrap.Phase, "ComplianceScan.Result", scanStatusWrap.Result)
 		return nil
 	}
 	modScanStatus := compv1alpha1.ScanStatusWrapperFromScan(scan)
