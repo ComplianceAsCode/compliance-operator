@@ -3111,6 +3111,7 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 
+
 	if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
 		t.Fatal(err)
 	}
