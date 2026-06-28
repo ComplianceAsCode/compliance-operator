@@ -8,7 +8,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v0.0.1
-	github.com/openshift/client-go v0.0.1
+	github.com/openshift/client-go v3.9.0+incompatible
 	k8s.io/apimachinery v0.35.5
 	k8s.io/client-go v1.5.2
 	open-cluster-management.io/api v0.15.0
@@ -99,7 +99,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/openshift/api v0.0.1
 	github.com/openshift/library-go v0.0.0-20260609093731-5637f8b25b0d
 	github.com/openshift/machine-config-operator v0.0.1-0.20260410020757-449e78f7ec94
 	github.com/pborman/uuid v1.2.1
