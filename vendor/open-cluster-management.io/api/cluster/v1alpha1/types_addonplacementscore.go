@@ -1,3 +1,4 @@
+// Copyright Contributors to the Open Cluster Management project
 package v1alpha1
 
 import (
@@ -23,8 +24,6 @@ type AddOnPlacementScore struct {
 // AddOnPlacementScoreStatus represents the current status of AddOnPlacementScore.
 type AddOnPlacementScoreStatus struct {
 	// Conditions contain the different condition statuses for this AddOnPlacementScore.
-	// +patchMergeKey=type
-	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
 	// +optional
@@ -36,7 +35,7 @@ type AddOnPlacementScoreStatus struct {
 	// +optional
 	Scores []AddOnPlacementScoreItem `json:"scores,omitempty"`
 
-	// ValidUntil defines the valid time of the scores.
+	// validUntil defines the valid time of the scores.
 	// After this time, the scores are considered to be invalid by placement. nil means never expire.
 	// The controller owning this resource should keep the scores up-to-date.
 	// +kubebuilder:validation:Type=string
@@ -47,12 +46,12 @@ type AddOnPlacementScoreStatus struct {
 
 // AddOnPlacementScoreItem represents the score name and value.
 type AddOnPlacementScoreItem struct {
-	// Name is the name of the score
+	// name is the name of the score
 	// +kubebuilder:validation:Required
 	// +required
 	Name string `json:"name"`
 
-	// Value is the value of the score. The score range is from -100 to 100.
+	// value is the value of the score. The score range is from -100 to 100.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum:=-100
 	// +kubebuilder:validation:Maximum:=100
