@@ -291,7 +291,7 @@ func TestProfileISTagOtherNs(t *testing.T) {
 	if *criticalOnly {
 		t.Skip("Skipping non-critical test")
 	}
-	
+
 	t.Parallel()
 	f := framework.Global
 	const (

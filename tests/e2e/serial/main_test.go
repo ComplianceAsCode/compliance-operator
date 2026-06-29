@@ -3016,7 +3016,7 @@ func TestResultServerNodeSelectorMaster(t *testing.T) {
 	}
 	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, b, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant); err != nil {
 		t.Fatalf("ComplianceSuite %s did not complete: %v", b, err)
-	  }
+	}
 }
 
 func TestResultServerNodeSelectorWorker(t *testing.T) {
@@ -3072,7 +3072,7 @@ func TestResultServerNodeSelectorWorker(t *testing.T) {
 	}
 	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, b, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant); err != nil {
 		t.Fatalf("ComplianceSuite %s did not complete: %v", b, err)
-	  }
+	}
 }
 
 func TestResultServerTolerationsOnTaintedNode(t *testing.T) {
@@ -3179,7 +3179,7 @@ func TestResultServerTolerationsOnTaintedNode(t *testing.T) {
 	}
 	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, b, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant); err != nil {
 		t.Fatalf("ComplianceSuite %s did not complete: %v", b, err)
-	  }
+	}
 }
 
 func TestPrometheusRuleComplianceAlert(t *testing.T) {
@@ -3243,7 +3243,6 @@ func TestPrometheusRuleComplianceAlert(t *testing.T) {
 		t.Fatalf("AlertManager alert check failed: %v", err)
 	}
 }
-
 
 //testExecution{
 //	Name:       "TestNodeSchedulingErrorFailsTheScan",
