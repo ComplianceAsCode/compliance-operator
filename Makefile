@@ -130,6 +130,8 @@ E2E_CLEANUP_ON_ERROR?=false
 E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
 TEST_OPTIONS?=-timeout=20m
 COVERAGE_BASELINE?=coverage-baseline.txt
+TESTABLE_PKGS=$(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v -E '/vendor/|/test|/examples')
+COVERAGE_BASELINE?=coverage-baseline.txt
 TESTABLE_PKGS=$(shell go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v -E '/vendor/|/test|/examples')
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
@@ -587,10 +589,13 @@ catalog-push: ## Push a catalog image.
 .PHONY: test-unit
 test-unit: fmt ## Run the unit tests
 ifndef JUNITFILE
-	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -cover $(TESTABLE_PKGS) | tee .test-output.log
+	@$(GO) test $(TEST_OPTIONS) -cover $(TESTABLE_PKGS) | tee .test-output.log
 else
-	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -cover -json $(TESTABLE_PKGS) --ginkgo.noColor | tee .test-output.log | gotest2junit -v > $(JUNITFILE)
+	@$(GO) test $(TEST_OPTIONS) -cover -cover -json $(TESTABLE_TESTABLE_PKGS) --ginkgo.noColor | tee .test-output.log | tee .test-output.log | gotest2junit -v > $(JUNITFILE)
 endif
+	@if [ -f $(COVERAGE_BASELINE) ]; then \
+		hack/check-coverage.sh .test-output.log $(COVERAGE_BASELINE); \
+	fi
 	@if [ -f $(COVERAGE_BASELINE) ]; then \
 		hack/check-coverage.sh .test-output.log $(COVERAGE_BASELINE); \
 	fi
