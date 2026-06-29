@@ -612,9 +612,13 @@ e2e-test-wait:
 e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests concurrently.
 	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-parallel.log
 
+SCAN_CONFIG_SERIAL_TESTS := TestScanStorageOutOfQuotaRangeFails|TestTolerations|TestSuspendScanSetting|TestSuspendScanSettingDoesNotCreateScan|TestScannerAndAPICollectorLimitsConfigurable|TestStrictNodeScanConfiguration
+SCAN_CONFIG_NS := co-e2e-scan-config
+
 .PHONY: e2e-scan-config
-e2e-scan-config: e2e-set-image prep-e2e ## Run scan and suite configuration end-to-end tests concurrently.
-	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scan-config $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-scan-config.log
+e2e-scan-config: e2e-set-image prep-e2e ## Run scan and suite configuration end-to-end tests: parallel first, then serial.
+	@TEST_OPERATOR_NAMESPACE=$(SCAN_CONFIG_NS) CO_SKIP_TEARDOWN=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scan-config -skip "$(SCAN_CONFIG_SERIAL_TESTS)" $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-scan-config.log
+	@TEST_OPERATOR_NAMESPACE=$(SCAN_CONFIG_NS) CO_SKIP_SETUP=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scan-config -run "$(SCAN_CONFIG_SERIAL_TESTS)" $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee -a tests/e2e-scan-config.log
 
 .PHONY: e2e-deployment
 e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tests concurrently.
