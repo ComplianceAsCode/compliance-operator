@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TEST_OUTPUT="${1:?Usage: $0 <test-output-log> <baseline>}"
-BASELINE="${2:?Usage: $0 <test-output-log> <baseline>}"
+TEST_OUTPUT="${1:?Usage: $0 <test-output-log> <baseline> <coverprofile>}"
+BASELINE="${2:?Usage: $0 <test-output-log> <baseline> <coverprofile>}"
+COVERPROFILE="${3:?Usage: $0 <test-output-log> <baseline> <coverprofile>}"
 
 if [ ! -f "$BASELINE" ]; then
     echo "INFO: No coverage baseline found at $BASELINE — skipping check."
@@ -13,6 +14,13 @@ if [ ! -f "$TEST_OUTPUT" ]; then
     echo "ERROR: Test output $TEST_OUTPUT not found."
     exit 1
 fi
+
+if [ ! -f "$COVERPROFILE" ]; then
+    echo "ERROR: Coverprofile $COVERPROFILE not found."
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Extract per-package coverage from go test output.
 # Handles both plain and JSON (-json) formats:
@@ -32,7 +40,32 @@ extract_coverage() {
     done
 }
 
-coverage=$(extract_coverage "$TEST_OUTPUT")
+# Compute per-package coverage from a coverprofile, excluding generated files.
+extract_filtered_coverage() {
+    local filtered
+    filtered=$(mktemp)
+    trap "rm -f $filtered" RETURN
+    "${SCRIPT_DIR}/filter-coverage.sh" "$1" "$filtered"
+    awk 'NR > 1 {
+        split($1, a, ":")
+        file = a[1]
+        n = split(file, parts, "/")
+        pkg = ""
+        for (i = 1; i < n; i++) pkg = pkg (i > 1 ? "/" : "") parts[i]
+        stmts = $2 + 0
+        count = $3 + 0
+        total[pkg] += stmts
+        if (count > 0) covered[pkg] += stmts
+    }
+    END {
+        for (pkg in total) {
+            pct = (total[pkg] > 0) ? (covered[pkg] / total[pkg] * 100.0) : 0
+            printf "%s\t%.1f\n", pkg, pct
+        }
+    }' "$filtered"
+}
+
+coverage=$(extract_filtered_coverage "$COVERPROFILE")
 
 fail=0
 stale=0
