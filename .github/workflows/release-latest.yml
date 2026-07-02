@@ -5,53 +5,9 @@ on:
     branches: ["master"]
 
 jobs:
-  # Push to latest
-  operator-container-push-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: compliance-operator
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: build/Dockerfile
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
-  bundle-container-push-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: compliance-operator-bundle
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: bundle.Dockerfile
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
-  openscap-container-push-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: openscap-ocp
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: images/openscap/Dockerfile
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
+  # Build catalog from Konflux bundle
+  # Operator, bundle, openscap, and must-gather images are built by Konflux
   catalog-container-push-pr:
-    needs:
-      - operator-container-push-latest
-      - bundle-container-push-latest
     permissions:
       contents: read
       id-token: write
@@ -64,19 +20,5 @@ jobs:
       dockerfile_path: catalog.Dockerfile
       vendor: "Compliance Operator Authors"
       prepare_command: |
-        make catalog-docker BUNDLE_IMGS=ghcr.io/complianceascode/compliance-operator-bundle:latest
+        make catalog-docker BUNDLE_IMGS=quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-bundle-dev:master
       platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
-  must-gather-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: must-gather-ocp
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: images/must-gather/Dockerfile.ocp
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64"
