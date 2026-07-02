@@ -1,7 +1,7 @@
 # Step one: build compliance-operator
 FROM golang:1.25 AS builder
 
-WORKDIR /go/src/github.com/openshift/compliance-operator
+WORKDIR /go/src/github.com/ComplianceAsCode/compliance-operator
 
 ENV GOFLAGS=-mod=vendor
 
@@ -14,7 +14,7 @@ FROM registry.access.redhat.com/ubi9/ubi-micro:latest
 ENV OPERATOR=/usr/local/bin/compliance-operator
 
 # install operator binary
-COPY --from=builder /go/src/github.com/openshift/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR}
+COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR}
 
 COPY build/bin/entrypoint /usr/local/bin/entrypoint
 
