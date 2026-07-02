@@ -257,10 +257,10 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					VolumeMounts: getLogCollectorVolumeMounts(scanInstance),
 				},
 				{
-					Name:    OpenSCAPScanContainerName,
-					Image:   utils.GetComponentImage(utils.OPENSCAP),
+					Name:            OpenSCAPScanContainerName,
+					Image:           utils.GetComponentImage(utils.OPENSCAP),
 					ImagePullPolicy: corev1.PullIfNotPresent,
-					Command: []string{OpenScapScriptPath},
+					Command:         []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:               &falseP,
 						AllowPrivilegeEscalation: &trueP,
@@ -359,8 +359,8 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 	switch scanInstance.Spec.ScannerType {
 	case compv1alpha1.ScannerTypeCEL:
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
-			Name:  CELScannerContainerName,
-			Image: utils.GetComponentImage(utils.OPERATOR),
+			Name:            CELScannerContainerName,
+			Image:           utils.GetComponentImage(utils.OPERATOR),
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command: []string{
 				"compliance-operator", "cel-scanner",
@@ -409,10 +409,10 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 		})
 	default:
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
-			Name:    OpenSCAPScanContainerName,
-			Image:   utils.GetComponentImage(utils.OPENSCAP),
+			Name:            OpenSCAPScanContainerName,
+			Image:           utils.GetComponentImage(utils.OPENSCAP),
 			ImagePullPolicy: corev1.PullIfNotPresent,
-			Command: []string{OpenScapScriptPath},
+			Command:         []string{OpenScapScriptPath},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &falseP,
 				ReadOnlyRootFilesystem:   &trueP,

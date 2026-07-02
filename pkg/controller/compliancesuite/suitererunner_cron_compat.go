@@ -140,8 +140,8 @@ func (r *ReconcileComplianceSuite) getRerunnerPodTemplate(
 			PriorityClassName:  priorityClassName,
 			Containers: []corev1.Container{
 				{
-					Name:  "rerunner",
-					Image: utils.GetComponentImage(utils.OPERATOR),
+					Name:            "rerunner",
+					Image:           utils.GetComponentImage(utils.OPERATOR),
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: &falseP,

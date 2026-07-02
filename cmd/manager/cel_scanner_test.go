@@ -228,7 +228,7 @@ var _ = Describe("getVariablesForProfile", func() {
 	It("returns empty when profile has no values", func() {
 		scheme := newTestScheme()
 		profile := &cmpv1alpha1.Profile{
-			ObjectMeta: metav1.ObjectMeta{Name: "no-vals", Namespace: "ns"},
+			ObjectMeta:     metav1.ObjectMeta{Name: "no-vals", Namespace: "ns"},
 			ProfilePayload: cmpv1alpha1.ProfilePayload{},
 		}
 		client := fake.NewClientBuilder().WithScheme(scheme).
@@ -331,14 +331,14 @@ var _ = Describe("celRuleWrapper", func() {
 			},
 		}
 
-	w := celRuleWrapper{
-		scannerRule: rule,
-		payload:     &rule.RulePayload,
-	}
+		w := celRuleWrapper{
+			scannerRule: rule,
+			payload:     &rule.RulePayload,
+		}
 
-	Expect(w.scannerRule.Identifier()).To(Equal("my-rule"))
-	Expect(w.payload.Expression).To(Equal("pods.items.size() > 0"))
-	Expect(w.payload.FailureReason).To(Equal("no pods"))
+		Expect(w.scannerRule.Identifier()).To(Equal("my-rule"))
+		Expect(w.payload.Expression).To(Equal("pods.items.size() > 0"))
+		Expect(w.payload.FailureReason).To(Equal("no pods"))
 	})
 })
 
