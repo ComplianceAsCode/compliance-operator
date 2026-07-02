@@ -38,7 +38,7 @@ metadata:
             "scans": [
               {
                 "content": "ssg-rhcos4-ds.xml",
-                "contentImage": "ghcr.io/complianceascode/k8scontent:latest",
+                "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master",
                 "name": "workers-scan",
                 "nodeSelector": {
                   "node-role.kubernetes.io/worker": ""
@@ -47,7 +47,7 @@ metadata:
               },
               {
                 "content": "ssg-ocp4-ds.xml",
-                "contentImage": "ghcr.io/complianceascode/k8scontent:latest",
+                "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master",
                 "name": "platform-scan",
                 "profile": "xccdf_org.ssgproject.content_profile_moderate",
                 "scanType": "Platform"
@@ -64,7 +64,7 @@ metadata:
           },
           "spec": {
             "contentFile": "ssg-ocp4-ds.xml",
-            "contentImage": "ghcr.io/complianceascode/k8scontent:latest"
+            "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master"
           }
         },
         {
@@ -1360,12 +1360,12 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
                 - name: RELATED_IMAGE_OPENSCAP
-                  value: ghcr.io/complianceascode/openscap-ocp:latest
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev:master
                 - name: RELATED_IMAGE_OPERATOR
-                  value: ghcr.io/complianceascode/compliance-operator:latest
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master
                 - name: RELATED_IMAGE_PROFILE
-                  value: ghcr.io/complianceascode/k8scontent:latest
-                image: ghcr.io/complianceascode/compliance-operator:latest
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
+                image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master
                 imagePullPolicy: IfNotPresent
                 name: compliance-operator
                 resources:
@@ -1735,11 +1735,11 @@ spec:
     name: Red Hat Inc.
     url: www.redhat.com
   relatedImages:
-  - image: ghcr.io/complianceascode/openscap-ocp:latest
+  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev:master
     name: openscap
-  - image: ghcr.io/complianceascode/compliance-operator:latest
+  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master
     name: operator
-  - image: ghcr.io/complianceascode/k8scontent:latest
+  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
     name: profile
   replaces: compliance-operator.v1.7.1
   version: 1.8.0-dev
