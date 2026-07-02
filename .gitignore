@@ -86,3 +86,5 @@ tests/e2e-*.log
 # Build artifacts from cmd/
 /cel-bundler
 cel-bundle.yaml
+# Claude settings
+.claude/settings.local.json
