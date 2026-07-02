@@ -82,7 +82,12 @@ func (nh *nodeScanTypeHandler) getScan() *compv1alpha1.ComplianceScan {
 func (nh *nodeScanTypeHandler) getTargetNodes() ([]corev1.Node, error) {
 	var nodes corev1.NodeList
 
-	switch nh.scan.GetScanType() {
+	scanType, err := nh.scan.GetScanType()
+	if err != nil {
+		return nil, fmt.Errorf("getting scan type: %w", err)
+	}
+
+	switch scanType {
 	case compv1alpha1.ScanTypePlatform:
 		return nodes.Items, nil // Nodes are only relevant to the node scan type. Return the empty node list otherwise.
 	case compv1alpha1.ScanTypeNode:

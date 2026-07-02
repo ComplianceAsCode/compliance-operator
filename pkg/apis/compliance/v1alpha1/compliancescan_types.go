@@ -392,24 +392,12 @@ func (cs *ComplianceScan) GetScannerTypeIfValid() (ScannerType, error) {
 	return "", ErrUnkownScanerType
 }
 
-// GetScanType get's the scan type for a scan
-func (cs *ComplianceScan) GetScanType() ComplianceScanType {
-	scantype, err := cs.GetScanTypeIfValid()
-	if err != nil {
-		// This shouldn't happen
-		panic(err)
-	}
-	return scantype
+func (cs *ComplianceScan) GetScanType() (ComplianceScanType, error) {
+	return cs.GetScanTypeIfValid()
 }
 
-// GetScannerType will get the scanner type for a scan
-func (cs *ComplianceScan) GetScannerType() ScannerType {
-	scannertype, err := cs.GetScannerTypeIfValid()
-	if err != nil {
-		// This shouldn't happen
-		panic(err)
-	}
-	return scannertype
+func (cs *ComplianceScan) GetScannerType() (ScannerType, error) {
+	return cs.GetScannerTypeIfValid()
 }
 
 // Returns whether remediation enforcement is off or not
