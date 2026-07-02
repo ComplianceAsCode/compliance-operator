@@ -1,0 +1,12 @@
+{
+	// All paths are relative to your main repo
+	// The additional repos are cloned inside /workspace dir
+	"folders": [
+		{
+			"path": "." // Main repo that you will open in Gitpod
+		},
+		{
+			"path": "../content" // Additional repo
+		},
+	]
+}
