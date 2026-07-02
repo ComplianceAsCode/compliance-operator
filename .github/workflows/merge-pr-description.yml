@@ -1,0 +1,68 @@
+name: "merge-pr-description"
+
+on:
+  pull_request:
+    types: [ closed ]
+
+jobs:
+  generate-changelog:
+    name: Check PR description to see if everything has been filled in
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: 8BitJonny/gh-get-current-pr@2.2.0
+        id: PR
+        with:
+          # Authetication token to access GitHub APIs. (Can be omitted by default.)
+          github-token: ${{ github.token }}
+          # Verbose setting SHA when using Pull_Request event trigger to fix #16. (For push even trigger this is not necessary.)
+          sha: ${{ github.event.pull_request.head.sha }}
+          # Only return if PR is still open. (By default it returns PRs in any state.)
+          filterOutClosed: false
+          # Only return if PR is not in draft state. (By default it returns PRs in any state.)
+          filterOutDraft: true
+
+      - name: Get PR description and save it to a file
+        if: steps.PR.outputs.pr_found == 'true'
+        run: |
+          echo "PR description: ${{ steps.PR.outputs.pr_body }}"
+          echo "${{ steps.PR.outputs.pr_body }}" > pr_description.txt
+          
+      - name: Get python script to check PR description
+        if: steps.PR.outputs.pr_found == 'true'
+        run: |
+          curl -o pr_utility.py https://raw.githubusercontent.com/Vincent056/compliance-operator/test-pr/utils/pr_utility.py
+          chmod +x pr_utility.py
+
+      - name: Install Python 
+        if: steps.PR.outputs.pr_found == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3-pip
+
+      - name: Save PR description to a file
+        if: steps.PR.outputs.pr_found == 'true'
+        run: |
+          python3 pr_utility.py -i pr_description.txt -p > pr_output.json
+      
+      - name: Check if PR is needed to be added to CHANGELOG.md
+        if: steps.PR.outputs.pr_found == 'true'
+        id: needs_changelog
+        run: |
+          NO_CHANGELOG=$(cat pr_output.json | jq '."change_type"."not_applicable"')
+          echo "NO_CHANGELOG=$NO_CHANGELOG" >> $GITHUB_OUTPUT
+          
+      - name: Update Changelog
+        if: steps.needs_changelog.outputs.NO_CHANGELOG == 'false'
+        run: |
+          python3 pr_utility.py -u -c ./CHANGELOG.md -i pr_output.json -pr ${{ github.event.pull_request.number }}
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG.md for PR ${{ github.event.pull_request.number }}"
+          git push
