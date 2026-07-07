@@ -628,14 +628,37 @@ if it is longer than timeout, we will terminate the scan or retry.
 A timeout scan will send a warning on retries, and the scan will have an
 error result.
 
+## HCP (Hosted Control Planes) Compliance Overview
+
+[HyperShift](https://hypershift-docs.netlify.app/) enables running OpenShift control planes as pods
+on a management cluster, creating a separation between control plane and worker nodes.
+
+**Understanding HCP Compliance Architecture:**
+
+| Component | Location | How to Scan |
+|-----------|----------|-------------|
+| Control Plane (API server, etcd, etc.) | Management Cluster | TailoredProfile on management cluster |
+| Worker Nodes | Hosted Cluster | Standard node scans from hosted cluster |
+
+**Sample configurations are available in:** `config/samples/hcp/`
+
+**Key Points:**
+- Control plane compliance can only be assessed from the management cluster
+- Worker node compliance is assessed from the hosted cluster
+- The compliance operator automatically detects HCP environments and adjusts defaults
+- When running on a hosted cluster, an annotation `compliance.openshift.io/hcp-note` is added
+  to indicate that control plane scanning requires management cluster setup
+
 ## How to Use Compliance Operator with HyperShift Management Cluster
 
 [Hypershift](https://hypershift-docs.netlify.app/) allows one to create and manage clusters on existing infrastructure.
 Compliance Operator is able to create a platform scan on the [HyperShift Management Cluster](https://hypershift-docs.netlify.app/reference/concepts-and-personas/)
 for the Hosted Cluster with a `TailoredProfile`.
 
-Currently, we only support CIS profile and PCI-DSS profile,
-you can either extend `ocp4-cis` or `ocp4-pci-dss`.
+**Pre-built sample profiles are available in:** `config/samples/hcp/`
+
+Currently, we support CIS profile and PCI-DSS profile.
+You can either extend `ocp4-cis` or `ocp4-pci-dss`.
 
 In order to scan a Hosted Cluster, you need to create a `TailoredProfile` specifying the
 name and namespace of the Hosted Cluster that you want to scan.
