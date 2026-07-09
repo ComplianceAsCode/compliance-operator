@@ -287,10 +287,8 @@ func getServerTLSConfig() *tls.Config {
 		cmdLog.Info("Could not fetch TLS profile, using defaults", "error", err)
 		return tlsConfig
 	}
-	tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(profile)
-	if len(unsupported) > 0 {
+	if unsupported := applyClusterTLSProfile(tlsConfig, profile, adherence); len(unsupported) > 0 {
 		cmdLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
 	}
-	tlsConfigFn(tlsConfig)
 	return tlsConfig
 }

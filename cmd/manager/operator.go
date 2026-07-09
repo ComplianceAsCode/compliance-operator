@@ -298,13 +298,11 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		func(c *tls.Config) {
 			c.NextProtos = []string{"http/1.1"}
 		},
-	}
-	if libgocrypto.ShouldHonorClusterTLSProfile(initialTLSAdherencePolicy) {
-		tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(initialTLSProfile)
-		if len(unsupported) > 0 {
-			setupLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
-		}
-		webhookTLSOpts = append(webhookTLSOpts, tlsConfigFn)
+		func(c *tls.Config) {
+			if unsupported := applyClusterTLSProfile(c, initialTLSProfile, initialTLSAdherencePolicy); len(unsupported) > 0 {
+				setupLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+			}
+		},
 	}
 	webhookServerOptions := webhook.Options{
 		Port:    9443,
