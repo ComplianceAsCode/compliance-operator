@@ -12,16 +12,16 @@ var _ = Describe("RulePayload shared helpers", func() {
 
 	BeforeEach(func() {
 		payload = RulePayload{
-			ID:          "test-rule-id",
-			Title:       "Test Rule",
-			Description: "A test rule description",
-			Rationale:   "Test rationale",
-			Warning:     "Test warning",
-			Severity:    "high",
+			ID:           "test-rule-id",
+			Title:        "Test Rule",
+			Description:  "A test rule description",
+			Rationale:    "Test rationale",
+			Warning:      "Test warning",
+			Severity:     "high",
 			Instructions: "Test instructions",
-			CheckType:   CheckTypePlatform,
-			ScannerType: ScannerTypeCEL,
-			Expression:  "pods.items.all(p, p.spec.securityContext != null)",
+			CheckType:    CheckTypePlatform,
+			ScannerType:  ScannerTypeCEL,
+			Expression:   "pods.items.all(p, p.spec.securityContext != null)",
 			Inputs: []InputPayload{
 				{
 					Name: "pods",

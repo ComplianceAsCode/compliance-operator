@@ -27,26 +27,26 @@ type CELBundleContent struct {
 
 // CELRuleContent represents a single CEL rule definition in the content file.
 type CELRuleContent struct {
-	Name          string                       `json:"name"`
-	ID            string                       `json:"id"`
-	Title         string                       `json:"title"`
-	Description   string                       `json:"description,omitempty"`
-	Rationale     string                       `json:"rationale,omitempty"`
-	Severity      string                       `json:"severity"`
-	CheckType     string                       `json:"checkType"`
-	Expression    string                       `json:"expression"`
-	Inputs        []cmpv1alpha1.InputPayload    `json:"inputs"`
-	FailureReason string                       `json:"failureReason,omitempty"`
-	Instructions  string                       `json:"instructions,omitempty"`
+	Name          string                     `json:"name"`
+	ID            string                     `json:"id"`
+	Title         string                     `json:"title"`
+	Description   string                     `json:"description,omitempty"`
+	Rationale     string                     `json:"rationale,omitempty"`
+	Severity      string                     `json:"severity"`
+	CheckType     string                     `json:"checkType"`
+	Expression    string                     `json:"expression"`
+	Inputs        []cmpv1alpha1.InputPayload `json:"inputs"`
+	FailureReason string                     `json:"failureReason,omitempty"`
+	Instructions  string                     `json:"instructions,omitempty"`
 	// Variables lists the Variable CR names that this rule depends on.
 	// Sets the compliance.openshift.io/rule-variable annotation.
 	// +optional
-	Variables     []string                     `json:"variables,omitempty"`
+	Variables []string `json:"variables,omitempty"`
 	// Controls maps compliance standard names to their control IDs.
 	// Sets control.compliance.openshift.io/<standard> and RHACM annotations.
 	// Example: {"NIST-800-53": ["IA-5(f)", "CM-6(a)"], "CIS-OCP": ["1.2.3"]}
 	// +optional
-	Controls      map[string][]string          `json:"controls,omitempty"`
+	Controls map[string][]string `json:"controls,omitempty"`
 }
 
 // CELProfileContent represents a single CEL profile definition in the content file.
@@ -61,9 +61,9 @@ type CELProfileContent struct {
 	// Values lists the Variable CR names this profile references.
 	// Stored in Profile.Values so the CEL scanner can load them.
 	// +optional
-	Values      []string `json:"values,omitempty"`
+	Values []string `json:"values,omitempty"`
 	// +optional
-	Version     string   `json:"version,omitempty"`
+	Version string `json:"version,omitempty"`
 }
 
 // ParseCELBundle reads a CEL content YAML file and creates Rule and Profile CRs.

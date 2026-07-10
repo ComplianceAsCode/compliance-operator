@@ -533,8 +533,8 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 							},
 						},
 						{
-							Name:  "profileparser",
-							Image: utils.GetComponentImage(utils.OPERATOR),
+							Name:            "profileparser",
+							Image:           utils.GetComponentImage(utils.OPERATOR),
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: &falseP,
@@ -570,8 +570,8 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 					},
 					Containers: []corev1.Container{
 						{
-							Name:  "pauser",
-							Image: utils.GetComponentImage(utils.OPERATOR),
+							Name:            "pauser",
+							Image:           utils.GetComponentImage(utils.OPERATOR),
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: &falseP,
