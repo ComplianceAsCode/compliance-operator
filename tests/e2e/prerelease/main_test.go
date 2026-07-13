@@ -174,7 +174,7 @@ func TestResourceRequestsQuotaVariable(t *testing.T) {
 			t.Logf("cleanup ScanSettingBinding %s failed: %v", ssbModerate.Name, err)
 		}
 	}()
-	
+
 	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, ssbModerate.Name, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
 		t.Fatal(err)
 	}
@@ -205,4 +205,3 @@ func TestResourceRequestsQuotaVariable(t *testing.T) {
 		t.Fatalf("check %s did not become PASS: %v", moderateCheckName, err)
 	}
 }
-

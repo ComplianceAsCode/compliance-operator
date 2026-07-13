@@ -782,7 +782,7 @@ func generatePodOverrides(command string) (string, error) {
 		"spec": map[string]interface{}{
 			"serviceAccountName": PrometheusTestSA,
 			"securityContext": map[string]interface{}{
-				"runAsNonRoot": true,
+				"runAsNonRoot":   true,
 				"seccompProfile": map[string]interface{}{"type": "RuntimeDefault"},
 			},
 			"containers": []map[string]interface{}{

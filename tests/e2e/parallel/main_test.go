@@ -5261,7 +5261,7 @@ func TestTailoringManualRulesDoesNotGenerateRemediations(t *testing.T) {
 func TestTailoringEnabledRulesGenerateRemediations(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
-        var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "kubeletconfig")
+	var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "kubeletconfig")
 	// This rule is expected to fail in the test environment, allowing us to verify remediation generation
 	const requiredRule = "oauth-or-oauthclient-token-maxage"
 	// Use short but meaningful names to fit within Kubernetes 63-char DNS name limit

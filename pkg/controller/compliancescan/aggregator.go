@@ -76,8 +76,8 @@ func (r *ReconcileComplianceScan) newAggregatorPod(scanInstance *compv1alpha1.Co
 			},
 			Containers: []corev1.Container{
 				{
-					Name:  "aggregator",
-					Image: utils.GetComponentImage(utils.OPERATOR),
+					Name:            "aggregator",
+					Image:           utils.GetComponentImage(utils.OPERATOR),
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command: []string{
 						"compliance-operator", "aggregator",
