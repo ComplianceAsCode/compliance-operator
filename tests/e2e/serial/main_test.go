@@ -2485,10 +2485,28 @@ func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
 		return
 	}
 
-	// Check that remediation was auto-applied
-	remName := fmt.Sprintf("%s-sshd-disable-gssapi-auth", scanName)
-	if err := f.WaitForRemediationToBeAutoApplied(remName, f.OperatorNamespace, poolBeforeRemediation); err != nil {
-		t.Logf("Remediation might not be needed or already applied: %v", err)
+	// The sshd_disable_gssapi_auth fix ships two MachineConfig variants gated by
+	// OCP version (<4.13.0 and >=4.13.0). The operator only generates a
+	// ComplianceRemediation for the variant matching the cluster, so the applied
+	// remediation name carries a version-dependent index suffix (e.g. "-1" for the
+	// >=4.13.0 variant). Hard-coding the base name (the <4.13.0 variant) meant the
+	// test waited on a remediation that is never created on modern clusters, so
+	// WaitForRemediationToBeAutoApplied blocked for the full 30m Timeout and
+	// silently timed out every run. The suite scan already reached DONE above, so
+	// any remediation for this scan is already created - discover it by scan label
+	// and wait for the one that actually exists.
+	remList := &compv1alpha1.ComplianceRemediationList{}
+	if err := f.Client.List(context.TODO(), remList, client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{compv1alpha1.ComplianceScanLabel: scanName}); err != nil {
+		t.Fatalf("failed to list remediations for scan %s: %v", scanName, err)
+	}
+	if len(remList.Items) == 0 {
+		t.Logf("No ComplianceRemediation generated for scan %s; continuing", scanName)
+	}
+	for i := range remList.Items {
+		if err := f.WaitForRemediationToBeAutoApplied(remList.Items[i].Name, f.OperatorNamespace, poolBeforeRemediation); err != nil {
+			t.Logf("Remediation %s might not be needed or already applied: %v", remList.Items[i].Name, err)
+		}
 	}
 
 	// Re-run the scan to verify compliance with runtime checking
@@ -2519,15 +2537,19 @@ func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
 		}
 	}
 
-	// Clean up the remediation if it was applied
-	rem := &compv1alpha1.ComplianceRemediation{}
-	if err := f.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      remName,
-		Namespace: f.OperatorNamespace,
-	}, rem); err == nil {
+	// Clean up any remediations that were applied
+	for i := range remList.Items {
+		remName := remList.Items[i].Name
+		rem := &compv1alpha1.ComplianceRemediation{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      remName,
+			Namespace: f.OperatorNamespace,
+		}, rem); err != nil {
+			continue
+		}
 		// Unapply the remediation
 		if err := f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, framework.TestPoolName); err != nil {
-			t.Logf("Could not unapply remediation: %v", err)
+			t.Logf("Could not unapply remediation %s: %v", remName, err)
 		}
 
 		// Wait for nodes to be ready again
