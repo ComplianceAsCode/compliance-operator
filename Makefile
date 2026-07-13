@@ -65,12 +65,16 @@ DEFAULT_TAG=latest
 # or your e2e tests.
 TAG?=$(DEFAULT_TAG)
 
+# Konflux dev image defaults — must match config/manager/deployment.yaml
+DEFAULT_KONFLUX_REPO=quay.io/redhat-user-workloads/ocp-isc-tenant
+DEFAULT_KONFLUX_TAG=master
+
 OPENSCAP_NAME=openscap-ocp
 DEFAULT_OPENSCAP_TAG=latest
 OPENSCAP_TAG?=$(DEFAULT_OPENSCAP_TAG)
 OPENSCAP_DOCKER_FILE=./images/openscap/Containerfile
-DEFAULT_OPENSCAP_IMAGE=$(DEFAULT_REPO)/$(OPENSCAP_NAME):$(DEFAULT_OPENSCAP_TAG)
-OPENSCAP_IMAGE?=$(DEFAULT_OPENSCAP_IMAGE)
+DEFAULT_OPENSCAP_IMAGE=$(DEFAULT_KONFLUX_REPO)/$(APP_NAME)-openscap-dev:$(DEFAULT_KONFLUX_TAG)
+OPENSCAP_IMAGE?=$(DEFAULT_REPO)/$(OPENSCAP_NAME):$(OPENSCAP_TAG)
 
 # Image path to use. Set this if you want to use a specific path for building
 # or your e2e tests. This is overwritten if we build the image and push it to
@@ -137,10 +141,10 @@ E2E_USE_DEFAULT_IMAGES?=false
 E2E_SKIP_CONTAINER_BUILD?=false
 
 # Used for substitutions
-DEFAULT_CONTENT_IMAGE=ghcr.io/complianceascode/k8scontent:latest
+DEFAULT_CONTENT_IMAGE=$(DEFAULT_KONFLUX_REPO)/$(APP_NAME)-content-dev:$(DEFAULT_KONFLUX_TAG)
 CONTENT_IMAGE?=$(DEFAULT_CONTENT_IMAGE)
 # Specifies the image path to use for the content in the tests
-E2E_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/k8scontent:latest
+E2E_CONTENT_IMAGE_PATH?=$(DEFAULT_CONTENT_IMAGE)
 # We specifically omit the tag here since we use this for testing
 # different images referenced by different tags.
 E2E_BROKEN_CONTENT_IMAGE_PATH?=ghcr.io/complianceascode/test-broken-content-ocp
@@ -252,7 +256,7 @@ endif
 CATALOG_DEPLOY_NS ?= $(NAMESPACE)
 
 BUNDLE_CSV_FILE=bundle/manifests/compliance-operator.clusterserviceversion.yaml
-DEFAULT_OPERATOR_IMAGE=$(DEFAULT_REPO)/$(APP_NAME):$(DEFAULT_TAG)
+DEFAULT_OPERATOR_IMAGE=$(DEFAULT_KONFLUX_REPO)/$(APP_NAME)-dev:$(DEFAULT_KONFLUX_TAG)
 
 ##@ General
 
