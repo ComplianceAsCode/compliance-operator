@@ -325,9 +325,40 @@ var _ = Describe("Testing filtering", func() {
 				rawmc, readErr = io.ReadAll(nsFile)
 				Expect(readErr).To(BeNil())
 			})
-			It("skips filter piping errors", func() {
-				_, filterErr := filter(context.TODO(), rawmc, `[.items[] | select(.metadata.name | test("^rendered-worker-[0-9a-z]+$|^rendered-master-[0-9a-z]+$"))] | map(.spec.fips == true)`)
-				Expect(filterErr).Should(MatchError(NullValErr))
+			It("retries with optional iteration on null items", func() {
+				filteredOut, filterErr := filter(context.TODO(), rawmc, `[.items[] | select(.metadata.name | test("^rendered-worker-[0-9a-z]+$|^rendered-master-[0-9a-z]+$"))] | map(.spec.fips == true)`)
+				Expect(filterErr).To(BeNil())
+				Expect(string(filteredOut)).To(Equal("[]"))
+			})
+		})
+		Context("PrometheusRule with empty spec", func() {
+			var rawpr []byte
+			BeforeEach(func() {
+				prFile, err := os.Open("../../tests/data/prometheusrules_mixed.json")
+				Expect(err).To(BeNil())
+				var readErr error
+				rawpr, readErr = io.ReadAll(prFile)
+				Expect(readErr).To(BeNil())
+			})
+			It("retries with optional iteration and preserves valid data", func() {
+				filteredOut, filterErr := filter(context.TODO(), rawpr,
+					`[.items[].spec.groups[].rules[].expr]`)
+				Expect(filterErr).To(BeNil())
+				var exprArr []interface{}
+				unmErr := json.Unmarshal(filteredOut, &exprArr)
+				Expect(unmErr).To(BeNil())
+				Expect(exprArr).To(HaveLen(1))
+				Expect(exprArr[0]).To(Equal("apiserver_audit_error_total / apiserver_audit_event_total > 0"))
+			})
+			It("succeeds directly with optional iterator", func() {
+				filteredOut, filterErr := filter(context.TODO(), rawpr,
+					`[.items[]?.spec.groups[]?.rules[]?.expr]`)
+				Expect(filterErr).To(BeNil())
+				var exprArr []interface{}
+				unmErr := json.Unmarshal(filteredOut, &exprArr)
+				Expect(unmErr).To(BeNil())
+				Expect(exprArr).To(HaveLen(1))
+				Expect(exprArr[0]).To(Equal("apiserver_audit_error_total / apiserver_audit_event_total > 0"))
 			})
 		})
 	})
