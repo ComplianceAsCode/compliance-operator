@@ -1,8 +1,9 @@
 # CEL Cookbook (for Kubernetes compliance rules)
 
-Patterns below are verified against the cel-go evaluation engine that `celctl` uses (the
-same one the old cel-rpc-server used). Still, always round-trip your final expression
-through `celctl verify` — treat this as a starting point, not a guarantee.
+Patterns below are verified against the evaluation engine `celctl` uses — the
+compliance-sdk scanner, the same engine the Compliance Operator runs. Still, always
+round-trip your final expression through `celctl cac test` (or `celctl eval` for ad-hoc
+snippets) — treat this as a starting point, not a guarantee.
 
 ## The #1 rule: data is List-wrapped
 
@@ -84,6 +85,6 @@ Both `namespaces` and `networkpolicies` must be declared as separate inputs.
   with `has(c.data) && has(c.data["k"])` (or `"k" in c.data`).
 - **Numbers from JSON** may be int or double; comparisons like `>= 2` are fine, but avoid
   mixing types in equality.
-- **`celctl live` needs List-form expressions.** Each input is fetched via
-  `kubectl get -o json` as a List; iterate with `.items`. (A single named object is
-  wrapped into `{"items":[obj]}` so `.items` still works.)
+- **List inputs need List-form expressions.** An input without `resource_name` is
+  fetched as a List; iterate with `.items`. An input with `resource_name` binds the
+  single object directly.
