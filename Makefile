@@ -430,6 +430,13 @@ build: generate fmt vet test-unit ## Build the operator binary.
 .PHONY: manager
 manager: build  ## Alias for make build.
 
+.PHONY: celctl
+celctl: ## Build the celctl CLI (developer tool, not shipped) to build/_output/bin.
+	$(GO) build \
+		-trimpath \
+		-ldflags=-buildid= \
+		-o $(TARGET_DIR)/bin/celctl ./cmd/celctl
+
 .PHONY: verify-bundle
 verify-bundle: bundle ## Verify the bundle doesn't alter the state of the tree
 	hack/tree-status

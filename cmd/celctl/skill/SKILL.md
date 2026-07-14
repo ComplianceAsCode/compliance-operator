@@ -6,7 +6,7 @@ description: Author, validate, run, and manage Kubernetes CEL compliance rules w
 # CEL Rule
 
 End-to-end helper for **Common Expression Language (CEL)** rules that check Kubernetes
-resources. It drives **`celctl`**, a self-contained CLI in this repo that evaluates CEL
+resources. It drives **`celctl`**, a CLI shipped in the compliance-operator repo (cmd/celctl) that evaluates CEL
 locally with cel-go (the same engine the old `cel-rpc-server` used), and runs rules against a
 live cluster via `kubectl`. Rules themselves live in the ComplianceAsCode/content repo.
 
@@ -23,12 +23,12 @@ The skill assumes a `celctl` binary exists (check `celctl --help`, or `$CELCTL`)
 is missing, install it:
 
 ```bash
-go install github.com/Vincent056/cel-rule-skill/celctl@latest
-# from a clone instead: cd <repo>/celctl && go build -o celctl . && cp celctl ~/.local/bin/
+go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest
+# from a compliance-operator checkout instead: make celctl  (build/_output/bin/celctl)
 ```
 
 To update both the tool and this skill:
-`go install github.com/Vincent056/cel-rule-skill/celctl@latest && celctl skill install`.
+`go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest && celctl skill install`.
 Live-cluster commands additionally require a working `kubectl` (current context = the
 cluster you want to check).
 

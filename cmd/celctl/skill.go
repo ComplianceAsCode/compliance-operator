@@ -5,7 +5,7 @@
 // delivers both the tool and the skill. Re-running install after upgrading the
 // binary updates the skill in place: updating is
 //
-//	go install github.com/Vincent056/cel-rule-skill/celctl@latest
+//	go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest
 //	celctl skill install
 package main
 
@@ -101,14 +101,14 @@ func skillInstall(args []string) int {
 	if err != nil {
 		return fail("%v", err)
 	}
-	marker := fmt.Sprintf("version: %s\ninstalled: %s\nsource: github.com/Vincent056/cel-rule-skill/celctl\n",
+	marker := fmt.Sprintf("version: %s\ninstalled: %s\nsource: github.com/ComplianceAsCode/compliance-operator/cmd/celctl\n",
 		binaryVersion(), time.Now().UTC().Format(time.RFC3339))
 	if err := os.WriteFile(filepath.Join(*dir, skillMarkerName), []byte(marker), 0o644); err != nil {
 		return fail("%v", err)
 	}
 	fmt.Printf("installed skill (%d files, version %s) to %s\n", n, binaryVersion(), *dir)
 	fmt.Println("restart Claude Code (or start a new session) to pick it up")
-	fmt.Println("to update later: go install github.com/Vincent056/cel-rule-skill/celctl@latest && celctl skill install")
+	fmt.Println("to update later: go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest && celctl skill install")
 	return 0
 }
 
