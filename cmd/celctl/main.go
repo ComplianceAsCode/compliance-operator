@@ -16,6 +16,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/ComplianceAsCode/compliance-sdk/pkg/scanner"
 )
 
 // newFlags returns a FlagSet that prints a contextual usage line on error.
@@ -45,20 +47,7 @@ func reorderArgs(args []string) []string {
 	return append(flags, pos...)
 }
 
-// ----- rule model (compatible with cel-rpc-server FileRuleStore JSON) -----
-
-type KubernetesInput struct {
-	Group        string `json:"group,omitempty"`
-	Version      string `json:"version"`
-	Resource     string `json:"resource"`
-	Namespace    string `json:"namespace,omitempty"`
-	ResourceName string `json:"resource_name,omitempty"`
-}
-
-type RuleInput struct {
-	Name       string           `json:"name"`
-	Kubernetes *KubernetesInput `json:"kubernetes,omitempty"`
-}
+// ----- ad-hoc test-case model (used by `verify --expr --test`) -----
 
 type TestCase struct {
 	Description    string `json:"description,omitempty"`
@@ -66,19 +55,6 @@ type TestCase struct {
 	// TestData maps a variable name to its data. Accepts either a JSON string
 	// (cel-rpc-server format) or an inline JSON object — see UnmarshalJSON.
 	TestData map[string]json.RawMessage `json:"test_data"`
-}
-
-type Rule struct {
-	ID          string                 `json:"id,omitempty"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Expression  string                 `json:"expression"`
-	Inputs      []RuleInput            `json:"inputs"`
-	TestCases   []TestCase             `json:"test_cases,omitempty"`
-	Tags        []string               `json:"tags,omitempty"`
-	Category    string                 `json:"category,omitempty"`
-	Severity    string                 `json:"severity,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ----- CEL evaluation core -----
@@ -89,9 +65,8 @@ type Rule struct {
 //
 
 // decodeTestData turns a test case's TestData (each value a JSON string or
-// inline object) into decoded Go values ready for CEL. Inputs not present
-// default to an empty List, matching the server's behaviour.
-func decodeTestData(td map[string]json.RawMessage, inputs []RuleInput) (map[string]interface{}, error) {
+// inline object) into decoded Go values ready for CEL.
+func decodeTestData(td map[string]json.RawMessage) (map[string]interface{}, error) {
 	vars := map[string]interface{}{}
 	for name, raw := range td {
 		v, err := decodeMaybeString(raw)
@@ -99,12 +74,6 @@ func decodeTestData(td map[string]json.RawMessage, inputs []RuleInput) (map[stri
 			return nil, fmt.Errorf("input %q: %w", name, err)
 		}
 		vars[name] = v
-	}
-	// Default missing declared inputs to an empty list wrapper.
-	for _, in := range inputs {
-		if _, ok := vars[in.Name]; !ok {
-			vars[in.Name] = map[string]interface{}{"items": []interface{}{}}
-		}
 	}
 	return vars, nil
 }
@@ -135,43 +104,32 @@ func decodeMaybeString(raw json.RawMessage) (interface{}, error) {
 
 func cmdVerify(args []string) int {
 	fs := newFlags("verify")
-	rulePath := fs.String("rule", "", "path to a rule JSON file (with test_cases)")
-	expr := fs.String("expr", "", "CEL expression (alternative to --rule)")
-	dataPath := fs.String("test", "", "path to a JSON file of test cases (used with --expr)")
+	expr := fs.String("expr", "", "CEL expression (required)")
+	dataPath := fs.String("test", "", "path to a JSON file with an array of test cases (required)")
 	fs.Parse(reorderArgs(args))
-
-	var rule Rule
-	if *rulePath != "" {
-		if err := loadJSON(*rulePath, &rule); err != nil {
-			return fail("load rule: %v", err)
-		}
-	} else if *expr != "" {
-		rule.Expression = *expr
-		if *dataPath != "" {
-			if err := loadJSON(*dataPath, &rule.TestCases); err != nil {
-				return fail("load test cases: %v", err)
-			}
-		}
-	} else {
-		return fail("provide --rule <file> or --expr <cel> [--test <file>]")
+	if *expr == "" || *dataPath == "" {
+		return fail("usage: celctl verify --expr <cel> --test <cases.json>  (for cac-content rules use `celctl cac test`)")
 	}
-
-	if len(rule.TestCases) == 0 {
+	var testCases []TestCase
+	if err := loadJSON(*dataPath, &testCases); err != nil {
+		return fail("load test cases: %v", err)
+	}
+	if len(testCases) == 0 {
 		return fail("no test cases to run")
 	}
 
-	pass, total := 0, len(rule.TestCases)
-	for i, tc := range rule.TestCases {
+	pass, total := 0, len(testCases)
+	for i, tc := range testCases {
 		desc := tc.Description
 		if desc == "" {
 			desc = fmt.Sprintf("test case %d", i+1)
 		}
-		vars, err := decodeTestData(tc.TestData, rule.Inputs)
+		vars, err := decodeTestData(tc.TestData)
 		if err != nil {
 			fmt.Printf("  FAIL %s — bad test data: %v\n", desc, err)
 			continue
 		}
-		got, err := evalExpr(rule.Expression, vars)
+		got, err := evalExpr(*expr, vars)
 		if err != nil {
 			fmt.Printf("  FAIL %s — %v\n", desc, err)
 			continue
@@ -228,60 +186,40 @@ func cmdEval(args []string) int {
 
 func cmdLive(args []string) int {
 	fs := newFlags("live")
-	rulePath := fs.String("rule", "", "rule JSON file (uses its expression + inputs)")
-	expr := fs.String("expr", "", "CEL expression (alternative to --rule)")
+	expr := fs.String("expr", "", "CEL expression (required)")
 	var inputs multiFlag
-	fs.Var(&inputs, "input", "name=[group/]version/resource[:namespace] (repeatable, used with --expr)")
+	fs.Var(&inputs, "input", "name=[group/]version/resource[:namespace] (repeatable)")
 	fs.Parse(reorderArgs(args))
-
-	var rule Rule
-	if *rulePath != "" {
-		if err := loadJSON(*rulePath, &rule); err != nil {
-			return fail("load rule: %v", err)
-		}
-	} else if *expr != "" {
-		rule.Expression = *expr
-		for _, in := range inputs {
-			ri, err := parseInputSpec(in)
-			if err != nil {
-				return fail("%v", err)
-			}
-			rule.Inputs = append(rule.Inputs, ri)
-		}
-	} else {
-		return fail("provide --rule <file> or --expr <cel> --input ...")
+	if *expr == "" || len(inputs) == 0 {
+		return fail("usage: celctl live --expr <cel> --input name=[group/]version/resource[:ns] ...  (for cac-content rules use `celctl cac live`)")
 	}
-	if len(rule.Inputs) == 0 {
-		return fail("no inputs defined")
-	}
-
-	vars := map[string]interface{}{}
-	for _, in := range rule.Inputs {
-		if in.Kubernetes == nil {
-			return fail("input %q has no kubernetes config", in.Name)
-		}
-		data, err := kubectlGet(in.Kubernetes)
+	sdkInputs := make([]scanner.Input, 0, len(inputs))
+	for _, in := range inputs {
+		parsed, err := parseInputSpec(in)
 		if err != nil {
-			return fail("fetch %q: %v", in.Name, err)
+			return fail("%v", err)
 		}
-		vars[in.Name] = data
-		count := 0
-		if m, ok := data.(map[string]interface{}); ok {
-			if items, ok := m["items"].([]interface{}); ok {
-				count = len(items)
-			}
-		}
-		fmt.Printf("  fetched %s: %d item(s)\n", in.Name, count)
+		sdkInputs = append(sdkInputs, parsed)
 	}
-	got, err := evalExpr(rule.Expression, vars)
+	fetcher, err := newKubeFetcher()
 	if err != nil {
 		return fail("%v", err)
 	}
-	if got {
-		fmt.Printf("\nPASS PASS — cluster satisfies the expression\n")
+	out, err := runRule(adhocRule{id: "live", expr: *expr, inputs: sdkInputs}, fetcher)
+	if err != nil {
+		return fail("%v", err)
+	}
+	if out.status != "PASS" && out.status != "FAIL" {
+		return fail("%s: %s", out.status, out.errMsg)
+	}
+	if w := firstNoSuchKeyWarning(out.warnings); w != "" {
+		fmt.Printf("  WARNING: %s (the scanner maps this to FAIL)\n", w)
+	}
+	if out.pass() {
+		fmt.Printf("\nPASS — cluster satisfies the expression\n")
 		return 0
 	}
-	fmt.Printf("\nFAIL FAIL — cluster does not satisfy the expression\n")
+	fmt.Printf("\nFAIL — cluster does not satisfy the expression\n")
 	return 1
 }
 
@@ -333,40 +271,6 @@ func cmdSamples(args []string) int {
 
 // ----- helpers -----
 
-func kubectlGet(k *KubernetesInput) (interface{}, error) {
-	res := k.Resource
-	if k.Version != "" {
-		res += "." + k.Version
-	}
-	if k.Group != "" {
-		res += "." + k.Group
-	}
-	kargs := []string{"get", res, "-o", "json"}
-	if k.ResourceName != "" {
-		kargs = []string{"get", res, k.ResourceName, "-o", "json"}
-	}
-	if k.Namespace != "" {
-		kargs = append(kargs, "-n", k.Namespace)
-	} else if k.ResourceName == "" {
-		kargs = append(kargs, "-A")
-	}
-	out, err := runKubectl(kargs...)
-	if err != nil {
-		return nil, err
-	}
-	var v interface{}
-	if err := json.Unmarshal([]byte(out), &v); err != nil {
-		return nil, err
-	}
-	// A single named object isn't a List — wrap it so .items works uniformly.
-	if m, ok := v.(map[string]interface{}); ok {
-		if _, hasItems := m["items"]; !hasItems {
-			return map[string]interface{}{"items": []interface{}{m}}, nil
-		}
-	}
-	return v, nil
-}
-
 func runKubectl(args ...string) (string, error) {
 	cmd := exec.Command("kubectl", args...)
 	out, err := cmd.CombinedOutput()
@@ -376,23 +280,23 @@ func runKubectl(args ...string) (string, error) {
 	return string(out), nil
 }
 
-func parseInputSpec(s string) (RuleInput, error) {
+func parseInputSpec(s string) (adhocInput, error) {
 	name, rest, ok := strings.Cut(s, "=")
 	if !ok {
-		return RuleInput{}, fmt.Errorf("bad --input %q (want name=[group/]version/resource[:namespace])", s)
+		return adhocInput{}, fmt.Errorf("bad --input %q (want name=[group/]version/resource[:namespace])", s)
 	}
 	gvr, ns, _ := strings.Cut(rest, ":")
 	parts := strings.Split(gvr, "/")
-	k := &KubernetesInput{Namespace: ns}
+	spec := adhocInputSpec{namespace: ns}
 	switch len(parts) {
 	case 2: // version/resource
-		k.Version, k.Resource = parts[0], parts[1]
+		spec.version, spec.resource = parts[0], parts[1]
 	case 3: // group/version/resource
-		k.Group, k.Version, k.Resource = parts[0], parts[1], parts[2]
+		spec.group, spec.version, spec.resource = parts[0], parts[1], parts[2]
 	default:
-		return RuleInput{}, fmt.Errorf("bad gvr %q in --input (want [group/]version/resource)", gvr)
+		return adhocInput{}, fmt.Errorf("bad gvr %q in --input (want [group/]version/resource)", gvr)
 	}
-	return RuleInput{Name: name, Kubernetes: k}, nil
+	return adhocInput{name: name, spec: spec}, nil
 }
 
 func loadJSON(path string, v interface{}) error {
@@ -419,29 +323,28 @@ func fail(format string, a ...interface{}) int {
 }
 
 func usage() {
-	fmt.Print(`celctl — self-contained CEL rule utility for Kubernetes compliance
+	fmt.Print(`celctl — CEL rule authoring and unit-test utility for ComplianceAsCode/content
 
 Usage:
-  celctl verify   --rule rule.json                 Run a rule's test cases
-  celctl verify   --expr '<cel>' --test cases.json  Run ad-hoc test cases
+  ComplianceAsCode/content (cac-content) rules — the primary workflow.
+  Operate on a rule dir or its cel/shared.yml:
+  celctl cac lint  <rule-dir>                       Compile + empty-eval; catches list/.items bugs
+  celctl cac scaffold <rule-dir> [--from-cluster]   Generate cel/tests fixtures (real objects + provenance)
+  celctl cac test  <rule-dir>                       Unit-test cel/tests fixtures (or --cases f | --mock name=f)
+  celctl cac live  <rule-dir>                       Fetch + evaluate against the cluster
+
+  celctl skill install [--dir D] [--force]          Install the embedded Claude Code skill
+  celctl skill status                               Show installed vs binary skill version
+
+  Ad-hoc expression helpers:
   celctl eval     --expr '<cel>' --data v=v.json    Evaluate once, print bool
-  celctl live     --rule rule.json                 Run against live cluster (kubectl)
+  celctl verify   --expr '<cel>' --test cases.json  Run ad-hoc test cases
   celctl live     --expr '<cel>' --input pods=v1/pods:default
 
-  ComplianceAsCode/content (cac-content) rules — operate on a rule dir or shared.yml:
-  celctl cac lint  <rule-dir>                       Compile + empty-eval; catches list/.items bugs
-  celctl cac test  <rule-dir> --cases cases.yaml    Unit-test against fixtures
-  celctl cac test  <rule-dir> --mock name=data.json [--expect true|false]
-  celctl cac live  <rule-dir>                        Evaluate against the cluster (kubectl)
-  celctl cac scaffold <rule-dir> [--from-cluster]    Generate cel/tests fixtures (real objects + provenance)
+  celctl discover                                   kubectl api-resources
+  celctl samples  <resource> [-n ns] [--max N]      Sample objects from cluster
 
-  celctl skill install [--dir D] [--force]         Install the embedded Claude Code skill
-  celctl skill status                              Show installed vs binary skill version
-
-  celctl discover                                  kubectl api-resources
-  celctl samples  <resource> [-n ns] [--max N]     Sample objects from cluster
-
-CEL note: inputs are List-wrapped; iterate with <var>.items.all(x, ...) / .exists(...).
+CEL note: list inputs bind as {items:[...]}; iterate with <var>.items.all(x, ...) / .exists(...).
 `)
 }
 
