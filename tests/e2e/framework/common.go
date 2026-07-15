@@ -2287,8 +2287,7 @@ func CheckPodPriorityClass(c kubernetes.Interface, podName, namespace, priorityC
 		}
 
 		if pod.Spec.PriorityClassName != priorityClass {
-			log.Printf("pod %s has priority class %s, expected %s\n", podName, pod.Spec.PriorityClassName, priorityClass)
-			return true, nil
+			return true, fmt.Errorf("pod %s has priority class %q, expected %q", podName, pod.Spec.PriorityClassName, priorityClass)
 		}
 
 		return true, nil
@@ -2354,7 +2353,7 @@ func CheckPodLimit(c kubernetes.Interface, podName, namespace, cpuLimit, memLimi
 			}
 
 			if cnt.Resources.Limits.Memory().String() != memLimit {
-				return false, fmt.Errorf("container %s in pod %s has memory limit %s, expected %s", cnt.Name, podName, cnt.Resources.Limits.Cpu().String(), cpuLimit)
+				return false, fmt.Errorf("container %s in pod %s has memory limit %s, expected %s", cnt.Name, podName, cnt.Resources.Limits.Memory().String(), memLimit)
 			}
 		}
 
