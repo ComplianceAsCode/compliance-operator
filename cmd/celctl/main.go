@@ -333,9 +333,6 @@ Usage:
   celctl cac test  <rule-dir>                       Unit-test cel/tests fixtures (or --cases f | --mock name=f)
   celctl cac live  <rule-dir>                       Fetch + evaluate against the cluster
 
-  celctl skill install [--dir D] [--force]          Install the embedded Claude Code skill
-  celctl skill status                               Show installed vs binary skill version
-
   Ad-hoc expression helpers:
   celctl eval     --expr '<cel>' --data v=v.json    Evaluate once, print bool
   celctl verify   --expr '<cel>' --test cases.json  Run ad-hoc test cases
@@ -364,8 +361,6 @@ func main() {
 		code = cmdLive(args)
 	case "cac":
 		code = cmdCac(args)
-	case "skill":
-		code = cmdSkill(args)
 	case "discover":
 		code = cmdDiscover(args)
 	case "samples":

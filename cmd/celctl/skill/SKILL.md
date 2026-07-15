@@ -26,9 +26,10 @@ go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest
 # from a compliance-operator checkout instead: make celctl  (build/_output/bin/celctl)
 ```
 
-To update both the tool and this skill:
-`go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest && celctl skill install`.
-Live-cluster commands additionally require a kubeconfig (`KUBECONFIG` or in-cluster).
+To update the tool: `go install github.com/ComplianceAsCode/compliance-operator/cmd/celctl@latest`.
+The skill itself is installed by copying `cmd/celctl/skill` to `~/.claude/skills/cel-rule`
+(see `cmd/celctl/README.md`). Live-cluster commands additionally require a kubeconfig
+(`KUBECONFIG` or in-cluster).
 
 ## Binding semantics (critical — celctl mirrors the operator)
 

@@ -97,13 +97,6 @@ Output uses PASS/FAIL/WARNING markers and `N/M cases passed`; exit code 0 only w
 everything matches. A `no such key` eval error counts as FAIL (with a warning), exactly
 as the operator scanner reports it.
 
-## Skill install / update
-
-```bash
-celctl skill install        # writes this skill to ~/.claude/skills/cel-rule
-celctl skill status         # installed vs binary version
-```
-
 ## Ad-hoc expression helpers
 
 For quick experiments outside a rule dir. Once the expression is right, move it into a
