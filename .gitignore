@@ -1,6 +1,7 @@
 # Temporary Build Files. cpu.prof and mem.prof will be generated
 *.prof
 build/_output
+cmd/celctl/celctl
 build/_test
 build/_tools
 _output
