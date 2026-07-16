@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -25,31 +24,9 @@ var contentImagePath string
 var criticalOnly = flag.Bool("critical", false, "run ONLY critical tests")
 
 func TestMain(m *testing.M) {
-	f := framework.NewFramework()
-	err := f.SetUp()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	contentImagePath = os.Getenv("CONTENT_IMAGE")
-	if contentImagePath == "" {
-		fmt.Println("Please set the 'CONTENT_IMAGE' environment variable")
-		os.Exit(1)
-	}
-
 	brokenContentImagePath = os.Getenv("BROKEN_CONTENT_IMAGE")
-
-	if brokenContentImagePath == "" {
-		fmt.Println("Please set the 'BROKEN_CONTENT_IMAGE' environment variable")
-		os.Exit(1)
-	}
-	exitCode := m.Run()
-	if exitCode == 0 || (exitCode > 0 && f.CleanUpOnError()) {
-		if err = f.TearDown(); err != nil {
-			log.Fatal(err)
-		}
-	}
-	os.Exit(exitCode)
+	framework.RunE2ESuite(m)
 }
 
 // TestScanTailoredProfileIsDeprecated verifies deprecated profile warnings surface when a TP extends a deprecated profile.

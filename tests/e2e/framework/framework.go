@@ -69,9 +69,10 @@ type Framework struct {
 	localOperatorArgs string
 	kubeconfigPath    string
 	testType          string
-	schemeMutex       sync.Mutex
-	LocalOperator     bool
-	cleanupOnError    bool
+	schemeMutex          sync.Mutex
+	LocalOperator        bool
+	cleanupOnError       bool
+	useExistingOperator  bool
 }
 
 type frameworkOpts struct {
@@ -82,8 +83,8 @@ type frameworkOpts struct {
 	localOperatorArgs string
 	testType          string
 	isLocalOperator   bool
-	cleanupOnError    bool
-	platform          string
+	cleanupOnError      bool
+	platform            string
 }
 
 const (
@@ -105,6 +106,11 @@ const (
 
 	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
 	TestWatchNamespaceEnv    = "TEST_WATCH_NAMESPACE"
+	UseExistingOperatorEnv   = "E2E_USE_EXISTING_OPERATOR"
+	OperatorNamespaceEnv     = "OPERATOR_NAMESPACE"
+	SkipFrameworkSetupEnv    = "E2E_SKIP_FRAMEWORK_SETUP"
+	SkipFrameworkTearDownEnv = "E2E_SKIP_FRAMEWORK_TEARDOWN"
+	TearDownOnlyEnv          = "E2E_TEARDOWN_ONLY"
 )
 
 func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {
@@ -126,19 +132,40 @@ func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {
 		"The type of deployment hosting the tests. Options include \"openshift\" and \"rosa\".")
 }
 
+func envBool(name string) bool {
+	switch os.Getenv(name) {
+	case "1", "true", "TRUE", "yes", "YES":
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveOperatorNamespace(useExisting bool) string {
+	if useExisting {
+		if ns := os.Getenv(TestOperatorNamespaceEnv); ns != "" {
+			return ns
+		}
+		if ns := os.Getenv(OperatorNamespaceEnv); ns != "" {
+			return ns
+		}
+		return "openshift-compliance"
+	}
+
+	if ns, ok := os.LookupEnv(TestOperatorNamespaceEnv); ok && ns != "" {
+		return ns
+	}
+	return "osdk-e2e-" + uuid.New()
+}
+
 func newFramework(opts *frameworkOpts) (*Framework, error) {
 	kubeconfig, _, err := GetKubeconfigAndNamespace(opts.kubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the kubeconfig: %w", err)
 	}
 
-	var operatorNamespace string
-	ns, ok := os.LookupEnv(TestOperatorNamespaceEnv)
-	if ok && ns != "" {
-		operatorNamespace = ns
-	} else {
-		operatorNamespace = "osdk-e2e-" + uuid.New()
-	}
+	useExistingOperator := envBool(UseExistingOperatorEnv)
+	operatorNamespace := resolveOperatorNamespace(useExistingOperator)
 
 	kubeclient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
@@ -176,8 +203,9 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 		localOperatorArgs: opts.localOperatorArgs,
 		kubeconfigPath:    opts.kubeconfigPath,
 		restMapper:        restMapper,
-		cleanupOnError:    opts.cleanupOnError,
-		testType:          opts.testType,
+		cleanupOnError:      opts.cleanupOnError,
+		testType:            opts.testType,
+		useExistingOperator: useExistingOperator,
 	}
 	return framework, nil
 }
