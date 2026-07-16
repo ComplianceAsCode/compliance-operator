@@ -2365,12 +2365,12 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
-			Extends:     "ocp4-cis-1-4",
+			Extends:     pbName + "-cis-1-4",
 			Title:       "TestScanTailoredProfileExtendsDeprecated",
 			Description: "TestScanTailoredProfileExtendsDeprecated",
 			EnableRules: []compv1alpha1.RuleReferenceSpec{
 				{
-					Name:      "ocp4-cluster-version-operator-exists",
+					Name:      pbName + "-cluster-version-operator-exists",
 					Rationale: "Test tailored profile extends deprecated",
 				},
 			},
