@@ -5573,7 +5573,7 @@ func TestRuleHasProfileAnnotation(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 	const requiredRule = "ocp4-file-groupowner-worker-kubeconfig"
-	const expectedRuleProfileAnnotation = "ocp4-pci-dss-node,ocp4-moderate-node,ocp4-stig-node,ocp4-nerc-cip-node,ocp4-cis-node,ocp4-high-node"
+	const expectedRuleProfileAnnotation = "ocp4-pci-dss-node,ocp4-moderate-node,ocp4-nerc-cip-node,ocp4-cis-node,ocp4-high-node"
 	err, found := f.DoesRuleExist(f.OperatorNamespace, requiredRule)
 	if err != nil {
 		t.Fatal(err)
