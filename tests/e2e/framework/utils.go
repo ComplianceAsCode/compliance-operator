@@ -368,9 +368,12 @@ func AssertEachMetric(namespace string, expectedMetrics map[string]int) error {
 		}
 	}
 	if len(metricErrs) > 0 {
-		for err := range metricErrs {
+		for _, err := range metricErrs {
 			log.Println(err)
 		}
+		// Dump the full metrics payload only on failure, to aid debugging without
+		// spamming the log with the whole endpoint on every successful assertion.
+		log.Printf("metrics output:\n%s\n", metricsOutput)
 		return errors.New("unexpected metrics value")
 	}
 	return nil
@@ -656,7 +659,6 @@ func getMetricResults(namespace string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting output %s", err)
 	}
-	log.Printf("metrics output:\n%s\n", string(out))
 	return string(out), nil
 }
 

@@ -72,6 +72,9 @@ type Framework struct {
 	schemeMutex       sync.Mutex
 	LocalOperator     bool
 	cleanupOnError    bool
+
+	// stopPodLogs cancels the background pod-log collector started in SetUp.
+	stopPodLogs func()
 }
 
 type frameworkOpts struct {
