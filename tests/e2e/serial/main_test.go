@@ -754,10 +754,12 @@ func TestTolerations(t *testing.T) {
 }
 
 func TestAutoRemediate(t *testing.T) {
+	t.Parallel()
 	f := framework.Global
+	pool := f.AcquireTestPool(t)
 	// FIXME, maybe have a func that returns a struct with suite name and scan names?
 	suiteName := "test-remediate"
-	scanName := fmt.Sprintf("%s-e2e", suiteName)
+	scanName := fmt.Sprintf("%s-%s", suiteName, pool.Name)
 
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
@@ -800,7 +802,7 @@ func TestAutoRemediate(t *testing.T) {
 		SettingsRef: &compv1alpha1.NamedObjectReference{
 			APIGroup: "compliance.openshift.io/v1alpha1",
 			Kind:     "ScanSetting",
-			Name:     "e2e-default-auto-apply",
+			Name:     pool.AutoApplyScanSetting,
 		},
 	}
 	err := f.Client.Create(context.TODO(), ssb, nil)
@@ -812,7 +814,7 @@ func TestAutoRemediate(t *testing.T) {
 	// Get the MachineConfigPool before a scan or remediation has been applied
 	// This way, we can check that it changed without race-conditions
 	poolBeforeRemediation := &mcfgv1.MachineConfigPool{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: framework.TestPoolName}, poolBeforeRemediation)
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: pool.Name}, poolBeforeRemediation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -901,7 +903,7 @@ func TestAutoRemediate(t *testing.T) {
 	}
 
 	// We need to wait for both the pool to update..
-	err = f.WaitForMachinePoolUpdate(framework.TestPoolName, dummyAction, poolHasNoMc, nil)
+	err = f.WaitForMachinePoolUpdate(pool.Name, dummyAction, poolHasNoMc, nil)
 	if err != nil {
 		t.Fatalf("failed waiting for workers to come back up after deleting MachineConfig: %s", err)
 	}
@@ -911,7 +913,9 @@ func TestAutoRemediate(t *testing.T) {
 }
 
 func TestUnapplyRemediation(t *testing.T) {
+	t.Parallel()
 	f := framework.Global
+	pool := f.AcquireTestPool(t)
 	// FIXME, maybe have a func that returns a struct with suite name and scan names?
 	suiteName := "test-unapply-remediation"
 
@@ -932,7 +936,7 @@ func TestUnapplyRemediation(t *testing.T) {
 						ContentImage: contentImagePath,
 						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 						Content:      framework.RhcosContentFile,
-						NodeSelector: framework.GetPoolNodeRoleSelector(),
+						NodeSelector: pool.NodeRoleSelector(),
 						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 							Debug: true,
 						},
@@ -956,28 +960,28 @@ func TestUnapplyRemediation(t *testing.T) {
 	}
 
 	// Pause the MC so that we have only one reboot
-	err = f.PauseMachinePool(framework.TestPoolName)
+	err = f.PauseMachinePool(pool.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Apply both remediations
 	workersNoRootLoginsRemName := fmt.Sprintf("%s-no-direct-root-logins", workerScanName)
-	err = f.ApplyRemediationAndCheck(f.OperatorNamespace, workersNoRootLoginsRemName, framework.TestPoolName)
+	err = f.ApplyRemediationAndCheck(f.OperatorNamespace, workersNoRootLoginsRemName, pool.Name)
 	if err != nil {
 		log.Printf("WARNING: Got an error while applying remediation '%s': %v\n", workersNoRootLoginsRemName, err)
 	}
 	log.Printf("remediation %s applied", workersNoRootLoginsRemName)
 
 	workersNoEmptyPassRemName := fmt.Sprintf("%s-no-empty-passwords", workerScanName)
-	err = f.ApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, framework.TestPoolName)
+	err = f.ApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, pool.Name)
 	if err != nil {
 		log.Printf("WARNING: Got an error while applying remediation '%s': %v\n", workersNoEmptyPassRemName, err)
 	}
 	log.Printf("remediation %s applied", workersNoEmptyPassRemName)
 
 	// resume the MCP so that the remediation gets applied
-	f.ResumeMachinePool(framework.TestPoolName)
+	f.ResumeMachinePool(pool.Name)
 
 	err = f.WaitForNodesToBeReady()
 	if err != nil {
@@ -996,7 +1000,7 @@ func TestUnapplyRemediation(t *testing.T) {
 
 	// Revert one remediation. The MC should stay, but its generation should bump
 	log.Printf("reverting remediation %s\n", workersNoEmptyPassRemName)
-	err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, framework.TestPoolName)
+	err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, pool.Name)
 	if err != nil {
 		log.Printf("WARNING: Got an error while unapplying remediation '%s': %v\n", workersNoEmptyPassRemName, err)
 	}
@@ -1004,7 +1008,7 @@ func TestUnapplyRemediation(t *testing.T) {
 
 	// When we unapply the second remediation, the MC should be deleted, too
 	log.Printf("reverting remediation %s", workersNoRootLoginsRemName)
-	err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, workersNoRootLoginsRemName, framework.TestPoolName)
+	err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, workersNoRootLoginsRemName, pool.Name)
 	if err != nil {
 		log.Printf("WARNING: Got an error while unapplying remediation '%s': %v\n", workersNoEmptyPassRemName, err)
 	}
@@ -1351,7 +1355,9 @@ func TestPlatformAndNodeSuiteScan(t *testing.T) {
 }
 
 func TestUpdateRemediation(t *testing.T) {
+	t.Parallel()
 	f := framework.Global
+	pool := f.AcquireTestPool(t)
 	origSuiteName := "test-update-remediation"
 	workerScanName := fmt.Sprintf("%s-e2e-scan", origSuiteName)
 
@@ -1397,7 +1403,7 @@ func TestUpdateRemediation(t *testing.T) {
 						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 						Rule:         "xccdf_org.ssgproject.content_rule_no_empty_passwords",
 						Content:      framework.RhcosContentFile,
-						NodeSelector: framework.GetPoolNodeRoleSelector(),
+						NodeSelector: pool.NodeRoleSelector(),
 						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 							Debug: true,
 						},
@@ -1421,7 +1427,7 @@ func TestUpdateRemediation(t *testing.T) {
 	}
 
 	workersNoEmptyPassRemName := fmt.Sprintf("%s-no-empty-passwords", workerScanName)
-	err = f.ApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, framework.TestPoolName)
+	err = f.ApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, pool.Name)
 	if err != nil {
 		log.Printf("WARNING: Got an error while applying remediation '%s': %v", workersNoEmptyPassRemName, err)
 	}
@@ -1456,7 +1462,7 @@ func TestUpdateRemediation(t *testing.T) {
 
 	log.Printf("will remove obsolete data from remediation\n")
 	renderedMcName := fmt.Sprintf("75-%s", workersNoEmptyPassRemName)
-	err = f.RemoveObsoleteRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, renderedMcName, framework.TestPoolName)
+	err = f.RemoveObsoleteRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, renderedMcName, pool.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1473,7 +1479,7 @@ func TestUpdateRemediation(t *testing.T) {
 	}
 
 	// Finally clean up by removing the remediation and waiting for the nodes to reboot one more time
-	err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, framework.TestPoolName)
+	err = f.UnApplyRemediationAndCheck(f.OperatorNamespace, workersNoEmptyPassRemName, pool.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1699,7 +1705,9 @@ func TestVariableTemplate(t *testing.T) {
 }
 
 func TestKubeletConfigRemediation(t *testing.T) {
+	t.Parallel()
 	f := framework.Global
+	pool := f.AcquireTestPool(t)
 	var baselineImage = fmt.Sprintf("%s:%s", brokenContentImagePath, "new_kubeletconfig")
 	const requiredRule = "kubelet-enable-streaming-connections"
 	pbName := framework.GetObjNameFromTest(t)
@@ -1768,7 +1776,7 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		SettingsRef: &compv1alpha1.NamedObjectReference{
 			APIGroup: "compliance.openshift.io/v1alpha1",
 			Kind:     "ScanSetting",
-			Name:     "e2e-default-auto-apply",
+			Name:     pool.AutoApplyScanSetting,
 		},
 	}
 
@@ -1784,7 +1792,7 @@ func TestKubeletConfigRemediation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	scanName := suiteName + "-" + framework.TestPoolName
+	scanName := suiteName + "-" + pool.Name
 
 	// We need to check that the remediation is auto-applied and save
 	// the object so we can delete it later
@@ -2482,7 +2490,9 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 }
 
 func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
+	t.Parallel()
 	f := framework.Global
+	pool := f.AcquireTestPool(t)
 
 	baselineImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "runtime_sshd")
 	pbName := framework.GetObjNameFromTest(t)
@@ -2516,7 +2526,7 @@ func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
 						Profile:      "xccdf_org.ssgproject.content_profile_e8",
 						Rule:         "xccdf_org.ssgproject.content_rule_sshd_disable_gssapi_auth",
 						Content:      framework.RhcosContentFile,
-						NodeSelector: framework.GetPoolNodeRoleSelector(),
+						NodeSelector: pool.NodeRoleSelector(),
 						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 							Debug: true,
 						},
@@ -2534,7 +2544,7 @@ func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
 
 	// Get the MachineConfigPool before remediation
 	poolBeforeRemediation := &mcfgv1.MachineConfigPool{}
-	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: framework.TestPoolName}, poolBeforeRemediation); err != nil {
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: pool.Name}, poolBeforeRemediation); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2611,7 +2621,7 @@ func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
 			continue
 		}
 		// Unapply the remediation
-		if err := f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, framework.TestPoolName); err != nil {
+		if err := f.UnApplyRemediationAndCheck(f.OperatorNamespace, remName, pool.Name); err != nil {
 			t.Logf("Could not unapply remediation %s: %v", remName, err)
 		}
 

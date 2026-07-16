@@ -116,14 +116,12 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("failed to set scan setting bindings to debug: %w", err)
 	}
 
-	err = f.ensureE2EScanSettings()
+	// Create one isolated MachineConfigPool lane per worker node (plus matching
+	// ScanSettings) so the destructive/reboot tests can run in parallel, each
+	// against its own pool and node. See testpools.go.
+	err = f.setUpTestPools()
 	if err != nil {
-		return fmt.Errorf("failed to configure scan settings for tests: %w", err)
-	}
-
-	err = f.createMachineConfigPool("e2e")
-	if err != nil {
-		return fmt.Errorf("failed to create Machine Config Pool %s: %w", "e2e", err)
+		return fmt.Errorf("failed to set up test pools: %w", err)
 	}
 	err = f.createInvalidMachineConfigPool("e2e-invalid")
 	if err != nil {
@@ -162,20 +160,11 @@ func (f *Framework) TearDown() error {
 	if os.Getenv("SKIP_MCP_SETUP") != "" {
 		log.Println("SKIP_MCP_SETUP is set, skipping e2e ScanSettings and MachineConfigPool cleanup")
 	} else {
-		err = f.deleteScanSettings("e2e-default")
-		if err != nil {
-			return err
-		}
-		err = f.deleteScanSettings("e2e-default-auto-apply")
-		if err != nil {
-			return err
-		}
-		// unlabel nodes
-		err = f.restoreNodeLabelsForPool("e2e")
-		if err != nil {
-			return err
-		}
-		err = f.cleanUpMachineConfigPool("e2e")
+		// Clean up per-lane ScanSettings. We deliberately don't restore node
+		// labels or delete the lane MachineConfigPools here (see tearDownTestPools):
+		// that would reboot every lane node back to rendered-worker, and the CI
+		// cluster is torn down right after, so the work would be wasted.
+		err = f.tearDownTestPools()
 		if err != nil {
 			return err
 		}

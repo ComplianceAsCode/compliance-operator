@@ -659,6 +659,13 @@ func (f *Framework) updateScanSettingsForDebug() error {
 }
 
 func (f *Framework) ensureE2EScanSettings() error {
+	return f.ensureE2EScanSettingsForPool(TestPoolName)
+}
+
+// ensureE2EScanSettingsForPool creates a "<poolName>-default" and
+// "<poolName>-default-auto-apply" ScanSetting whose Roles target poolName, so
+// each parallel test lane scans/remediates only its own pool.
+func (f *Framework) ensureE2EScanSettingsForPool(poolName string) error {
 	if f.Platform == "rosa" {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
@@ -672,11 +679,11 @@ func (f *Framework) ensureE2EScanSettings() error {
 
 		ssCopy := ss.DeepCopy()
 		ssCopy.ObjectMeta = metav1.ObjectMeta{
-			Name:      "e2e-" + ssName,
+			Name:      poolName + "-" + ssName,
 			Namespace: f.OperatorNamespace,
 		}
 		ssCopy.Roles = []string{
-			TestPoolName,
+			poolName,
 		}
 		ssCopy.Debug = true
 
@@ -706,12 +713,8 @@ func (f *Framework) deleteScanSettings(name string) error {
 	return nil
 }
 
-func (f *Framework) createMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
-		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
-		return nil
-	}
-	// get the worker pool
+// getWorkerNodes returns the nodes currently in the worker MachineConfigPool.
+func (f *Framework) getWorkerNodes() ([]corev1.Node, error) {
 	w := "worker"
 	p := &mcfgv1.MachineConfigPool{}
 	getErr := backoff.RetryNotify(
@@ -729,15 +732,42 @@ func (f *Framework) createMachineConfigPool(n string) error {
 			log.Printf("error while getting MachineConfig pool to create sub-pool from: %s. Retrying after %s", err, interval)
 		})
 	if getErr != nil {
-		return fmt.Errorf("failed to get Machine Config Pool %s to create sub-pool from: %w", w, getErr)
+		return nil, fmt.Errorf("failed to get Machine Config Pool %s to create sub-pool from: %w", w, getErr)
 	}
-
 	nodeList, err := f.getNodesForPool(p)
+	if err != nil {
+		return nil, err
+	}
+	return nodeList.Items, nil
+}
+
+func (f *Framework) createMachineConfigPool(n string) error {
+	if f.Platform == "rosa" {
+		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
+		return nil
+	}
+	nodes, err := f.getWorkerNodes()
 	if err != nil {
 		return err
 	}
+	if len(nodes) == 0 {
+		return fmt.Errorf("no worker nodes found to create Machine Config Pool %s from", n)
+	}
 	// pick the first node in the list so we only have a pool of one
-	node := nodeList.Items[0]
+	return f.createMachineConfigPoolFromNode(n, &nodes[0])
+}
+
+// createMachineConfigPoolFromNode creates a MachineConfigPool named n containing
+// exactly the given node (relabeled into the pool's role). This lets several
+// isolated pools be created from distinct worker nodes so destructive tests can
+// run in parallel, one node per pool.
+func (f *Framework) createMachineConfigPoolFromNode(n string, node *corev1.Node) error {
+	if f.Platform == "rosa" {
+		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
+		return nil
+	}
+	// the base pool the sub-pool inherits MachineConfigs from
+	w := "worker"
 
 	// create a new pool with a subset of the nodes
 	l := fmt.Sprintf("node-role.kubernetes.io/%s", n)
@@ -763,7 +793,7 @@ func (f *Framework) createMachineConfigPool(n string) error {
 	nodeLabel := make(map[string]string)
 	nodeLabel[l] = ""
 	poolLabels := make(map[string]string)
-	poolLabels["pools.operator.machineconfiguration.openshift.io/e2e"] = ""
+	poolLabels["pools.operator.machineconfiguration.openshift.io/"+n] = ""
 	newPool := &mcfgv1.MachineConfigPool{
 		ObjectMeta: metav1.ObjectMeta{Name: n, Labels: poolLabels},
 		Spec: mcfgv1.MachineConfigPoolSpec{
@@ -801,7 +831,7 @@ func (f *Framework) createMachineConfigPool(n string) error {
 	}
 
 	// wait for pool to come up
-	err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
 		pool := mcfgv1.MachineConfigPool{}
 		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: n}, &pool)
 		if err != nil {
