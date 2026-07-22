@@ -480,6 +480,25 @@ func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, 
 	return nil
 }
 
+// RestartComplianceOperator deletes the running operator pod(s) and waits for
+// the deployment to become available again. Used to verify that in-memory
+// state (e.g. the compliance_state metric, which lives only in the operator's
+// Prometheus registry) is correctly rebuilt after a restart.
+func (f *Framework) RestartComplianceOperator() error {
+	log.Print("Restarting the compliance-operator")
+	if _, err := runOCandGetOutput([]string{
+		"delete", "pod", "-l", "name=compliance-operator", "-n", f.OperatorNamespace,
+	}); err != nil {
+		return fmt.Errorf("failed to delete compliance-operator pod: %w", err)
+	}
+	if _, err := runOCandGetOutput([]string{
+		"rollout", "status", "deployment/compliance-operator", "-n", f.OperatorNamespace, "--timeout=300s",
+	}); err != nil {
+		return fmt.Errorf("failed waiting for compliance-operator rollout: %w", err)
+	}
+	return nil
+}
+
 func (f *Framework) ensureTestNamespaceExists() error {
 	// create namespace only if it doesn't already exist
 	_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), f.OperatorNamespace, metav1.GetOptions{})

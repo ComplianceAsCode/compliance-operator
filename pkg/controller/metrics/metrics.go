@@ -197,3 +197,10 @@ func (m *Metrics) SetComplianceStateOutOfCompliance(name string) {
 func (m *Metrics) SetComplianceStateInCompliance(name string) {
 	m.metrics.metricComplianceStateGauge.WithLabelValues(name).Set(METRIC_STATE_COMPLIANT)
 }
+
+// DeleteComplianceStateMetric removes the compliance_state series for the named
+// suite. Called when a ComplianceSuite is deleted so its gauge no longer reports
+// a stale value.
+func (m *Metrics) DeleteComplianceStateMetric(name string) {
+	m.metrics.metricComplianceStateGauge.DeleteLabelValues(name)
+}
