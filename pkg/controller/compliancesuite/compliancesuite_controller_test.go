@@ -166,6 +166,54 @@ var _ = Describe("ComplianceSuiteController", func() {
 		Expect(rem.Spec.Outdated.Object).To(BeNil())
 	}
 
+	Context("When a scan result changes while the phase stays DONE (CMP-4373)", func() {
+		scanKey := types.NamespacedName{Name: "testScanNode", Namespace: namespace}
+
+		BeforeEach(func() {
+			// The suite has already recorded the scan as DONE/NON-COMPLIANT
+			// from a previous cycle.
+			suiteCopy := suite.DeepCopy()
+			suiteCopy.Status.Phase = compv1alpha1.PhaseDone
+			suiteCopy.Status.Result = compv1alpha1.ResultNonCompliant
+			suiteCopy.Status.ScanStatuses = []compv1alpha1.ComplianceScanStatusWrapper{
+				{
+					Name: "testScanNode",
+					ComplianceScanStatus: compv1alpha1.ComplianceScanStatus{
+						Phase:  compv1alpha1.PhaseDone,
+						Result: compv1alpha1.ResultNonCompliant,
+					},
+				},
+			}
+			Expect(reconciler.Client.Status().Update(ctx, suiteCopy)).To(BeNil())
+
+			// The scan itself has since flipped to DONE/COMPLIANT (e.g. after a
+			// rescan) while staying in the DONE phase.
+			scan := &compv1alpha1.ComplianceScan{}
+			Expect(reconciler.Client.Get(ctx, scanKey, scan)).To(BeNil())
+			scanCopy := scan.DeepCopy()
+			scanCopy.Status.Phase = compv1alpha1.PhaseDone
+			scanCopy.Status.Result = compv1alpha1.ResultCompliant
+			Expect(reconciler.Client.Status().Update(ctx, scanCopy)).To(BeNil())
+		})
+
+		It("Should update the suite result even though the phase is unchanged", func() {
+			suiteToReconcile := &compv1alpha1.ComplianceSuite{}
+			suiteKey := types.NamespacedName{Name: suiteName, Namespace: namespace}
+			Expect(reconciler.Client.Get(ctx, suiteKey, suiteToReconcile)).To(BeNil())
+
+			scan := &compv1alpha1.ComplianceScan{}
+			Expect(reconciler.Client.Get(ctx, scanKey, scan)).To(BeNil())
+
+			wrap := suiteToReconcile.Status.ScanStatuses[0]
+			Expect(reconciler.updateScanStatus(suiteToReconcile, 0, &wrap, scan, logger)).To(BeNil())
+
+			updated := &compv1alpha1.ComplianceSuite{}
+			Expect(reconciler.Client.Get(ctx, suiteKey, updated)).To(BeNil())
+			Expect(updated.Status.Result).To(Equal(compv1alpha1.ResultCompliant))
+			Expect(updated.Status.ScanStatuses[0].Result).To(Equal(compv1alpha1.ResultCompliant))
+		})
+	})
+
 	Context("When reconciling generic remediations", func() {
 		BeforeEach(func() {
 			remediation := &compv1alpha1.ComplianceRemediation{
