@@ -3385,6 +3385,88 @@ func TestPrometheusRuleComplianceAlert(t *testing.T) {
 //	},
 //},
 
+// TestHighProfileManualRulesHaveInstructions verifies that all MANUAL rules in high profiles have instructions.
+// This test is serial because high profile scans are resource-intensive and long-running.
+func TestHighProfileManualRulesHaveInstructions(t *testing.T) {
+	f := framework.Global
+
+	suiteName := framework.GetObjNameFromTest(t)
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "ocp4-high",
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "ocp4-high-node",
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "rhcos4-high",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	// Create the ScanSettingBinding
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait for the suite to complete
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent); err != nil {
+		t.Fatalf("Failed waiting for suite to complete: %s", err)
+	}
+
+	// Get all MANUAL ComplianceCheckResults for this suite
+	checkResults := &compv1alpha1.ComplianceCheckResultList{}
+	if err := f.Client.List(context.TODO(), checkResults,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{
+			compv1alpha1.ComplianceCheckResultStatusLabel: string(compv1alpha1.CheckResultManual),
+			compv1alpha1.SuiteLabel:                       suiteName,
+		},
+	); err != nil {
+		t.Fatalf("Failed to list ComplianceCheckResults: %s", err)
+	}
+
+	if len(checkResults.Items) == 0 {
+		t.Fatalf("No MANUAL check results found for suite %s", suiteName)
+	}
+
+	t.Logf("Found %d MANUAL check results to verify", len(checkResults.Items))
+
+	// Check that all MANUAL rules have instructions
+	var rulesWithoutInstructions []string
+	for _, checkResult := range checkResults.Items {
+		if checkResult.Instructions == "" {
+			rulesWithoutInstructions = append(rulesWithoutInstructions, checkResult.Name)
+			t.Logf("MANUAL rule '%s' does not have instructions", checkResult.Name)
+		} else {
+			t.Logf("MANUAL rule '%s' has instructions", checkResult.Name)
+		}
+	}
+
+	if len(rulesWithoutInstructions) > 0 {
+		t.Fatalf("Found %d MANUAL rules without instructions: %v", len(rulesWithoutInstructions), rulesWithoutInstructions)
+	}
+
+	t.Logf("All %d MANUAL rules in high profiles have instructions", len(checkResults.Items))
+}
+
 func TestStrictNodeScanConfiguration(t *testing.T) {
 	f := framework.Global
 	// Get one worker node
