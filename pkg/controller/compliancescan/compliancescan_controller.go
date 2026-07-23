@@ -217,6 +217,17 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 		instanceCopy.Status.Phase = compv1alpha1.PhasePending
 		instanceCopy.Status.StartTimestamp = &metav1.Time{Time: time.Now()}
 		instanceCopy.Status.SetConditionPending()
+
+		// Add HCP compliance note annotation if running in HCP environment
+		hcpNote := utils.GetHCPComplianceNote()
+		if hcpNote != "" {
+			if instanceCopy.Annotations == nil {
+				instanceCopy.Annotations = make(map[string]string)
+			}
+			instanceCopy.Annotations[utils.HCPComplianceNoteAnnotation] = hcpNote
+			logger.Info("Running in HCP environment, added compliance note annotation")
+		}
+
 		updateErr := r.Client.Status().Update(context.TODO(), instanceCopy)
 		if updateErr != nil {
 			return false, updateErr
