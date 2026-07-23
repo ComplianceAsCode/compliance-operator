@@ -129,6 +129,8 @@ E2E_TEST_TYPE?=all
 E2E_CLEANUP_ON_ERROR?=false
 E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
 TEST_OPTIONS?=-timeout=20m
+COVERAGE_BASELINE?=coverage-baseline.txt
+TESTABLE_PKGS=$(shell go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v -E '/vendor/|/test|/examples')
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
 # Use default images in the e2e test run. Note that this takes precedence over E2E_SKIP_CONTAINER_PUSH
@@ -585,15 +587,27 @@ catalog-push: ## Push a catalog image.
 .PHONY: test-unit
 test-unit: fmt ## Run the unit tests
 ifndef JUNITFILE
-	@$(GO) test $(TEST_OPTIONS) $(PKGS)
+	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -cover $(TESTABLE_PKGS) | tee .test-output.log
 else
-	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -json $(PKGS) --ginkgo.noColor | gotest2junit -v > $(JUNITFILE)
+	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -cover -json $(TESTABLE_PKGS) --ginkgo.noColor | tee .test-output.log | gotest2junit -v > $(JUNITFILE)
 endif
+	@if [ -f $(COVERAGE_BASELINE) ]; then \
+		hack/check-coverage.sh .test-output.log $(COVERAGE_BASELINE); \
+	fi
 
 .PHONY: test-coverage
 test-coverage: fmt ## Run the unit tests and generate a coverage report
 	@$(GO) test -cover -coverprofile=coverage.out $(PKGS)
 	@$(GO) tool cover -func coverage.out
+
+.PHONY: update-coverage-baseline
+update-coverage-baseline: fmt ## Update the committed coverage baseline from current test results
+	@$(GO) test $(TEST_OPTIONS) -cover $(TESTABLE_PKGS) | tee .test-output.log
+	@hack/update-coverage-baseline.sh .test-output.log $(COVERAGE_BASELINE)
+
+.PHONY: check-coverage
+check-coverage: ## Check current coverage against the baseline (requires .test-output.log from a prior test run)
+	@hack/check-coverage.sh .test-output.log $(COVERAGE_BASELINE)
 
 .PHONY: test-benchmark
 test-benchmark: ## Run the benchmark tests -- Note that this can only be ran for one package. You can set $BENCHMARK_PKG for this. cpu.prof and mem.prof will be generated
