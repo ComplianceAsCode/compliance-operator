@@ -15697,7 +15697,7 @@ and make sure it outputs a value.
         </ocil:boolean_question>
         <ocil:boolean_question id="ocil:ssg-audit_error_alert_exists_question:question:1">
           <ocil:question_text>Run the following command:
-oc get  prometheusrules instances -o json | jq '[.items[].spec.groups[].rules[].expr]'
+oc get  prometheusrules instances -o json | jq '[.items[]?.spec.groups[]?.rules[]?.expr]'
 The output should return a list of URL entries with https:// or tls:// transport.
       Is it the case that Audit log errors do not generate an alert?
       </ocil:question_text>
@@ -23385,7 +23385,7 @@ For more information, consult the
 Therefore, you need to use a tool that can query the OCP API, retrieve the following:
 <html:ul><html:li><html:code class="ocp-api-endpoint" id="0fd94c224732cf855db0ac2a1e214959fdf670d9066fb8ae5485ec5ab748f464">/apis/monitoring.coreos.com/v1/prometheusrules?limit=500</html:code>
     API endpoint, filter with with the <html:code>jq</html:code> utility using the following filter
-    <html:code class="ocp-api-filter" id="filter-0fd94c224732cf855db0ac2a1e214959fdf670d9066fb8ae5485ec5ab748f464">[.items[].spec.groups[].rules[].expr]</html:code>
+    <html:code class="ocp-api-filter" id="filter-0fd94c224732cf855db0ac2a1e214959fdf670d9066fb8ae5485ec5ab748f464">[.items[]?.spec.groups[]?.rules[]?.expr]</html:code>
     and persist it to the local
     <html:code class="ocp-dump-location" id="dump-0fd94c224732cf855db0ac2a1e214959fdf670d9066fb8ae5485ec5ab748f464"><xccdf-1.2:sub idref="xccdf_org.ssgproject.content_value_ocp_data_root" use="legacy"/>/apis/monitoring.coreos.com/v1/prometheusrules?limit=500#0fd94c224732cf855db0ac2a1e214959fdf670d9066fb8ae5485ec5ab748f464</html:code>
     file.
