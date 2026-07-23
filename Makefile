@@ -751,7 +751,14 @@ git-release: fetch-git-tags package-version-to-tag changelog ## Update project f
 	sed -i "s/\(replaces: \).*/\1$(APP_NAME).$(PREVIOUS_VERSION)/" $(BUNDLE_CSV_FILE)
 	sed -i "s/\(.*Version = \"\).*/\1$(TAG)\"/" version/version.go
 	sed -i "s/\(.*VERSION?=\).*/\1$(TAG)/" version.Makefile
+	sed -i 's/\(version=\).*/\1$(TAG)/' images/operator/Dockerfile
+	sed -i 's/\(version=\).*/\1$(TAG)/' images/openscap/Containerfile
+	sed -i 's/\(version=\).*/\1$(TAG)/' images/must-gather/Containerfile
+	sed -i 's/\(CO_OLD_VERSION="\).*/\1$(PREVIOUS_VERSION)"/' bundle.openshift.Dockerfile
+	sed -i 's/\(CO_NEW_VERSION="\).*/\1$(TAG)"/' bundle.openshift.Dockerfile
 	git add version* bundle CHANGELOG.md config/manifests/bases
+	git add images/operator/Dockerfile images/openscap/Containerfile images/must-gather/Containerfile
+	git add bundle.openshift.Dockerfile
 	git add "config/helm/Chart.yaml"
 	git add "catalog/preamble.json"
 	git restore config/manager/kustomization.yaml
