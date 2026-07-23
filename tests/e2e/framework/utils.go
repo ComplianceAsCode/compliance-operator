@@ -561,7 +561,7 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]PrometheusTarget, error)
 			"run", "--rm", "-i", "--restart=Never", "--image=" + FedoraTestImage,
 			"-n", namespace,
 			"--overrides=" + podOverrides,
-			"metrics-test",
+			fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()),
 		})
 
 		if err != nil {
