@@ -1,7 +1,5 @@
 component: "Compliance Operator"
 approvers:
-  - jhrozek
-  - mrogers950
   - xiaojiey
   - Vincent056
   - rhmdnd
@@ -10,8 +8,6 @@ approvers:
   - Anna-Koudelkova
   - vickeybrown
 reviewers:
-  - jhrozek
-  - mrogers950
   - xiaojiey
   - Vincent056
   - rhmdnd
