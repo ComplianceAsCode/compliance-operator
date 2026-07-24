@@ -1,1 +1,1 @@
-FROM ghcr.io/complianceascode/k8scontent:latest
+FROM quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
