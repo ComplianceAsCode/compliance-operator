@@ -11,7 +11,7 @@ require (
 	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a
 	k8s.io/apimachinery v0.35.5
 	k8s.io/client-go v0.35.5
-	open-cluster-management.io/api v0.15.0
+	open-cluster-management.io/api v1.3.0
 	sigs.k8s.io/controller-runtime v0.23.3
 )
 
