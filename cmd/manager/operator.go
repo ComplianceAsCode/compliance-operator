@@ -153,9 +153,9 @@ var (
 		PlatformHyperShift:       true,
 		PlatformROSA:             false,
 	}
-	serviceMonitorBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	serviceMonitorTLSCAFile       = "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt"
-	alertName                     = "compliance"
+	serviceMonitorTLSCAConfigMap = "openshift-service-ca.crt"
+	serviceMonitorTLSCAKey      = "service-ca.crt"
+	alertName                   = "compliance"
 )
 
 const (
@@ -695,9 +695,16 @@ func generateOperatorServiceMonitor(service *v1.Service, namespace string) *moni
 			tlsConfig := &monitoring.TLSConfig{
 				SafeTLSConfig: monitoring.SafeTLSConfig{
 					ServerName: &m,
+					CA: monitoring.SecretOrConfigMap{
+						ConfigMap: &corev1.ConfigMapKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: serviceMonitorTLSCAConfigMap,
+							},
+							Key: serviceMonitorTLSCAKey,
+						},
+					},
 				},
 			}
-			tlsConfig.CAFile = serviceMonitorTLSCAFile
 			serviceMonitor.Spec.Endpoints[i].TLSConfig = tlsConfig
 		}
 	}
