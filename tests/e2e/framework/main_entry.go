@@ -102,9 +102,15 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("timed out waiting for deployment to become available: %w", err)
 	}
 
-	err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
-	if err != nil {
-		return err
+	arch := f.ClusterArchitecture()
+
+	if ExpectsRhcos4ProfileBundle(arch) {
+		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Printf("skipping rhcos4 ProfileBundle wait for architecture %s", arch.String())
 	}
 	err = f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid)
 	if err != nil {
@@ -161,9 +167,14 @@ func (f *Framework) TearDown() error {
 	}
 
 	log.Printf("cleaning up Profile Bundles")
-	err = f.cleanUpProfileBundle("rhcos4")
-	if err != nil {
-		return fmt.Errorf("failed to cleanup rhcos4 profile bundle: %w", err)
+	arch := f.ClusterArchitecture()
+	if ExpectsRhcos4ProfileBundle(arch) {
+		err = f.cleanUpProfileBundle("rhcos4")
+		if err != nil {
+			return fmt.Errorf("failed to cleanup rhcos4 profile bundle: %w", err)
+		}
+	} else {
+		log.Printf("skipping rhcos4 ProfileBundle cleanup for architecture %s", arch.String())
 	}
 	err = f.cleanUpProfileBundle("ocp4")
 	if err != nil {
