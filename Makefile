@@ -679,6 +679,10 @@ e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease e2e tests (e.g. default
 e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment concurrently
 	@LOG_CONTAINER_OUTPUT=1 $(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-rosa.log
 
+.PHONY: e2e-scale
+e2e-scale: e2e-set-image prep-e2e ## Run scaling and performance stress tests.
+	@CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/scale $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-test.log
+
 .PHONY: prep-e2e
 prep-e2e: kustomize
 	rm -rf $(TEST_SETUP_DIR)
