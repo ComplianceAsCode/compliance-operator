@@ -991,6 +991,97 @@ Server 3.fedora.pool.ntp.org`
 		})
 	})
 
+	Describe("Testing unescapeNewlines function", func() {
+		Context("When given strings with literal newline escape sequences", func() {
+			It("Should convert single newline", func() {
+				input := "line1\\nline2"
+				expected := "line1\nline2"
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should convert multiple newlines", func() {
+				input := "line1\\nline2\\n\\nline3"
+				expected := "line1\nline2\n\nline3"
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should handle strings without newlines", func() {
+				input := "single line"
+				expected := "single line"
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should handle empty string", func() {
+				input := ""
+				expected := ""
+				result := unescapeNewlines(input)
+				Expect(result).To(Equal(expected))
+			})
+		})
+	})
+
+	Describe("Testing urlEncode function", func() {
+		Context("When given strings that need URL encoding", func() {
+			It("Should encode spaces", func() {
+				input := "hello world"
+				expected := "hello%20world"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should encode special characters", func() {
+				input := "hello&world=test"
+				expected := "hello&world=test"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should encode forward slashes", func() {
+				input := "path/to/file"
+				expected := "path%2Fto%2Ffile"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should encode question marks", func() {
+				input := "what?"
+				expected := "what%3F"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should handle already safe strings", func() {
+				input := "simple-string_123"
+				expected := "simple-string_123"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should handle empty string", func() {
+				input := ""
+				expected := ""
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should encode percent signs", func() {
+				input := "100%"
+				expected := "100%25"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+
+			It("Should encode complex strings with multiple special characters", func() {
+				input := "config file.txt"
+				expected := "config%20file.txt"
+				result := urlEncode(input)
+				Expect(result).To(Equal(expected))
+			})
+		})
+	})
 })
 
 // printUniquePaths prints all unique paths within an XML document, starting from a given node.
