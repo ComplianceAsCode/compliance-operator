@@ -1530,6 +1530,129 @@ func TestScannerAndAPICollectorLimitsConfigurable(t *testing.T) {
 	}
 }
 
+func TestScannerAndAPICollectorRequestsConfigurable(t *testing.T) {
+	f := framework.Global
+
+	scanSettingName := framework.GetObjNameFromTest(t) + "-scansetting"
+	cpuRequest := "50m"
+	memoryRequest := "128Mi"
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+			Schedule:              "0 1 * * *",
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug: true,
+			ScanRequests: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse(cpuRequest),
+				corev1.ResourceMemory: resource.MustParse(memoryRequest),
+			},
+		},
+		Roles: []string{"master", "worker"},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
+
+	bindingName := framework.GetObjNameFromTest(t) + "-binding"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-cis-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.DeleteScanSettingBindingAndWaitForCleanup(&scanSettingBinding); err != nil {
+			t.Logf("cleanup ScanSettingBinding %s: %v", bindingName, err)
+		}
+	}()
+
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	suite := &compv1alpha1.ComplianceSuite{}
+	key := types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}
+	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, scanWrapper := range suite.Spec.Scans {
+		if scanWrapper.ScanRequests == nil {
+			t.Fatalf("scan %s in ComplianceSuite %s has no scanRequests", scanWrapper.Name, bindingName)
+		}
+
+		cpuQty, hasCPU := scanWrapper.ScanRequests[corev1.ResourceCPU]
+		if !hasCPU {
+			t.Fatalf("scan %s in ComplianceSuite %s has no CPU request", scanWrapper.Name, bindingName)
+		}
+		if cpuQty.String() != cpuRequest {
+			t.Fatalf("scan %s in ComplianceSuite %s has CPU request %s, expected %s", scanWrapper.Name, bindingName, cpuQty.String(), cpuRequest)
+		}
+
+		memQty, hasMem := scanWrapper.ScanRequests[corev1.ResourceMemory]
+		if !hasMem {
+			t.Fatalf("scan %s in ComplianceSuite %s has no memory request", scanWrapper.Name, bindingName)
+		}
+		if memQty.String() != memoryRequest {
+			t.Fatalf("scan %s in ComplianceSuite %s has memory request %s, expected %s", scanWrapper.Name, bindingName, memQty.String(), memoryRequest)
+		}
+	}
+
+	var podList *corev1.PodList
+	err := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		podList = &corev1.PodList{}
+		listErr := f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+			"workload": "scanner",
+		}))
+		if listErr != nil {
+			return false, listErr
+		}
+		if len(podList.Items) == 0 {
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("failed to find scanner pods: %v", err)
+	}
+
+	if len(podList.Items) == 0 {
+		t.Fatal("unable to verify pod requests")
+	}
+
+	for _, pod := range podList.Items {
+		if err := framework.WaitForPod(framework.CheckPodRequest(f.KubeClient, pod.Name, f.OperatorNamespace, cpuRequest, memoryRequest)); err != nil {
+			t.Fatalf("pod %s does not have expected resource requests: %v", pod.Name, err)
+		}
+	}
+}
+
 func TestStrictNodeScanConfiguration(t *testing.T) {
 	f := framework.Global
 	// Get one worker node
