@@ -1412,6 +1412,15 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - networking.k8s.io
+          resources:
+          - networkpolicies
+          verbs:
+          - create
+          - delete
+          - get
+          - update
         serviceAccountName: compliance-operator
       - rules:
         - apiGroups:
