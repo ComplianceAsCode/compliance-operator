@@ -124,6 +124,7 @@ type ReconcileComplianceScan struct {
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get,list,watch,create,delete,update
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=deletecollection
 //+kubebuilder:rbac:groups=image.openshift.io,resources=imagestreamtags,verbs=get,list,watch
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=create,delete,get,update
 //+kubebuilder:rbac:groups=scheduling.k8s.io,resources=priorityclasses,verbs=get,list,watch
 //+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources=clusterclaims,verbs=get,list,watch
 //+kubebuilder:rbac:groups=config.openshift.io,resources=infrastructures,verbs=get,list,watch
