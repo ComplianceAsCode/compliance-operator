@@ -142,10 +142,10 @@ func loadRules(dir string) ([]CELRuleContent, error) {
 		if rule.Name == "" {
 			return nil, fmt.Errorf("rule in %s has no name", f)
 		}
-		if rule.Expression == "" {
+		if rule.CheckType != "Manual" && rule.Expression == "" {
 			return nil, fmt.Errorf("rule %q in %s has no expression", rule.Name, f)
 		}
-		if len(rule.Inputs) == 0 {
+		if rule.CheckType != "Manual" && len(rule.Inputs) == 0 {
 			return nil, fmt.Errorf("rule %q in %s has no inputs", rule.Name, f)
 		}
 		rules = append(rules, rule)
