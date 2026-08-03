@@ -137,6 +137,17 @@ func TestComplianceOperatorMetrics(t *testing.T) {
 				require.Equal(t, METRIC_STATE_ERROR, getMetricValue(ctr))
 			},
 		},
+		{ // delete compliance state metric
+			when: func(m *Metrics) {
+				m.SetComplianceStateError("to-delete")
+				m.DeleteComplianceStateMetric("to-delete")
+			},
+			then: func(m *Metrics) {
+				c := make(chan prometheus.Metric, 1)
+				m.metrics.metricComplianceStateGauge.Collect(c)
+				require.Equal(t, 0, len(c))
+			},
+		},
 	} {
 		mock := &metricsfakes.FakeImpl{}
 		sut := New()
