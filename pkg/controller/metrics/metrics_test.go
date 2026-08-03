@@ -127,6 +127,16 @@ func TestComplianceOperatorMetrics(t *testing.T) {
 				require.Equal(t, METRIC_STATE_INCONSISTENT, getMetricValue(ctr))
 			},
 		},
+		{ // gauge error
+			when: func(m *Metrics) {
+				m.SetComplianceStateError("cstate")
+			},
+			then: func(m *Metrics) {
+				ctr, err := m.metrics.metricComplianceStateGauge.GetMetricWith(prometheus.Labels{metricLabelSuiteName: "cstate"})
+				require.Nil(t, err)
+				require.Equal(t, METRIC_STATE_ERROR, getMetricValue(ctr))
+			},
+		},
 	} {
 		mock := &metricsfakes.FakeImpl{}
 		sut := New()
