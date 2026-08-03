@@ -148,6 +148,20 @@ func TestComplianceOperatorMetrics(t *testing.T) {
 				require.Equal(t, 0, len(c))
 			},
 		},
+		{ // scan status with error message increments error counter
+			when: func(m *Metrics) {
+				m.IncComplianceScanStatus("errorscan", v1alpha1.ComplianceScanStatus{
+					Result:       "ERROR",
+					Phase:        "DONE",
+					ErrorMessage: "something went wrong",
+				})
+			},
+			then: func(m *Metrics) {
+				ctr, err := m.metrics.metricComplianceScanError.GetMetricWith(prometheus.Labels{metricLabelScanName: "errorscan"})
+				require.Nil(t, err)
+				require.Equal(t, 1, getMetricValue(ctr))
+			},
+		},
 	} {
 		mock := &metricsfakes.FakeImpl{}
 		sut := New()
