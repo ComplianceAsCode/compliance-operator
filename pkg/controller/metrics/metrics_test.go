@@ -162,6 +162,21 @@ func TestComplianceOperatorMetrics(t *testing.T) {
 				require.Equal(t, 1, getMetricValue(ctr))
 			},
 		},
+		{ // remediation status
+			when: func(m *Metrics) {
+				m.IncComplianceRemediationStatus("myrem", v1alpha1.ComplianceRemediationStatus{
+					ApplicationState: "Applied",
+				})
+			},
+			then: func(m *Metrics) {
+				ctr, err := m.metrics.metricComplianceRemediationStatus.GetMetricWith(prometheus.Labels{
+					metricLabelRemediationName:  "myrem",
+					metricLabelRemediationState: "Applied",
+				})
+				require.Nil(t, err)
+				require.Equal(t, 1, getMetricValue(ctr))
+			},
+		},
 	} {
 		mock := &metricsfakes.FakeImpl{}
 		sut := New()
