@@ -384,6 +384,92 @@ func TestCELBundleCISVMExtension(t *testing.T) {
 var _ = Describe("ParseCELBundle integration", func() {
 	const pbName = "cel-e2e-pb"
 
+	It("accepts manual rules without expressions and creates Rule CRs", func() {
+		bundleYAML := `rules:
+  - name: cel-rule
+    id: cel_rule
+    title: CEL Rule
+    description: A rule with CEL checks
+    rationale: Testing
+    severity: medium
+    checkType: Platform
+    expression: "pods.items.size() > 0"
+    inputs:
+      - name: pods
+        kubernetesInputSpec:
+          apiVersion: v1
+          resource: pods
+  - name: manual-rule
+    id: manual_rule
+    title: Manual Rule
+    description: A rule without automated checks
+    rationale: Requires manual verification
+    severity: medium
+    checkType: Platform
+    instructions: Run oc adm policy who-can create vmim
+profiles:
+  - name: test-profile
+    id: test_profile
+    title: Test Profile
+    productType: Platform
+    rules:
+      - cel-rule
+      - manual-rule
+`
+		outPath := filepath.Join(GinkgoT().TempDir(), "manual-bundle.yaml")
+		Expect(os.WriteFile(outPath, []byte(bundleYAML), 0644)).To(Succeed())
+
+		pb := &cmpv1alpha1.ProfileBundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      pbName,
+				Namespace: testNamespace,
+			},
+		}
+		Expect(client.Create(context.TODO(), pb)).To(Succeed())
+		defer client.Delete(context.TODO(), pb)
+
+		pcfg := &ParserConfig{
+			Client: client,
+			Scheme: client.Scheme(),
+		}
+
+		err := ParseCELBundle(outPath, pb, pcfg)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify CEL rule CR was created with expression
+		celRule := &cmpv1alpha1.Rule{}
+		Expect(client.Get(context.TODO(), types.NamespacedName{
+			Name:      GetPrefixedName(pbName, "cel-rule"),
+			Namespace: testNamespace,
+		}, celRule)).To(Succeed())
+		Expect(celRule.RulePayload.Expression).NotTo(BeEmpty())
+		Expect(celRule.RulePayload.Inputs).To(HaveLen(1))
+
+		// Verify manual rule CR was created without expression
+		manualRule := &cmpv1alpha1.Rule{}
+		Expect(client.Get(context.TODO(), types.NamespacedName{
+			Name:      GetPrefixedName(pbName, "manual-rule"),
+			Namespace: testNamespace,
+		}, manualRule)).To(Succeed())
+		Expect(manualRule.RulePayload.Expression).To(BeEmpty())
+		Expect(manualRule.RulePayload.Inputs).To(BeEmpty())
+		Expect(manualRule.RulePayload.Instructions).To(ContainSubstring("who-can"))
+		Expect(manualRule.RulePayload.ScannerType).To(Equal(cmpv1alpha1.ScannerTypeCEL))
+
+		// Verify profile references both rules
+		profile := &cmpv1alpha1.Profile{}
+		Expect(client.Get(context.TODO(), types.NamespacedName{
+			Name:      GetPrefixedName(pbName, "test-profile"),
+			Namespace: testNamespace,
+		}, profile)).To(Succeed())
+		Expect(profile.Rules).To(HaveLen(2))
+
+		// Cleanup
+		client.Delete(context.TODO(), celRule)
+		client.Delete(context.TODO(), manualRule)
+		client.Delete(context.TODO(), profile)
+	})
+
 	It("creates Rule and Profile CRs from bundler-generated file", func() {
 		outPath := filepath.Join(GinkgoT().TempDir(), "cel-bundle.yaml")
 		Expect(celcontent.BundleToFile(celTestRulesDir, celTestProfilesDir, outPath)).To(Succeed())

@@ -757,7 +757,7 @@ func (c *CelScanner) getCELRulesFromProfile(profileName, namespace string) ([]ce
 // validateCELRulePayload validates that a RulePayload has the required CEL fields.
 func (c *CelScanner) validateCELRulePayload(name string, payload *cmpv1alpha1.RulePayload) error {
 	if payload.Expression == "" {
-		// Manual rule — no expression to validate
+		cmdLog.Info("Rule has no CEL expression, treating as manual rule", "rule", name)
 		return nil
 	}
 

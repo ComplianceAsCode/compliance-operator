@@ -142,10 +142,15 @@ func loadRules(dir string) ([]CELRuleContent, error) {
 		if rule.Name == "" {
 			return nil, fmt.Errorf("rule in %s has no name", f)
 		}
-		if rule.CheckType != "Manual" && rule.Expression == "" {
+		if rule.Expression == "" && len(rule.Inputs) == 0 {
+			// Manual rule — no automated check, skip validation
+			rules = append(rules, rule)
+			continue
+		}
+		if rule.Expression == "" {
 			return nil, fmt.Errorf("rule %q in %s has no expression", rule.Name, f)
 		}
-		if rule.CheckType != "Manual" && len(rule.Inputs) == 0 {
+		if len(rule.Inputs) == 0 {
 			return nil, fmt.Errorf("rule %q in %s has no inputs", rule.Name, f)
 		}
 		rules = append(rules, rule)
