@@ -121,10 +121,12 @@ func ParseCELBundle(celPath string, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserC
 				Instructions:  celRule.Instructions,
 			}
 
-			// Validate CEL expression at parse time
-			if err := celvalidation.ValidateCELRule(celRule.Name, &rulePayload); err != nil {
-				errChan <- fmt.Errorf("CEL rule '%s' validation failed: %w", celRule.Name, err)
-				return
+			// Validate CEL expression at parse time (skip for rules without expressions)
+			if rulePayload.Expression != "" {
+				if err := celvalidation.ValidateCELRule(celRule.Name, &rulePayload); err != nil {
+					errChan <- fmt.Errorf("CEL rule '%s' validation failed: %w", celRule.Name, err)
+					return
+				}
 			}
 
 			annotations := map[string]string{

@@ -313,6 +313,73 @@ func TestBundleFromDirs_MissingFields(t *testing.T) {
 	}
 }
 
+func TestBundleFromDirs_ManualRule(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	profilesDir := filepath.Join(dir, "profiles")
+	os.MkdirAll(rulesDir, 0755)
+	os.MkdirAll(profilesDir, 0755)
+
+	celRuleYAML := `name: cel-rule
+id: cel_rule
+title: CEL Rule
+severity: medium
+checkType: Platform
+expression: "x.items.size() > 0"
+inputs:
+  - name: x
+    kubernetesInputSpec:
+      apiVersion: v1
+      resource: pods
+`
+	manualRuleYAML := `name: manual-rule
+id: manual_rule
+title: Manual Rule
+severity: medium
+checkType: Platform
+`
+	os.WriteFile(filepath.Join(rulesDir, "cel.yaml"), []byte(celRuleYAML), 0644)
+	os.WriteFile(filepath.Join(rulesDir, "manual.yaml"), []byte(manualRuleYAML), 0644)
+
+	profileYAML := `name: p
+id: p_id
+title: P
+rules:
+  - cel-rule
+  - manual-rule
+`
+	os.WriteFile(filepath.Join(profilesDir, "p.yaml"), []byte(profileYAML), 0644)
+
+	bundle, err := BundleFromDirs(rulesDir, profilesDir)
+	if err != nil {
+		t.Fatalf("BundleFromDirs failed: %v", err)
+	}
+	if len(bundle.Rules) != 2 {
+		t.Fatalf("Expected 2 rules (CEL + manual), got %d", len(bundle.Rules))
+	}
+
+	ruleMap := make(map[string]CELRuleContent)
+	for _, r := range bundle.Rules {
+		ruleMap[r.Name] = r
+	}
+
+	celRule := ruleMap["cel-rule"]
+	if celRule.Expression == "" {
+		t.Error("CEL rule should have expression")
+	}
+	if len(celRule.Inputs) == 0 {
+		t.Error("CEL rule should have inputs")
+	}
+
+	manualRule := ruleMap["manual-rule"]
+	if manualRule.Expression != "" {
+		t.Errorf("Manual rule should have empty expression, got %q", manualRule.Expression)
+	}
+	if len(manualRule.Inputs) != 0 {
+		t.Errorf("Manual rule should have no inputs, got %d", len(manualRule.Inputs))
+	}
+}
+
 func TestBundleFromDirs_EmptyProfile(t *testing.T) {
 	dir := t.TempDir()
 	rulesDir := filepath.Join(dir, "rules")

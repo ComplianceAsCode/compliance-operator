@@ -114,35 +114,30 @@ var _ = Describe("getCELRulesFromProfile", func() {
 		Expect(err.Error()).To(ContainSubstring("not found"))
 	})
 
-	It("returns error for CEL rule with empty expression", func() {
+	It("accepts CEL rule with empty expression as manual rule", func() {
 		scheme := newTestScheme()
 		profile := &cmpv1alpha1.Profile{
 			ObjectMeta: metav1.ObjectMeta{Name: "prof", Namespace: "ns"},
 			ProfilePayload: cmpv1alpha1.ProfilePayload{
-				Rules: []cmpv1alpha1.ProfileRule{"bad-rule"},
+				Rules: []cmpv1alpha1.ProfileRule{"manual-rule"},
 			},
 		}
-		badRule := &cmpv1alpha1.Rule{
-			ObjectMeta: metav1.ObjectMeta{Name: "bad-rule", Namespace: "ns"},
+		manualRule := &cmpv1alpha1.Rule{
+			ObjectMeta: metav1.ObjectMeta{Name: "manual-rule", Namespace: "ns"},
 			RulePayload: cmpv1alpha1.RulePayload{
-				ID:          "bad-rule",
+				ID:          "manual-rule",
 				ScannerType: cmpv1alpha1.ScannerTypeCEL,
 				Expression:  "",
-				Inputs: []cmpv1alpha1.InputPayload{{
-					Name: "pods",
-					KubernetesInputSpec: cmpv1alpha1.KubernetesInputSpec{
-						APIVersion: "v1", Resource: "pods",
-					},
-				}},
+				Inputs:      nil,
 			},
 		}
 		client := fake.NewClientBuilder().WithScheme(scheme).
-			WithObjects(profile, badRule).Build()
+			WithObjects(profile, manualRule).Build()
 		cs = &CelScanner{client: client, scheme: scheme}
 
-		_, err := cs.getCELRulesFromProfile("prof", "ns")
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("invalid Rule"))
+		rules, err := cs.getCELRulesFromProfile("prof", "ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rules).To(HaveLen(1))
 	})
 
 	It("returns empty slice when profile has only non-CEL rules", func() {
@@ -272,7 +267,7 @@ var _ = Describe("validateCELRulePayload", func() {
 		Expect(cs.validateCELRulePayload("test", payload)).To(Succeed())
 	})
 
-	It("rejects empty expression", func() {
+	It("accepts empty expression as manual rule", func() {
 		payload := &cmpv1alpha1.RulePayload{
 			Expression: "",
 			Inputs: []cmpv1alpha1.InputPayload{{
@@ -283,8 +278,7 @@ var _ = Describe("validateCELRulePayload", func() {
 			}},
 		}
 		err := cs.validateCELRulePayload("test", payload)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("expression is empty"))
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("rejects no inputs", func() {
