@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
+	goerrors "errors"
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 	"github.com/ComplianceAsCode/compliance-sdk/pkg/fetchers"
@@ -30,6 +31,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,11 +56,12 @@ const (
 )
 
 type CelScanner struct {
-	client     runtimeclient.Client
-	clientset  *kubernetes.Clientset
-	scheme     *runtime.Scheme
-	celConfig  celConfig
-	sdkScanner *scanner.Scanner
+	client         runtimeclient.Client
+	clientset      *kubernetes.Clientset
+	scheme         *runtime.Scheme
+	celConfig      celConfig
+	sdkScanner     *scanner.Scanner
+	fetcherAdapter *ComplianceFetcherAdapter
 }
 
 // ComplianceLogger adapts controller-runtime logging for SDK
@@ -106,18 +109,20 @@ func NewCelScanner(scheme *runtime.Scheme, client runtimeclient.Client, clientSe
 	}
 
 	// Create SDK scanner with our custom fetcher
-	sdkScanner := scanner.NewScanner(&ComplianceFetcherAdapter{
+	fetcherAdapter := &ComplianceFetcherAdapter{
 		fetcher: compositeFetcher,
 		client:  client,
 		scheme:  scheme,
-	}, logger)
+	}
+	sdkScanner := scanner.NewScanner(fetcherAdapter, logger)
 
 	return CelScanner{
-		client:     client,
-		clientset:  clientSet,
-		scheme:     scheme,
-		celConfig:  config,
-		sdkScanner: sdkScanner,
+		client:         client,
+		clientset:      clientSet,
+		scheme:         scheme,
+		celConfig:      config,
+		sdkScanner:     sdkScanner,
+		fetcherAdapter: fetcherAdapter,
 	}
 }
 
@@ -126,6 +131,19 @@ type ComplianceFetcherAdapter struct {
 	fetcher scanner.InputFetcher
 	client  runtimeclient.Client
 	scheme  *runtime.Scheme
+	// notApplicableRules records rules whose input resource TYPE is not
+	// served by the cluster (missing CRD/operator). Such rules are not
+	// evaluable by design and are reported NOT-APPLICABLE instead of
+	// ERROR (CMP-4483 platform applicability).
+	notApplicableRules map[string]string
+}
+
+// markNotApplicable records that a rule's inputs cannot exist on this cluster.
+func (a *ComplianceFetcherAdapter) markNotApplicable(ruleID, reason string) {
+	if a.notApplicableRules == nil {
+		a.notApplicableRules = map[string]string{}
+	}
+	a.notApplicableRules[ruleID] = reason
 }
 
 // celVariableAdapter adapts compliance-operator Variable to SDK CelVariable
@@ -171,11 +189,32 @@ func (a *ComplianceFetcherAdapter) FetchResources(ctx context.Context, rule scan
 	}
 
 	if err != nil {
-		// Add context to the error message
-		warnings = append(warnings, fmt.Sprintf("Error fetching resources for rule %s: %v", rule.Identifier(), err))
+		if reason, notServed := classifyMissingResourceTypeError(err); notServed {
+			// The input's resource type is not served by this cluster
+			// (missing CRD / operator not installed). The rule cannot
+			// apply here; record it so the result is reported
+			// NOT-APPLICABLE instead of ERROR.
+			a.markNotApplicable(rule.Identifier(), reason)
+			warnings = append(warnings, reason)
+		} else {
+			// Add context to the error message
+			warnings = append(warnings, fmt.Sprintf("Error fetching resources for rule %s: %v", rule.Identifier(), err))
+		}
 	}
 
 	return resources, warnings, err
+}
+
+// classifyMissingResourceTypeError reports whether the fetch error means the
+// requested resource TYPE is not served by the cluster (missing CRD or
+// operator), which makes the rule not applicable rather than in error
+// (CMP-4483 platform applicability).
+func classifyMissingResourceTypeError(err error) (string, bool) {
+	var noMatch *apimeta.NoKindMatchError
+	if goerrors.As(err, &noMatch) {
+		return fmt.Sprintf("Resource type %s is not available on this cluster; rule is not applicable", noMatch.GroupKind.String()), true
+	}
+	return "", false
 }
 
 // getRuntimeClient builds a controller-runtime client from the standard rest.Config.
@@ -435,6 +474,15 @@ func (c *CelScanner) runPlatformScan() {
 				compResult.Warnings = append(compResult.Warnings, rw.payload.FailureReason)
 			}
 		case scanner.CheckResultError:
+			if reason, na := c.fetcherAdapter.notApplicableRules[result.ID]; na {
+				// The rule's input resource type does not exist on this
+				// cluster; the eval error is a consequence of that, not a
+				// real failure (CMP-4483).
+				compResult.Status = cmpv1alpha1.CheckResultNotApplicable
+				compResult.Warnings = []string{reason}
+				result.ErrorMessage = ""
+				break
+			}
 			compResult.Status = cmpv1alpha1.CheckResultError
 			exitCode = CelExitCodeError
 		case scanner.CheckResultNotApplicable:
