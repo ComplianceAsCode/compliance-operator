@@ -36,7 +36,7 @@ And then, you will need to login and push the built image to your repo, for exam
 
 `podman push testcontent quay.io/username/content_repo:testcontent`
 
-[1] https://github.com/openshift/compliance-operator/stargazers
+[1] https://github.com/ComplianceAsCode/compliance-operator/stargazers
 [2] https://complianceascode.readthedocs.io/en/latest/manual/developer/02_building_complianceascode.html#installing-build-dependencies
 
 Now we have the content image in a public repository on `quay.io/username/content_repo:testcontent`.
