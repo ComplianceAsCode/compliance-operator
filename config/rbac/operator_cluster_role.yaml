@@ -64,10 +64,15 @@ rules:
       - cluster
     verbs:
       - get
-      - list
-      - watch
       - update
       - patch
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - apiservers
+    verbs:
+      - list
+      - watch
   - apiGroups:
       - monitoring.coreos.com
     resources:

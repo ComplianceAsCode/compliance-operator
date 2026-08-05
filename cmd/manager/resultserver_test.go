@@ -16,6 +16,7 @@ limitations under the License.
 package manager
 
 import (
+	"crypto/tls"
 	"io"
 	"os"
 	"path"
@@ -35,6 +36,15 @@ func _readDirNames(path string) []string {
 	Expect(err).To(BeNil())
 	return list
 }
+
+var _ = Describe("getServerTLSConfig", func() {
+	It("returns secure defaults when not running in a cluster", func() {
+		cfg := getServerTLSConfig()
+		Expect(cfg).NotTo(BeNil())
+		Expect(cfg.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
+		Expect(cfg.NextProtos).To(ContainElement("http/1.1"))
+	})
+})
 
 var _ = Describe("Resultserver testing", func() {
 	Context("Raw result directory rotation", func() {

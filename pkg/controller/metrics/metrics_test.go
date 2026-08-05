@@ -24,6 +24,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
+	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/metrics/metricsfakes"
 )
@@ -60,6 +62,23 @@ func TestRegisterMetrics(t *testing.T) {
 			require.Nil(t, err)
 		}
 	}
+}
+
+func TestSetTLSProfileSpec(t *testing.T) {
+	t.Parallel()
+
+	sut := New()
+	require.Nil(t, sut.tlsProfileSpec)
+
+	profile := configv1.TLSProfileSpec{
+		Ciphers:       configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers,
+		MinTLSVersion: configv1.VersionTLS12,
+	}
+	sut.SetTLSProfileSpec(profile)
+
+	require.NotNil(t, sut.tlsProfileSpec)
+	require.Equal(t, configv1.VersionTLS12, sut.tlsProfileSpec.MinTLSVersion)
+	require.Equal(t, profile.Ciphers, sut.tlsProfileSpec.Ciphers)
 }
 
 func TestComplianceOperatorMetrics(t *testing.T) {
