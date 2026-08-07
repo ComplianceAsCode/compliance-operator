@@ -1,7 +1,5 @@
 component: "Compliance Operator"
 approvers:
-  - jhrozek
-  - mrogers950
   - xiaojiey
   - Vincent056
   - rhmdnd
@@ -11,8 +9,6 @@ approvers:
   - vickeybrown
   - abushkin-redhat
 reviewers:
-  - jhrozek
-  - mrogers950
   - xiaojiey
   - Vincent056
   - rhmdnd
