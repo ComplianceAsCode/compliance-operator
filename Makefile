@@ -307,6 +307,9 @@ simplify: ## Run go fmt -s against code.
 fmt: ## Run go fmt against code.
 	$(GO) fmt ./...
 
+fmt-check: ## Fail if any code is not formatted with go fmt.
+	@test -z "$$(gofmt -l $(SRC))" || { echo "The following files need gofmt:"; gofmt -l $(SRC); echo "Run 'make fmt' to fix formatting."; exit 1; }
+
 vet: ## Run go vet against code.
 	$(GO) vet $(PKGS)
 
@@ -423,7 +426,7 @@ images: image bundle-image  ## Build operator and bundle images.
 images-extra: openscap-image e2e-content-images  ## Build the openscap and test content images.
 
 .PHONY: build
-build: generate fmt vet test-unit ## Build the operator binary.
+build: generate fmt-check vet test-unit ## Build the operator binary.
 	$(GO) build \
 		-trimpath \
 		-ldflags=-buildid= \
@@ -499,7 +502,7 @@ catalog-docker: opm ## Prepare the catalog dockerfile and the catalog json file.
 catalog: catalog-image catalog-push ## Build and push a catalog image.
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+run: manifests generate fmt-check vet ## Run a controller from your host.
 	$(GO) run ./$(MAIN_PKG)
 
 
@@ -585,7 +588,7 @@ catalog-push: ## Push a catalog image.
 ##@ Testing
 
 .PHONY: test-unit
-test-unit: fmt ## Run the unit tests
+test-unit: fmt-check ## Run the unit tests
 ifndef JUNITFILE
 	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -cover $(TESTABLE_PKGS) | tee .test-output.log
 else
@@ -596,7 +599,7 @@ endif
 	fi
 
 .PHONY: test-coverage
-test-coverage: fmt ## Run the unit tests and generate a coverage report
+test-coverage: fmt-check ## Run the unit tests and generate a coverage report
 	@$(GO) test -cover -coverprofile=coverage.out $(PKGS)
 	@$(GO) tool cover -func coverage.out
 
