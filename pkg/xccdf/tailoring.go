@@ -86,6 +86,11 @@ func GetContentFileName(productName string) string {
 	return fmt.Sprintf("%s%s%s", ContentFileNamePrefix, productName, ContentFileNameSuffix)
 }
 
+// GetCELContentFileName gets the CEL content file name for a profile bundle
+func GetCELContentFileName(productName string) string {
+	return fmt.Sprintf("%s-cel-content.yaml", productName)
+}
+
 // GetXCCDFProfileID gets a profile xccdf ID from the TailoredProfile object
 func GetXCCDFProfileID(tp *cmpv1alpha1.TailoredProfile) string {
 	return fmt.Sprintf("xccdf_%s_profile_%s", XCCDFNamespace, tp.Name)

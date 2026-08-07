@@ -17,4 +17,4 @@ github.com/ComplianceAsCode/compliance-operator/pkg/controller/tailoredprofile	5
 github.com/ComplianceAsCode/compliance-operator/pkg/profileparser	78.1
 github.com/ComplianceAsCode/compliance-operator/pkg/utils	67.5
 github.com/ComplianceAsCode/compliance-operator/pkg/utils/celvalidation	100.0
-github.com/ComplianceAsCode/compliance-operator/pkg/xccdf	48.1
+github.com/ComplianceAsCode/compliance-operator/pkg/xccdf	50.0

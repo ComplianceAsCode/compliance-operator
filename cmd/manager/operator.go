@@ -590,6 +590,13 @@ func ensureDefaultProfileBundles(
 					ContentFile:  xccdf.GetContentFileName(prod),
 				},
 			}
+			// CEL content is currently built for the ocp4 product only. The
+			// profileparser skips a celContentFile that is absent from the
+			// content image, so this default is safe with images that do not
+			// ship CEL content.
+			if prod == "ocp4" {
+				pb.Spec.CELContentFile = xccdf.GetCELContentFileName(prod)
+			}
 			setupLog.Info("Ensuring ProfileBundle is available",
 				"ProfileBundle.Name", pb.GetName(),
 				"ProfileBundle.Namespace", pb.GetNamespace())

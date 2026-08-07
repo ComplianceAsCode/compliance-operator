@@ -111,3 +111,14 @@ var _ = Describe("Testing parse variables", func() {
 		})
 	})
 })
+
+var _ = Describe("Content file names", func() {
+	It("builds the datastream file name for a product", func() {
+		Expect(GetContentFileName("ocp4")).To(Equal("ssg-ocp4-ds.xml"))
+		Expect(GetContentFileName("rhcos4")).To(Equal("ssg-rhcos4-ds.xml"))
+	})
+
+	It("builds the CEL content file name for a product", func() {
+		Expect(GetCELContentFileName("ocp4")).To(Equal("ocp4-cel-content.yaml"))
+	})
+})

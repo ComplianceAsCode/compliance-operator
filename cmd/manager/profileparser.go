@@ -159,13 +159,21 @@ func runProfileParser(cmd *cobra.Command, args []string) {
 		cmdLog.Error(closeErr, "Couldn't close the content file")
 	}
 
-	// Parse CEL content if provided
+	// Parse CEL content if provided. A celContentFile that is absent from
+	// the content image is not an error: the default ocp4 ProfileBundle
+	// always sets it, but content images without CEL content are still
+	// supported - the bundle then simply provides no CEL profiles.
 	if pcfg.CELContentPath != "" {
-		celErr := profileparser.ParseCELBundle(pcfg.CELContentPath, pb, pcfg)
-		if celErr != nil {
-			updateProfileBundleStatus(pcfg, pb, celErr)
-			cmdLog.Error(celErr, "Parsing the CEL bundle failed, will restart the container")
-			os.Exit(1)
+		if _, statErr := os.Stat(pcfg.CELContentPath); os.IsNotExist(statErr) {
+			cmdLog.Info("CEL content file not present in the content image, skipping CEL parsing",
+				"path", pcfg.CELContentPath)
+		} else {
+			celErr := profileparser.ParseCELBundle(pcfg.CELContentPath, pb, pcfg)
+			if celErr != nil {
+				updateProfileBundleStatus(pcfg, pb, celErr)
+				cmdLog.Error(celErr, "Parsing the CEL bundle failed, will restart the container")
+				os.Exit(1)
+			}
 		}
 	}
 
