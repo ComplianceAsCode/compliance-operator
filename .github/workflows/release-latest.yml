@@ -5,21 +5,8 @@ on:
     branches: ["master"]
 
 jobs:
-  # Push to latest
-  operator-container-push-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: compliance-operator
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: build/Dockerfile
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
+  # Build bundle with Quay.io Konflux image references
+  # Operator, openscap, content, and must-gather images are built by Konflux
   bundle-container-push-latest:
     permissions:
       contents: read
@@ -34,23 +21,8 @@ jobs:
       vendor: "Compliance Operator Authors"
       platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
 
-  openscap-container-push-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: openscap-ocp
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: images/openscap/Dockerfile
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
   catalog-container-push-pr:
     needs:
-      - operator-container-push-latest
       - bundle-container-push-latest
     permissions:
       contents: read
@@ -66,17 +38,3 @@ jobs:
       prepare_command: |
         make catalog-docker BUNDLE_IMGS=ghcr.io/complianceascode/compliance-operator-bundle:latest
       platforms: "linux/amd64,linux/ppc64le,linux/s390x,linux/arm64"
-
-  must-gather-latest:
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: metal-toolbox/container-push/.github/workflows/container-push.yml@main
-    with:
-      name: must-gather-ocp
-      registry_org: complianceascode
-      tag: latest
-      dockerfile_path: images/must-gather/Dockerfile.ocp
-      vendor: "Compliance Operator Authors"
-      platforms: "linux/amd64"
