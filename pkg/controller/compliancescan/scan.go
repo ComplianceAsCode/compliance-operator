@@ -68,6 +68,24 @@ func scanLimits(scanInstance *compv1alpha1.ComplianceScan, defaultMem, defaultCp
 	return &limits
 }
 
+func scanRequests(scanInstance *compv1alpha1.ComplianceScan, defaultMem, defaultCpu string) *corev1.ResourceList {
+	requests := corev1.ResourceList{
+		corev1.ResourceMemory: resource.MustParse(defaultMem),
+		corev1.ResourceCPU:    resource.MustParse(defaultCpu),
+	}
+
+	if scanInstance.Spec.ScanRequests != nil {
+		for resource := range requests {
+			customRequest, ok := scanInstance.Spec.ScanRequests[resource]
+			if ok {
+				requests[resource] = customRequest
+			}
+		}
+	}
+
+	return &requests
+}
+
 func runtimeSSHConfigCommand() string {
 	return fmt.Sprintf(`mkdir -p %[1]s && \
 if [ -x /host/usr/sbin/sshd ]; then \
@@ -273,10 +291,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 						// seccomp profile is sufficient here.
 					},
 					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceMemory: resource.MustParse("50Mi"),
-							corev1.ResourceCPU:    resource.MustParse("10m"),
-						},
+						Requests: *scanRequests(scanInstance, "50Mi", "10m"),
 						// NOTE: when changing the default limits, remember to also change the
 						// doc text in the CRD.
 						Limits: *scanLimits(scanInstance, "500Mi", "100m"),
@@ -384,10 +399,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 				},
 			},
 			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
-					corev1.ResourceCPU:    resource.MustParse("10m"),
-				},
+				Requests: *scanRequests(scanInstance, "50Mi", "10m"),
 				// NOTE: when changing the default limits, remember to also change the
 				// doc text in the CRD.
 				Limits: *scanLimits(scanInstance, "500Mi", "100m"),
@@ -421,10 +433,7 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 				},
 			},
 			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
-					corev1.ResourceCPU:    resource.MustParse("10m"),
-				},
+				Requests: *scanRequests(scanInstance, "50Mi", "10m"),
 				// NOTE: when changing the default limits, remember to also change the
 				// doc text in the CRD.
 				Limits: *scanLimits(scanInstance, "500Mi", "100m"),
@@ -687,10 +696,7 @@ func addScannerInitContainer(scanInstance *compv1alpha1.ComplianceScan, pod *cor
 				},
 			},
 			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("20Mi"),
-					corev1.ResourceCPU:    resource.MustParse("10m"),
-				},
+				Requests: *scanRequests(scanInstance, "20Mi", "10m"),
 				// NOTE: when changing the default limits, remember to also change the
 				// doc text in the CRD.
 				Limits: *scanLimits(scanInstance, "202Mi", "100m"),
