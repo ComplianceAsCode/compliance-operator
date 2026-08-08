@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	DefaultContentContainerImage = "ghcr.io/complianceascode/k8scontent:latest"
+	DefaultContentContainerImage = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master"
 	CACertDataKey                = "ca.crt"
 	CAKeyDataKey                 = "ca.key"
 	ServerCertInstanceSuffix     = "-rs"
