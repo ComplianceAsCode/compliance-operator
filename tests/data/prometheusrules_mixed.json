@@ -1,0 +1,36 @@
+{
+  "apiVersion": "monitoring.coreos.com/v1",
+  "kind": "PrometheusRuleList",
+  "items": [
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "audit-errors",
+        "namespace": "openshift-kube-apiserver"
+      },
+      "spec": {
+        "groups": [
+          {
+            "name": "apiserver-audit",
+            "rules": [
+              {
+                "alert": "AuditLogError",
+                "expr": "apiserver_audit_error_total / apiserver_audit_event_total > 0"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "empty-rule",
+        "namespace": "default"
+      },
+      "spec": {}
+    }
+  ]
+}

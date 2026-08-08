@@ -13350,7 +13350,7 @@ For more information, consult the
 Therefore, you need to use a tool that can query the OCP API, retrieve the following:
 <html:ul><html:li><html:code class="ocp-api-endpoint" id="5fd5244e3dcae63319f7e86b918cb8ea6ce1b4124670ccb43750d7a75ca03cb7">/apis/monitoring.coreos.com/v1/prometheusrules</html:code>
     API endpoint, filter with with the <html:code>jq</html:code> utility using the following filter
-    <html:code class="ocp-api-filter" id="filter-5fd5244e3dcae63319f7e86b918cb8ea6ce1b4124670ccb43750d7a75ca03cb7">[.items[].spec.groups[].rules[].expr]</html:code>
+    <html:code class="ocp-api-filter" id="filter-5fd5244e3dcae63319f7e86b918cb8ea6ce1b4124670ccb43750d7a75ca03cb7">[.items[]?.spec.groups[]?.rules[]?.expr]</html:code>
     and persist it to the local
     <html:code class="ocp-dump-location" id="dump-5fd5244e3dcae63319f7e86b918cb8ea6ce1b4124670ccb43750d7a75ca03cb7"><xccdf-1.2:sub idref="xccdf_org.ssgproject.content_value_ocp_data_root" use="legacy"/>/apis/monitoring.coreos.com/v1/prometheusrules#5fd5244e3dcae63319f7e86b918cb8ea6ce1b4124670ccb43750d7a75ca03cb7</html:code>
     file.
@@ -39366,7 +39366,7 @@ openvswitch
         </ocil:boolean_question>
         <ocil:boolean_question id="ocil:ssg-audit_error_alert_exists_question:question:1">
           <ocil:question_text>Run the following command:
-$ oc get --all-namespaces prometheusrules -o json | jq '[.items[].spec.groups[].rules[].expr]' | grep apiserver_audit
+$ oc get --all-namespaces prometheusrules -o json | jq '[.items[]?.spec.groups[]?.rules[]?.expr]' | grep apiserver_audit
 Make sure that there's a prometheus rule that verifies the apiserver_audit_error_total and 
 apiserver_audit_event_total metrics and will alert based on an error threshold.
       Is it the case that Audit log errors do not generate an alert?

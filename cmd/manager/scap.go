@@ -539,30 +539,46 @@ func fetch(ctx context.Context, streamDispatcher streamerDispatcherFn, rfClients
 	return results, warnings, nil
 }
 
-func filter(ctx context.Context, rawobj []byte, filter string) ([]byte, error) {
-	fltr, fltrErr := gojq.Parse(filter)
-	if fltrErr != nil {
-		return nil, fmt.Errorf("could not create filter '%s': %w", filter, fltrErr)
+func execFilter(ctx context.Context, obj map[string]interface{}, filterExpr string) (interface{}, gojq.Iter, error) {
+	fltr, err := gojq.Parse(filterExpr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create filter '%s': %w", filterExpr, err)
 	}
+	iter := fltr.RunWithContext(ctx, obj)
+	v, ok := iter.Next()
+	if !ok {
+		return nil, nil, fmt.Errorf("couldn't get filtered object")
+	}
+	if err, ok := v.(error); ok {
+		return nil, nil, err
+	}
+	return v, iter, nil
+}
+
+func filter(ctx context.Context, rawobj []byte, filterExpr string) ([]byte, error) {
 	obj := map[string]interface{}{}
 	unmarshallErr := json.Unmarshal(rawobj, &obj)
 	if unmarshallErr != nil {
 		return nil, fmt.Errorf("Error unmarshalling json: %w", unmarshallErr)
 	}
-	iter := fltr.RunWithContext(ctx, obj)
-	v, ok := iter.Next()
-	if !ok {
-		DBG("No result from filter. This is an issue and an error will be returned.")
-		return nil, fmt.Errorf("couldn't get filtered object")
-	}
-	if err, ok := v.(error); ok {
-		DBG("Error while filtering: %s", err)
-		// gojq may return a diverse set of internal errors caused by null values.
-		// These errors are happen when a piped filter ends up acting on a null value.
-		if strings.HasSuffix(err.Error(), ": null") {
-			return nil, fmt.Errorf("Skipping empty filter result from '%s': %w", filter, NullValErr)
+
+	v, iter, execErr := execFilter(ctx, obj, filterExpr)
+	if execErr != nil {
+		DBG("Error while filtering: %s", execErr)
+		if strings.HasSuffix(execErr.Error(), ": null") {
+			// Retry with optional iteration to gracefully skip null values
+			// instead of failing the entire filter.
+			optFilter := strings.ReplaceAll(filterExpr, "[]", "[]?")
+			if optFilter != filterExpr {
+				DBG("Retrying with optional iteration: '%s'", optFilter)
+				v, iter, execErr = execFilter(ctx, obj, optFilter)
+			}
+			if execErr != nil {
+				return nil, fmt.Errorf("Skipping empty filter result from '%s': %w", filterExpr, NullValErr)
+			}
+		} else {
+			return nil, execErr
 		}
-		return nil, err
 	}
 
 	var out []byte
@@ -591,7 +607,7 @@ func filter(ctx context.Context, rawobj []byte, filter string) ([]byte, error) {
 	_, isNotEOF := iter.Next()
 	if isNotEOF {
 		DBG("No more results should have come from the filter. This is an issue with the content.")
-		return out, fmt.Errorf("Skipping extra results from filter '%s': %w", filter, MoreThanOneObjErr)
+		return out, fmt.Errorf("Skipping extra results from filter '%s': %w", filterExpr, MoreThanOneObjErr)
 	}
 	return out, nil
 }
