@@ -4,7 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -553,7 +553,7 @@ func (r *ReconcileComplianceScan) getRuntimeKubeletConfig(nodeName string) (stri
 		return "", fmt.Errorf("cannot get the runtime kubelet config for node %s: %v", nodeName, err)
 	}
 	defer kubeletConfigIO.Close()
-	kubeletConfig, err := ioutil.ReadAll(kubeletConfigIO)
+	kubeletConfig, err := io.ReadAll(kubeletConfigIO)
 	if err != nil {
 		return "", fmt.Errorf("cannot read the runtime kubelet config for node %s: %v", nodeName, err)
 	}
