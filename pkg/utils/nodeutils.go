@@ -167,7 +167,7 @@ func GetScanType(annotations map[string]string) compliancev1alpha1.ComplianceSca
 	return compliancev1alpha1.ScanTypePlatform
 }
 
-func GetKCFromMC(mc *mcfgv1.MachineConfig, client runtimeclient.Client) (*mcfgv1.KubeletConfig, error) {
+func GetKCFromMC(ctx context.Context, mc *mcfgv1.MachineConfig, client runtimeclient.Client) (*mcfgv1.KubeletConfig, error) {
 	if mc == nil {
 		return nil, fmt.Errorf("machine config is nil")
 	}
@@ -176,7 +176,7 @@ func GetKCFromMC(mc *mcfgv1.MachineConfig, client runtimeclient.Client) (*mcfgv1
 			kubeletName := mc.GetOwnerReferences()[0].Name
 			kubeletConfig := &mcfgv1.KubeletConfig{}
 			kcKey := types.NamespacedName{Name: kubeletName}
-			if err := client.Get(context.TODO(), kcKey, kubeletConfig); err != nil {
+			if err := client.Get(ctx, kcKey, kubeletConfig); err != nil {
 				return nil, fmt.Errorf("couldn't get current KubeletConfig: %w", err)
 			}
 			return kubeletConfig, nil
