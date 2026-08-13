@@ -7,7 +7,7 @@ github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1	7.5
 github.com/ComplianceAsCode/compliance-operator/pkg/celcontent	84.0
 github.com/ComplianceAsCode/compliance-operator/pkg/controller/common	33.7
 github.com/ComplianceAsCode/compliance-operator/pkg/controller/complianceremediation	53.2
-github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancescan	40.0
+github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancescan	40.1
 github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancesuite	22.9
 github.com/ComplianceAsCode/compliance-operator/pkg/controller/customrule	65.7
 github.com/ComplianceAsCode/compliance-operator/pkg/controller/metrics	60.7
