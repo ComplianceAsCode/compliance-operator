@@ -11,11 +11,11 @@ import (
 
 var _ providerIface = (*GoNameProvider)(nil)
 
-// GoNameProvider resolves json property names to go struct field names following the same rules as
-// the standard library's [encoding/json] package.
+// GoNameProvider resolves json property names to go struct field names following
+// the same rules as the standard library's [encoding/json] package.
 //
-// Contrary to [NameProvider], it considers exported fields without a json tag, and promotes fields
-// from anonymous embedded struct types.
+// Contrary to [NameProvider], it considers exported fields without a json tag,
+// and promotes fields from anonymous embedded struct types.
 //
 // Rules (aligned with encoding/json):
 //
@@ -104,9 +104,9 @@ func (n *GoNameProvider) nameIndexFor(tpe reflect.Type) nameIndex {
 	return names
 }
 
-// fieldEntry captures a candidate field discovered while walking a struct along with the
-// indirection path from the root type (used to resolve conflicts by depth in the same way
-// encoding/json does).
+// fieldEntry captures a candidate field discovered while walking a struct
+// along with the indirection path from the root type (used to resolve conflicts
+// by depth in the same way encoding/json does).
 type fieldEntry struct {
 	goName   string
 	jsonName string
@@ -129,8 +129,6 @@ func buildGoNameIndex(tpe reflect.Type) nameIndex {
 
 // collectGoFields walks tpe breadth-first along anonymous struct fields,
 // reproducing the field selection performed by encoding/json.typeFields.
-//
-//nolint:gocognit // everything is inlined to help the compiler determine what escapes and what doesn't
 func collectGoFields(tpe reflect.Type) []fieldEntry {
 	if tpe.Kind() != reflect.Struct {
 		return nil
@@ -159,12 +157,12 @@ func collectGoFields(tpe reflect.Type) []fieldEntry {
 		}
 
 		for _, q := range current {
-			for i := range q.typ.NumField() {
+			for i := 0; i < q.typ.NumField(); i++ {
 				sf := q.typ.Field(i)
 
 				if sf.Anonymous {
 					ft := sf.Type
-					if ft.Kind() == reflect.Pointer {
+					if ft.Kind() == reflect.Ptr {
 						ft = ft.Elem()
 					}
 					if !sf.IsExported() && ft.Kind() != reflect.Struct {
@@ -182,7 +180,7 @@ func collectGoFields(tpe reflect.Type) []fieldEntry {
 				tagged := jsonName != ""
 
 				ft := sf.Type
-				if ft.Kind() == reflect.Pointer {
+				if ft.Kind() == reflect.Ptr {
 					ft = ft.Elem()
 				}
 
@@ -223,9 +221,9 @@ func collectGoFields(tpe reflect.Type) []fieldEntry {
 	return dominantFields(candidates)
 }
 
-// dominantFields applies the Go encoding/json conflict resolution rules: at each JSON name, the
-// shallowest field wins; at equal depth, a uniquely tagged candidate wins; otherwise all candidates
-// for that name are dropped.
+// dominantFields applies the Go encoding/json conflict resolution rules:
+// at each JSON name, the shallowest field wins; at equal depth, a uniquely
+// tagged candidate wins; otherwise all candidates for that name are dropped.
 func dominantFields(candidates []fieldEntry) []fieldEntry {
 	byName := make(map[string][]fieldEntry, len(candidates))
 	for _, c := range candidates {
@@ -274,14 +272,14 @@ func dominantFields(candidates []fieldEntry) []fieldEntry {
 	return out
 }
 
-// parseJSONTag returns the name component of a json struct tag and whether it carried any non-name
-// option (kept for future-proofing, e.g. "omitempty").
+// parseJSONTag returns the name component of a json struct tag and whether
+// it carried any non-name option (kept for future-proofing, e.g. "omitempty").
 func parseJSONTag(tag string) (string, string) {
 	if tag == "" {
 		return "", ""
 	}
-	if before, after, ok := strings.Cut(tag, ","); ok {
-		return before, after
+	if idx := strings.IndexByte(tag, ','); idx >= 0 {
+		return tag[:idx], tag[idx+1:]
 	}
 
 	return tag, ""
