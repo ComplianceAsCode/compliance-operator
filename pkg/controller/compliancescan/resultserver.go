@@ -43,7 +43,7 @@ func (r *ReconcileComplianceScan) createResultServer(instance *compv1alpha1.Comp
 		return podUidErr
 	}
 	deployment := resultServer(instance, resultServerLabels, podFSGroup, podUid, logger)
-	if priorityClassExist, why := utils.ValidatePriorityClassExist(deployment.Spec.Template.Spec.PriorityClassName, r.Client); !priorityClassExist {
+	if priorityClassExist, why := utils.ValidatePriorityClassExist(ctx, deployment.Spec.Template.Spec.PriorityClassName, r.Client); !priorityClassExist {
 		log.Info(why, "resultServer", deployment.Name)
 		r.Recorder.Eventf(deployment, corev1.EventTypeWarning, "PriorityClass", why+" resultServer:"+deployment.Name)
 		deployment.Spec.Template.Spec.PriorityClassName = ""
