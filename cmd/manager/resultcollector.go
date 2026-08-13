@@ -56,7 +56,7 @@ var ResultcollectorCmd = &cobra.Command{
 }
 
 var (
-	timeoutErr = goerrors.New("Timed out waiting for results file")
+	timeoutErr = goerrors.New("timed out waiting for results file")
 )
 
 func init() {
