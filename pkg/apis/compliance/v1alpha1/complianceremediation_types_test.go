@@ -103,7 +103,7 @@ var _ = Describe("Testing ComplianceRemediation API", func() {
 		It("returns an error if no annotation is set", func() {
 			_, err := rem.ParseRemediationDependencyRefs()
 			Expect(err).ToNot(BeNil())
-			Expect(err).To(MatchError(KubeDepsNotFound))
+			Expect(err).To(MatchError(ErrKubeDepsNotFound))
 		})
 	})
 })

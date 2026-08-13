@@ -93,7 +93,7 @@ const (
 )
 
 var (
-	KubeDepsNotFound = errors.New("kubernetes dependency annotation not found")
+	ErrKubeDepsNotFound = errors.New("kubernetes dependency annotation not found")
 )
 
 type RemediationObjectDependencyReference struct {
@@ -283,7 +283,7 @@ func (r *ComplianceRemediation) ParseRemediationDependencyRefs() ([]RemediationO
 	annotations := r.GetAnnotations()
 	rawdeps, hasDeps := annotations[RemediationObjectDependencyAnnotation]
 	if !hasDeps {
-		return nil, KubeDepsNotFound
+		return nil, ErrKubeDepsNotFound
 	}
 
 	deps := []RemediationObjectDependencyReference{}
