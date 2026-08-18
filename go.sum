@@ -8,8 +8,8 @@ cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdB
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
 github.com/Azure/ARO-RP v0.0.0-20260609191625-57f12dca64e6 h1:EJOfYTbAAawQY/2wtc9Vydg8paXYbBlfrViikIcHMmc=
 github.com/Azure/ARO-RP v0.0.0-20260609191625-57f12dca64e6/go.mod h1:Wt0ufpTDmyMm5etIfW/dTtgeaAmb2JT3iFGOFgm7mPc=
-github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19 h1:THSSJvmtj7k+c9QKoUeHap14FiOMOUsAJH/ENH5KMC0=
-github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19/go.mod h1:ZL0fSwQU1JuTiX3RgQZ3F4aRY6usqHV6ShrhvgFtPXA=
+github.com/ComplianceAsCode/compliance-sdk v0.1.1 h1:SeWsCIQXwUmGPy2VcLxG1jFNttqHe/rGnRhXMPAPiMw=
+github.com/ComplianceAsCode/compliance-sdk v0.1.1/go.mod h1:C3XFGaXUDLnryp6URL7R63BWVkIzMIT/BBiCF6tmsCE=
 github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1Xbatp0=
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/ajeddeloh/go-json v0.0.0-20170920214419-6a2fe990e083/go.mod h1:otnto4/Icqn88WCcM4bhIJNSgsh9VLBuspyyCfvof9c=
