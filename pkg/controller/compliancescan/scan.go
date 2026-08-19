@@ -92,9 +92,10 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 	podName := getPodForNodeName(scanInstance.Name, node.Name)
 	cmName := getConfigMapForNodeName(scanInstance.Name, node.Name)
 	podLabels := map[string]string{
-		compv1alpha1.ComplianceScanLabel: scanInstance.Name,
-		"targetNode":                     node.Name,
-		"workload":                       "scanner",
+		compv1alpha1.ComplianceScanLabel:       scanInstance.Name,
+		compv1alpha1.NetworkPolicyOperandLabel: "",
+		"targetNode":                           node.Name,
+		WorkloadLabel:                          WorkloadScanner,
 	}
 	falseP := false
 	trueP := true
@@ -470,8 +471,9 @@ func addScannerContainer(scanInstance *compv1alpha1.ComplianceScan, pod *corev1.
 func (r *ReconcileComplianceScan) newPlatformScanPod(scanInstance *compv1alpha1.ComplianceScan, logger logr.Logger) *corev1.Pod {
 	podName := getPodForNodeName(scanInstance.Name, PlatformScanName)
 	podLabels := map[string]string{
-		compv1alpha1.ComplianceScanLabel: scanInstance.Name,
-		"workload":                       "scanner",
+		compv1alpha1.ComplianceScanLabel:       scanInstance.Name,
+		compv1alpha1.NetworkPolicyOperandLabel: "",
+		WorkloadLabel:                          WorkloadScanner,
 	}
 	trueP := true
 	pod := &corev1.Pod{

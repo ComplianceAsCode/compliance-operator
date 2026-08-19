@@ -470,6 +470,13 @@ func (r *ReconcileComplianceScan) phaseLaunchingHandler(h scanTypeHandler, logge
 
 	scan := h.getScan()
 
+	// Ensure the operand NetworkPolicies exist before launching any operand
+	// pods, so the pods start with their network access already governed.
+	if err = r.reconcileNetworkPolicies(context.TODO(), logger); err != nil {
+		logger.Error(err, "Cannot reconcile operand NetworkPolicies")
+		return reconcile.Result{}, err
+	}
+
 	// check the scanner type of the scan
 	if scan.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || scan.Spec.ScannerType == "" {
 		err = createConfigMaps(r, scriptCmForScan(scan), envCmForScan(scan), envCmForPlatformScan(scan), scan)

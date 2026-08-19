@@ -35,6 +35,7 @@ import (
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -273,7 +274,16 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Cache:                  c,
+		Cache: c,
+		// Operand NetworkPolicies are read by name during reconcile. The
+		// operator's namespaced Role grants get/create/update/delete but not
+		// list/watch; reading NetworkPolicy through the informer cache would
+		// start a list+watch and fail, so read it directly from the API server.
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{&networkingv1.NetworkPolicy{}},
+			},
+		},
 		Scheme:                 operatorScheme,
 		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 		WebhookServer:          webhook.NewServer(webhookServerOptions),
