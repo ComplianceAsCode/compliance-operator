@@ -17,7 +17,6 @@ package utils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -38,8 +37,6 @@ const (
 	mcPayloadPrefix        = `data:text/plain,`
 	mcBase64PayloadPrefix  = `data:text/plain;charset=utf-8;base64,`
 )
-
-var nodeSizingEnvList = [2]string{"autoSizingReserved", "systemReserved"}
 
 func GetFirstNodeRoleLabel(nodeSelector map[string]string) string {
 	if nodeSelector == nil {
@@ -183,21 +180,6 @@ func GetKCFromMC(mc *mcfgv1.MachineConfig, client runtimeclient.Client) (*mcfgv1
 		}
 	}
 	return nil, fmt.Errorf("machine config %s doesn't have a KubeletConfig owner reference", mc.GetName())
-}
-
-// removeNodeSizingEnvParams remove KubeletConfig Parameter related to /etc/node-sizing-enabled.env,
-// as it is not rendered in the MachineConfig to file /etc/kubernetes/kubelet.conf
-func removeNodeSizingEnvParams(mc []byte) ([]byte, error) {
-	var data map[string]json.RawMessage
-
-	if err := json.Unmarshal(mc, &data); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal kubelet config: %w", err)
-	}
-
-	for _, key := range nodeSizingEnvList {
-		delete(data, key)
-	}
-	return json.Marshal(data)
 }
 
 // McfgPoolLabelMatches verifies if the given nodeSelector matches the given MachineConfigPool's nodeSelector
