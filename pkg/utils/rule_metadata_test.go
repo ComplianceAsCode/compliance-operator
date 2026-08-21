@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"testing"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -225,7 +226,7 @@ func TestNewRuleMetadataCache(t *testing.T) {
 			WithRuntimeObjects(rule1, rule2).
 			Build()
 
-		cache, err := NewRuleMetadataCache(client, "openshift-compliance")
+		cache, err := NewRuleMetadataCache(context.Background(), client, "openshift-compliance")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -271,7 +272,7 @@ func TestNewRuleMetadataCache(t *testing.T) {
 			WithScheme(scheme).
 			Build()
 
-		cache, err := NewRuleMetadataCache(client, "openshift-compliance")
+		cache, err := NewRuleMetadataCache(context.Background(), client, "openshift-compliance")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -319,7 +320,7 @@ func TestRuleMetadataCacheIntegration(t *testing.T) {
 		WithRuntimeObjects(rule).
 		Build()
 
-	cache, err := NewRuleMetadataCache(client, "openshift-compliance")
+	cache, err := NewRuleMetadataCache(context.Background(), client, "openshift-compliance")
 	if err != nil {
 		t.Fatalf("unexpected error building cache: %v", err)
 	}
