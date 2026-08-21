@@ -17,8 +17,12 @@ limitations under the License.
 package metrics
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -185,4 +189,36 @@ func TestComplianceOperatorMetrics(t *testing.T) {
 		tc.when(sut)
 		tc.then(sut)
 	}
+}
+
+func TestWaitForServingCert(t *testing.T) {
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "tls.crt")
+	keyFile := filepath.Join(dir, "tls.key")
+	origCert, origKey := servingCertFile, servingKeyFile
+	servingCertFile, servingKeyFile = certFile, keyFile
+	defer func() { servingCertFile, servingKeyFile = origCert, origKey }()
+
+	m := New()
+
+	// Times out while the cert and key are missing.
+	err := m.waitForServingCert(context.Background(), 5*time.Millisecond, 50*time.Millisecond)
+	require.Error(t, err)
+
+	// Recovers when the cert is minted late, as service-ca does on a
+	// fresh deployment.
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		_ = os.WriteFile(certFile, []byte("cert"), 0o600)
+		_ = os.WriteFile(keyFile, []byte("key"), 0o600)
+	}()
+	err = m.waitForServingCert(context.Background(), 5*time.Millisecond, 2*time.Second)
+	require.NoError(t, err)
+
+	// Honors context cancellation instead of waiting out the timeout.
+	require.NoError(t, os.Remove(certFile))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = m.waitForServingCert(ctx, 5*time.Millisecond, time.Minute)
+	require.Error(t, err)
 }

@@ -5,12 +5,15 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/go-logr/logr"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -36,6 +39,14 @@ const (
 	ControllerMetricsServiceName = "metrics-co"
 	ControllerMetricsPort        = 8585
 	MetricsAddrListen            = ":8585"
+)
+
+// The metrics serving certificate is mounted from the secret minted by the
+// OpenShift service-ca operator. Package-level vars so tests can redirect
+// them to a temporary directory.
+var (
+	servingCertFile = "/var/run/secrets/serving-cert/tls.crt"
+	servingKeyFile  = "/var/run/secrets/serving-cert/tls.key"
 )
 
 const (
@@ -148,12 +159,37 @@ func (m *Metrics) Start(ctx context.Context) error {
 		TLSConfig: tlsConfig,
 	}
 
-	err := server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
+	// The serving cert is minted asynchronously by the service-ca operator
+	// once the metrics Service exists, and this runnable can win that race
+	// on a fresh deployment. A one-shot ListenAndServeTLS would then fail
+	// and leave the endpoint dead for the life of the pod (the error below
+	// is deliberately not propagated), so wait for the files to show up.
+	if err := m.waitForServingCert(ctx, 5*time.Second, 5*time.Minute); err != nil {
+		// unhandled on purpose, we don't want to exit the operator.
+		m.log.Error(err, "Metrics service failed: serving cert never became available")
+		return nil
+	}
+
+	err := server.ListenAndServeTLS(servingCertFile, servingKeyFile)
 	if err != nil {
 		// unhandled on purpose, we don't want to exit the operator.
 		m.log.Error(err, "Metrics service failed")
 	}
 	return nil
+}
+
+// waitForServingCert polls until both the serving certificate and key exist,
+// the context is cancelled, or the timeout expires.
+func (m *Metrics) waitForServingCert(ctx context.Context, interval, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(context.Context) (bool, error) {
+		for _, f := range []string{servingCertFile, servingKeyFile} {
+			if _, err := os.Stat(f); err != nil {
+				m.log.Info("Waiting for the metrics serving cert", "file", f)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 // IncComplianceScanStatus also increments error if necessary
