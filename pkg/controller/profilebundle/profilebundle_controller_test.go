@@ -39,6 +39,32 @@ func TestNewWorkloadForBundleUsesRecreateStrategy(t *testing.T) {
 	}
 }
 
+// TestProfileParserPodTemplateCarriesNetworkPolicyMarker verifies the
+// profileparser pod template carries the operand NetworkPolicy marker, and that
+// the marker does not leak into the immutable Deployment selector.
+func TestProfileParserPodTemplateCarriesNetworkPolicyMarker(t *testing.T) {
+	r := &ReconcileProfileBundle{}
+	pb := &compliancev1alpha1.ProfileBundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pb",
+			Namespace: "openshift-compliance",
+		},
+		Spec: compliancev1alpha1.ProfileBundleSpec{
+			ContentImage: "example.com/content:v1",
+			ContentFile:  "ssg-ocp4-ds.xml",
+		},
+	}
+	depl := r.newWorkloadForBundle(pb, "example.com/content:v1")
+
+	if v, ok := depl.Spec.Template.ObjectMeta.Labels[compliancev1alpha1.NetworkPolicyOperandLabel]; !ok || v != "" {
+		t.Errorf("profileparser pod template missing NetworkPolicy marker (labels=%v)",
+			depl.Spec.Template.ObjectMeta.Labels)
+	}
+	if _, ok := depl.Spec.Selector.MatchLabels[compliancev1alpha1.NetworkPolicyOperandLabel]; ok {
+		t.Error("profileparser Deployment selector must not carry the NetworkPolicy marker")
+	}
+}
+
 func TestWorkloadNeedsUpdateDetectsCELContentFileChange(t *testing.T) {
 	image := "example.com/content:v1"
 	operatorImage := utils.GetComponentImage(utils.OPERATOR)

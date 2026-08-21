@@ -54,6 +54,15 @@ const (
 
 	ResultServerPort = int32(8443)
 
+	// WorkloadLabel identifies which operand workload a pod belongs to. Its
+	// value is one of the Workload* constants below. NetworkPolicies select
+	// operands by this label, so the values must stay in sync with the pod
+	// templates that set them.
+	WorkloadLabel        = "workload"
+	WorkloadResultServer = "resultserver"
+	WorkloadScanner      = "scanner"
+	WorkloadAggregator   = "aggregator"
+
 	// Tailoring constants
 	OpenScapTailoringDir = "/tailoring"
 

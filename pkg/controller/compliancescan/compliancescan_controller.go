@@ -124,6 +124,7 @@ type ReconcileComplianceScan struct {
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get,list,watch,create,delete,update
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=deletecollection
 //+kubebuilder:rbac:groups=image.openshift.io,resources=imagestreamtags,verbs=get,list,watch
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=create,delete,get,update
 //+kubebuilder:rbac:groups=scheduling.k8s.io,resources=priorityclasses,verbs=get,list,watch
 //+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources=clusterclaims,verbs=get,list,watch
 //+kubebuilder:rbac:groups=config.openshift.io,resources=infrastructures,verbs=get,list,watch
@@ -468,6 +469,13 @@ func (r *ReconcileComplianceScan) phaseLaunchingHandler(h scanTypeHandler, logge
 	logger.Info("Phase: Launching")
 
 	scan := h.getScan()
+
+	// Ensure the operand NetworkPolicies exist before launching any operand
+	// pods, so the pods start with their network access already governed.
+	if err = r.reconcileNetworkPolicies(context.TODO(), logger); err != nil {
+		logger.Error(err, "Cannot reconcile operand NetworkPolicies")
+		return reconcile.Result{}, err
+	}
 
 	// check the scanner type of the scan
 	if scan.Spec.ScannerType == compv1alpha1.ScannerTypeOpenSCAP || scan.Spec.ScannerType == "" {

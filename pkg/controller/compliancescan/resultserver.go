@@ -126,7 +126,7 @@ func (r *ReconcileComplianceScan) deleteResultServer(instance *compv1alpha1.Comp
 func getResultServerLabels(instance *compv1alpha1.ComplianceScan) map[string]string {
 	return map[string]string{
 		compv1alpha1.ComplianceScanLabel: instance.Name,
-		"workload":                       "resultserver",
+		WorkloadLabel:                    WorkloadResultServer,
 	}
 }
 
@@ -170,6 +170,13 @@ func resultServer(scanInstance *compv1alpha1.ComplianceScan, labels map[string]s
 	podFSGroup, podUid int64, logger logr.Logger) *appsv1.Deployment {
 	falseP := false
 	trueP := true
+	// The operand NetworkPolicy marker is added to the pod template only, not to
+	// the immutable Deployment/Service selector.
+	podTemplateLabels := make(map[string]string, len(labels)+1)
+	for k, v := range labels {
+		podTemplateLabels[k] = v
+	}
+	podTemplateLabels[compv1alpha1.NetworkPolicyOperandLabel] = ""
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      getResultServerName(scanInstance),
@@ -182,7 +189,7 @@ func resultServer(scanInstance *compv1alpha1.ComplianceScan, labels map[string]s
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels: podTemplateLabels,
 					Annotations: map[string]string{
 						"workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
 					},

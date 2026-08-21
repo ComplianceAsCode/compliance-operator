@@ -464,6 +464,13 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 	falseP := false
 	trueP := true
 	labels := getWorkloadLabels(pb)
+	// The operand NetworkPolicy marker is added to the pod template only, not to
+	// the immutable Deployment selector.
+	podTemplateLabels := make(map[string]string, len(labels)+1)
+	for k, v := range labels {
+		podTemplateLabels[k] = v
+	}
+	podTemplateLabels[compliancev1alpha1.NetworkPolicyOperandLabel] = ""
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pb.Name + "-" + pb.Namespace + "-pp",
@@ -487,7 +494,7 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels: podTemplateLabels,
 					Annotations: map[string]string{
 						"workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
 					},

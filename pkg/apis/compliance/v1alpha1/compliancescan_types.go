@@ -30,6 +30,13 @@ const ComplianceCheckCountAnnotation = "compliance.openshift.io/check-count"
 // owns the referenced object
 const ComplianceScanLabel = "compliance.openshift.io/scan-name"
 
+// NetworkPolicyOperandLabel marks operand pods that are governed by the
+// operator-managed NetworkPolicies. It is a presence marker: the value is
+// always the empty string, and the policies select pods carrying this key. It
+// is applied to every operand pod template so the default-deny and shared allow
+// policies select them.
+const NetworkPolicyOperandLabel = "compliance.openshift.io/netpol-managed"
+
 // ScriptLabel defines that the object is a script for a scan object
 const ScriptLabel = "complianceoperator.openshift.io/scan-script"
 

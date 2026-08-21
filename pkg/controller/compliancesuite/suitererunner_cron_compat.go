@@ -124,9 +124,10 @@ func (r *ReconcileComplianceSuite) getRerunnerPodTemplate(
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				compv1alpha1.SuiteLabel:       suite.Name,
-				compv1alpha1.SuiteScriptLabel: "",
-				"workload":                    "suitererunner",
+				compv1alpha1.SuiteLabel:                suite.Name,
+				compv1alpha1.SuiteScriptLabel:          "",
+				compv1alpha1.NetworkPolicyOperandLabel: "",
+				"workload":                             "suitererunner",
 			},
 			Annotations: map[string]string{
 				"workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,

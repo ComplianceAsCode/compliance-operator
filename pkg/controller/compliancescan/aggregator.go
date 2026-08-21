@@ -25,8 +25,9 @@ func (r *ReconcileComplianceScan) newAggregatorPod(scanInstance *compv1alpha1.Co
 	podName := getAggregatorPodName(scanInstance.Name)
 
 	podLabels := map[string]string{
-		compv1alpha1.ComplianceScanLabel: scanInstance.Name,
-		"workload":                       "aggregator",
+		compv1alpha1.ComplianceScanLabel:       scanInstance.Name,
+		compv1alpha1.NetworkPolicyOperandLabel: "",
+		WorkloadLabel:                          WorkloadAggregator,
 	}
 
 	falseP := false
