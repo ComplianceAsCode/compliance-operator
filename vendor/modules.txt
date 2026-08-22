@@ -33,8 +33,8 @@ github.com/Azure/ARO-RP/pkg/operator/clientset/versioned
 github.com/Azure/ARO-RP/pkg/operator/clientset/versioned/scheme
 github.com/Azure/ARO-RP/pkg/operator/clientset/versioned/typed/aro.openshift.io/v1alpha1
 github.com/Azure/ARO-RP/pkg/operator/clientset/versioned/typed/preview.aro.openshift.io/v1alpha1
-# github.com/ComplianceAsCode/compliance-sdk v0.0.0-20250930163558-59886979dd19
-## explicit; go 1.23.0
+# github.com/ComplianceAsCode/compliance-sdk v0.1.1
+## explicit; go 1.25.11
 github.com/ComplianceAsCode/compliance-sdk/pkg/fetchers
 github.com/ComplianceAsCode/compliance-sdk/pkg/scanner
 # github.com/ajeddeloh/go-json v0.0.0-20200220154158-5ae607161559
