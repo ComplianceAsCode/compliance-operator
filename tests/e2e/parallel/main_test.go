@@ -2362,19 +2362,23 @@ func TestScheduledSuitePriorityClass(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), testSuite)
 
-	podList := &corev1.PodList{}
-	err = f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
-		"workload": "scanner",
-	}))
+	// Wait for the scan to reach running phase so scanner pods exist
+	err = f.WaitForScanStatus(f.OperatorNamespace, workerScanName, compv1alpha1.PhaseRunning)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// check if the scanning pod has properly been created and has priority class set
-	for _, pod := range podList.Items {
-		if strings.Contains(pod.Name, workerScanName) {
-			if err := framework.WaitForPod(framework.CheckPodPriorityClass(f.KubeClient, pod.Name, f.OperatorNamespace, "e2e-compliance-suite-high-priority")); err != nil {
-				t.Fatal(err)
-			}
+
+	// Get pods specifically for this scan and check priority class directly
+	pods, err := f.GetPodsForScan(workerScanName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods) == 0 {
+		t.Fatal("No scanner pods found for scan " + workerScanName)
+	}
+	for _, pod := range pods {
+		if pod.Spec.PriorityClassName != "e2e-compliance-suite-high-priority" {
+			t.Fatalf("pod %s has priority class %q, expected %q", pod.Name, pod.Spec.PriorityClassName, "e2e-compliance-suite-high-priority")
 		}
 	}
 
@@ -2560,21 +2564,26 @@ func TestScheduledSuiteInvalidPriorityClass(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), testSuite)
 
-	podList := &corev1.PodList{}
-	err = f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
-		"workload": "scanner",
-	}))
+	// Wait for the scan to reach running phase so scanner pods exist
+	err = f.WaitForScanStatus(f.OperatorNamespace, workerScanName, compv1alpha1.PhaseRunning)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// check if the scanning pod has properly been created and has priority class set
-	for _, pod := range podList.Items {
-		if strings.Contains(pod.Name, workerScanName) {
-			if err := framework.WaitForPod(framework.CheckPodPriorityClass(f.KubeClient, pod.Name, f.OperatorNamespace, "")); err != nil {
-				t.Fatal(err)
-			}
+
+	// Get pods specifically for this scan and check priority class directly
+	pods, err := f.GetPodsForScan(workerScanName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods) == 0 {
+		t.Fatal("No scanner pods found for scan " + workerScanName)
+	}
+	for _, pod := range pods {
+		if pod.Spec.PriorityClassName != "" {
+			t.Fatalf("pod %s has priority class %q, expected none", pod.Name, pod.Spec.PriorityClassName)
 		}
 	}
+
 	// Ensure that all the scans in the suite have finished and are marked as Done
 	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
 	if err != nil {
@@ -4310,66 +4319,50 @@ func TestScanSettingBinding(t *testing.T) {
 	}
 	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
 
-	// Wait until the suite finishes, thus verifying the suite exists
+	scanNames := []string{
+		rhcos4e8profile.Name + "-master",
+		rhcos4e8profile.Name + "-worker",
+		rhcos4moderateprofile.Name + "-master",
+		rhcos4moderateprofile.Name + "-worker",
+	}
+
+	for _, scanName := range scanNames {
+		scan := &compv1alpha1.ComplianceScan{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Namespace: f.OperatorNamespace, Name: scanName}, scan); err != nil {
+			t.Fatal(err)
+		}
+		if scan.Spec.Debug != true {
+			t.Fatalf("Expected that the settings set debug to true in scan %s", scanName)
+		}
+
+		// Wait for the scan to reach running phase so scanner pods exist
+		if err := f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseRunning); err != nil {
+			t.Fatal(err)
+		}
+		pods, err := f.GetPodsForScan(scanName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, pod := range pods {
+			for i := range pod.Spec.Containers {
+				cnt := &pod.Spec.Containers[i]
+				if cnt.Name != "api-resource-collector" && cnt.Name != "scanner" {
+					continue
+				}
+				if cnt.Resources.Limits.Cpu().String() != defaultCpuLimit {
+					t.Fatalf("container %s in pod %s has cpu limit %s, expected %s", cnt.Name, pod.Name, cnt.Resources.Limits.Cpu().String(), defaultCpuLimit)
+				}
+				if cnt.Resources.Limits.Memory().String() != testMemoryLimit {
+					t.Fatalf("container %s in pod %s has memory limit %s, expected %s", cnt.Name, pod.Name, cnt.Resources.Limits.Memory().String(), testMemoryLimit)
+				}
+			}
+		}
+	}
+
+	// Wait until the suite finishes
 	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	masterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4e8profile.Name + "-master"}
-	masterScan := &compv1alpha1.ComplianceScan{}
-	if err := f.Client.Get(context.TODO(), masterScanKey, masterScan); err != nil {
-		t.Fatal(err)
-	}
-
-	if masterScan.Spec.Debug != true {
-		t.Fatal("Expected that the settings set debug to true in master scan")
-	}
-
-	workerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4e8profile.Name + "-worker"}
-	workerScan := &compv1alpha1.ComplianceScan{}
-	if err := f.Client.Get(context.TODO(), workerScanKey, workerScan); err != nil {
-		t.Fatal(err)
-	}
-
-	if workerScan.Spec.Debug != true {
-		t.Fatal("Expected that the settings set debug to true in workers scan")
-	}
-
-	moderateMasterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-master"}
-	moderateMasterScan := &compv1alpha1.ComplianceScan{}
-	if err := f.Client.Get(context.TODO(), moderateMasterScanKey, moderateMasterScan); err != nil {
-		t.Fatal(err)
-	}
-
-	if moderateMasterScan.Spec.Debug != true {
-		t.Fatal("Expected that the settings set debug to true in moderate master scan")
-	}
-
-	moderateWorkerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-worker"}
-	moderateWorkerScan := &compv1alpha1.ComplianceScan{}
-	if err := f.Client.Get(context.TODO(), moderateWorkerScanKey, moderateWorkerScan); err != nil {
-		t.Fatal(err)
-	}
-
-	if moderateWorkerScan.Spec.Debug != true {
-		t.Fatal("Expected that the settings set debug to true in moderate worker scan")
-	}
-
-	podList := &corev1.PodList{}
-	if err := f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
-		"workload": "scanner",
-	})); err != nil {
-		t.Fatal(err)
-	}
-	// check if the scanning pod has properly been created and has limits set
-	for _, pod := range podList.Items {
-		if strings.Contains(pod.Name, masterScan.Name) || strings.Contains(pod.Name, workerScan.Name) ||
-			strings.Contains(pod.Name, moderateMasterScan.Name) || strings.Contains(pod.Name, moderateWorkerScan.Name) {
-			if err := framework.WaitForPod(framework.CheckPodLimit(f.KubeClient, pod.Name, f.OperatorNamespace, defaultCpuLimit, testMemoryLimit)); err != nil {
-				t.Fatal(err)
-			}
-		}
 	}
 
 }
