@@ -44,9 +44,13 @@ rhcos4   ghcr.io/complianceascode/k8scontent:latest   ssg-rhcos4-ds.xml   VALID
 ```
 
 Inspecting the ProfileBundle objects, you'll see that they mostly point to the
-content image and a file inside the image, relative to the root directory:
+content image and a file inside the image, relative to the root directory.
+The operator also annotates bundles with a long `xccdf-groups` list; pipe through
+`yq` to drop that annotation and keep the output readable:
+
 ```
-$ oc get profilebundle.compliance rhcos4 -o yaml
+$ oc get profilebundle.compliance rhcos4 -n openshift-compliance -o yaml \
+  | yq 'del(.metadata.annotations."compliance.openshift.io/xccdf-groups")'
 apiVersion: compliance.openshift.io/v1alpha1
 kind: ProfileBundle
 metadata:
