@@ -3672,7 +3672,6 @@ func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
 		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
 	}
 }
-
 func TestTokenRulesPassOauthClientsConfigurable(t *testing.T) {
 	f := framework.Global
 	suiteName := framework.GetObjNameFromTest(t)
