@@ -5,7 +5,7 @@ go 1.25.11
 require (
 	github.com/ComplianceAsCode/compliance-sdk v0.1.1
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v0.0.0-20260521125114-09730f85d883
 	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a
