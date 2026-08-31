@@ -101,6 +101,9 @@ SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./
 MUST_GATHER_IMAGE_PATH?=$(IMAGE_REPO)/must-gather-ocp
 MUST_GATHER_IMAGE_TAG?=$(TAG)
 
+OC_COMPLIANCE_IMAGE_PATH?=$(IMAGE_REPO)/oc-compliance
+OC_COMPLIANCE_IMAGE_TAG?=$(TAG)
+
 # Kubernetes variables
 # ====================
 KUBECONFIG?=$(HOME)/.kube/config
@@ -765,6 +768,14 @@ must-gather-push: must-gather-image
 
 .PHONY: must-gather
 must-gather: must-gather-image must-gather-push  ## Build and push the must-gather image
+
+.PHONY: oc-compliance-image
+oc-compliance-image:  ## Build the oc-compliance plugin image
+	$(RUNTIME) build -t $(OC_COMPLIANCE_IMAGE_PATH):$(OC_COMPLIANCE_IMAGE_TAG) -f images/oc-compliance/Dockerfile .
+
+.PHONY: oc-compliance-push
+oc-compliance-push: oc-compliance-image  ## Build and push the oc-compliance plugin image
+	$(RUNTIME) push $(OC_COMPLIANCE_IMAGE_PATH):$(OC_COMPLIANCE_IMAGE_TAG)
 
 ##@ Release
 
