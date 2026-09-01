@@ -695,6 +695,18 @@ e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease e2e tests (e.g. default
 e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment concurrently
 	@LOG_CONTAINER_OUTPUT=1 $(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-rosa.log
 
+.PHONY: oc-compliance
+oc-compliance: ## Build the oc-compliance binary.
+	$(GO) build -o $(TARGET_DIR)/bin/oc-compliance ./cmd/oc-compliance
+
+.PHONY: oc-compliance-install
+oc-compliance-install: oc-compliance ## Build and install oc-compliance as an oc plugin.
+	which oc | xargs dirname | xargs -n1 cp $(TARGET_DIR)/bin/oc-compliance
+
+.PHONY: e2e-oc-compliance
+e2e-oc-compliance: oc-compliance-install ## Run oc-compliance end-to-end tests against a cluster with the operator installed.
+	@$(GO) test ./tests/e2e/oc-compliance -timeout 40m -v --ginkgo.v | tee tests/e2e-oc-compliance.log
+
 .PHONY: prep-e2e
 prep-e2e: kustomize
 	rm -rf $(TEST_SETUP_DIR)
