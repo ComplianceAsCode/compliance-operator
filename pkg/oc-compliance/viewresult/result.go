@@ -54,7 +54,7 @@ func NewResultHelper(kuser common.KubeClientUser, name string, streams genericcl
 			Resource: "compliancecheckresults",
 		},
 		IOStreams: streams,
-		table:    table,
+		table:     table,
 	}
 }
 

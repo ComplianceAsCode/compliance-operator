@@ -30,7 +30,7 @@ func NewRuleHelper(
 		FixPersister: FixPersister{
 			outputPath: outputPath,
 			mcRoles:    mcRoles,
-			IOStreams:   streams,
+			IOStreams:  streams,
 		},
 		kuser: kuser,
 		name:  name,

@@ -38,7 +38,7 @@ func NewProfileHelper(
 		outputPath: outputPath,
 		mcRoles:    mcRoles,
 		emb:        emb,
-		IOStreams:   streams,
+		IOStreams:  streams,
 	}
 }
 

@@ -274,7 +274,7 @@ func (h *ComplianceScanHelper) generateHTMLReports() error {
 				"--output", reportFile, path)
 			out, err := reportcmd.CombinedOutput()
 			if err != nil {
-				fmt.Fprintf(h.Out, string(out))
+				fmt.Fprintf(h.Out, "%s", out)
 				errors <- err
 			} else {
 				fmt.Fprintf(h.Out, "An HTML report is available at %s\n", reportFile)
@@ -348,7 +348,7 @@ func getPVCExtractorPod(objName, ns, image, claimName string, tolerations []core
 							Drop: []corev1.Capability{"ALL"},
 						},
 						Privileged:               &bFalse,
-						RunAsNonRoot:              &bTrue,
+						RunAsNonRoot:             &bTrue,
 						AllowPrivilegeEscalation: &bFalse,
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: "RuntimeDefault",

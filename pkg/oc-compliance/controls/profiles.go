@@ -48,7 +48,7 @@ func NewProfileHelper(kuser common.KubeClientUser, name string, streams genericc
 			Version:  common.CmpResourceVersion,
 			Resource: "rules",
 		},
-		IOStreams:  streams,
+		IOStreams: streams,
 		benchmark: b,
 	}
 }
