@@ -348,41 +348,11 @@ func (c *CelScanner) runPlatformScan() {
 		celVariables = append(celVariables, celVar)
 	}
 
-	// Convert SDK results to compliance operator results
-	evalResultList := []*cmpv1alpha1.ComplianceCheckResult{}
-	// Cache custom metadata per result so we can merge it with the same
-	// precedence logic the SCAP/aggregator path uses (operator keys win).
-	type customMeta struct {
-		labels      map[string]string
-		annotations map[string]string
-	}
-	customMetadataByName := make(map[string]customMeta)
-
-	// Build SDK rule list; produce MANUAL results directly for rules without expressions
+	// Build SDK rule list, skipping rules with empty expressions
 	sdkRules := make([]scanner.Rule, 0, len(selectedRules))
 	for _, rw := range selectedRules {
 		if rw.payload.Expression == "" {
-			// Manual rule — produce CheckResultManual directly, bypass SDK scanner
-			checkResultName := fmt.Sprintf("%s-%s", c.celConfig.ScanName, utils.IDToDNSFriendlyName(rw.payload.ID))
-			cl, ca := utils.GetCustomMetadata(rw.labels, rw.annotations)
-			customMetadataByName[checkResultName] = customMeta{labels: cl, annotations: ca}
-			evalResultList = append(evalResultList, &cmpv1alpha1.ComplianceCheckResult{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "compliance.openshift.io/v1alpha1",
-					Kind:       "ComplianceCheckResult",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      checkResultName,
-					Namespace: c.celConfig.NameSpace,
-				},
-				ID:           rw.payload.ID,
-				Description:  rw.payload.Description,
-				Rationale:    rw.payload.Rationale,
-				Severity:     cmpv1alpha1.ComplianceCheckResultSeverity(rw.payload.Severity),
-				Instructions: rw.payload.Instructions,
-				Status:       cmpv1alpha1.CheckResultManual,
-			})
-			cmdLog.Info("Manual rule — no CEL expression, result is MANUAL", "rule", rw.scannerRule.Identifier())
+			cmdLog.Info("Warning: Skipping rule with empty expression", "rule", rw.scannerRule.Identifier())
 			continue
 		}
 		sdkRules = append(sdkRules, rw.scannerRule)
@@ -410,6 +380,16 @@ func (c *CelScanner) runPlatformScan() {
 	for i := range selectedRules {
 		ruleByID[selectedRules[i].scannerRule.Identifier()] = &selectedRules[i]
 	}
+
+	// Convert SDK results to compliance operator results
+	evalResultList := []*cmpv1alpha1.ComplianceCheckResult{}
+	// Cache custom metadata per result so we can merge it with the same
+	// precedence logic the SCAP/aggregator path uses (operator keys win).
+	type customMeta struct {
+		labels      map[string]string
+		annotations map[string]string
+	}
+	customMetadataByName := make(map[string]customMeta)
 	for _, result := range checkResults {
 		rw, found := ruleByID[result.ID]
 		if !found {
@@ -470,7 +450,10 @@ func (c *CelScanner) runPlatformScan() {
 
 	// Save the scan result
 	outputFilePath := filepath.Join(c.celConfig.CheckResultDir, "result.json")
-	saveScanResult(outputFilePath, evalResultList)
+	if err := saveScanResult(outputFilePath, evalResultList); err != nil {
+		cmdLog.Error(err, "Failed to save scan results", "path", outputFilePath)
+		os.Exit(CelExitCodeError)
+	}
 
 	// Check if we need to generate ComplianceCheckResult objects
 	if c.celConfig.CCRGeneration {
@@ -757,8 +740,7 @@ func (c *CelScanner) getCELRulesFromProfile(profileName, namespace string) ([]ce
 // validateCELRulePayload validates that a RulePayload has the required CEL fields.
 func (c *CelScanner) validateCELRulePayload(name string, payload *cmpv1alpha1.RulePayload) error {
 	if payload.Expression == "" {
-		cmdLog.Info("Rule has no CEL expression, treating as manual rule", "rule", name)
-		return nil
+		return fmt.Errorf("CEL expression is empty")
 	}
 
 	if len(payload.Inputs) == 0 {
@@ -829,18 +811,16 @@ func (c *CelScanner) getVariablesForTailoredProfile(tp *cmpv1alpha1.TailoredProf
 	return setVars, nil
 }
 
-// saveScanResult saves the scan results to a JSON file with proper indentation
-func saveScanResult(filePath string, resultsList []*cmpv1alpha1.ComplianceCheckResult) {
+func saveScanResult(filePath string, resultsList []*cmpv1alpha1.ComplianceCheckResult) error {
 	file, err := os.Create(filePath)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create result file %s: %v", filePath, err))
+		return fmt.Errorf("creating result file %s: %w", filePath, err)
 	}
 	defer file.Close()
-	// Serialize the results list to JSON
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	err = encoder.Encode(resultsList)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to encode results list to JSON: %v", err))
+	if err := encoder.Encode(resultsList); err != nil {
+		return fmt.Errorf("encoding results to JSON: %w", err)
 	}
+	return nil
 }
