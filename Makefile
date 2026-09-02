@@ -101,6 +101,9 @@ SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./
 MUST_GATHER_IMAGE_PATH?=$(IMAGE_REPO)/must-gather-ocp
 MUST_GATHER_IMAGE_TAG?=$(TAG)
 
+OC_COMPLIANCE_IMAGE_PATH?=$(IMAGE_REPO)/oc-compliance
+OC_COMPLIANCE_IMAGE_TAG?=$(TAG)
+
 # Kubernetes variables
 # ====================
 KUBECONFIG?=$(HOME)/.kube/config
@@ -695,6 +698,18 @@ e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease e2e tests (e.g. default
 e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment concurrently
 	@LOG_CONTAINER_OUTPUT=1 $(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-rosa.log
 
+.PHONY: oc-compliance
+oc-compliance: ## Build the oc-compliance binary.
+	$(GO) build -o $(TARGET_DIR)/bin/oc-compliance ./cmd/oc-compliance
+
+.PHONY: oc-compliance-install
+oc-compliance-install: oc-compliance ## Build and install oc-compliance as an oc plugin.
+	which oc | xargs dirname | xargs -n1 cp $(TARGET_DIR)/bin/oc-compliance
+
+.PHONY: e2e-oc-compliance
+e2e-oc-compliance: oc-compliance-install ## Run oc-compliance end-to-end tests against a cluster with the operator installed.
+	@$(GO) test ./tests/e2e/oc-compliance -timeout 40m -v --ginkgo.v | tee tests/e2e-oc-compliance.log
+
 .PHONY: prep-e2e
 prep-e2e: kustomize
 	rm -rf $(TEST_SETUP_DIR)
@@ -753,6 +768,14 @@ must-gather-push: must-gather-image
 
 .PHONY: must-gather
 must-gather: must-gather-image must-gather-push  ## Build and push the must-gather image
+
+.PHONY: oc-compliance-image
+oc-compliance-image:  ## Build the oc-compliance plugin image
+	$(RUNTIME) build -t $(OC_COMPLIANCE_IMAGE_PATH):$(OC_COMPLIANCE_IMAGE_TAG) -f images/oc-compliance/Dockerfile .
+
+.PHONY: oc-compliance-push
+oc-compliance-push: oc-compliance-image  ## Build and push the oc-compliance plugin image
+	$(RUNTIME) push $(OC_COMPLIANCE_IMAGE_PATH):$(OC_COMPLIANCE_IMAGE_TAG)
 
 ##@ Release
 
