@@ -186,6 +186,12 @@ func (f *Framework) TearDown() error {
 		if err != nil {
 			return err
 		}
+		// Wait for worker pool to be updated after nodes are unlabeled. This is best-effort:
+		// if it fails we still delete the e2e MCPs so cluster-scoped leftovers are not abandoned.
+		err = f.WaitForMachineConfigPoolUpdated(workerPoolName)
+		if err != nil {
+			log.Printf("waiting for worker MachineConfigPool to update after unlabeled e2e nodes: %v; continuing cleanup", err)
+		}
 		err = f.cleanUpMachineConfigPool("e2e")
 		if err != nil {
 			return err
