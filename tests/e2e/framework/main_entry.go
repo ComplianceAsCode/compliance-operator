@@ -58,6 +58,11 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("failed to change directory to project root: %w", err)
 	}
 
+	if os.Getenv("CO_SKIP_SETUP") != "" {
+		log.Println("CO_SKIP_SETUP is set, skipping cluster setup (reusing existing environment)")
+		return f.addFrameworks()
+	}
+
 	err = f.ensureTestNamespaceExists()
 	if err != nil {
 		return fmt.Errorf("unable to create or use namespace %s for testing: %w", f.OperatorNamespace, err)
@@ -148,6 +153,11 @@ func (f *Framework) TearDown() error {
 	// before we start deleting resources.
 	if f.stopPodLogs != nil {
 		f.stopPodLogs()
+	}
+
+	if os.Getenv("CO_SKIP_TEARDOWN") != "" {
+		log.Println("CO_SKIP_TEARDOWN is set, skipping teardown (preserving environment for next run)")
+		return nil
 	}
 
 	// Make sure all scans are cleaned up before we delete the CRDs. Scans should be cleaned up
