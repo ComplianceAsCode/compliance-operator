@@ -2762,7 +2762,7 @@ func getMustGatherImage(f *framework.Framework) string {
 	}
 
 	// Fall back to default upstream image
-	defaultImage := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-dev:master"
+	defaultImage := "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release:release-1.10"
 	log.Printf("Using default must-gather image: %s", defaultImage)
 	return defaultImage
 }

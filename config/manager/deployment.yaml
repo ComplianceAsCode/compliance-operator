@@ -51,11 +51,11 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: RELATED_IMAGE_OPENSCAP
-              value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev:master"
+              value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release:release-1.10"
             - name: RELATED_IMAGE_OPERATOR
-              value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master"
+              value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release:release-1.10"
             - name: RELATED_IMAGE_PROFILE
-              value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master"
+              value: "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10"
           volumeMounts:
             - name: serving-cert
               mountPath: /var/run/secrets/serving-cert
