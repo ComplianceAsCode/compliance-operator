@@ -393,7 +393,10 @@ endif
 .PHONY: update-version-numbers
 update-version-numbers: check-operator-version ## Set skip range and version numbers in manifests.
 	@CURRENT_VERSION=$$(grep '^VERSION?=' version.Makefile | cut -d= -f2); \
-	if [ "$(VERSION)" != "$$CURRENT_VERSION" ]; then \
+	if [ "$$CURRENT_VERSION" = "$(VERSION)-dev" ]; then \
+		echo "Releasing dev version $$CURRENT_VERSION as $(VERSION); removing -dev suffix"; \
+		sed -i 's/^ARG CO_NEW_VERSION=.*/ARG CO_NEW_VERSION="$(VERSION)"/' bundle.openshift.Dockerfile; \
+	elif [ "$(VERSION)" != "$$CURRENT_VERSION" ]; then \
 		sed -i "s/^ARG CO_OLD_VERSION=.*/ARG CO_OLD_VERSION=\"$$CURRENT_VERSION\"/" bundle.openshift.Dockerfile; \
 		sed -i 's/^ARG CO_NEW_VERSION=.*/ARG CO_NEW_VERSION="$(VERSION)"/' bundle.openshift.Dockerfile; \
 		sed -i "s/^PREVIOUS_VERSION?=.*/PREVIOUS_VERSION?=$$CURRENT_VERSION/" version.Makefile; \
