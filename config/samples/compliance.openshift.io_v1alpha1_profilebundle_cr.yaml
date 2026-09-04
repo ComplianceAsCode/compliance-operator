@@ -3,5 +3,5 @@ kind: ProfileBundle
 metadata:
   name: ocp4
 spec:
-  contentImage: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
+  contentImage: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10
   contentFile: ssg-ocp4-ds.xml

@@ -38,7 +38,7 @@ metadata:
             "scans": [
               {
                 "content": "ssg-rhcos4-ds.xml",
-                "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master",
+                "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10",
                 "name": "workers-scan",
                 "nodeSelector": {
                   "node-role.kubernetes.io/worker": ""
@@ -47,7 +47,7 @@ metadata:
               },
               {
                 "content": "ssg-ocp4-ds.xml",
-                "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master",
+                "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10",
                 "name": "platform-scan",
                 "profile": "xccdf_org.ssgproject.content_profile_moderate",
                 "scanType": "Platform"
@@ -64,7 +64,7 @@ metadata:
           },
           "spec": {
             "contentFile": "ssg-ocp4-ds.xml",
-            "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master"
+            "contentImage": "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10"
           }
         },
         {
@@ -160,7 +160,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    must-gather-image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-dev:master
+    must-gather-image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release:release-1.10
     olm.skipRange: '>=0.1.17 <1.10.0'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-compliance
@@ -1418,12 +1418,12 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
                 - name: RELATED_IMAGE_OPENSCAP
-                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev:master
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release:release-1.10
                 - name: RELATED_IMAGE_OPERATOR
-                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release:release-1.10
                 - name: RELATED_IMAGE_PROFILE
-                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
-                image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master
+                  value: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10
+                image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release:release-1.10
                 imagePullPolicy: IfNotPresent
                 name: compliance-operator
                 resources:
@@ -1802,11 +1802,11 @@ spec:
     name: Red Hat Inc.
     url: www.redhat.com
   relatedImages:
-  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev:master
+  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release:release-1.10
     name: openscap
-  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-dev:master
+  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release:release-1.10
     name: operator
-  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
+  - image: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10
     name: profile
   replaces: compliance-operator.v1.9.2
   version: 1.10.0

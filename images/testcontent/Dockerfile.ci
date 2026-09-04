@@ -1,1 +1,1 @@
-FROM quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-dev:master
+FROM quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release:release-1.10
