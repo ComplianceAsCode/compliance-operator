@@ -12,7 +12,7 @@ require (
 	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
 	k8s.io/apimachinery v0.35.7
 	k8s.io/client-go v0.35.7
-	open-cluster-management.io/api v0.15.0
+	open-cluster-management.io/api v1.3.0
 	sigs.k8s.io/controller-runtime v0.23.3
 )
 
