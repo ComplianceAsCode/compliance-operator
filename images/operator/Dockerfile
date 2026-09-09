@@ -1,4 +1,4 @@
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.25.11 as builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.25.14-202609021839.p0.gedd1cdd.assembly.stream.el9 as builder
 
 WORKDIR /go/src/github.com/ComplianceAsCode/compliance-operator
 
