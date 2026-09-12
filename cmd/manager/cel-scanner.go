@@ -524,13 +524,14 @@ func (c *CelScanner) runPlatformScan() {
 					checkResultLabels, cm.labels, checkResultAnnotations, cm.annotations)
 			}
 
-			crkey := getObjKey(pr.Name, pr.Namespace)
 			foundCheckResult := &cmpv1alpha1.ComplianceCheckResult{}
 			foundCheckResult.TypeMeta = pr.TypeMeta
-			cmdLog.Info("Getting ComplianceCheckResult", "ComplianceCheckResult.Name", crkey.Name,
-				"ComplianceCheckResult.Namespace", crkey.Namespace)
-			checkResultExists := utils.GetObjectIfFound(c.client, crkey, foundCheckResult)
+			cmdLog.Info("Getting ComplianceCheckResult", "ComplianceCheckResult.Name", pr.Name,
+				"ComplianceCheckResult.Namespace", pr.Namespace)
+
+			existing, checkResultExists := staleComplianceCheckResults[pr.Name]
 			if checkResultExists {
+				foundCheckResult = &existing
 				foundCheckResult.ObjectMeta.DeepCopyInto(&pr.ObjectMeta)
 			} else if !scan.Spec.ShowNotApplicable && pr.Status == cmpv1alpha1.CheckResultNotApplicable {
 				continue
