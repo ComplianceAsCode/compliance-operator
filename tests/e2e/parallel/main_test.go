@@ -884,6 +884,7 @@ func TestScanTailoredProfileIsDeprecated(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
+	// SCENARIO 1: TailoredProfile itself is marked deprecated via annotation
 	tpName := "test-tailored-profile-is-deprecated"
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
@@ -939,6 +940,98 @@ func TestScanTailoredProfileIsDeprecated(t *testing.T) {
 	// When using SSB with TailoredProfile, the scan has same name as the TP
 	scanName := tpName
 	if err = f.WaitForProfileDeprecatedWarning(t, scanName, tpName); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScanTailoredProfileExtendsDeprecatedProfile(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	pbName := framework.GetObjNameFromTest(t)
+	baselineImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "deprecated_profile")
+	pb, err := f.CreateProfileBundle(pbName, baselineImage, framework.OcpContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
+	}
+
+	profileList := &compv1alpha1.ProfileList{}
+	err = f.Client.List(context.TODO(), profileList,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{compv1alpha1.ProfileBundleOwnerLabel: pbName})
+	if err != nil {
+		t.Fatalf("failed to list profiles for bundle %s: %s", pbName, err)
+	}
+
+	var deprecatedProfileName string
+	for _, p := range profileList.Items {
+		if p.Annotations[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+			deprecatedProfileName = p.Name
+			break
+		}
+	}
+	if deprecatedProfileName == "" {
+		t.Fatal("no deprecated profile found in the bundle")
+	}
+
+	tpName := framework.GetObjNameFromTest(t) + "-tp"
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Extends:     deprecatedProfileName,
+			Title:       "TestScanTailoredProfileExtendsDeprecatedProfile",
+			Description: "TestScanTailoredProfileExtendsDeprecatedProfile",
+		},
+	}
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	if err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
+
+	suiteName := framework.GetObjNameFromTest(t)
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	scanName := tpName
+	if err = f.WaitForProfileDeprecatedWarning(t, scanName, deprecatedProfileName); err != nil {
 		t.Fatal(err)
 	}
 
