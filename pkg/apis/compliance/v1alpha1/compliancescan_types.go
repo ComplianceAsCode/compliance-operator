@@ -234,6 +234,12 @@ type ComplianceScanSettings struct {
 	// container).
 	ScanLimits map[corev1.ResourceName]resource.Quantity `json:"scanLimits,omitempty"`
 
+	// ScanRequests allows to set the resource requests that the scan pods will ask for.
+	// By default, compliance operator will use sensible defaults (50Mi memory, 10m CPU
+	// for the scanner container and 20Mi memory with 10m CPU for the api-resource-collector
+	// container).
+	ScanRequests map[corev1.ResourceName]resource.Quantity `json:"scanRequests,omitempty"`
+
 	// Timeout is the maximum amount of time the scan can run. If the scan
 	// hasn't finished by then, it will be aborted.
 	// +kubebuilder:default="30m"

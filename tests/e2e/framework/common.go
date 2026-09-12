@@ -2385,6 +2385,39 @@ func CheckPodLimit(c kubernetes.Interface, podName, namespace, cpuLimit, memLimi
 	}
 }
 
+func CheckPodRequest(c kubernetes.Interface, podName, namespace, cpuRequest, memRequest string) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := c.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+
+		if apierrors.IsNotFound(err) {
+			log.Printf("Pod %s not found yet\n", podName)
+			return false, nil
+		}
+
+		for i := range pod.Spec.Containers {
+			cnt := &pod.Spec.Containers[i]
+			if cnt.Name != compscanctrl.PlatformScanResourceCollectorName &&
+				cnt.Name != compscanctrl.OpenSCAPScanContainerName &&
+				cnt.Name != compscanctrl.CELScannerContainerName {
+				continue
+			}
+
+			if cnt.Resources.Requests.Cpu().String() != cpuRequest {
+				return false, fmt.Errorf("container %s in pod %s has cpu request %s, expected %s", cnt.Name, podName, cnt.Resources.Requests.Cpu().String(), cpuRequest)
+			}
+
+			if cnt.Resources.Requests.Memory().String() != memRequest {
+				return false, fmt.Errorf("container %s in pod %s has memory request %s, expected %s", cnt.Name, podName, cnt.Resources.Requests.Memory().String(), memRequest)
+			}
+		}
+
+		return true, nil
+	}
+}
+
 func (f *Framework) AssertHasCheck(suiteName, scanName string, check compv1alpha1.ComplianceCheckResult) error {
 	var getCheck compv1alpha1.ComplianceCheckResult
 
