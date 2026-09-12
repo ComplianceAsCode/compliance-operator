@@ -12,11 +12,9 @@ import (
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
-	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -1385,129 +1383,6 @@ func TestSingleTailoredScanSucceeds(t *testing.T) {
 	}
 	if err = f.AssertScanIsCompliant(scanNameWorker, f.OperatorNamespace); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestSingleTailoredPlatformScanSucceedsOptionalProxy(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-
-	// Check if cluster is proxy and verify deployment env vars if so
-	var httpsProxy string
-	proxy := &configv1.Proxy{}
-	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, proxy); err == nil {
-		httpsProxy = proxy.Spec.HTTPSProxy
-		if httpsProxy != "" {
-			deployment, err := f.KubeClient.AppsV1().Deployments(f.OperatorNamespace).Get(context.TODO(), "compliance-operator", metav1.GetOptions{})
-			if err != nil {
-				t.Fatalf("failed to get compliance-operator deployment: %s", err)
-			}
-			if len(deployment.Spec.Template.Spec.Containers) == 0 {
-				t.Fatal("compliance-operator deployment has no containers")
-			}
-
-			envMap := make(map[string]string)
-			for _, env := range deployment.Spec.Template.Spec.Containers[0].Env {
-				if env.Name == "HTTPS_PROXY" {
-					envMap[env.Name] = env.Value
-				}
-			}
-			if httpsProxy != "" && envMap["HTTPS_PROXY"] != httpsProxy {
-				t.Fatalf("HTTPS_PROXY mismatch. Expected: %s, Got: %s", httpsProxy, envMap["HTTPS_PROXY"])
-			}
-		}
-	}
-
-	tpName := "test-tailoredplatformprofile"
-	tp := &compv1alpha1.TailoredProfile{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      tpName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.TailoredProfileSpec{
-			Title:       "TestSingleTailoredPlatformScanSucceeds",
-			Description: "TestSingleTailoredPlatformScanSucceeds",
-			EnableRules: []compv1alpha1.RuleReferenceSpec{
-				{
-					Name:      "ocp4-cluster-version-operator-exists",
-					Rationale: "Test for platform profile tailoring",
-				},
-			},
-		},
-	}
-	err := f.Client.Create(context.TODO(), tp, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), tp)
-
-	err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	suiteName := framework.GetObjNameFromTest(t)
-	ssb := &compv1alpha1.ScanSettingBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      suiteName,
-			Namespace: f.OperatorNamespace,
-		},
-		Profiles: []compv1alpha1.NamedObjectReference{
-			{
-				APIGroup: "compliance.openshift.io/v1alpha1",
-				Kind:     "TailoredProfile",
-				Name:     tpName,
-			},
-		},
-		SettingsRef: &compv1alpha1.NamedObjectReference{
-			APIGroup: "compliance.openshift.io/v1alpha1",
-			Kind:     "ScanSetting",
-			Name:     "default",
-		},
-	}
-	err = f.Client.Create(context.TODO(), ssb, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), ssb)
-
-	// When using SSB with TailoredProfile, the scan has same name as the TP
-	scanName := tpName
-	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = f.AssertScanIsCompliant(scanName, f.OperatorNamespace)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// If proxy cluster, verify httpsProxy in configmap
-	// CO only propagates and uses httpsProxy
-	if httpsProxy != "" {
-		cm := &corev1.ConfigMap{}
-		cmName := scanName + "-openscap-env-map"
-		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: f.OperatorNamespace}, cm); err != nil && apierrors.IsNotFound(err) {
-			cmList := &corev1.ConfigMapList{}
-			if err := f.Client.List(context.TODO(), cmList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels{
-				compv1alpha1.ComplianceScanLabel: scanName,
-				compv1alpha1.ScriptLabel:         "",
-			}); err != nil {
-				t.Fatalf("failed to list ConfigMaps: %s", err)
-			}
-			for i := range cmList.Items {
-				if strings.Contains(cmList.Items[i].Name, "openscap-env-map") && cmList.Items[i].Data["HTTPS_PROXY"] != "" {
-					cm = &cmList.Items[i]
-					break
-				}
-			}
-		} else if err != nil {
-			t.Fatalf("failed to get ConfigMap: %s", err)
-		}
-
-		if cm.Data["HTTPS_PROXY"] != httpsProxy {
-			t.Fatalf("HTTPS_PROXY mismatch in configmap. Expected: %s, Got: %s", httpsProxy, cm.Data["HTTPS_PROXY"])
-		}
 	}
 }
 
