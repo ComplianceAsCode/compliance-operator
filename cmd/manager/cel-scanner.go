@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	cmpv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/utils/celvalidation"
 	"github.com/ComplianceAsCode/compliance-sdk/pkg/fetchers"
 	"github.com/ComplianceAsCode/compliance-sdk/pkg/scanner"
 	backoff "github.com/cenkalti/backoff/v4"
@@ -328,24 +330,19 @@ func (c *CelScanner) runPlatformScan() {
 			cmdLog.Error(err, "Failed to get CEL rules from profile", "name", c.celConfig.Profile)
 			os.Exit(CelExitCodeError)
 		}
-		// Load variables referenced by the Profile with their default values.
-		// CEL rules reuse Variable CRs created from the XCCDF DataStream.
-		setVars, err = c.getVariablesForProfile(c.celConfig.Profile, c.celConfig.NameSpace)
-		if err != nil {
-			cmdLog.Error(err, "Failed to get variables for profile", "name", c.celConfig.Profile)
-			os.Exit(CelExitCodeError)
-		}
+		// Profile scans use the stored Variable values, which
+		// buildScanVariables reads directly from the namespace.
 	}
 
-	// Convert variables to SDK format
-	celVariables := make([]scanner.CelVariable, 0, len(setVars))
-	for _, v := range setVars {
-		celVar := &celVariableAdapter{
-			name:      v.Name,
-			namespace: v.Namespace,
-			value:     v.Value,
-		}
-		celVariables = append(celVariables, celVar)
+	// Bind every in-scope Variable under its auto-derived CEL identifier
+	// (ocp4-var-max-pods -> ocp4_var_max_pods) with the scan's resolved value:
+	// a TailoredProfile's setValues take precedence over the stored Variable
+	// value, without ever mutating the Variable CR. Input names win over
+	// variable identifiers per rule (see variablesForRule).
+	celVariables, err := c.buildScanVariables(setVars)
+	if err != nil {
+		cmdLog.Error(err, "Failed to build scan variables")
+		os.Exit(CelExitCodeError)
 	}
 
 	// Convert SDK results to compliance operator results
@@ -358,8 +355,7 @@ func (c *CelScanner) runPlatformScan() {
 	}
 	customMetadataByName := make(map[string]customMeta)
 
-	// Build SDK rule list; produce MANUAL results directly for rules without expressions
-	sdkRules := make([]scanner.Rule, 0, len(selectedRules))
+	// Produce MANUAL results directly for rules without expressions
 	for _, rw := range selectedRules {
 		if rw.payload.Expression == "" {
 			// Manual rule — produce CheckResultManual directly, bypass SDK scanner
@@ -383,26 +379,31 @@ func (c *CelScanner) runPlatformScan() {
 				Status:       cmpv1alpha1.CheckResultManual,
 			})
 			cmdLog.Info("Manual rule — no CEL expression, result is MANUAL", "rule", rw.scannerRule.Identifier())
+		}
+	}
+
+	// Run the scan one rule at a time so each rule's variables can be
+	// filtered against its own input names — exactly the set validation
+	// declared for it at admission. Note: ApiResourcePath in the SDK expects
+	// the cache directory path.
+	ctx := context.Background()
+	var checkResults []scanner.CheckResult
+	for _, rw := range selectedRules {
+		if rw.payload.Expression == "" {
 			continue
 		}
-		sdkRules = append(sdkRules, rw.scannerRule)
-	}
-
-	// Create scan configuration
-	// Note: ApiResourcePath in the SDK expects the cache directory path
-	scanConfig := scanner.ScanConfig{
-		Rules:              sdkRules,
-		Variables:          celVariables,
-		ApiResourcePath:    c.celConfig.ApiResourceCacheDir,
-		EnableDebugLogging: debugLog,
-	}
-
-	// Run the scan using SDK scanner
-	ctx := context.Background()
-	checkResults, err := c.sdkScanner.Scan(ctx, scanConfig)
-	if err != nil {
-		cmdLog.Error(err, "Failed to run scan", "scanName", c.celConfig.ScanName)
-		os.Exit(CelExitCodeError)
+		scanConfig := scanner.ScanConfig{
+			Rules:              []scanner.Rule{rw.scannerRule},
+			Variables:          variablesForRule(celVariables, rw),
+			ApiResourcePath:    c.celConfig.ApiResourceCacheDir,
+			EnableDebugLogging: debugLog,
+		}
+		ruleResults, err := c.sdkScanner.Scan(ctx, scanConfig)
+		if err != nil {
+			cmdLog.Error(err, "Failed to run scan", "scanName", c.celConfig.ScanName, "rule", rw.scannerRule.Identifier())
+			os.Exit(CelExitCodeError)
+		}
+		checkResults = append(checkResults, ruleResults...)
 	}
 
 	// Build a lookup map from rule identifier to wrapper for result mapping
@@ -782,33 +783,6 @@ func (c *CelScanner) validateCELRulePayload(name string, payload *cmpv1alpha1.Ru
 	return nil
 }
 
-// getVariablesForProfile loads all Variable CRs referenced in the Profile's Values
-// list with their default values. CEL rules reuse Variable CRs from the XCCDF DataStream.
-func (c *CelScanner) getVariablesForProfile(profileName, namespace string) ([]*cmpv1alpha1.Variable, error) {
-	profile := &cmpv1alpha1.Profile{}
-	profileKey := v1api.NamespacedName{Name: profileName, Namespace: namespace}
-	if err := c.client.Get(context.TODO(), profileKey, profile); err != nil {
-		return nil, fmt.Errorf("fetching Profile '%s': %w", profileName, err)
-	}
-
-	var vars []*cmpv1alpha1.Variable
-	for _, profileValue := range profile.Values {
-		variable := &cmpv1alpha1.Variable{}
-		varKey := v1api.NamespacedName{Name: string(profileValue), Namespace: namespace}
-		err := c.client.Get(context.TODO(), varKey, variable)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				cmdLog.V(1).Info("Variable referenced by profile not found, skipping", "variable", string(profileValue), "profile", profileName)
-				continue
-			}
-			return nil, fmt.Errorf("fetching variable '%s': %w", string(profileValue), err)
-		}
-		vars = append(vars, variable)
-	}
-
-	return vars, nil
-}
-
 func (c *CelScanner) getVariablesForTailoredProfile(tp *cmpv1alpha1.TailoredProfile) ([]*cmpv1alpha1.Variable, error) {
 	var setVars []*cmpv1alpha1.Variable
 	for _, sVar := range tp.Spec.SetValues {
@@ -827,6 +801,68 @@ func (c *CelScanner) getVariablesForTailoredProfile(tp *cmpv1alpha1.TailoredProf
 		setVars = append(setVars, variable)
 	}
 	return setVars, nil
+}
+
+// buildScanVariables assembles the CEL variable bindings for the scan: every
+// Variable CR in the scan namespace, overlaid with the values already resolved
+// for this scan (a TailoredProfile's setValues), each bound under its
+// auto-derived CEL identifier (celvalidation.DeriveCelIdentifier). Per-rule
+// input-name precedence is applied later by variablesForRule.
+func (c *CelScanner) buildScanVariables(setVars []*cmpv1alpha1.Variable) ([]scanner.CelVariable, error) {
+	varList := &cmpv1alpha1.VariableList{}
+	if err := c.client.List(context.TODO(), varList, runtimeclient.InNamespace(c.celConfig.NameSpace)); err != nil {
+		return nil, fmt.Errorf("listing Variables in namespace %q: %w", c.celConfig.NameSpace, err)
+	}
+
+	values := make(map[string]string, len(varList.Items)+len(setVars))
+	for i := range varList.Items {
+		values[varList.Items[i].Name] = varList.Items[i].Value
+	}
+	// Scan-resolved values (a TailoredProfile's setValues) take precedence.
+	for _, v := range setVars {
+		values[v.Name] = v.Value
+	}
+
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	celVariables := make([]scanner.CelVariable, 0, len(names))
+	for _, name := range names {
+		derived, ok := celvalidation.DeriveCelIdentifier(name)
+		if !ok {
+			cmdLog.Info("Variable name does not derive to a usable CEL identifier, skipping", "variable", name)
+			continue
+		}
+		celVariables = append(celVariables, &celVariableAdapter{
+			name:      derived,
+			namespace: c.celConfig.NameSpace,
+			value:     values[name],
+		})
+	}
+	return celVariables, nil
+}
+
+// variablesForRule drops the variables whose identifier collides with one of
+// the rule's input names: the input takes precedence, mirroring admission
+// validation. Declaring both would make the rule's compilation fail with an
+// overlapping identifier error.
+func variablesForRule(all []scanner.CelVariable, rw celRuleWrapper) []scanner.CelVariable {
+	inputNames := make(map[string]bool, len(rw.payload.Inputs))
+	for _, in := range rw.payload.Inputs {
+		inputNames[in.Name] = true
+	}
+	kept := make([]scanner.CelVariable, 0, len(all))
+	for _, v := range all {
+		if inputNames[v.Name()] {
+			cmdLog.Info("Variable identifier collides with a rule input name; the input takes precedence", "identifier", v.Name(), "rule", rw.scannerRule.Identifier())
+			continue
+		}
+		kept = append(kept, v)
+	}
+	return kept
 }
 
 // saveScanResult saves the scan results to a JSON file with proper indentation
