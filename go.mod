@@ -7,6 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
+	github.com/operator-framework/api v0.29.0
 	github.com/openshift/api v0.0.0-20260521125114-09730f85d883
 	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a
 	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
