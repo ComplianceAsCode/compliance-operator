@@ -1,7 +1,7 @@
 # Step one: build compliance-operator
 FROM registry.ci.openshift.org/openshift/release:rhel-9-release-golang-1.25-openshift-4.22 AS builder
 
-WORKDIR /go/src/github.com/openshift/compliance-operator
+WORKDIR /go/src/github.com/ComplianceAsCode/compliance-operator
 
 ENV GOFLAGS=-mod=vendor
 
@@ -15,7 +15,7 @@ FROM registry.redhat.io/ubi9/ubi-minimal-pqc:latest
 ENV OPERATOR=/usr/local/bin/compliance-operator
 
 # install operator binary
-COPY --from=builder /go/src/github.com/openshift/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR}
+COPY --from=builder /go/src/github.com/ComplianceAsCode/compliance-operator/build/_output/bin/compliance-operator ${OPERATOR}
 
 COPY build/bin/entrypoint /usr/local/bin/entrypoint
 
