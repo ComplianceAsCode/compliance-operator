@@ -25,7 +25,7 @@ func (r *ReconcileComplianceSuite) reconcileScanRerunnerCronJob(suite *compv1alp
 		logger.Error(err, "Cannot get priority class name, scan will not be run with set priority class")
 	}
 	// this is a validation and should warn the user
-	if priorityClassExist, why := utils.ValidatePriorityClassExist(priorityClassName, r.Client); !priorityClassExist {
+	if priorityClassExist, why := utils.ValidatePriorityClassExist(context.TODO(), priorityClassName, r.Client); !priorityClassExist {
 		log.Info(why, "Suite", suite.Name)
 		r.Recorder.Eventf(suite, corev1.EventTypeWarning, "PriorityClass", why+" Suite:"+suite.Name)
 	}

@@ -19,10 +19,10 @@ var (
 // It uses exponential backoff to retry on transient errors.
 // Returns true if the object was found, false if it doesn't exist.
 // The obj parameter will be updated with the retrieved object data if found.
-func GetObjectIfFound(client runtimeclient.Client, key types.NamespacedName, obj runtimeclient.Object) bool {
+func GetObjectIfFound(ctx context.Context, client runtimeclient.Client, key types.NamespacedName, obj runtimeclient.Object) bool {
 	var found bool
 	err := backoff.Retry(func() error {
-		err := client.Get(context.TODO(), key, obj)
+		err := client.Get(ctx, key, obj)
 		if errors.IsNotFound(err) {
 			// Not found is not an error we want to retry
 			return nil
@@ -32,7 +32,7 @@ func GetObjectIfFound(client runtimeclient.Client, key types.NamespacedName, obj
 		}
 		found = true
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx))
 
 	if err != nil {
 		log.Error(err, "Couldn't get object", "Name", key.Name, "Namespace", key.Namespace)
