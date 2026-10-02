@@ -747,6 +747,43 @@ fi`, runtimeDir, configPath, sshdBin, terminationLog)
 			Expect(scan.Spec.ScanType).To(Equal(compv1alpha1.ScanTypePlatform))
 			Expect(scan.Annotations[compv1alpha1.ComplianceCheckCountAnnotation]).To(Equal("0"))
 		})
+
+		It("Should clear a stale ErrorMessage left over from a previous failed cycle once the scan succeeds", func() {
+			// Simulate a ComplianceScan object that is being reused for a
+			// rescan after a previous cycle failed (e.g. a scan-pod
+			// timeout) and left an ErrorMessage behind.
+			// Pre-set the check-count annotation so this reconcile
+			// reaches the Done phase in a single call instead of
+			// requeueing to set it first.
+			if platformscaninstance.Annotations == nil {
+				platformscaninstance.Annotations = make(map[string]string)
+			}
+			platformscaninstance.Annotations[compv1alpha1.ComplianceCheckCountAnnotation] = "0"
+			err := reconciler.Client.Update(context.TODO(), platformscaninstance)
+			Expect(err).To(BeNil())
+			// Set the stale ErrorMessage after the plain Update() above:
+			// the fake client's Update() resets the in-memory object's
+			// Status to whatever is currently persisted (Status is a
+			// separate subresource), so setting it before would be wiped.
+			platformscaninstance.Status.ErrorMessage = "Timeout while waiting for the scan pod to be finished."
+			err = reconciler.Client.Status().Update(context.TODO(), platformscaninstance)
+			Expect(err).To(BeNil())
+
+			result, err := reconciler.phaseAggregatingHandler(platformHandler, logger)
+			Expect(err).To(BeNil())
+			Expect(result).ToNot(BeNil())
+
+			scan := &compv1alpha1.ComplianceScan{}
+			key := types.NamespacedName{
+				Name:      platformscaninstance.Name,
+				Namespace: compliancescaninstance.Namespace,
+			}
+			if err = reconciler.Client.Get(context.TODO(), key, scan); err != nil {
+				Fail("failed to get Platform scan instance")
+			}
+			Expect(scan.Status.Phase).To(Equal(compv1alpha1.PhaseDone))
+			Expect(scan.Status.ErrorMessage).To(BeEmpty())
+		})
 	})
 
 	Context("On the DONE phase", func() {
