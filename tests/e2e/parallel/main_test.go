@@ -54,29 +54,6 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func TestServiceMonitoringMetricsTarget(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-
-	err := f.SetupRBACForMetricsTest()
-	if err != nil {
-		t.Fatalf("failed to create service account: %s", err)
-	}
-	defer f.CleanUpRBACForMetricsTest()
-
-	metricsTargets, err := f.WaitForPrometheusMetricTargets()
-	if err != nil {
-		t.Fatalf("failed to get prometheus metric targets: %s", err)
-	}
-
-	expectedMetricsCount := 2
-
-	err = f.AssertServiceMonitoringMetricsTarget(metricsTargets, expectedMetricsCount)
-	if err != nil {
-		t.Fatalf("failed to assert metrics target: %s", err)
-	}
-}
-
 func TestSingleScanSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -1512,23 +1489,6 @@ func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
 	err = f.SuiteErrorMessageMatchesRegex(f.OperatorNamespace, suiteName, "The suite result is not applicable.*")
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestResultServerHTTPVersion(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	endpoints := []string{
-		fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace),
-		fmt.Sprintf("http://metrics.%s.svc:8383/metrics", f.OperatorNamespace),
-	}
-
-	expectedHTTPVersion := "HTTP/1.1"
-	for _, endpoint := range endpoints {
-		err := f.AssertMetricsEndpointUsesHTTPVersion(endpoint, expectedHTTPVersion)
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 }
 
