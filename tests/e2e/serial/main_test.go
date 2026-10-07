@@ -1803,7 +1803,6 @@ func TestRuntimeSSHConfigWithRemediation(t *testing.T) {
 
 	t.Log("Runtime SSH configuration with remediation test completed")
 }
-
 func TestMustGatherImageWorksAsExpected(t *testing.T) {
 	f := framework.Global
 
@@ -2548,7 +2547,7 @@ func TestPrometheusRuleComplianceAlert(t *testing.T) {
 //							NodeSelector: workerNodesLabel,
 //							ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
 //								Debug: true,
-//			},
+//							},
 //						},
 //						Name: scanName,
 //					},
