@@ -826,6 +826,10 @@ func TestHideRule(t *testing.T) {
 	}
 }
 
+// TestScanTailoredProfileExtendsDeprecated verifies deprecated profile warnings surface when a
+// TailoredProfile extends a Profile that is marked deprecated, without the TailoredProfile itself being
+// marked deprecated. The deprecated profile is discovered dynamically from the bundle rather than
+// hardcoded, so the test stays resilient to upstream profile changes.
 func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -843,29 +847,46 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
 	}
 
-	tpName := "test-tailored-profile-extends-deprecated"
+	profileList := &compv1alpha1.ProfileList{}
+	err = f.Client.List(context.TODO(), profileList,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{compv1alpha1.ProfileBundleOwnerLabel: pbName})
+	if err != nil {
+		t.Fatalf("failed to list profiles for bundle %s: %s", pbName, err)
+	}
+
+	var deprecatedProfileName string
+	for _, p := range profileList.Items {
+		if p.Annotations[compv1alpha1.ProfileStatusAnnotation] == "deprecated" {
+			deprecatedProfileName = p.Name
+			break
+		}
+	}
+	if deprecatedProfileName == "" {
+		t.Fatal("no deprecated profile found in the bundle")
+	}
+
+	tpName := framework.GetObjNameFromTest(t) + "-tp"
 	tp := &compv1alpha1.TailoredProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tpName,
 			Namespace: f.OperatorNamespace,
 		},
 		Spec: compv1alpha1.TailoredProfileSpec{
-			Extends:     pbName + "-cis-1-4",
+			Extends:     deprecatedProfileName,
 			Title:       "TestScanTailoredProfileExtendsDeprecated",
 			Description: "TestScanTailoredProfileExtendsDeprecated",
-			EnableRules: []compv1alpha1.RuleReferenceSpec{
-				{
-					Name:      pbName + "-cluster-version-operator-exists",
-					Rationale: "Test tailored profile extends deprecated",
-				},
-			},
 		},
 	}
-	createTPErr := f.Client.Create(context.TODO(), tp, nil)
-	if createTPErr != nil {
-		t.Fatal(createTPErr)
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 	defer f.Client.Delete(context.TODO(), tp)
+
+	if err = f.WaitForTailoredProfileStatus(f.OperatorNamespace, tpName, compv1alpha1.TailoredProfileStateReady); err != nil {
+		t.Fatal(err)
+	}
 
 	suiteName := framework.GetObjNameFromTest(t)
 	ssb := &compv1alpha1.ScanSettingBinding{
@@ -894,7 +915,7 @@ func TestScanTailoredProfileExtendsDeprecated(t *testing.T) {
 
 	// When using SSB with TailoredProfile, the scan has same name as the TP
 	scanName := tpName
-	if err = f.WaitForProfileDeprecatedWarning(t, scanName, tpName); err != nil {
+	if err = f.WaitForProfileDeprecatedWarning(t, scanName, deprecatedProfileName); err != nil {
 		t.Fatal(err)
 	}
 
