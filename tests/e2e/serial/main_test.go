@@ -2487,6 +2487,11 @@ const (
 	defaultOperatorMemLimit   = "500Mi"
 	defaultOperatorCPURequest = "10m"
 	defaultOperatorMemRequest = "20Mi"
+
+	patchedOperatorCPULimit   = "256m"
+	patchedOperatorMemLimit   = "512Mi"
+	patchedOperatorCPURequest = "25m"
+	patchedOperatorMemRequest = "52Mi"
 )
 
 // TestOperatorResourceLimitsConfigurable tests that the compliance operator's
@@ -2539,7 +2544,7 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 	t.Log("Patching deployment with new resource limits")
 
 	// Create a patch to update resource requirements
-	patchData := []byte(`{
+	patchData := []byte(fmt.Sprintf(`{
 		"spec": {
 			"template": {
 				"spec": {
@@ -2547,19 +2552,19 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 						"name": "compliance-operator",
 						"resources": {
 							"limits": {
-								"cpu": "256m",
-								"memory": "512Mi"
+								"cpu": "%s",
+								"memory": "%s"
 							},
 							"requests": {
-								"cpu": "25m",
-								"memory": "52Mi"
+								"cpu": "%s",
+								"memory": "%s"
 							}
 						}
 					}]
 				}
 			}
 		}
-	}`)
+	}`, patchedOperatorCPULimit, patchedOperatorMemLimit, patchedOperatorCPURequest, patchedOperatorMemRequest))
 
 	// Get the current pod UID before patching to detect when a new pod is created
 	podList := &corev1.PodList{}
@@ -2692,17 +2697,17 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 	newCPURequest := podContainer.Resources.Requests.Cpu().String()
 	newMemRequest := podContainer.Resources.Requests.Memory().String()
 
-	if newCPULimit != "256m" {
-		t.Errorf("expected new CPU limit 256m, got %s", newCPULimit)
+	if newCPULimit != patchedOperatorCPULimit {
+		t.Errorf("expected new CPU limit %s, got %s", patchedOperatorCPULimit, newCPULimit)
 	}
-	if newMemLimit != "512Mi" {
-		t.Errorf("expected new memory limit 512Mi, got %s", newMemLimit)
+	if newMemLimit != patchedOperatorMemLimit {
+		t.Errorf("expected new memory limit %s, got %s", patchedOperatorMemLimit, newMemLimit)
 	}
-	if newCPURequest != "25m" {
-		t.Errorf("expected new CPU request 25m, got %s", newCPURequest)
+	if newCPURequest != patchedOperatorCPURequest {
+		t.Errorf("expected new CPU request %s, got %s", patchedOperatorCPURequest, newCPURequest)
 	}
-	if newMemRequest != "52Mi" {
-		t.Errorf("expected new memory request 52Mi, got %s", newMemRequest)
+	if newMemRequest != patchedOperatorMemRequest {
+		t.Errorf("expected new memory request %s, got %s", patchedOperatorMemRequest, newMemRequest)
 	}
 
 	t.Log("Successfully verified operator resource limits are configurable")
