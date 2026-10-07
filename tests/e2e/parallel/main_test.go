@@ -4773,6 +4773,9 @@ func TestScanSettingBindingUsesDefaultScanSetting(t *testing.T) {
 	}
 }
 
+// TestTailoringEnabledRulesGenerateRemediations verifies that when a rule is added via EnableRules,
+// it behaves as a normal rule (not manual), reports PASS/FAIL status, and generates remediations when it fails.
+// This complements TestTailoringManualRulesDoesNotGenerateRemediations which verifies the opposite behavior.
 func TestTailoringEnabledRulesGenerateRemediations(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
