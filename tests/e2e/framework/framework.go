@@ -62,6 +62,23 @@ type Framework struct {
 	WatchNamespace    string
 	Platform          string
 
+	// TestPools hands out isolated MachineConfigPool lanes to destructive tests
+	// that run in parallel (see testpools.go). testPoolNames tracks the lanes
+	// created during setup so they can be cleaned up on teardown.
+	TestPools     *laneQueue
+	testPoolNames []string
+	testPoolErrs  chan error
+	operatorReady chan struct{}
+	// scanPhase keeps the parallel scan tests apart from each other and from
+	// the lane tests (see scanphase.go).
+	scanPhase *scanPhase
+	// haveSpares is set when spare workers carry SpareRole, so the parallel
+	// scan tests stay off the lane nodes.
+	haveSpares bool
+	// pinOperatorToMasters places the operator Deployment on master nodes, as the
+	// CSV does, so worker reboots in destructive tests don't restart it.
+	pinOperatorToMasters bool
+
 	restMapper *restmapper.DeferredDiscoveryRESTMapper
 
 	projectRoot       string

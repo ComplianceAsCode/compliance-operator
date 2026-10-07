@@ -352,6 +352,45 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 			})
 		})
 
+		Context("With another ProfileBundle for the same content that has no Profiles yet", func() {
+			It("should update the compliancescan instance to phase LAUNCHING", func() {
+				// A bundle that is still being parsed has no Profiles. This one
+				// is listed before the bundle that has the scan's Profile.
+				err := reconciler.Client.Create(context.TODO(), &compv1alpha1.ProfileBundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "a-product",
+						Namespace: common.GetComplianceOperatorNamespace(),
+					},
+					Spec: compv1alpha1.ProfileBundleSpec{
+						ContentImage: "MyContentImage",
+						ContentFile:  "MyContentFile",
+					},
+				})
+				Expect(err).To(BeNil())
+				result, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+				Expect(result).NotTo(BeNil())
+				Expect(err).To(BeNil())
+				Expect(compliancescaninstance.Status.Phase).To(Equal(compv1alpha1.PhaseLaunching))
+				Expect(compliancescaninstance.Status.Result).To(Equal(compv1alpha1.ResultNotAvailable))
+			})
+		})
+
+		Context("With no ProfileBundle for the scan's content having its Profile", func() {
+			It("should update the compliancescan instance to phase DONE with result ERROR", func() {
+				profile := &compv1alpha1.Profile{}
+				key := types.NamespacedName{Name: "some-product-unmoderate", Namespace: common.GetComplianceOperatorNamespace()}
+				Expect(reconciler.Client.Get(context.TODO(), key, profile)).To(Succeed())
+				Expect(reconciler.Client.Delete(context.TODO(), profile)).To(Succeed())
+				result, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+				Expect(result).NotTo(BeNil())
+				Expect(err).To(BeNil())
+				scan := &compv1alpha1.ComplianceScan{}
+				Expect(reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: compliancescaninstance.Name}, scan)).To(Succeed())
+				Expect(scan.Status.Phase).To(Equal(compv1alpha1.PhaseDone))
+				Expect(scan.Status.Result).To(Equal(compv1alpha1.ResultError))
+			})
+		})
+
 	})
 
 	Context("On the LAUNCHING phase", func() {

@@ -41,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 	psapi "k8s.io/pod-security-admission/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	dynclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -257,6 +258,18 @@ func (f *Framework) createFromYAMLString(y string) error {
 		if err != nil {
 			return err
 		}
+		if u, ok := obj.(*unstructured.Unstructured); ok && u.GetKind() == "Deployment" && u.GetName() == "compliance-operator" {
+			switch {
+			case f.haveSpares:
+				if err := pinToSpares(u); err != nil {
+					return fmt.Errorf("failed to pin the operator to the spare workers: %w", err)
+				}
+			case f.pinOperatorToMasters:
+				if err := pinToMasters(u); err != nil {
+					return fmt.Errorf("failed to pin the operator to master nodes: %w", err)
+				}
+			}
+		}
 
 		obj.SetNamespace(f.OperatorNamespace)
 		log.Printf("creating %s %s", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetName())
@@ -266,6 +279,44 @@ func (f *Framework) createFromYAMLString(y string) error {
 		}
 	}
 	return nil
+}
+
+// pinToSpares schedules the operator Deployment on the spare workers. Like the
+// masters they never reboot during the run, and the pods the operator starts
+// for scans (aggregators, platform scans, result servers, profile parsers)
+// inherit its node selector. On the spare workers they don't compete with the
+// control plane, which also runs every master-role scan; with many scan tests
+// in parallel the masters otherwise run out of CPU.
+func pinToSpares(u *unstructured.Unstructured) error {
+	return unstructured.SetNestedStringMap(u.Object, utils.GetNodeRoleSelector(SpareRole),
+		"spec", "template", "spec", "nodeSelector")
+}
+
+// pinToMasters schedules the operator Deployment on the control plane, the same
+// way the OLM bundle (CSV) installs it. The e2e manifests leave it unconstrained,
+// so it lands on a worker and is evicted, restarting the operator mid-test,
+// whenever a destructive test reboots that worker.
+func pinToMasters(u *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedStringMap(u.Object, map[string]string{"node-role.kubernetes.io/master": ""},
+		"spec", "template", "spec", "nodeSelector"); err != nil {
+		return err
+	}
+	return unstructured.SetNestedSlice(u.Object, []interface{}{
+		map[string]interface{}{"key": "node-role.kubernetes.io/master", "operator": "Exists", "effect": "NoSchedule"},
+	}, "spec", "template", "spec", "tolerations")
+}
+
+// shouldPinOperatorToMasters reports whether the cluster has master nodes to pin
+// the operator to. ROSA and other hosted control planes have none.
+func (f *Framework) shouldPinOperatorToMasters() (bool, error) {
+	if f.Platform == "rosa" {
+		return false, nil
+	}
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"})
+	if err != nil {
+		return false, fmt.Errorf("failed to list master nodes: %w", err)
+	}
+	return len(nodes.Items) > 0, nil
 }
 
 func (f *Framework) WaitForScanCleanup() error {
@@ -682,6 +733,13 @@ func (f *Framework) updateScanSettingsForDebug() error {
 }
 
 func (f *Framework) ensureE2EScanSettings() error {
+	return f.ensureE2EScanSettingsForPool(TestPoolName)
+}
+
+// ensureE2EScanSettingsForPool creates a "<poolName>-default" and
+// "<poolName>-default-auto-apply" ScanSetting whose Roles target poolName, so
+// each parallel test lane scans/remediates only its own pool.
+func (f *Framework) ensureE2EScanSettingsForPool(poolName string) error {
 	if f.Platform == "rosa" {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
@@ -695,11 +753,11 @@ func (f *Framework) ensureE2EScanSettings() error {
 
 		ssCopy := ss.DeepCopy()
 		ssCopy.ObjectMeta = metav1.ObjectMeta{
-			Name:      "e2e-" + ssName,
+			Name:      poolName + "-" + ssName,
 			Namespace: f.OperatorNamespace,
 		}
 		ssCopy.Roles = []string{
-			TestPoolName,
+			poolName,
 		}
 		ssCopy.Debug = true
 
@@ -729,12 +787,8 @@ func (f *Framework) deleteScanSettings(name string) error {
 	return nil
 }
 
-func (f *Framework) createMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
-		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
-		return nil
-	}
-	// get the worker pool
+// getWorkerNodes returns the nodes currently in the worker MachineConfigPool.
+func (f *Framework) getWorkerNodes() ([]corev1.Node, error) {
 	w := "worker"
 	p := &mcfgv1.MachineConfigPool{}
 	getErr := backoff.RetryNotify(
@@ -752,41 +806,79 @@ func (f *Framework) createMachineConfigPool(n string) error {
 			log.Printf("error while getting MachineConfig pool to create sub-pool from: %s. Retrying after %s", err, interval)
 		})
 	if getErr != nil {
-		return fmt.Errorf("failed to get Machine Config Pool %s to create sub-pool from: %w", w, getErr)
+		return nil, fmt.Errorf("failed to get Machine Config Pool %s to create sub-pool from: %w", w, getErr)
 	}
-
 	nodeList, err := f.getNodesForPool(p)
+	if err != nil {
+		return nil, err
+	}
+	// Never hand out a control-plane node as a reboot lane. Masters carry the
+	// worker role too on compact clusters or when masters are schedulable.
+	var workers []corev1.Node
+	for _, n := range nodeList.Items {
+		if _, ok := n.Labels["node-role.kubernetes.io/master"]; ok {
+			continue
+		}
+		if _, ok := n.Labels["node-role.kubernetes.io/control-plane"]; ok {
+			continue
+		}
+		workers = append(workers, n)
+	}
+	return workers, nil
+}
+
+func (f *Framework) createMachineConfigPool(n string) error {
+	if f.Platform == "rosa" {
+		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
+		return nil
+	}
+	nodes, err := f.getWorkerNodes()
 	if err != nil {
 		return err
 	}
+	if len(nodes) == 0 {
+		return fmt.Errorf("no worker nodes found to create Machine Config Pool %s from", n)
+	}
 	// pick the first node in the list so we only have a pool of one
-	node := nodeList.Items[0]
+	return f.createMachineConfigPoolFromNode(n, &nodes[0])
+}
+
+// createMachineConfigPoolFromNode creates a MachineConfigPool named n containing
+// exactly the given node (relabeled into the pool's role) and waits for MCO to
+// roll the node into it. This lets several isolated pools be created from
+// distinct worker nodes so destructive tests can run in parallel, one node per
+// pool.
+func (f *Framework) createMachineConfigPoolFromNode(n string, node *corev1.Node) error {
+	if f.Platform == "rosa" {
+		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
+		return nil
+	}
+	if err := f.createMachineConfigPoolForNode(n, node); err != nil {
+		return err
+	}
+	return f.waitForMachineConfigPoolUpdated(n)
+}
+
+// createMachineConfigPoolForNode labels the node into pool n's role and creates
+// the pool without waiting for MCO to roll the node into it. Callers creating
+// several pools can create them all first and wait afterwards, since MCO updates
+// distinct pools concurrently.
+func (f *Framework) createMachineConfigPoolForNode(n string, node *corev1.Node) error {
+	// the base pool the sub-pool inherits MachineConfigs from
+	w := "worker"
 
 	// create a new pool with a subset of the nodes
 	l := fmt.Sprintf("node-role.kubernetes.io/%s", n)
 
-	// label nodes
-	nodeCopy := node.DeepCopy()
-	nodeCopy.Labels[l] = ""
-
 	log.Printf("adding label %s to node %s\n", l, node.Name)
-	updateErr := backoff.RetryNotify(
-		func() error {
-			return f.Client.Update(context.TODO(), nodeCopy)
-		},
-		defaultBackoff,
-		func(err error, interval time.Duration) {
-			log.Printf("failed to label node %s: %s... retrying after %s", node.Name, err, interval)
-		})
-	if updateErr != nil {
-		log.Printf("failed to label node %s: %s\n", node.Name, l)
-		return fmt.Errorf("couldn't label node %s: %w", node.Name, updateErr)
+	if _, err := f.setPoolRoleLabel(node, l); err != nil {
+		return fmt.Errorf("couldn't label node %s: %w", node.Name, err)
 	}
 
 	nodeLabel := make(map[string]string)
 	nodeLabel[l] = ""
 	poolLabels := make(map[string]string)
-	poolLabels["pools.operator.machineconfiguration.openshift.io/e2e"] = ""
+	poolLabels["pools.operator.machineconfiguration.openshift.io/"+n] = ""
 	newPool := &mcfgv1.MachineConfigPool{
 		ObjectMeta: metav1.ObjectMeta{Name: n, Labels: poolLabels},
 		Spec: mcfgv1.MachineConfigPoolSpec{
@@ -823,8 +915,12 @@ func (f *Framework) createMachineConfigPool(n string) error {
 		return fmt.Errorf("failed to create Machine Config Pool %s: %w", n, createErr)
 	}
 
-	// wait for pool to come up
-	err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+	return nil
+}
+
+// waitForMachineConfigPoolUpdated waits until MachineConfigPool n reports Updated.
+func (f *Framework) waitForMachineConfigPoolUpdated(n string) error {
+	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
 		pool := mcfgv1.MachineConfigPool{}
 		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: n}, &pool)
 		if err != nil {
@@ -849,6 +945,69 @@ func (f *Framework) createMachineConfigPool(n string) error {
 
 	log.Printf("successfully created Machine Config Pool %s\n", n)
 	return nil
+}
+
+// labelNode adds label, with an empty value, to the named node using a JSON
+// merge patch. A patch carries no resourceVersion, so unlike an Update of a
+// previously listed copy of the node it can't fail with a conflict when
+// something else (kubelet status updates, MCO annotations) has written the node
+// in the meantime.
+func (f *Framework) labelNode(nodeName, label string) error {
+	return f.patchNodeLabel(nodeName, label, "")
+}
+
+// poolRoleLabel matches the node role labels of the test pool lanes ("e2e",
+// "e2e-<n>") and of the spare workers.
+var poolRoleLabel = regexp.MustCompile(`^node-role\.kubernetes\.io/(` + TestPoolName + `(-[0-9]+)?|` + SpareRole + `)$`)
+
+// setPoolRoleLabel gives node the lane or spare role label and, in the same
+// patch, removes any other lane or spare role label an earlier run on the same
+// cluster left on it. A node with two lane labels would be in two
+// MachineConfigPools, and a spare worker left in a lane would be rebooted by
+// that lane's tests.
+func (f *Framework) setPoolRoleLabel(node *corev1.Node, label string) (removedStale bool, err error) {
+	labels := map[string]interface{}{label: ""}
+	for k := range node.Labels {
+		if k != label && poolRoleLabel.MatchString(k) {
+			log.Printf("removing stale label %s from node %s", k, node.Name)
+			labels[k] = nil
+			removedStale = true
+		}
+	}
+	patch, err := json.Marshal(map[string]interface{}{"metadata": map[string]interface{}{"labels": labels}})
+	if err != nil {
+		return false, err
+	}
+	return removedStale, backoff.RetryNotify(
+		func() error {
+			_, err := f.KubeClient.CoreV1().Nodes().Patch(context.TODO(), node.Name, types.MergePatchType, patch, metav1.PatchOptions{})
+			return err
+		},
+		defaultBackoff,
+		func(err error, interval time.Duration) {
+			log.Printf("failed to label node %s: %s... retrying after %s", node.Name, err, interval)
+		})
+}
+
+// patchNodeLabel sets label to value (nil removes it) on the named node.
+func (f *Framework) patchNodeLabel(nodeName, label string, value interface{}) error {
+	patch, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": map[string]interface{}{label: value},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return backoff.RetryNotify(
+		func() error {
+			_, err := f.KubeClient.CoreV1().Nodes().Patch(context.TODO(), nodeName, types.MergePatchType, patch, metav1.PatchOptions{})
+			return err
+		},
+		defaultBackoff,
+		func(err error, interval time.Duration) {
+			log.Printf("failed to label node %s: %s... retrying after %s", nodeName, err, interval)
+		})
 }
 
 // validatingAdmissionPolicyExists checks if a ValidatingAdmissionPolicy with the given name exists
@@ -1854,6 +2013,81 @@ func (f *Framework) WaitForSuiteScansCleanup(suiteOrBindingName, namespace strin
 	})
 }
 
+// DisableSuiteAutoApply turns off automatic remediation on a ComplianceSuite,
+// so remediations a test unapplies aren't immediately re-applied by the suite
+// controller.
+func (f *Framework) DisableSuiteAutoApply(name, namespace string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		suite := &compv1alpha1.ComplianceSuite{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, suite); err != nil {
+			return err
+		}
+		if !suite.Spec.AutoApplyRemediations {
+			return nil
+		}
+		suite.Spec.AutoApplyRemediations = false
+		return f.Client.Update(context.TODO(), suite)
+	})
+}
+
+// WaitForRemediationToBeDeleted waits until the ComplianceRemediation is gone,
+// for example after its ScanSettingBinding was deleted.
+func (f *Framework) WaitForRemediationToBeDeleted(name, namespace string) error {
+	err := wait.PollImmediate(RetryInterval, Timeout, func() (bool, error) {
+		rem := &compv1alpha1.ComplianceRemediation{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, rem)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			log.Printf("failed to get remediation %s: %s", name, err)
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("remediation %s/%s was not deleted: %w", namespace, name, err)
+	}
+	return nil
+}
+
+// DeleteKubeletConfigAndWaitForPool deletes the KubeletConfig the remediation
+// controller creates for pool (compliance-operator-kubelet-<pool>) and waits
+// for the pool to roll out the rendered config without it.
+func (f *Framework) DeleteKubeletConfigAndWaitForPool(pool string) error {
+	mcp := &mcfgv1.MachineConfigPool{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: pool}, mcp); err != nil {
+		return err
+	}
+	before := mcp.Spec.Configuration.Name
+	kc := &mcfgv1.KubeletConfig{}
+	kc.SetName("compliance-operator-kubelet-" + pool)
+	if err := f.Client.Delete(context.TODO(), kc); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: pool}, mcp); err != nil {
+			return false, nil
+		}
+		if mcp.Spec.Configuration.Name == before || mcp.Status.Configuration.Name != mcp.Spec.Configuration.Name {
+			return false, nil
+		}
+		for _, c := range mcp.Status.Conditions {
+			if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == core.ConditionTrue {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("pool %s did not roll out after removing its KubeletConfig: %w", pool, err)
+	}
+	log.Printf("pool %s rolled back to %s after removing its KubeletConfig", pool, mcp.Status.Configuration.Name)
+	return f.WaitForNodesToBeReadyInPool(pool)
+}
+
 // DeleteScanSettingBindingAndWaitForCleanup deletes the given ScanSettingBinding and waits for all ComplianceScans
 // belonging to that binding (same name as the suite) to be removed.
 func (f *Framework) DeleteScanSettingBindingAndWaitForCleanup(ssb *compv1alpha1.ScanSettingBinding) error {
@@ -2576,11 +2810,18 @@ func (f *Framework) UntaintNode(nodeName, taintKey string) error {
 	return nil
 }
 
-// WaitForResultServerPodsWithNodeSelector polls until 2 result server pods are Running with the given nodeSelector.
+// WaitForResultServerPodsWithNodeSelector polls until 2 result server pods (or one per scan in scans) are Running with the given nodeSelector.
 // It returns the list of node names (pod.Spec.NodeName) where those pods are scheduled.
-func (f *Framework) WaitForResultServerPodsWithNodeSelector(expectedNodeSelector map[string]string) ([]string, error) {
+//
+// With scans, only the result servers of those scans count, so other tests'
+// result servers in the namespace don't matter, and there must be one per scan.
+func (f *Framework) WaitForResultServerPodsWithNodeSelector(expectedNodeSelector map[string]string, scans ...string) ([]string, error) {
 	const resultServerPodWaitTimeout = 10 * time.Minute
 	resultServerPodLabels := map[string]string{"workload": "resultserver"}
+	ownScans := map[string]bool{}
+	for _, s := range scans {
+		ownScans[s] = true
+	}
 	var list *corev1.PodList
 	var nodeNames []string
 	err := wait.Poll(RetryInterval, resultServerPodWaitTimeout, func() (bool, error) {
@@ -2588,7 +2829,19 @@ func (f *Framework) WaitForResultServerPodsWithNodeSelector(expectedNodeSelector
 		if err := f.Client.List(context.TODO(), list, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(resultServerPodLabels)); err != nil {
 			return false, err
 		}
+		if len(scans) > 0 {
+			own := list.Items[:0]
+			for _, pod := range list.Items {
+				if ownScans[pod.Labels[compv1alpha1.ComplianceScanLabel]] {
+					own = append(own, pod)
+				}
+			}
+			list.Items = own
+		}
 		expectedResultServerPodCount := 2
+		if len(scans) > 0 {
+			expectedResultServerPodCount = len(scans)
+		}
 		if len(list.Items) < expectedResultServerPodCount {
 			return false, nil
 		}
@@ -2672,7 +2925,7 @@ func (f *Framework) WaitForRemediationToBeAutoApplied(remName, remNamespace stri
 	}
 
 	log.Printf("machines updated with remediation")
-	err = f.WaitForNodesToBeReady()
+	err = f.WaitForNodesToBeReadyInPool(pool.Name)
 	if err != nil {
 		return err
 	}
@@ -2753,6 +3006,38 @@ func (f *Framework) WaitForMachinePoolUpdate(name string, action machineConfigAc
 
 // waitForNodesToBeReady waits until all the nodes in the cluster have
 // reached the expected machineConfig.
+// WaitForNodesToBeReadyInPool waits until every node in MachineConfigPool pool
+// runs its desired config. Unlike WaitForNodesToBeReady it ignores nodes in other
+// pools, so a destructive test running in one lane doesn't block on another
+// lane's reboot.
+func (f *Framework) WaitForNodesToBeReadyInPool(pool string) error {
+	selector := dynclient.MatchingLabels{fmt.Sprintf("node-role.kubernetes.io/%s", pool): ""}
+	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		var nodes core.NodeList
+		if err := f.Client.List(context.TODO(), &nodes, selector); err != nil {
+			log.Printf("failed to list nodes in pool %s: %s", pool, err)
+			return false, nil
+		}
+		if len(nodes.Items) == 0 {
+			log.Printf("no nodes found in pool %s yet", pool)
+			return false, nil
+		}
+		for _, node := range nodes.Items {
+			if (node.Annotations["machineconfiguration.openshift.io/currentConfig"] != node.Annotations["machineconfiguration.openshift.io/desiredConfig"]) ||
+				(node.Annotations["machineconfiguration.openshift.io/state"] != "Done") {
+				log.Printf("node %s in pool %s still updating (state %s)", node.Name, pool, node.Annotations["machineconfiguration.openshift.io/state"])
+				return false, nil
+			}
+		}
+		log.Printf("all machines in pool %s updated", pool)
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed waiting for nodes in pool %s to be ready: %s", pool, err)
+	}
+	return nil
+}
+
 func (f *Framework) WaitForNodesToBeReady() error {
 	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
 		var nodes core.NodeList
@@ -3162,7 +3447,7 @@ func (f *Framework) RemoveObsoleteRemediationAndCheck(namespace, name, renderedM
 	// Get the MachineConfigPool before the remediation has been made current
 	// This way, we can check that it changed without race-conditions
 	poolBeforeRemediation := &mcfgv1.MachineConfigPool{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: TestPoolName}, poolBeforeRemediation)
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: pool}, poolBeforeRemediation)
 	if err != nil {
 		return err
 	}
@@ -3199,6 +3484,66 @@ func (f *Framework) RemoveObsoleteRemediationAndCheck(namespace, name, renderedM
 }
 
 func (f *Framework) WaitForGenericRemediationToBeAutoApplied(remName, remNamespace string) error {
+	return f.waitForGenericRemediationToBeAutoApplied(remName, remNamespace, f.WaitForNodesToBeReady)
+}
+
+// WaitForGenericRemediationToBeAutoAppliedInPool is
+// WaitForGenericRemediationToBeAutoApplied for a lane test: it waits only for
+// the nodes in pool, so other lanes rebooting don't hold it up.
+func (f *Framework) WaitForGenericRemediationToBeAutoAppliedInPool(remName, remNamespace, pool string) error {
+	return f.waitForGenericRemediationToBeAutoApplied(remName, remNamespace, func() error {
+		// Applied only means the operator created the MachineConfig or
+		// KubeletConfig. Until MCO renders it into the pool, the pool's nodes
+		// still look up to date, so wait for the pool to roll out a config
+		// that includes it.
+		rem := &compv1alpha1.ComplianceRemediation{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: remName, Namespace: remNamespace}, rem); err != nil {
+			return err
+		}
+		mc := rem.GetMcName()
+		if obj := rem.Spec.Current.Object; obj != nil && obj.GetKind() == "KubeletConfig" {
+			mc = "99-" + pool + "-generated-kubelet"
+		}
+		return f.waitForPoolToRollOut(pool, mc)
+	})
+}
+
+// waitForPoolToRollOut waits until the pool's target rendered config includes
+// a MachineConfig whose name starts with mcPrefix and every node in the pool
+// runs it.
+func (f *Framework) waitForPoolToRollOut(pool, mcPrefix string) error {
+	start := time.Now()
+	err := wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
+		mcp := &mcfgv1.MachineConfigPool{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: pool}, mcp); err != nil {
+			log.Printf("failed to get pool %s: %s", pool, err)
+			return false, nil
+		}
+		rendered := false
+		for _, src := range mcp.Spec.Configuration.Source {
+			if strings.HasPrefix(src.Name, mcPrefix) {
+				rendered = true
+				break
+			}
+		}
+		if !rendered {
+			log.Printf("pool %s doesn't include %s yet", pool, mcPrefix)
+			return false, nil
+		}
+		if mcp.Status.Configuration.Name != mcp.Spec.Configuration.Name || mcp.Status.UpdatedMachineCount != mcp.Status.MachineCount {
+			log.Printf("pool %s is rolling out %s (%d/%d nodes)", pool, mcp.Spec.Configuration.Name, mcp.Status.UpdatedMachineCount, mcp.Status.MachineCount)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("pool %s did not roll out %s: %w", pool, mcPrefix, err)
+	}
+	log.Printf("pool %s rolled out %s after %s", pool, mcPrefix, time.Since(start).Round(time.Second))
+	return f.WaitForNodesToBeReadyInPool(pool)
+}
+
+func (f *Framework) waitForGenericRemediationToBeAutoApplied(remName, remNamespace string, waitForNodes func() error) error {
 	rem := &compv1alpha1.ComplianceRemediation{}
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
@@ -3226,11 +3571,7 @@ func (f *Framework) WaitForGenericRemediationToBeAutoApplied(remName, remNamespa
 		return fmt.Errorf("timed out waiting for remediation to be applied: %s", timeouterr)
 	}
 	log.Printf("machines updated with remediation")
-	err := f.WaitForNodesToBeReady()
-	if err != nil {
-		return err
-	}
-	return nil
+	return waitForNodes()
 }
 
 func (f *Framework) AssertCronJobIsSuspended(name string) error {

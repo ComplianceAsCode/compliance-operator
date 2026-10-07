@@ -20192,10 +20192,14 @@ If configured properly, output should be no
       Red Hat Enterprise Linux CoreOS release 4</oval-def:description>
             <oval-def:reference ref_id="installed_OS_is_rhcos4" source="ssg"/>
           </oval-def:metadata>
-          <oval-def:criteria>
+          <oval-def:criteria operator="OR">
             <oval-def:criteria operator="AND">
-              <oval-def:criterion comment="RHCOS is installed" test_ref="oval:ssg-test_rhcos:tst:1"/>
+              <oval-def:criterion comment="RHCOS is installed (ID='rhcos')" test_ref="oval:ssg-test_rhcos:tst:1"/>
               <oval-def:criterion comment="RHCOS version 4 is installed" test_ref="oval:ssg-test_rhcos4:tst:1"/>
+            </oval-def:criteria>
+            <oval-def:criteria operator="AND">
+              <oval-def:criterion comment="CoreOS variant" test_ref="oval:ssg-test_rhel_coreos_variant:tst:1"/>
+              <oval-def:criterion comment="Major version is 9" test_ref="oval:ssg-test_rhel_coreos_version9:tst:1"/>
             </oval-def:criteria>
           </oval-def:criteria>
         </oval-def:definition>
@@ -25379,6 +25383,14 @@ If configured properly, output should be no
         <ind:variable_test id="oval:ssg-test_existence_of_var_umask_for_daemons_as_number_variable:tst:1" comment="Verify the existence of var_umask_for_daemons_as_number variable" check="all" check_existence="at_least_one_exists" version="1">
           <ind:object object_ref="oval:ssg-object_var_umask_for_daemons_umask_as_number:obj:1"/>
         </ind:variable_test>
+        <ind:textfilecontent54_test id="oval:ssg-test_rhel_coreos_variant:tst:1" version="1" check="all" comment="Check for variant=CoreOS" state_operator="AND">
+          <ind:object object_ref="oval:ssg-obj_rhel_coreos_variant:obj:1"/>
+          <ind:state state_ref="oval:ssg-state_rhel_coreos_variant:ste:1"/>
+        </ind:textfilecontent54_test>
+        <ind:textfilecontent54_test id="oval:ssg-test_rhel_coreos_version9:tst:1" version="1" check="all" comment="Check if VERSION_ID=9.x" state_operator="AND">
+          <ind:object object_ref="oval:ssg-obj_rhel_coreos_version9:obj:1"/>
+          <ind:state state_ref="oval:ssg-state_rhel_coreos_version9:ste:1"/>
+        </ind:textfilecontent54_test>
       </oval-def:tests>
       <oval-def:objects>
         <ind:textfilecontent54_object id="oval:ssg-object_ensure_gpgcheck_globally_activated:obj:1" comment="gpgcheck set in " version="1">
@@ -31993,6 +32005,16 @@ If configured properly, output should be no
         <ind:variable_object id="oval:ssg-object_var_umask_for_daemons_umask_as_number:obj:1" version="1">
           <ind:var_ref>oval:ssg-var_umask_for_daemons_umask_as_number:var:1</ind:var_ref>
         </ind:variable_object>
+        <ind:textfilecontent54_object id="oval:ssg-obj_rhel_coreos_variant:obj:1" version="1">
+          <ind:filepath>/etc/os-release</ind:filepath>
+          <ind:pattern operation="pattern match">^VARIANT_ID=(\S+)$</ind:pattern>
+          <ind:instance operation="greater than or equal" datatype="int">1</ind:instance>
+        </ind:textfilecontent54_object>
+        <ind:textfilecontent54_object id="oval:ssg-obj_rhel_coreos_version9:obj:1" version="1">
+          <ind:filepath>/etc/os-release</ind:filepath>
+          <ind:pattern operation="pattern match">^VERSION_ID="(\d+\.\d+)"$</ind:pattern>
+          <ind:instance operation="greater than or equal" datatype="int">1</ind:instance>
+        </ind:textfilecontent54_object>
       </oval-def:objects>
       <oval-def:states>
         <ind:variable_state id="oval:ssg-state_crypto_current_file_newer_than_config_file:ste:1" version="1">
@@ -33412,6 +33434,12 @@ If configured properly, output should be no
         <ind:variable_state id="oval:ssg-state_var_removable_partition_is_cd_dvd_drive:ste:1" version="1">
           <ind:value operation="equals">/dev/cdrom</ind:value>
         </ind:variable_state>
+        <ind:textfilecontent54_state id="oval:ssg-state_rhel_coreos_variant:ste:1" version="1" operator="AND">
+          <ind:subexpression operation="pattern match">coreos</ind:subexpression>
+        </ind:textfilecontent54_state>
+        <ind:textfilecontent54_state id="oval:ssg-state_rhel_coreos_version9:ste:1" version="1" operator="AND">
+          <ind:subexpression operation="pattern match">^9\.</ind:subexpression>
+        </ind:textfilecontent54_state>
       </oval-def:states>
       <oval-def:variables>
         <oval-def:local_variable id="oval:ssg-variable_crypto_policies_current_file_age:var:1" version="1" comment="Age of /etc/crypto-policies/state/current" datatype="int">
@@ -81111,10 +81139,14 @@ machines.</xccdf-1.2:description>
             <oval-def:description>The operating system installed on the system is
       Red Hat Enterprise Linux CoreOS release 4</oval-def:description>
           </oval-def:metadata>
-          <oval-def:criteria>
+          <oval-def:criteria operator="OR">
             <oval-def:criteria operator="AND">
-              <oval-def:criterion comment="RHCOS is installed" test_ref="oval:ssg-test_rhcos:tst:1"/>
+              <oval-def:criterion comment="RHCOS is installed (ID='rhcos')" test_ref="oval:ssg-test_rhcos:tst:1"/>
               <oval-def:criterion comment="RHCOS version 4 is installed" test_ref="oval:ssg-test_rhcos4:tst:1"/>
+            </oval-def:criteria>
+            <oval-def:criteria operator="AND">
+              <oval-def:criterion comment="CoreOS variant" test_ref="oval:ssg-test_rhel_coreos_variant:tst:1"/>
+              <oval-def:criterion comment="Major version is 9" test_ref="oval:ssg-test_rhel_coreos_version9:tst:1"/>
             </oval-def:criteria>
           </oval-def:criteria>
         </oval-def:definition>
@@ -81884,6 +81916,14 @@ machines.</xccdf-1.2:description>
         <unix:file_test check="all" check_existence="all_exist" comment="Check if /run/.containerenv exists" id="oval:ssg-test_installed_env_is_a_podman_container:tst:1" version="1">
           <unix:object object_ref="oval:ssg-object_installed_env_is_a_podman_container:obj:1"/>
         </unix:file_test>
+        <ind:textfilecontent54_test id="oval:ssg-test_rhel_coreos_variant:tst:1" version="1" check="all" comment="Check for variant=CoreOS" state_operator="AND">
+          <ind:object object_ref="oval:ssg-obj_rhel_coreos_variant:obj:1"/>
+          <ind:state state_ref="oval:ssg-state_rhel_coreos_variant:ste:1"/>
+        </ind:textfilecontent54_test>
+        <ind:textfilecontent54_test id="oval:ssg-test_rhel_coreos_version9:tst:1" version="1" check="all" comment="Check if VERSION_ID=9.x" state_operator="AND">
+          <ind:object object_ref="oval:ssg-obj_rhel_coreos_version9:obj:1"/>
+          <ind:state state_ref="oval:ssg-state_rhel_coreos_version9:ste:1"/>
+        </ind:textfilecontent54_test>
       </oval-def:tests>
       <oval-def:objects>
         <linux:rpminfo_object id="oval:ssg-obj_centos6:obj:1" version="1">
@@ -82119,6 +82159,16 @@ machines.</xccdf-1.2:description>
         <unix:file_object comment="Check file /run/.containerenv" id="oval:ssg-object_installed_env_is_a_podman_container:obj:1" version="1">
           <unix:filepath datatype="string">/run/.containerenv</unix:filepath>
         </unix:file_object>
+        <ind:textfilecontent54_object id="oval:ssg-obj_rhel_coreos_variant:obj:1" version="1">
+          <ind:filepath>/etc/os-release</ind:filepath>
+          <ind:pattern operation="pattern match">^VARIANT_ID=(\S+)$</ind:pattern>
+          <ind:instance operation="greater than or equal" datatype="int">1</ind:instance>
+        </ind:textfilecontent54_object>
+        <ind:textfilecontent54_object id="oval:ssg-obj_rhel_coreos_version9:obj:1" version="1">
+          <ind:filepath>/etc/os-release</ind:filepath>
+          <ind:pattern operation="pattern match">^VERSION_ID="(\d+\.\d+)"$</ind:pattern>
+          <ind:instance operation="greater than or equal" datatype="int">1</ind:instance>
+        </ind:textfilecontent54_object>
       </oval-def:objects>
       <oval-def:states>
         <linux:rpminfo_state id="oval:ssg-state_centos6:ste:1" version="1">
@@ -82256,6 +82306,12 @@ machines.</xccdf-1.2:description>
         <linux:rpminfo_state id="oval:ssg-state_rhevm4_version:ste:1" version="1">
           <linux:version operation="pattern match">^4.*$</linux:version>
         </linux:rpminfo_state>
+        <ind:textfilecontent54_state id="oval:ssg-state_rhel_coreos_variant:ste:1" version="1" operator="AND">
+          <ind:subexpression operation="pattern match">coreos</ind:subexpression>
+        </ind:textfilecontent54_state>
+        <ind:textfilecontent54_state id="oval:ssg-state_rhel_coreos_version9:ste:1" version="1" operator="AND">
+          <ind:subexpression operation="pattern match">^9\.</ind:subexpression>
+        </ind:textfilecontent54_state>
       </oval-def:states>
     </oval-def:oval_definitions>
   </ds:component>

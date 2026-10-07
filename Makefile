@@ -661,8 +661,25 @@ e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tes
 	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
 
 .PHONY: e2e-serial
-e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
-	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-serial.log
+# Number of isolated MachineConfigPool lanes the destructive/reboot tests run
+# across in parallel (one worker node per lane). Capped at the worker count
+# minus one: that spare worker stays out of the lanes, so pods evicted during
+# lane reboots have somewhere to go and the parallel scan tests scan it
+# instead of the lane nodes. With E2E_SCALE_WORKERS=true the worker
+# MachineSets are scaled up to cover the lanes plus that spare (6 workers for
+# 5 lanes); tests start on the existing workers and new ones become lanes as
+# they join.
+E2E_PARALLEL_POOLS?=5
+E2E_SCALE_WORKERS?=true
+# How many serial tests run at once: the parallel scan tests plus the lane
+# tests. A lane test keeps its slot while it waits for a lane, so this must
+# cover all of them or the run can deadlock.
+E2E_SERIAL_PARALLELISM?=30
+# At most this many parallel scan tests run at once, to keep the control plane
+# (which hosts the result servers, aggregators and master scans) responsive.
+E2E_SCAN_PHASE_CONCURRENCY?=12
+e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests, sharded across E2E_PARALLEL_POOLS pools in parallel.
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) E2E_PARALLEL_POOLS=$(E2E_PARALLEL_POOLS) E2E_SCALE_WORKERS=$(E2E_SCALE_WORKERS) E2E_SCAN_PHASE_CONCURRENCY=$(E2E_SCAN_PHASE_CONCURRENCY) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -parallel $(E2E_SERIAL_PARALLELISM) -args $(E2E_ARGS) | tee tests/e2e-serial.log
 
 .PHONY: e2e-tailoring
 e2e-tailoring: e2e-set-image prep-e2e ## Run profile tailoring end-to-end tests.
