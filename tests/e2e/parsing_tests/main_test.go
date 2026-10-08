@@ -501,6 +501,20 @@ func TestProfileBundleDefaultIsKept(t *testing.T) {
 	withLabel := client.MatchingLabels{
 		"name": "compliance-operator",
 	}
+
+	// Capture UIDs of existing pods before deletion so we can track
+	// when specifically these pods are gone. The Deployment will
+	// immediately create replacement pods, so we cannot wait for
+	// len(podList.Items) == 0.
+	podList := &corev1.PodList{}
+	if err := f.Client.List(bctx, podList, inNs, withLabel); err != nil {
+		t.Fatalf("failed to list compliance-operator pods: %s", err)
+	}
+	oldPodUIDs := make([]types.UID, len(podList.Items))
+	for i := range podList.Items {
+		oldPodUIDs[i] = podList.Items[i].UID
+	}
+
 	if err := f.Client.DeleteAllOf(bctx, &corev1.Pod{}, inNs, withLabel); err != nil {
 		t.Fatalf("failed to delete compliance-operator pods: %s", err)
 	}
@@ -510,9 +524,13 @@ func TestProfileBundleDefaultIsKept(t *testing.T) {
 		if err := f.Client.List(bctx, podList, inNs, withLabel); err != nil {
 			return false, err
 		}
-		if len(podList.Items) > 0 {
-			log.Printf("Waiting for compliance-operator pods to finish deletion (%d remaining)\n", len(podList.Items))
-			return false, nil
+		for i := range podList.Items {
+			for _, uid := range oldPodUIDs {
+				if uid == podList.Items[i].UID {
+					log.Printf("Waiting for old compliance-operator pod %s to finish deletion\n", podList.Items[i].Name)
+					return false, nil
+				}
+			}
 		}
 		return true, nil
 	}); err != nil {
