@@ -303,7 +303,8 @@ func (r *ReconcileComplianceScan) validate(instance *compv1alpha1.ComplianceScan
 func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1alpha1.ComplianceScan, logger logr.Logger) error {
 	profile := &compv1alpha1.Profile{}
 	tp := &compv1alpha1.TailoredProfile{}
-	var profileName string
+	// The Profile to check: the first of these that exists.
+	var profileNames []string
 
 	if instance.Spec.ScannerType == compv1alpha1.ScannerTypeCEL {
 		tailoredProfiles := &compv1alpha1.TailoredProfileList{}
@@ -350,26 +351,29 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 			return nil
 		}
 		// The extends field references a profile by its full name
-		profileName = tp.Spec.Extends
+		profileNames = []string{tp.Spec.Extends}
 	} else {
-		var pbName string
 		pbs := &compv1alpha1.ProfileBundleList{}
 
-		// We first find the ProfileBundle matching the scan's spec, then we get the profile that matches the scan's Profile ID.
+		// We first find the ProfileBundles matching the scan's spec, then we get the profile that matches the scan's Profile ID.
 		// We do this because a profile ID is not unique across all PBs, but is unique withing a PB.
+		// Several PBs can use the same content, and one that is still being parsed (or deleted) has no
+		// Profiles, so we look for the Profile in each of them.
 		// We can, but should not, infer the Profile name based on the ComplianceScan name.
 		// Advanced users still could create Suites and Scans with arbitrary names, and that is exactly what we do in our tests.
 		if err := r.Client.List(context.TODO(), pbs, client.InNamespace(common.GetComplianceOperatorNamespace())); err != nil {
 			logger.Error(err, "Could not list ProfileBundles")
 			return err
 		}
+		xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
 		for _, pb := range pbs.Items {
 			if pb.Spec.ContentFile == instance.Spec.Content && pb.Spec.ContentImage == instance.Spec.ContentImage {
-				pbName = pb.Name
-				break
+				// This is the full profile name,
+				// taking into account the possiblity of an 'upstream-' prefix in the PB.
+				profileNames = append(profileNames, pb.Name+"-"+xccdfProfileName)
 			}
 		}
-		if pbName == "" {
+		if len(profileNames) == 0 {
 			logger.Info("Could not find ProfileBundle used by scan to check if the Profile is deprecated",
 				"ComplianceScan", instance.Name,
 				"Profile", instance.Spec.Profile,
@@ -377,16 +381,16 @@ func (r *ReconcileComplianceScan) notifyUseOfDeprecatedProfile(instance *compv1a
 				"Content", instance.Spec.Content)
 			return nil
 		}
-
-		xccdfProfileName := xccdf.GetProfileNameFromID(instance.Spec.Profile)
-
-		// This is the full profile name,
-		// taking into account the possiblity of an 'upstream-' prefix in the PB.
-		profileName = pbName + "-" + xccdfProfileName
 	}
 
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: profileName, Namespace: common.GetComplianceOperatorNamespace()}, profile); err != nil {
-		logger.Error(err, "Could not get Profile", "profile", profileName, "ns", common.GetComplianceOperatorNamespace())
+	var err error
+	for _, name := range profileNames {
+		if err = r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: common.GetComplianceOperatorNamespace()}, profile); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		logger.Error(err, "Could not get Profile", "profiles", profileNames, "ns", common.GetComplianceOperatorNamespace())
 		return err
 	}
 
