@@ -194,7 +194,7 @@ type addToSchemeFunc func(*runtime.Scheme) error
 // memcached operator, the list stuct may look like:
 // &MemcachedList{}
 // The List object is needed because the CRD has not always been fully registered
-// by the time this function is called. If the CRD takes more than 5 seconds to
+// by the time this function is called. If the CRD takes more than 60 seconds to
 // become ready, this function throws an error
 func AddToFrameworkScheme(addToScheme addToSchemeFunc, obj dynclient.ObjectList) error {
 	return Global.addToScheme(addToScheme, obj)
@@ -213,7 +213,7 @@ func (f *Framework) addToScheme(addToScheme addToSchemeFunc, obj dynclient.Objec
 	if err != nil {
 		return fmt.Errorf("failed to initialize new dynamic client: %w", err)
 	}
-	err = wait.PollImmediate(time.Second, time.Second*10, func() (done bool, err error) {
+	err = wait.PollImmediate(time.Second, time.Minute, func() (done bool, err error) {
 		ns, ok := os.LookupEnv(TestOperatorNamespaceEnv)
 		if ok && ns != "" {
 			err = dynClient.List(goctx.TODO(), obj, dynclient.InNamespace(f.OperatorNamespace))
