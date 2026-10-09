@@ -1678,3 +1678,188 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 		time.Sleep(framework.RetryInterval)
 	}
 }
+
+func TestScanSettingBinding(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	objName := framework.GetObjNameFromTest(t)
+	const defaultCpuLimit = "100m"
+	const testMemoryLimit = "432Mi"
+
+	rhcosPb := &compv1alpha1.ProfileBundle{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "rhcos4", Namespace: f.OperatorNamespace}, rhcosPb)
+	if err != nil {
+		t.Fatalf("unable to get rhcos4 profile bundle required for test: %s", err)
+	}
+
+	rhcos4e8profile := &compv1alpha1.Profile{}
+	key := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcosPb.Name + "-e8"}
+	if err := f.Client.Get(context.TODO(), key, rhcos4e8profile); err != nil {
+		t.Fatal(err)
+	}
+
+	rhcos4moderateprofile := &compv1alpha1.Profile{}
+	moderateKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcosPb.Name + "-moderate"}
+	if err := f.Client.Get(context.TODO(), moderateKey, rhcos4moderateprofile); err != nil {
+		t.Fatal(err)
+	}
+
+	scanSettingName := objName + "-setting"
+	scanSetting := compv1alpha1.ScanSetting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingName,
+			Namespace: f.OperatorNamespace,
+		},
+		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+			AutoApplyRemediations: false,
+		},
+		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+			Debug: true,
+			ScanLimits: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceMemory: resource.MustParse(testMemoryLimit),
+			},
+		},
+		Roles: []string{"master", "worker"},
+	}
+
+	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSetting)
+
+	scanSettingBindingName := "generated-suite"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingBindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			// TODO: test also OCP profile when it works completely
+			{
+				Name:     rhcos4e8profile.Name,
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     rhcos4moderateprofile.Name,
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     scanSetting.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait until the suite finishes, thus verifying the suite exists
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	masterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4e8profile.Name + "-master"}
+	masterScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), masterScanKey, masterScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if masterScan.Spec.Debug != true {
+		t.Fatal("Expected that the settings set debug to true in master scan")
+	}
+
+	workerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4e8profile.Name + "-worker"}
+	workerScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), workerScanKey, workerScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if workerScan.Spec.Debug != true {
+		t.Fatal("Expected that the settings set debug to true in workers scan")
+	}
+
+	moderateMasterScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-master"}
+	moderateMasterScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), moderateMasterScanKey, moderateMasterScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if moderateMasterScan.Spec.Debug != true {
+		t.Fatal("Expected that the settings set debug to true in moderate master scan")
+	}
+
+	moderateWorkerScanKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: rhcos4moderateprofile.Name + "-worker"}
+	moderateWorkerScan := &compv1alpha1.ComplianceScan{}
+	if err := f.Client.Get(context.TODO(), moderateWorkerScanKey, moderateWorkerScan); err != nil {
+		t.Fatal(err)
+	}
+
+	if moderateWorkerScan.Spec.Debug != true {
+		t.Fatal("Expected that the settings set debug to true in moderate worker scan")
+	}
+
+	podList := &corev1.PodList{}
+	if err := f.Client.List(context.TODO(), podList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
+		"workload": "scanner",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	// check if the scanning pod has properly been created and has limits set
+	for _, pod := range podList.Items {
+		if strings.Contains(pod.Name, masterScan.Name) || strings.Contains(pod.Name, workerScan.Name) ||
+			strings.Contains(pod.Name, moderateMasterScan.Name) || strings.Contains(pod.Name, moderateWorkerScan.Name) {
+			if err := framework.WaitForPod(framework.CheckPodLimit(f.KubeClient, pod.Name, f.OperatorNamespace, defaultCpuLimit, testMemoryLimit)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+}
+
+func TestScanSettingBindingUsesDefaultScanSetting(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	objName := framework.GetObjNameFromTest(t)
+	scanSettingBindingName := objName + "-binding"
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scanSettingBindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait until the suite finishes
+	err := f.WaitForSuiteScansStatus(f.OperatorNamespace, scanSettingBindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bindingKey := types.NamespacedName{Namespace: f.OperatorNamespace, Name: scanSettingBindingName}
+	binding := &compv1alpha1.ScanSettingBinding{}
+	if err := f.Client.Get(context.TODO(), bindingKey, binding); err != nil {
+		t.Fatal(err)
+	}
+
+	// Make sure the binding used the `default` ScanSetting.
+	if binding.SettingsRef.Name != "default" {
+		t.Fatal("Expected the settings reference to use the default ScanSetting")
+	}
+}
+
