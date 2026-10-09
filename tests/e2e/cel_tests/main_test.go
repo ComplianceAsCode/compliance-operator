@@ -15,6 +15,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var brokenContentImagePath string
@@ -1402,5 +1404,274 @@ func TestCELProfileScan(t *testing.T) {
 	}
 
 	t.Log("CEL Profile scan test completed successfully - all 4 CEL rules produced check results")
+}
+
+// TestCustomRuleTailoredProfile tests CustomRule functionality with TailoredProfiles
+func TestCustomRuleMetadataPropagation(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	customRuleName := fmt.Sprintf("%s-meta-rule", testName)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+	testNamespace := f.OperatorNamespace
+
+	customLabels := map[string]string{
+		"business-unit": "payments",
+		"risk-tier":     "critical",
+	}
+	customAnnotations := map[string]string{
+		"internal-id":   "SEC-4021",
+		"audit-contact": "platform-security-team",
+	}
+
+	customRule := &compv1alpha1.CustomRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        customRuleName,
+			Namespace:   testNamespace,
+			Labels:      customLabels,
+			Annotations: customAnnotations,
+		},
+		Spec: compv1alpha1.CustomRuleSpec{
+			RulePayload: compv1alpha1.RulePayload{
+				ID:            customRuleName,
+				Title:         "Metadata Propagation Test Rule",
+				Description:   "A rule that always passes, used to verify custom metadata propagation",
+				Severity:      "medium",
+				ScannerType:   compv1alpha1.ScannerTypeCEL,
+				Expression:    "namespaces.items.size() > 0",
+				FailureReason: "This rule should always pass",
+				Inputs: []compv1alpha1.InputPayload{
+					{
+						Name: "namespaces",
+						KubernetesInputSpec: compv1alpha1.KubernetesInputSpec{
+							APIVersion: "v1",
+							Resource:   "namespaces",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), customRule, nil)
+	if err != nil {
+		t.Fatalf("Failed to create CustomRule: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), customRule)
+
+	err = f.WaitForCustomRuleStatus(testNamespace, customRuleName, "Ready")
+	if err != nil {
+		t.Fatalf("CustomRule validation failed: %v", err)
+	}
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.DisableOutdatedReferenceValidation: "true",
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "Metadata Propagation Test Profile",
+			Description: "Tests that custom labels and annotations propagate to ComplianceCheckResults",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      customRuleName,
+					Kind:      "CustomRule",
+					Rationale: "Verify metadata propagation",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	suiteName := ssbName
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+	if err != nil {
+		t.Fatalf("Scan did not complete as expected: %v", err)
+	}
+
+	scanName := tpName
+	expectedCheck := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", scanName, customRuleName),
+			Namespace: testNamespace,
+		},
+		ID:     customRuleName,
+		Status: compv1alpha1.CheckResultPass,
+	}
+
+	err = f.AssertHasCheck(suiteName, scanName, expectedCheck)
+	if err != nil {
+		t.Fatalf("Check result assertion failed: %v", err)
+	}
+
+	var checkResult compv1alpha1.ComplianceCheckResult
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      expectedCheck.Name,
+		Namespace: testNamespace,
+	}, &checkResult)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceCheckResult: %v", err)
+	}
+
+	for k, v := range customLabels {
+		if checkResult.Labels[k] != v {
+			t.Errorf("expected label %s=%s, got %q", k, v, checkResult.Labels[k])
+		}
+	}
+	for k, v := range customAnnotations {
+		if checkResult.Annotations[k] != v {
+			t.Errorf("expected annotation %s=%s, got %q", k, v, checkResult.Annotations[k])
+		}
+	}
+
+	if checkResult.Labels[compv1alpha1.ComplianceScanLabel] != scanName {
+		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
+	}
+	if checkResult.Labels[compv1alpha1.ComplianceCheckResultStatusLabel] != string(compv1alpha1.CheckResultPass) {
+		t.Errorf("operator-managed status label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceCheckResultStatusLabel])
+	}
+}
+
+func TestCELWithXCCDFProfileScan(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	pbName := testName + "-pb"
+	ssbName := testName + "-ssb"
+	testNamespace := f.OperatorNamespace
+	celContentImage := brokenContentImagePath + ":cel_content"
+
+	pb, err := f.CreateProfileBundleWithCEL(pbName, celContentImage, framework.OcpContentFile, framework.CelContentFile)
+	if err != nil {
+		t.Fatalf("failed to create ProfileBundle: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), pb)
+
+	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
+		t.Fatalf("ProfileBundle did not reach VALID state: %s", err)
+	}
+
+	celProfileName := pbName + "-cel-e2e-test-profile"
+	xccdfProfileName := pbName + "-cis"
+
+	// Bind both a CEL profile and an XCCDF profile from the same bundle in one SSB
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     celProfileName,
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     xccdfProfileName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForScanSettingBindingStatus(testNamespace, ssbName, compv1alpha1.ScanSettingBindingPhaseReady)
+	if err != nil {
+		t.Fatalf("ScanSettingBinding did not become ready: %v", err)
+	}
+	t.Log("ScanSettingBinding is ready with CEL + XCCDF profiles")
+
+	suiteName := ssbName
+
+	err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		err = f.WaitForSuiteScansStatus(testNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
+		if err != nil {
+			t.Fatalf("Suite did not complete: %v", err)
+		}
+	}
+	t.Log("Suite completed")
+
+	// Verify CEL scan produced check results
+	celRuleNames := []string{
+		"check-default-namespace-has-no-pods",
+		"check-default-sa-exists-in-kube-system",
+		"check-namespaces-have-network-policies",
+		"check-no-privileged-containers",
+	}
+	for _, ruleName := range celRuleNames {
+		checkName := fmt.Sprintf("%s-%s", celProfileName, ruleName)
+		check := &compv1alpha1.ComplianceCheckResult{}
+		err = f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: checkName, Namespace: testNamespace,
+		}, check)
+		if err != nil {
+			t.Fatalf("CEL ComplianceCheckResult %s not found: %v", checkName, err)
+		}
+		if check.Status != compv1alpha1.CheckResultPass && check.Status != compv1alpha1.CheckResultFail {
+			t.Fatalf("CEL check %s has unexpected status: %s", checkName, check.Status)
+		}
+		t.Logf("CEL check %s: status=%s", checkName, check.Status)
+	}
+
+	// Verify XCCDF scan also produced check results
+	xccdfChecks := &compv1alpha1.ComplianceCheckResultList{}
+	err = f.Client.List(context.TODO(), xccdfChecks, client.MatchingLabels{
+		"compliance.openshift.io/scan-name": xccdfProfileName,
+	})
+	if err != nil {
+		t.Fatalf("Failed to list XCCDF check results: %v", err)
+	}
+	if len(xccdfChecks.Items) == 0 {
+		t.Fatalf("No XCCDF ComplianceCheckResults found for scan %s", xccdfProfileName)
+	}
+	t.Logf("XCCDF scan %s produced %d check results", xccdfProfileName, len(xccdfChecks.Items))
+
+	t.Log("Mixed CEL + XCCDF scan test completed successfully")
 }
 
