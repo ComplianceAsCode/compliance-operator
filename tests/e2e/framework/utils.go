@@ -396,7 +396,7 @@ func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version strin
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
 	cmd := exec.Command(ocPath,
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"run", "--rm", "-i", "--restart=Never", "--image=" + FedoraTestImage,
 		"-n", f.OperatorNamespace, fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()), "--", "bash", "-c", curlCMD,
 	)
 
@@ -708,7 +708,7 @@ func getMetricResults(namespace string) (string, error) {
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
 	cmd := exec.Command(ocPath,
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"run", "--rm", "-i", "--restart=Never", "--image=" + FedoraTestImage,
 		"-n", namespace, fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()), "--", "bash", "-c",
 		getTestMetricsCMD(namespace),
 	)
@@ -1183,7 +1183,7 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image=" + FedoraTestImage,
 			"-n", f.OperatorNamespace, "tls-version-test",
 			"--", "bash", "-c", curlCMD,
 		)
@@ -1253,7 +1253,7 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image=" + FedoraTestImage,
 			"-n", f.OperatorNamespace, "rs-tls-version-test",
 			"--", "bash", "-c", curlCMD,
 		)
@@ -1306,7 +1306,7 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image=" + FedoraTestImage,
 			"-n", f.OperatorNamespace, "tls-reject-test",
 			"--", "bash", "-c", curlCMD,
 		)
@@ -1365,7 +1365,7 @@ func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVer
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image=" + FedoraTestImage,
 			"-n", f.OperatorNamespace, "rs-tls-reject-test",
 			"--", "bash", "-c", curlCMD,
 		)
