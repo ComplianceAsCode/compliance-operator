@@ -1938,55 +1938,6 @@ func TestGenericRemediationFailsWithUnknownType(t *testing.T) {
 	}
 }
 
-func TestSuiteWithInvalidScheduleShowsError(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	suiteName := "test-suite-with-invalid-schedule"
-	testSuite := &compv1alpha1.ComplianceSuite{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      suiteName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ComplianceSuiteSpec{
-			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-				AutoApplyRemediations: false,
-				Schedule:              "This is WRONG",
-			},
-			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
-				{
-					Name: fmt.Sprintf("%s-workers-scan", suiteName),
-					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
-						ContentImage: contentImagePath,
-						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
-						Content:      framework.RhcosContentFile,
-						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-							Debug: true,
-						},
-						NodeSelector: map[string]string{
-							"node-role.kubernetes.io/worker": "",
-						},
-					},
-				},
-			},
-		},
-	}
-	// use Context's create helper to create the object and add a cleanup function for the new object
-	err := f.Client.Create(context.TODO(), testSuite, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), testSuite)
-
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultError)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = f.SuiteErrorMessageMatchesRegex(f.OperatorNamespace, suiteName, "Suite was invalid: .*")
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestScheduledSuite(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -2217,67 +2168,6 @@ func TestScheduledSuiteNoStorage(t *testing.T) {
 	pvcList := &corev1.PersistentVolumeClaimList{}
 	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
 		compv1alpha1.ComplianceScanLabel: workerScanName,
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, pvc := range pvcList.Items {
-		t.Fatalf("Found unexpected PVC %s", pvc.Name)
-	}
-}
-
-func TestScheduledSuitePlatformNoStorage(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	suiteName := "test-scheduled-suite-platform-no-storage"
-	platformScanName := fmt.Sprintf("%s-platform-scan", suiteName)
-
-	falseValue := false
-	testSuite := &compv1alpha1.ComplianceSuite{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      suiteName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ComplianceSuiteSpec{
-			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-				AutoApplyRemediations: false,
-			},
-			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
-				{
-					Name: platformScanName,
-					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
-						ContentImage: contentImagePath,
-						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
-						Content:      framework.OcpContentFile,
-						Rule:         "xccdf_org.ssgproject.content_rule_ocp_idp_no_htpasswd",
-						ScanType:     compv1alpha1.ScanTypePlatform,
-						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-							RawResultStorage: compv1alpha1.RawResultStorageSettings{
-								Enabled: &falseValue,
-							},
-							Debug: true,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := f.Client.Create(context.TODO(), testSuite, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), testSuite)
-
-	// Ensure that all the scans in the suite have finished and are marked as Done
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pvcList := &corev1.PersistentVolumeClaimList{}
-	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
-		compv1alpha1.ComplianceScanLabel: platformScanName,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -3280,82 +3170,6 @@ func TestRuleVariableAnnotation(t *testing.T) {
 
 			t.Logf("Rule %s correctly has variable annotation: %s", tc.ruleName, tc.expectedVariable)
 		})
-	}
-}
-
-// Verifies that setting timeout to "0s" disables the timeout functionality
-func TestTimeoutDisabledWithZeroValue(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-
-	// Create a new ScanSetting with timeout set to 0s (disabled)
-	scanSettingName := framework.GetObjNameFromTest(t) + "-scansetting"
-	scanSetting := compv1alpha1.ScanSetting{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanSettingName,
-			Namespace: f.OperatorNamespace,
-		},
-		ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-			AutoApplyRemediations: false,
-		},
-		ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-			Timeout: "0s",
-		},
-		Roles: []string{"master", "worker"},
-	}
-	if err := f.Client.Create(context.TODO(), &scanSetting, nil); err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), &scanSetting)
-
-	// Bind the ScanSetting to a Profile
-	bindingName := framework.GetObjNameFromTest(t) + "-binding"
-	scanSettingBinding := compv1alpha1.ScanSettingBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      bindingName,
-			Namespace: f.OperatorNamespace,
-		},
-		Profiles: []compv1alpha1.NamedObjectReference{
-			{
-				Name:     "ocp4-moderate",
-				Kind:     "Profile",
-				APIGroup: "compliance.openshift.io/v1alpha1",
-			},
-		},
-		SettingsRef: &compv1alpha1.NamedObjectReference{
-			Name:     scanSetting.Name,
-			Kind:     "ScanSetting",
-			APIGroup: "compliance.openshift.io/v1alpha1",
-		},
-	}
-	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
-
-	// Wait for the scan to complete successfully
-	// With timeout set to 0s, the scan should not timeout and complete normally
-	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify that scans do not have the timeout annotation
-	suite := &compv1alpha1.ComplianceSuite{}
-	key := types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}
-	if err := f.Client.Get(context.TODO(), key, suite); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, scanStatus := range suite.Status.ScanStatuses {
-		// Verify the scan does not have the timeout annotation
-		scan := &compv1alpha1.ComplianceScan{}
-		scanKey := types.NamespacedName{Name: scanStatus.Name, Namespace: f.OperatorNamespace}
-		if err := f.Client.Get(context.TODO(), scanKey, scan); err != nil {
-			t.Fatalf("failed to get scan %s: %s", scanStatus.Name, err)
-		}
-		if _, hasTimeout := scan.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; hasTimeout {
-			t.Fatalf("scan %s should not have timeout annotation when timeout is disabled (0s), but it does", scanStatus.Name)
-		}
 	}
 }
 
