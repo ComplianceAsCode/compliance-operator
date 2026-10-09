@@ -1204,7 +1204,7 @@ func tlsVersionAtLeast(actual, minimum string) bool {
 // TLS 1.3 when the minimum is 1.2), which is correct behavior.
 func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion string) error {
 	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
-	curlCMD := fmt.Sprintf("curl -vks %s 2>&1 | grep 'SSL connection'", endpoint)
+	curlCMD := fmt.Sprintf("output=$(curl -vks %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"; echo \"$output\" | grep 'SSL connection'", endpoint, endpoint)
 
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
@@ -1273,8 +1273,8 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 		curlCMD := fmt.Sprintf(
 			"echo '%s' | base64 -d > /tmp/client.crt && "+
 				"echo '%s' | base64 -d > /tmp/client.key && "+
-				"curl -vks --cert /tmp/client.crt --key /tmp/client.key %s 2>&1 | grep 'SSL connection'",
-			certB64, keyB64, endpoint,
+				"output=$(curl -vks --cert /tmp/client.crt --key /tmp/client.key %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"; echo \"$output\" | grep 'SSL connection'",
+			certB64, keyB64, endpoint, endpoint,
 		)
 
 		podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
@@ -1325,7 +1325,7 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 // above the given version by confirming the handshake fails.
 func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion string) error {
 	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
-	curlCMD := fmt.Sprintf("curl -vks --tls-max %s %s 2>&1", rejectedTLSVersion, endpoint)
+	curlCMD := fmt.Sprintf("output=$(curl -vks --tls-max %s %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"", rejectedTLSVersion, endpoint, endpoint)
 
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
@@ -1383,8 +1383,8 @@ func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVer
 		curlCMD := fmt.Sprintf(
 			"echo '%s' | base64 -d > /tmp/client.crt && "+
 				"echo '%s' | base64 -d > /tmp/client.key && "+
-				"curl -vks --tls-max %s --cert /tmp/client.crt --key /tmp/client.key %s 2>&1",
-			certB64, keyB64, rejectedTLSVersion, endpoint,
+				"output=$(curl -vks --tls-max %s --cert /tmp/client.crt --key /tmp/client.key %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"",
+			certB64, keyB64, rejectedTLSVersion, endpoint, endpoint,
 		)
 
 		podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
