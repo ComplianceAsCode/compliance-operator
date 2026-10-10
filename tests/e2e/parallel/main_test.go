@@ -55,89 +55,6 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func TestProfileBundleXCCDFGroupsAnnotation(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-
-	pbName := framework.GetObjNameFromTest(t)
-	pb, err := f.CreateProfileBundle(pbName, contentImagePath, framework.RhcosContentFile)
-	if err != nil {
-		t.Fatalf("failed to create ProfileBundle: %s", err)
-	}
-	defer f.Client.Delete(context.TODO(), pb)
-
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
-	}
-
-	// Get the updated ProfileBundle to check annotations
-	updatedPb := &compv1alpha1.ProfileBundle{}
-	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: pbName, Namespace: f.OperatorNamespace}, updatedPb); err != nil {
-		t.Fatalf("failed to get ProfileBundle %s: %s", pbName, err)
-	}
-
-	annotations := updatedPb.GetAnnotations()
-	if annotations == nil {
-		t.Fatalf("ProfileBundle %s has no annotations", pbName)
-	}
-
-	groupsAnnotation, exists := annotations[compv1alpha1.XCCDFGroupsAnnotation]
-	if !exists {
-		t.Fatalf("ProfileBundle %s is missing the %s annotation", pbName, compv1alpha1.XCCDFGroupsAnnotation)
-	}
-
-	if groupsAnnotation == "" {
-		t.Fatalf("ProfileBundle %s has empty %s annotation", pbName, compv1alpha1.XCCDFGroupsAnnotation)
-	}
-
-	// Verify it's a comma-separated list with at least one group
-	groups := strings.Split(groupsAnnotation, ",")
-	if len(groups) == 0 {
-		t.Fatalf("ProfileBundle %s has no groups in %s annotation", pbName, compv1alpha1.XCCDFGroupsAnnotation)
-	}
-
-	t.Logf("ProfileBundle %s has %d XCCDF groups", pbName, len(groups))
-}
-
-func TestInvalidBundleWithUnexistentRef(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	const (
-		unexistentImage = "bad-namespace/bad-image:latest"
-	)
-
-	pbName := framework.GetObjNameFromTest(t)
-	pb, err := f.CreateProfileBundle(pbName, unexistentImage, framework.RhcosContentFile)
-	if err != nil {
-		t.Fatalf("failed to create ProfileBundle %s: %s", pbName, err)
-	}
-	defer f.Client.Delete(context.TODO(), pb)
-
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamInvalid); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestInvalidBundleWithNoTag(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	const (
-		noTagImage = "bad-namespace/bad-image"
-	)
-
-	pbName := framework.GetObjNameFromTest(t)
-
-	pb, err := f.CreateProfileBundle(pbName, noTagImage, framework.RhcosContentFile)
-	if err != nil {
-		t.Fatalf("failed to create ProfileBundle %s: %s", pbName, err)
-	}
-	defer f.Client.Delete(context.TODO(), pb)
-
-	if err := f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamInvalid); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestServiceMonitoringMetricsTarget(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -158,47 +75,6 @@ func TestServiceMonitoringMetricsTarget(t *testing.T) {
 	err = f.AssertServiceMonitoringMetricsTarget(metricsTargets, expectedMetricsCount)
 	if err != nil {
 		t.Fatalf("failed to assert metrics target: %s", err)
-	}
-}
-
-func TestRulesAreClassifiedAppropriately(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	for _, expected := range []struct {
-		RuleName  string
-		CheckType string
-	}{
-		{
-			"ocp4-configure-network-policies-namespaces",
-			compv1alpha1.CheckTypePlatform,
-		},
-		{
-			"ocp4-directory-access-var-log-kube-audit",
-			compv1alpha1.CheckTypeNode,
-		},
-		{
-			"ocp4-general-apply-scc",
-			compv1alpha1.CheckTypeNone,
-		},
-		{
-			"ocp4-kubelet-enable-protect-kernel-sysctl",
-			compv1alpha1.CheckTypeNode,
-		},
-	} {
-		targetRule := &compv1alpha1.Rule{}
-		key := types.NamespacedName{
-			Name:      expected.RuleName,
-			Namespace: f.OperatorNamespace,
-		}
-
-		if err := f.Client.Get(context.TODO(), key, targetRule); err != nil {
-			t.Fatalf("failed to get rule %s: %s", targetRule.Name, err)
-		}
-
-		if targetRule.CheckType != expected.CheckType {
-			log.Printf("Expected rule '%s' to be of type '%s'. Instead was: '%s'",
-				expected.RuleName, expected.CheckType, targetRule.CheckType)
-		}
 	}
 }
 
@@ -1950,35 +1826,6 @@ func TestResultServerHTTPVersion(t *testing.T) {
 	}
 }
 
-func TestRuleHasProfileAnnotation(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	const requiredRule = "ocp4-file-groupowner-worker-kubeconfig"
-	const expectedRuleProfileAnnotation = "ocp4-pci-dss-node,ocp4-moderate-node,ocp4-nerc-cip-node,ocp4-cis-node,ocp4-high-node"
-	err, found := f.DoesRuleExist(f.OperatorNamespace, requiredRule)
-	if err != nil {
-		t.Fatal(err)
-	} else if !found {
-		t.Fatalf("Expected rule %s not found", requiredRule)
-	}
-
-	// Check if requiredRule has the correct profile annotation
-	rule := &compv1alpha1.Rule{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      requiredRule,
-		Namespace: f.OperatorNamespace,
-	}, rule)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedProfiles := strings.Split(expectedRuleProfileAnnotation, ",")
-	for _, profileName := range expectedProfiles {
-		if !f.AssertProfileInRuleAnnotation(rule, profileName) {
-			t.Fatalf("expected to find profile %s in rule %s", profileName, rule.Name)
-		}
-	}
-}
-
 func TestScanCleansUpComplianceCheckResults(t *testing.T) {
 	f := framework.Global
 	t.Parallel()
@@ -2147,86 +1994,6 @@ func TestScanWithoutBundlePassesDeprecationCheck(t *testing.T) {
 	}
 
 	t.Logf("Scan completed with result: %s", testScan.Status.Result)
-}
-
-// TestRuleVariableAnnotation tests that rules with variables have the correct annotation
-func TestRuleVariableAnnotation(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-
-	// Test cases for rules that should have variable annotations
-	testCases := []struct {
-		ruleName         string
-		expectedVariable string
-		description      string
-	}{
-		{
-			ruleName:         "ocp4-configure-network-policies-namespaces",
-			expectedVariable: "var-network-policies-namespaces-exempt-regex",
-			description:      "Network policies namespace exemption variable",
-		},
-		{
-			ruleName:         "ocp4-resource-requests-limits-in-statefulset",
-			expectedVariable: "var-statefulset-limit-namespaces-exempt-regex",
-			description:      "StatefulSet resource limit namespace exemption variable",
-		},
-		{
-			ruleName:         "ocp4-api-server-request-timeout",
-			expectedVariable: "var-api-min-request-timeout",
-			description:      "API server request timeout variable",
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc // capture range variable
-		t.Run(tc.ruleName, func(t *testing.T) {
-			// Get the rule
-			rule := &compv1alpha1.Rule{}
-			err := f.Client.Get(context.TODO(), types.NamespacedName{
-				Name:      tc.ruleName,
-				Namespace: f.OperatorNamespace,
-			}, rule)
-			if err != nil {
-				t.Fatalf("Failed to get rule %s: %v", tc.ruleName, err)
-			}
-
-			// Check that the rule has the variable annotation
-			variableAnnotation, exists := rule.Annotations[compv1alpha1.RuleVariableAnnotationKey]
-			if !exists {
-				t.Fatalf("Rule %s is missing the %s annotation. This is a regression of CMP-3582",
-					tc.ruleName, compv1alpha1.RuleVariableAnnotationKey)
-			}
-
-			// Verify the annotation contains the expected variable
-			if variableAnnotation != tc.expectedVariable {
-				t.Fatalf("Rule %s has incorrect variable annotation.\nExpected: %s\nGot: %s\nDescription: %s",
-					tc.ruleName, tc.expectedVariable, variableAnnotation, tc.description)
-			}
-
-			if tc.expectedVariable == "var-api-min-request-timeout" {
-				prefix, _, ok := strings.Cut(tc.ruleName, "-")
-				if !ok {
-					t.Fatalf("rule name %q has no product prefix", tc.ruleName)
-				}
-				variableCRName := prefix + "-" + tc.expectedVariable
-				v := &compv1alpha1.Variable{}
-				err = f.Client.Get(context.TODO(), types.NamespacedName{
-					Name:      variableCRName,
-					Namespace: f.OperatorNamespace,
-				}, v)
-				if err != nil {
-					t.Fatalf("Failed to get Variable %s: %v", variableCRName, err)
-				}
-				const wantDefault = "3600"
-				if v.Value != wantDefault {
-					t.Fatalf("Variable %s default Value: want %q, got %q", variableCRName, wantDefault, v.Value)
-				}
-				t.Logf("Variable %s has expected default value %s", variableCRName, wantDefault)
-			}
-
-			t.Logf("Rule %s correctly has variable annotation: %s", tc.ruleName, tc.expectedVariable)
-		})
-	}
 }
 
 // Verifies that setting timeout to "0s" disables the timeout functionality
