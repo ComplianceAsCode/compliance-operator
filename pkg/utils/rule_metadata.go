@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -81,13 +83,30 @@ type RuleMetadataCache struct {
 // objects in the given namespace and indexing them by the
 // compliance.openshift.io/rule annotation.
 func NewRuleMetadataCache(client runtimeclient.Client, namespace string) (*RuleMetadataCache, error) {
+	return NewRuleMetadataCacheForBundles(client, namespace, nil)
+}
+
+// NewRuleMetadataCacheForBundles is NewRuleMetadataCache limited to the Rules
+// of the given ProfileBundles; with no bundles it indexes every Rule. Bundles
+// with the same content have Rules with the same compliance.openshift.io/rule
+// annotation, so without the limit a scan could get the custom metadata of
+// another bundle's Rule.
+func NewRuleMetadataCacheForBundles(client runtimeclient.Client, namespace string, bundles []string) (*RuleMetadataCache, error) {
 	cache := &RuleMetadataCache{
 		customLabels:      make(map[string]map[string]string),
 		customAnnotations: make(map[string]map[string]string),
 	}
 
+	opts := []runtimeclient.ListOption{runtimeclient.InNamespace(namespace)}
+	if len(bundles) > 0 {
+		inBundles, err := labels.NewRequirement(compv1alpha1.ProfileBundleOwnerLabel, selection.In, bundles)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, runtimeclient.MatchingLabelsSelector{Selector: labels.NewSelector().Add(*inBundles)})
+	}
 	ruleList := &compv1alpha1.RuleList{}
-	err := client.List(context.TODO(), ruleList, runtimeclient.InNamespace(namespace))
+	err := client.List(context.TODO(), ruleList, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +125,25 @@ func NewRuleMetadataCache(client runtimeclient.Client, namespace string) (*RuleM
 	}
 
 	return cache, nil
+}
+
+// ProfileBundlesForScan returns the ProfileBundles whose content the scan
+// evaluates: the bundles with the scan's content image and file, which a
+// ScanSettingBinding copies from the bundle into the scan. It returns nil when
+// none match, for example for a scan created without a bundle.
+func ProfileBundlesForScan(client runtimeclient.Client, scan *compv1alpha1.ComplianceScan) ([]string, error) {
+	bundleList := &compv1alpha1.ProfileBundleList{}
+	if err := client.List(context.TODO(), bundleList, runtimeclient.InNamespace(scan.Namespace)); err != nil {
+		return nil, err
+	}
+	var bundles []string
+	for i := range bundleList.Items {
+		pb := &bundleList.Items[i]
+		if pb.Spec.ContentImage == scan.Spec.ContentImage && pb.Spec.ContentFile == scan.Spec.Content {
+			bundles = append(bundles, pb.Name)
+		}
+	}
+	return bundles, nil
 }
 
 // GetCustomMetadataForRule returns the custom labels and annotations for the
