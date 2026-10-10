@@ -386,25 +386,23 @@ func AssertEachMetric(namespace string, expectedMetrics map[string]int) error {
 }
 
 func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version string) error {
-	ocPath, err := exec.LookPath("oc")
+	curlCMD := "curl -i -ks " + endpoint
+	podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
 	if err != nil {
 		return err
 	}
 
-	curlCMD := "curl -i -ks " + endpoint
-	// We're just under test.
-	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
-	// #nosec
-	cmd := exec.Command(ocPath,
+	out, err := runOCandGetOutput([]string{
 		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-n", f.OperatorNamespace, fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()), "--", "bash", "-c", curlCMD,
-	)
+		"-n", f.OperatorNamespace,
+		"--overrides=" + podOverrides,
+		fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()),
+	})
 
-	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error getting output %s", err)
 	}
-	if !strings.Contains(string(out), version) {
+	if !strings.Contains(out, version) {
 		return fmt.Errorf("metric endpoint is not using %s", version)
 	}
 	return nil
@@ -700,23 +698,21 @@ func parseMetric(content, metric string) (int, error) {
 }
 
 func getMetricResults(namespace string) (string, error) {
-	ocPath, err := exec.LookPath("oc")
+	podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", getTestMetricsCMD(namespace))
 	if err != nil {
 		return "", err
 	}
-	// We're just under test.
-	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
-	// #nosec
-	cmd := exec.Command(ocPath,
+
+	out, err := runOCandGetOutput([]string{
 		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-n", namespace, fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()), "--", "bash", "-c",
-		getTestMetricsCMD(namespace),
-	)
-	out, err := cmd.CombinedOutput()
+		"-n", namespace,
+		"--overrides=" + podOverrides,
+		fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()),
+	})
 	if err != nil {
 		return "", fmt.Errorf("error getting output %s", err)
 	}
-	return string(out), nil
+	return out, nil
 }
 
 func getTestMetricsCMD(namespace string) string {
@@ -848,6 +844,43 @@ func generatePodOverrides(command string) (string, error) {
 				{
 					"name":    "test",
 					"image":   FedoraTestImage,
+					"command": []string{"bash", "-c", command},
+					"securityContext": map[string]interface{}{
+						"allowPrivilegeEscalation": false,
+						"runAsNonRoot":             true,
+						"capabilities":             map[string]interface{}{"drop": []string{"ALL"}},
+						"seccompProfile":           map[string]interface{}{"type": "RuntimeDefault"},
+					},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("marshal pod overrides: %w", err)
+	}
+	return string(b), nil
+}
+
+// generateSecurityContextOverrides returns JSON pod spec overrides containing
+// only the restricted:latest PodSecurity context (no service account override).
+// Use this for pods that do not require the PrometheusTestSA.
+func generateSecurityContextOverrides(image, command string) (string, error) {
+	m := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": map[string]string{
+				"workload": "scanner",
+			},
+		},
+		"spec": map[string]interface{}{
+			"securityContext": map[string]interface{}{
+				"runAsNonRoot":   true,
+				"seccompProfile": map[string]interface{}{"type": "RuntimeDefault"},
+			},
+			"containers": []map[string]interface{}{
+				{
+					"name":    "test",
+					"image":   image,
 					"command": []string{"bash", "-c", command},
 					"securityContext": map[string]interface{}{
 						"allowPrivilegeEscalation": false,
@@ -1171,30 +1204,29 @@ func tlsVersionAtLeast(actual, minimum string) bool {
 // TLS 1.3 when the minimum is 1.2), which is correct behavior.
 func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion string) error {
 	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
-	curlCMD := fmt.Sprintf("curl -vks %s 2>&1 | grep 'SSL connection'", endpoint)
-
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc not found: %w", err)
-	}
+	curlCMD := fmt.Sprintf("output=$(curl -vks %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"; echo \"$output\" | grep 'SSL connection'", endpoint, endpoint)
 
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
-		// #nosec G204
-		cmd := exec.Command(ocPath,
+		podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
+		if err != nil {
+			return false, err
+		}
+
+		out, err := runOCandGetOutput([]string{
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "tls-version-test",
-			"--", "bash", "-c", curlCMD,
-		)
-		out, err := cmd.CombinedOutput()
+			"-n", f.OperatorNamespace,
+			"--overrides=" + podOverrides,
+			"tls-version-test",
+		})
 		if err != nil {
-			lastErr = fmt.Errorf("curl command failed: %v, output: %s", err, string(out))
+			lastErr = fmt.Errorf("curl command failed: %v, output: %s", err, out)
 			log.Printf("%v... retrying\n", lastErr)
 			return false, nil
 		}
 
-		output := string(out)
+		output := out
 		actual := parseTLSVersionFromCurlOutput(output)
 		if actual == "" {
 			lastErr = fmt.Errorf("could not parse TLS version from output: %s", output)
@@ -1223,11 +1255,6 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 // certificates from the scan's Kubernetes secret and uses curl with mTLS to
 // connect to the result server endpoint.
 func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVersion string) error {
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc not found: %w", err)
-	}
-
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
 		clientCertSecret, err := f.KubeClient.CoreV1().Secrets(f.OperatorNamespace).Get(
@@ -1246,25 +1273,29 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 		curlCMD := fmt.Sprintf(
 			"echo '%s' | base64 -d > /tmp/client.crt && "+
 				"echo '%s' | base64 -d > /tmp/client.key && "+
-				"curl -vks --cert /tmp/client.crt --key /tmp/client.key %s 2>&1 | grep 'SSL connection'",
-			certB64, keyB64, endpoint,
+				"output=$(curl -vks --cert /tmp/client.crt --key /tmp/client.key %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"; echo \"$output\" | grep 'SSL connection'",
+			certB64, keyB64, endpoint, endpoint,
 		)
 
-		// #nosec G204
-		cmd := exec.Command(ocPath,
+		podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
+		if err != nil {
+			return false, err
+		}
+
+		out, err := runOCandGetOutput([]string{
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "rs-tls-version-test",
-			"--", "bash", "-c", curlCMD,
-		)
-		out, err := cmd.CombinedOutput()
+			"-n", f.OperatorNamespace,
+			"--overrides=" + podOverrides,
+			"rs-tls-version-test",
+		})
 		if err != nil {
-			lastErr = fmt.Errorf("curl command failed: %v, output: %s", err, string(out))
+			lastErr = fmt.Errorf("curl command failed: %v, output: %s", err, out)
 			log.Printf("%v... retrying\n", lastErr)
 			return false, nil
 		}
 
-		output := string(out)
+		output := out
 		actual := parseTLSVersionFromCurlOutput(output)
 		if actual == "" {
 			lastErr = fmt.Errorf("could not parse TLS version from result server output: %s", output)
@@ -1294,24 +1325,23 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 // above the given version by confirming the handshake fails.
 func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion string) error {
 	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
-	curlCMD := fmt.Sprintf("curl -vks --tls-max %s %s 2>&1", rejectedTLSVersion, endpoint)
-
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc not found: %w", err)
-	}
+	curlCMD := fmt.Sprintf("output=$(curl -vks --tls-max %s %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"", rejectedTLSVersion, endpoint, endpoint)
 
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
-		// #nosec G204
-		cmd := exec.Command(ocPath,
+		podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
+		if err != nil {
+			return false, err
+		}
+
+		out, err := runOCandGetOutput([]string{
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "tls-reject-test",
-			"--", "bash", "-c", curlCMD,
-		)
-		out, err := cmd.CombinedOutput()
-		output := string(out)
+			"-n", f.OperatorNamespace,
+			"--overrides=" + podOverrides,
+			"tls-reject-test",
+		})
+		output := out
 
 		if err == nil && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert") {
 			lastErr = fmt.Errorf("expected connection with --tls-max %s to be rejected, but it succeeded: %s", rejectedTLSVersion, output)
@@ -1335,11 +1365,6 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 // the server's TLS floor is above the capped version by confirming the
 // handshake fails.
 func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVersion string) error {
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc not found: %w", err)
-	}
-
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
 		clientCertSecret, err := f.KubeClient.CoreV1().Secrets(f.OperatorNamespace).Get(
@@ -1358,19 +1383,23 @@ func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVer
 		curlCMD := fmt.Sprintf(
 			"echo '%s' | base64 -d > /tmp/client.crt && "+
 				"echo '%s' | base64 -d > /tmp/client.key && "+
-				"curl -vks --tls-max %s --cert /tmp/client.crt --key /tmp/client.key %s 2>&1",
-			certB64, keyB64, rejectedTLSVersion, endpoint,
+				"output=$(curl -vks --tls-max %s --cert /tmp/client.crt --key /tmp/client.key %s 2>&1); echo \"DEBUG: curl output for %s:\"; echo \"$output\"",
+			certB64, keyB64, rejectedTLSVersion, endpoint, endpoint,
 		)
 
-		// #nosec G204
-		cmd := exec.Command(ocPath,
+		podOverrides, err := generateSecurityContextOverrides("registry.fedoraproject.org/fedora-minimal:latest", curlCMD)
+		if err != nil {
+			return false, err
+		}
+
+		out, err := runOCandGetOutput([]string{
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "rs-tls-reject-test",
-			"--", "bash", "-c", curlCMD,
-		)
-		out, err := cmd.CombinedOutput()
-		output := string(out)
+			"-n", f.OperatorNamespace,
+			"--overrides=" + podOverrides,
+			"rs-tls-reject-test",
+		})
+		output := out
 
 		if err == nil && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert") {
 			lastErr = fmt.Errorf("expected result server connection with --tls-max %s to be rejected, but it succeeded: %s", rejectedTLSVersion, output)
