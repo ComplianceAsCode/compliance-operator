@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package trace // import "go.opentelemetry.io/otel/trace"
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace/embedded"
 	"go.opentelemetry.io/otel/trace/internal/telemetry"
 )
@@ -314,14 +314,6 @@ func convAttrValue(value attribute.Value) telemetry.Value {
 	case attribute.STRING:
 		v := truncate(maxSpan.AttrValueLen, value.AsString())
 		return telemetry.StringValue(v)
-	case attribute.BYTESLICE:
-		// len(v.AsString()) is identical to len(v.AsByteSlice()) but
-		// avoids allocating the full slice before truncation.
-		s := value.AsString()
-		if maxSpan.AttrValueLen >= 0 && len(s) > maxSpan.AttrValueLen {
-			return telemetry.BytesValue([]byte(s[:maxSpan.AttrValueLen]))
-		}
-		return telemetry.BytesValue([]byte(s))
 	case attribute.BOOLSLICE:
 		slice := value.AsBoolSlice()
 		out := make([]telemetry.Value, 0, len(slice))
@@ -351,23 +343,6 @@ func convAttrValue(value attribute.Value) telemetry.Value {
 			out = append(out, telemetry.StringValue(v))
 		}
 		return telemetry.SliceValue(out...)
-	case attribute.SLICE:
-		slice := value.AsSlice()
-		out := make([]telemetry.Value, 0, len(slice))
-		for _, v := range slice {
-			out = append(out, convAttrValue(v))
-		}
-		return telemetry.SliceValue(out...)
-	case attribute.MAP:
-		kvs := value.AsMap()
-		out := make([]telemetry.Attr, 0, len(kvs))
-		for _, kv := range kvs {
-			out = append(out, telemetry.Attr{
-				Key:   string(kv.Key),
-				Value: convAttrValue(kv.Value),
-			})
-		}
-		return telemetry.MapValue(out...)
 	}
 	return telemetry.Value{}
 }
@@ -488,8 +463,7 @@ func (s *autoSpan) RecordError(err error, opts ...EventOption) {
 	cfg := NewEventConfig(opts...)
 
 	attrs := cfg.Attributes()
-	attrs = append(
-		attrs,
+	attrs = append(attrs,
 		semconv.ExceptionType(typeStr(err)),
 		semconv.ExceptionMessage(err.Error()),
 	)
