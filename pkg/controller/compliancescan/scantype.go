@@ -314,10 +314,9 @@ func (nh *nodeScanTypeHandler) cleanup() error {
 }
 
 type platformScanTypeHandler struct {
-	r         *ReconcileComplianceScan
-	scan      *compv1alpha1.ComplianceScan
-	l         logr.Logger
-	platforms []corev1.Node
+	r    *ReconcileComplianceScan
+	scan *compv1alpha1.ComplianceScan
+	l    logr.Logger
 }
 
 // newNodeScanTypeHandler creates a new instance of a scanTypeHandler.
