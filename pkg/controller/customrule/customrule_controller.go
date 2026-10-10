@@ -29,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -62,33 +63,42 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	// Check if the rule has already been validated for the current generation
-	if rule.Status.ObservedGeneration == rule.Generation && rule.Status.Phase == v1alpha1.CustomRulePhaseReady {
-		log.Info("CustomRule already validated for current generation", "generation", rule.Generation)
-		return ctrl.Result{}, nil
+	// Validation runs on every reconcile: besides spec changes, a Variable
+	// the expression references may have appeared or disappeared (the Variable
+	// watch enqueues the rule), which changes the verdict without a new
+	// generation. The status is only written when the verdict changes.
+
+	// Variables in the namespace are declared as CEL identifiers during
+	// validation; a listing failure is transient, so retry rather than
+	// misreport the rule as referencing an unknown identifier.
+	variableNames, err := r.listVariableNames(ctx, rule.Namespace)
+	if err != nil {
+		log.Error(err, "Failed to list Variables for CEL validation")
+		return ctrl.Result{}, err
 	}
 
 	var validationErr error
 	if err := rule.Validate(); err != nil {
 		validationErr = fmt.Errorf("CustomRule validation failed: %w", err)
-	} else if err := celvalidation.ValidateCELRule(rule.Name, &rule.Spec.RulePayload); err != nil {
+	} else if err := celvalidation.ValidateCELRuleWithClusterVariables(rule.Name, &rule.Spec.RulePayload, variableNames); err != nil {
 		validationErr = err
 	}
 
 	// Update status based on validation results
+	phase, errorMessage := v1alpha1.CustomRulePhaseReady, ""
+	if validationErr != nil {
+		phase, errorMessage = v1alpha1.CustomRulePhaseError, validationErr.Error()
+	}
+	if rule.Status.ObservedGeneration == rule.Generation && rule.Status.Phase == phase && rule.Status.ErrorMessage == errorMessage {
+		log.V(1).Info("CustomRule validation unchanged", "phase", phase, "generation", rule.Generation)
+		return ctrl.Result{}, nil
+	}
+
 	now := metav1.NewTime(time.Now())
 	rule.Status.LastValidationTime = &now
 	rule.Status.ObservedGeneration = rule.Generation
-
-	if validationErr != nil {
-		// Validation failed
-		rule.Status.Phase = v1alpha1.CustomRulePhaseError
-		rule.Status.ErrorMessage = validationErr.Error()
-	} else {
-		// Validation succeeded
-		rule.Status.Phase = v1alpha1.CustomRulePhaseReady
-		rule.Status.ErrorMessage = ""
-	}
+	rule.Status.Phase = phase
+	rule.Status.ErrorMessage = errorMessage
 
 	// Update the status
 	if err := r.Status().Update(ctx, rule); err != nil {
@@ -108,8 +118,13 @@ func (r *CustomRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // SetupWithManager sets up the controller with the Manager
 func (r *CustomRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	varMapper := &variableMapper{Client: mgr.GetClient()}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.CustomRule{}).
+		// A Variable appearing (or changing) can make a previously rejected
+		// CustomRule valid, so revalidate the rules that failed validation in
+		// that namespace.
+		Watches(&v1alpha1.Variable{}, handler.EnqueueRequestsFromMapFunc(varMapper.Map)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1, // Process one at a time for now
 		}).
@@ -122,4 +137,18 @@ func Add(mgr ctrl.Manager) error {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr)
+}
+
+// listVariableNames returns the names of all Variable CRs in the namespace,
+// used to declare their auto-derived CEL identifiers during validation.
+func (r *CustomRuleReconciler) listVariableNames(ctx context.Context, namespace string) ([]string, error) {
+	varList := &v1alpha1.VariableList{}
+	if err := r.List(ctx, varList, client.InNamespace(namespace)); err != nil {
+		return nil, fmt.Errorf("listing Variables in namespace %q: %w", namespace, err)
+	}
+	names := make([]string, 0, len(varList.Items))
+	for i := range varList.Items {
+		names = append(names, varList.Items[i].Name)
+	}
+	return names, nil
 }

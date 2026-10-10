@@ -88,3 +88,6 @@ tests/e2e-*.log
 # Build artifacts from cmd/
 /cel-bundler
 cel-bundle.yaml
+
+# written into the package dir by cel_content_test.go (Ginkgo v1 TempDir is a no-op)
+pkg/profileparser/manual-bundle.yaml

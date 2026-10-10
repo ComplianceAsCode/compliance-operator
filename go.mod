@@ -40,7 +40,7 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.27.1 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.30.0 // indirect
+	github.com/google/cel-go v0.30.0
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.16 // indirect
 	github.com/googleapis/gax-go/v2 v2.20.0 // indirect
@@ -64,7 +64,7 @@ require (
 	golang.org/x/crypto v0.54.0 // indirect
 	google.golang.org/api v0.272.0 // indirect
 	google.golang.org/genai v1.50.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	k8s.io/code-generator v0.35.7 // indirect

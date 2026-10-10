@@ -12,6 +12,7 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/pkg/xccdf"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/storage/names"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
 
@@ -96,6 +97,15 @@ func ParseCELBundle(celPath string, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserC
 
 	nonce := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("pb-cel-%s", pb.Name))
 
+	// Variable CRs are created from the XCCDF datastream before the CEL
+	// content is parsed, so they can be declared as auto-derived CEL
+	// identifiers when validating the rules below; each rule's own variables
+	// list is added as well.
+	variableNames, err := listVariableNames(pcfg, pb.Namespace)
+	if err != nil {
+		return err
+	}
+
 	errChan := make(chan error, 2)
 	done := make(chan string)
 	var wg sync.WaitGroup
@@ -123,7 +133,8 @@ func ParseCELBundle(celPath string, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserC
 
 			// Validate CEL expression at parse time (skip for rules without expressions)
 			if rulePayload.Expression != "" {
-				if err := celvalidation.ValidateCELRule(celRule.Name, &rulePayload); err != nil {
+				knownVariables := append(append([]string{}, variableNames...), celRule.Variables...)
+				if err := celvalidation.ValidateCELRuleWithClusterVariables(celRule.Name, &rulePayload, knownVariables); err != nil {
 					errChan <- fmt.Errorf("CEL rule '%s' validation failed: %w", celRule.Name, err)
 					return
 				}
@@ -272,4 +283,21 @@ func ParseCELBundle(celPath string, pb *cmpv1alpha1.ProfileBundle, pcfg *ParserC
 	case err := <-errChan:
 		return err
 	}
+}
+
+// listVariableNames returns the names of the Variable CRs in the namespace so
+// their auto-derived CEL identifiers can be declared during rule validation.
+func listVariableNames(pcfg *ParserConfig, namespace string) ([]string, error) {
+	if pcfg == nil || pcfg.Client == nil {
+		return nil, nil
+	}
+	varList := &cmpv1alpha1.VariableList{}
+	if err := pcfg.Client.List(context.TODO(), varList, runtimeclient.InNamespace(namespace)); err != nil {
+		return nil, fmt.Errorf("listing Variables in namespace %q: %w", namespace, err)
+	}
+	names := make([]string, 0, len(varList.Items))
+	for i := range varList.Items {
+		names = append(names, varList.Items[i].Name)
+	}
+	return names, nil
 }
