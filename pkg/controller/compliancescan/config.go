@@ -88,13 +88,35 @@ fi
 
 if [ -z $HOSTROOT ]; then
 	echo "HOSTROOT not set, using normal oscap"
+	if [ ! -z $VERBOSITY ]; then
+		cmd=(oscap --verbose $VERBOSITY xccdf eval)
+	else
+		cmd=(oscap xccdf eval)
+	fi
 else
-	export OSCAP_PROBE_ROOT="$HOSTROOT"
-fi
+	# Point librpm at the host RPM DB so rpminfo_object probes can resolve
+	# package versions from the host filesystem.
+	# SLES 16 stores the RPM DB at /var/lib/rpm (symlinked from /usr/lib/sysimage/rpm).
+	# This must be set before oscap-chroot runs — it inherits the environment.
+	export LIBRPM_DBPATH="$HOSTROOT/var/lib/rpm"
+	echo "LIBRPM_DBPATH set to: $LIBRPM_DBPATH"
 
-cmd=(oscap xccdf eval)
-if [ ! -z $VERBOSITY ]; then
-    cmd+=(--verbose $VERBOSITY)
+	# Use oscap-chroot when available — it sets OSCAP_PROBE_ROOT and
+	# switches the probes into offline/chroot mode automatically.
+	# NOTE: oscap-chroot 1.4.x does not support --verbose; verbosity is ignored.
+	if [ -x /usr/bin/oscap-chroot ]; then
+		echo "Using oscap-chroot for host scan"
+		cmd=(oscap-chroot $HOSTROOT xccdf eval)
+	else
+		echo "oscap-chroot not found, falling back to oscap with OSCAP_PROBE_ROOT"
+		export OSCAP_PROBE_ROOT="$HOSTROOT"
+		export OSCAP_EVALUATION_TARGET="chroot://$HOSTROOT"
+		if [ ! -z $VERBOSITY ]; then
+			cmd=(oscap --verbose $VERBOSITY xccdf eval)
+		else
+			cmd=(oscap xccdf eval)
+		fi
+	fi
 fi
 
 if [ ! -z "$TAILORING_DIR" ]; then
@@ -109,16 +131,10 @@ if [ -z "$DISCONNECTED" ]; then
 	cmd+=(--fetch-remote-resources)
 fi
 
-# The XCCDF result is written directly with --results instead of being
-# extracted from the ARF with "oscap ds rds-split", which was removed in
-# OpenSCAP 1.4.0. It is written to /tmp first and moved into the report
-# directory afterwards so the log collector never sees a partial file.
-XCCDF_PATH=/tmp/report.xml
-
 cmd+=(
     --profile $PROFILE \
     --results-arf $ARF_REPORT \
-    --results $XCCDF_PATH
+    --results $REPORT_DIR/report.xml
 )
 
 if [ ! -z $RULE ]; then
@@ -127,32 +143,28 @@ fi
 
 cmd+=($CONTENT)
 
-# The whole purpose of the shell entrypoint is to semi-atomically
-# move the results file when the command is done so the log collector
-# picks up the whole thing and not a partial file
-echo "Running oscap-chroot $(cat /app/scap_version) as ${cmd[@]}"
-"${cmd[@]}" &> $REPORT_DIR/cmd_output 
+echo "Running oscap $(cat /app/scap_version) as ${cmd[@]}"
+"${cmd[@]}" &> $REPORT_DIR/cmd_output
 rv=$?
 echo "The scanner returned $rv"
-cat $REPORT_DIR/cmd_output 
+cat $REPORT_DIR/cmd_output
 
-# Put both the XCCDF result and the full ARF result into the report
-# directory.
-if [ -f "$XCCDF_PATH" ]; then
+# oscap 1.4.x writes report.xml directly via --results; rds-split no longer exists.
+# Patch the target hostname in both result files if OVERRIDE_TARGET is set,
+# then move the ARF into the report directory for the log-collector to upload.
+if [ -f "$REPORT_DIR/report.xml" ]; then
 	if [ ! -z "$OVERRIDE_TARGET" ]; then
-		sed -i "s/\(<target>\)[^<>]*\(<\/target\)/\1$OVERRIDE_TARGET\2/" "$XCCDF_PATH"
+		sed -i "s/\(<target>\)[^<>]*\(<\/target\)/\1$OVERRIDE_TARGET\2/" "$REPORT_DIR/report.xml"
 	fi
-
-	mv $XCCDF_PATH $REPORT_DIR
 fi
 
 if [ -f "$ARF_REPORT" ]; then
 	if [ ! -z "$OVERRIDE_TARGET" ]; then
 		sed -i "s/\(<target>\)[^<>]*\(<\/target\)/\1$OVERRIDE_TARGET\2/" "$ARF_REPORT"
 	fi
-
 	mv $ARF_REPORT $REPORT_DIR
 fi
+
 echo "$rv" > $REPORT_DIR/exit_code
 
 # Return success
@@ -160,38 +172,42 @@ exit 0
 `
 
 func createConfigMaps(r *ReconcileComplianceScan, scriptCmName, envCmName, platformEnvCmName string, scan *compv1alpha1.ComplianceScan) error {
-	desired := []*corev1.ConfigMap{
-		defaultOpenScapScriptCm(scriptCmName, scan),
-		defaultOpenScapEnvCm(envCmName, scan),
-		platformOpenScapEnvCm(platformEnvCmName, scan),
-	}
-	for _, cm := range desired {
-		if err := createOrUpdateConfigMap(r, cm); err != nil {
-			return err
+	// createOrUpdateConfigMap deletes a stale ConfigMap and recreates it so
+	// that operator image updates (e.g. entrypoint script changes, CPE
+	// overrides) are always picked up on the next scan run.
+	createOrUpdateConfigMap := func(desired *corev1.ConfigMap) error {
+		existing := &corev1.ConfigMap{}
+		err := r.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      desired.Name,
+			Namespace: desired.Namespace,
+		}, existing)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return err
+			}
+			// Does not exist yet — create it.
+			return r.Client.Create(context.TODO(), desired)
 		}
+		// Already exists — update data in-place to pick up any changes from
+		// the current operator image (e.g. entrypoint script, CPE overrides).
+		existing.Data = desired.Data
+		existing.Labels = desired.Labels
+		return r.Client.Update(context.TODO(), existing)
 	}
-	return nil
-}
 
-// createOrUpdateConfigMap creates the ConfigMap if it does not exist, or
-// updates its data and labels in place if it does. This ensures that changes
-// shipped with a new operator version (e.g. to the scan entrypoint script)
-// are picked up by existing scans instead of reusing a stale ConfigMap.
-func createOrUpdateConfigMap(r *ReconcileComplianceScan, desired *corev1.ConfigMap) error {
-	existing := &corev1.ConfigMap{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      desired.Name,
-		Namespace: desired.Namespace,
-	}, existing)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-		return r.Client.Create(context.TODO(), desired)
+	if err := createOrUpdateConfigMap(defaultOpenScapScriptCm(scriptCmName, scan)); err != nil {
+		return err
 	}
-	existing.Data = desired.Data
-	existing.Labels = desired.Labels
-	return r.Client.Update(context.TODO(), existing)
+
+	if err := createOrUpdateConfigMap(defaultOpenScapEnvCm(envCmName, scan)); err != nil {
+		return err
+	}
+
+	if err := createOrUpdateConfigMap(platformOpenScapEnvCm(platformEnvCmName, scan)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func defaultOpenScapScriptCm(name string, scan *compv1alpha1.ComplianceScan) *corev1.ConfigMap {
