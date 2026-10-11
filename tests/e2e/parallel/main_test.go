@@ -697,23 +697,23 @@ func TestSingleScanSucceeds(t *testing.T) {
 					t.Fatalf("Expected scanner container to drop ALL capabilities, got: %v", droppedCaps)
 				}
 
-				// Verify CAP_SYS_CHROOT and CAP_SYS_ADMIN are added
+				// Verify SYS_CHROOT and SYS_ADMIN are added
 				addedCaps := container.SecurityContext.Capabilities.Add
 				if len(addedCaps) != 2 {
-					t.Fatalf("Expected scanner container to have CAP_SYS_CHROOT and CAP_SYS_ADMIN capabilities, got: %v", addedCaps)
+					t.Fatalf("Expected scanner container to have SYS_CHROOT and SYS_ADMIN capabilities, got: %v", addedCaps)
 				}
 				hasChroot := false
 				hasSysAdmin := false
 				for _, cap := range addedCaps {
-					if string(cap) == "CAP_SYS_CHROOT" {
+					if string(cap) == "SYS_CHROOT" {
 						hasChroot = true
 					}
-					if string(cap) == "CAP_SYS_ADMIN" {
+					if string(cap) == "SYS_ADMIN" {
 						hasSysAdmin = true
 					}
 				}
 				if !hasChroot || !hasSysAdmin {
-					t.Fatalf("Expected scanner container to have both CAP_SYS_CHROOT and CAP_SYS_ADMIN capabilities, got: %v", addedCaps)
+					t.Fatalf("Expected scanner container to have both SYS_CHROOT and SYS_ADMIN capabilities, got: %v", addedCaps)
 				}
 				break
 			}
