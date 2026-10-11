@@ -88,19 +88,17 @@ fi
 
 if [ -z $HOSTROOT ]; then
 	echo "HOSTROOT not set, using normal oscap"
-	cmd=(
-		oscap xccdf eval \
-	)
 else
 	export OSCAP_PROBE_ROOT="$HOSTROOT"
-	cmd=(
-		oscap xccdf eval \
-	)
 fi
 
+# --verbose is passed as a general oscap option (before the module) so it is
+# accepted by both OpenSCAP 1.3.x and 1.4.x.
+cmd=(oscap)
 if [ ! -z $VERBOSITY ]; then
     cmd+=(--verbose $VERBOSITY)
 fi
+cmd+=(xccdf eval)
 
 if [ ! -z "$TAILORING_DIR" ]; then
 	cmd+=(--tailoring-file "$TAILORING_DIR/tailoring.xml")
@@ -114,9 +112,16 @@ if [ -z "$DISCONNECTED" ]; then
 	cmd+=(--fetch-remote-resources)
 fi
 
+# The XCCDF result is written directly with --results instead of being
+# extracted from the ARF with "oscap ds rds-split", which was removed in
+# OpenSCAP 1.4.0. It is written to /tmp first and moved into the report
+# directory afterwards so the log collector never sees a partial file.
+XCCDF_PATH=/tmp/report.xml
+
 cmd+=(
     --profile $PROFILE \
-    --results-arf $ARF_REPORT
+    --results-arf $ARF_REPORT \
+    --results $XCCDF_PATH
 )
 
 if [ ! -z $RULE ]; then
@@ -133,20 +138,6 @@ echo "Running oscap-chroot $(cat /app/scap_version) as ${cmd[@]}"
 rv=$?
 echo "The scanner returned $rv"
 cat $REPORT_DIR/cmd_output 
-
-# Split the ARF so that we can only process the results
-SPLIT_DIR=/tmp/split
-# The XCCDF result file has a well-known name report.xml under the
-# split directory
-XCCDF_PATH=$SPLIT_DIR/report.xml
-
-# The rds-split command splits the ARF into the DS part and the
-# XCCDF result. At the moment we need to use the --skip-valid option
-# because at the moment oscap-chroot uses chroot://host as the hostname
-# and that makes the rds-split command puke.
-oscap ds rds-split --skip-valid $ARF_REPORT $SPLIT_DIR
-split_rv=$?
-echo "The rds-split operation returned $split_rv"
 
 # Put both the XCCDF result and the full ARF result into the report
 # directory.
