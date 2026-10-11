@@ -540,7 +540,9 @@ func (r *ReconcileProfileBundle) newWorkloadForBundle(pb *compliancev1alpha1.Pro
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
+									// Large datastreams (e.g. ssg-rhel10-ds.xml, ~22MB) OOMKill
+									// at 200Mi while parsing; 500Mi leaves headroom.
+									corev1.ResourceMemory: resource.MustParse("500Mi"),
 									corev1.ResourceCPU:    resource.MustParse("100m"),
 								},
 							},
