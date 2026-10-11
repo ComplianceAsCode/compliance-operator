@@ -9,24 +9,20 @@ namespace: openshift-compliance
 
 # The default platform for the compliance-operator. Available platforms are
 # 'openshift', 'eks', 'generic', and 'unknown'.
-platform: openshift
+platform: generic
 
 # By default, the compliance-operator will deploy to nodes tagged with the
 # master kubernetes role, which is present in OpenShift deployments. You may
 # need to omit this option to run the compliance-operator on other platforms,
 # like EKS, where nodes do not have that role by default (e.g., nodeSelector:
 # null)
-nodeSelector:
-  node-role.kubernetes.io/master: ""
+nodeSelector: null
 
 # By default, only schedule to nodes labeled with the master kubernetes role,
 # which is present in OpenShift deployments. You may need to omit this option
 # to run the compliance-operator on other platforms, like EKS, where nodes are
 # not tainted with the master role by default (e.g., tolerations: null)
-tolerations:
-  - key: "node-role.kubernetes.io/master"
-    operator: "Exists"
-    effect: "NoSchedule"
+tolerations: null
 
 serviceAccounts:
   create: true
@@ -38,6 +34,23 @@ serviceAccounts:
     - api-resource-collector
     - profileparser
     - resultserver
+
+images:
+  operator:
+    registry: ghcr.io
+    repository: complianceascode/compliance-operator
+    tag: latest
+    digest: ""
+  openscap:
+    registry: ghcr.io
+    repository: complianceascode/openscap-ocp
+    tag: latest
+    digest: ""
+  content:
+    registry: ghcr.io
+    repository: complianceascode/k8scontent
+    tag: latest
+    digest: ""
 
 scanSettingBindings:
   # By default, don't bind a profile to a scan setting and run a scan. By

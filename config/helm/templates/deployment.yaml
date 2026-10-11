@@ -19,7 +19,7 @@ spec:
       serviceAccountName: compliance-operator
       containers:
         - name: compliance-operator
-          image: "ghcr.io/complianceascode/compliance-operator:latest"
+          image: "{{ if .Values.images.operator.digest }}{{ .Values.images.operator.registry }}/{{ .Values.images.operator.repository }}@{{ .Values.images.operator.digest }}{{ else }}{{ .Values.images.operator.registry }}/{{ .Values.images.operator.repository }}:{{ .Values.images.operator.tag }}{{ end }}"
           command:
           - compliance-operator
           - operator
@@ -52,12 +52,11 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: RELATED_IMAGE_OPENSCAP
-              # Hardcoding this temporarily until its propagated to CI
-              value: "ghcr.io/complianceascode/openscap-ocp:latest"
+              value: "{{ if .Values.images.openscap.digest }}{{ .Values.images.openscap.registry }}/{{ .Values.images.openscap.repository }}@{{ .Values.images.openscap.digest }}{{ else }}{{ .Values.images.openscap.registry }}/{{ .Values.images.openscap.repository }}:{{ .Values.images.openscap.tag }}{{ end }}"
             - name: RELATED_IMAGE_OPERATOR
-              value: "ghcr.io/complianceascode/compliance-operator:latest"
+              value: "{{ if .Values.images.operator.digest }}{{ .Values.images.operator.registry }}/{{ .Values.images.operator.repository }}@{{ .Values.images.operator.digest }}{{ else }}{{ .Values.images.operator.registry }}/{{ .Values.images.operator.repository }}:{{ .Values.images.operator.tag }}{{ end }}"
             - name: RELATED_IMAGE_PROFILE
-              value: "ghcr.io/complianceascode/k8scontent:latest"
+              value: "{{ if .Values.images.content.digest }}{{ .Values.images.content.registry }}/{{ .Values.images.content.repository }}@{{ .Values.images.content.digest }}{{ else }}{{ .Values.images.content.registry }}/{{ .Values.images.content.repository }}:{{ .Values.images.content.tag }}{{ end }}"
           volumeMounts:
             - name: serving-cert
               mountPath: /var/run/secrets/serving-cert
