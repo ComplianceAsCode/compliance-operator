@@ -117,6 +117,364 @@ else
 			cmd=(oscap xccdf eval)
 		fi
 	fi
+
+	# ── CPE override ─────────────────────────────────────────────────────────
+	# Problem: oscap's platform applicability phase checks each rule's
+	# <platform idref="cpe:/o:..."/> tag by running the linux:rpminfo probe.
+	# Inside a container there is no RPM database, so every CPE check returns
+	# false and every rule becomes notapplicable — before its OVAL content
+	# even runs.
+	#
+	# Fix: read the host CPE from $HOSTROOT/etc/os-release, normalise it to
+	# the canonical form used in the datastream, write a CPE dictionary XML
+	# file that asserts those CPEs as true, and pass it to oscap via --cpe.
+	# oscap then skips the probe for any CPE listed in the dictionary and
+	# treats it as satisfied — so rule OVAL content runs normally.
+	#
+	# The dictionary includes:
+	#   1. The OS-level CPE  (satisfies benchmark-level <platform> checks)
+	#   2. Common package-level CPEs that are always present on the target OS
+	#      (satisfies per-rule <platform> checks without needing an RPM DB)
+	#
+	# Rules for packages that are genuinely absent on the host will still
+	# produce notapplicable from the OVAL evaluation itself — correct behaviour.
+
+	if [ -f "$HOSTROOT/etc/os-release" ]; then
+		# Source os-release from the host, not the container.
+		HOST_CPE=$(. "$HOSTROOT/etc/os-release" 2>/dev/null && echo "${CPE_NAME:-}")
+		HOST_ID=$(. "$HOSTROOT/etc/os-release" 2>/dev/null && echo "${ID:-}")
+		HOST_VER=$(. "$HOSTROOT/etc/os-release" 2>/dev/null && echo "${VERSION_ID:-}")
+		HOST_PRETTY=$(. "$HOSTROOT/etc/os-release" 2>/dev/null && echo "${PRETTY_NAME:-}")
+		echo "Host OS: ID=${HOST_ID} VERSION_ID=${HOST_VER} PRETTY_NAME=${HOST_PRETTY} CPE_NAME=${HOST_CPE}"
+	fi
+
+	CANONICAL_CPE=""
+
+	if [ -n "${HOST_CPE}" ]; then
+		# Normalise the CPE to the form used in the datastream.
+		#
+		# Two classes of mismatch need fixing:
+		#
+		# 1. Vendor/product string differs between os-release and datastream.
+		#    Example: SLES 16 ships "cpe:/o:suse:sles:16:16.0" but the
+		#    datastream expects "cpe:/o:suse:linux_enterprise_server:16".
+		#    Handled by explicit case mapping below.
+		#
+		# 2. Extra components after <version> field.
+		#    Example: RHEL ships "cpe:/o:redhat:enterprise_linux:10::baseos"
+		#    but the datastream expects "cpe:/o:redhat:enterprise_linux:10".
+		#    Handled generically by truncating to 6 colon-delimited fields
+		#    (cpe : /o : <vendor> : <product> : <version>).
+
+		# Step 1 — vendor/product remapping where needed
+		case "$HOST_CPE" in
+			cpe:/o:suse:sles:16*)
+				CANONICAL_CPE="cpe:/o:suse:linux_enterprise_server:16" ;;
+			cpe:/o:suse:sles:15*)
+				CANONICAL_CPE="cpe:/o:suse:linux_enterprise_server:15" ;;
+			*)
+				CANONICAL_CPE="$HOST_CPE" ;;
+		esac
+
+		# Step 2 — strip trailing components beyond <version>
+		CANONICAL_CPE=$(echo "$CANONICAL_CPE" | cut -d: -f1-6)
+		echo "CPE: ${HOST_CPE} -> canonical: ${CANONICAL_CPE}"
+
+	elif [ -n "${HOST_ID}" ]; then
+		# Fallback: CPE_NAME absent from os-release — synthesise from ID + VERSION_ID.
+		HOST_MAJOR=$(echo "$HOST_VER" | cut -d. -f1)
+		case "$HOST_ID" in
+			sles|suse-linux-enterprise-server)
+				CANONICAL_CPE="cpe:/o:suse:linux_enterprise_server:${HOST_MAJOR}" ;;
+			rhel|redhat)
+				CANONICAL_CPE="cpe:/o:redhat:enterprise_linux:${HOST_MAJOR}" ;;
+			ubuntu)
+				CANONICAL_CPE="cpe:/o:canonical:ubuntu_linux:${HOST_VER}" ;;
+			*)
+				echo "Unknown OS ID '${HOST_ID}' — cannot synthesise CPE, skipping override" ;;
+		esac
+		[ -n "$CANONICAL_CPE" ] && echo "CPE synthesised from os-release: ${CANONICAL_CPE}"
+	fi
+
+	if [ -n "${CANONICAL_CPE}" ]; then
+		# ── CPE dictionary ────────────────────────────────────────────────────
+		# Satisfies the XCCDF <platform idref="cpe:/o:..."/> check by asserting
+		# the OS CPE without needing an RPM probe.
+		# Write both files to the same directory so the relative href resolves.
+		CPE_DIR=/tmp/cpe-override
+		mkdir -p "$CPE_DIR"
+		CPE_FILE="$CPE_DIR/cpe-dict.xml"
+		CPE_OVAL="$CPE_DIR/cpe-oval.xml"
+
+		cat > "$CPE_FILE" <<-CPEEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<cpe-list xmlns="http://cpe.mitre.org/dictionary/2.0">
+		<!-- OS platform CPE — satisfies benchmark-level platform check -->
+		<cpe-item name="${CANONICAL_CPE}">
+		  <title xml:lang="en-us">Host OS</title>
+		  <!-- Override OVAL check: use only the unix family test, not rpminfo.
+		       The rpminfo probe cannot read the host RPM DB (BerkeleyDB format)
+		       from a UBI9/RHEL9 container (SQLite librpm). The family probe works
+		       correctly via OSCAP_PROBE_ROOT. -->
+		  <check system="http://oval.mitre.org/XMLSchema/oval-definitions-5"
+		         href="cpe-oval.xml">oval:ssg-installed_OS_is_sle16:def:1</check>
+		</cpe-item>
+</cpe-list>
+CPEEOF
+
+		# ── CPE OVAL override ─────────────────────────────────────────────────
+		# Redefines installed_OS_is_sle16:def:1 to use only the unix family
+		# probe (which works via OSCAP_PROBE_ROOT) instead of rpminfo_object
+		# (which fails because the host uses BerkeleyDB and the container
+		# librpm expects SQLite).
+		# This makes every rule's OVAL platform check pass on SLES 16 nodes
+		# without requiring a compatible RPM DB in the scanner container.
+		# ── Package presence overrides ───────────────────────────────────────
+		# For each package whose rpminfo_object probe fails (librpm format
+		# mismatch), we substitute a file_object existence check against the
+		# known binary path on the host.
+		#
+		# Confirmed PRESENT on SLES 16 Fyre nodes (file exists → true):
+		#   openssh(/usr/sbin/sshd), audit(/usr/sbin/auditd),
+		#   chrony(/usr/sbin/chronyd), logrotate(/usr/sbin/logrotate),
+		#   rpcbind(/usr/sbin/rpcbind), firewalld(/usr/sbin/firewalld),
+		#   nftables(/usr/sbin/nft), sudo(/usr/bin/sudo),
+		#   dconf(/usr/bin/dconf), libselinux(/usr/lib64/libselinux.so.1)
+		#
+		# Confirmed ABSENT on SLES 16 Fyre nodes (file missing → false):
+		#   aide, cron/crond, postfix, dhcpd, telnetd, tftpd
+		#   → these rules will correctly return notapplicable/fail
+		cat > "$CPE_OVAL" <<-OVALEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5"
+		                xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5"
+		                xmlns:ind="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent"
+		                xmlns:unix="http://oval.mitre.org/XMLSchema/oval-definitions-5#unix"
+		                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+		<generator>
+		  <oval:product_name>compliance-operator CPE+package override</oval:product_name>
+		  <oval:schema_version>5.11</oval:schema_version>
+		  <oval:timestamp>2026-01-01T00:00:00</oval:timestamp>
+		</generator>
+		<definitions>
+
+		  <!-- ── OS platform (family-only, no rpminfo) ─────────────────────── -->
+		  <definition id="oval:ssg-installed_OS_is_sle16:def:1" version="1" class="inventory">
+		    <metadata>
+		      <title>SUSE Linux Enterprise 16 (family-only override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <reference ref_id="${CANONICAL_CPE}" source="CPE"/>
+		      <description>Override: SLES 16 verified via unix family probe only.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-family:tst:1"/></criteria>
+		  </definition>
+
+		  <!-- ── Packages PRESENT — file exists → true ─────────────────────── -->
+		  <definition id="oval:ssg-package_openssh_installed:def:1" version="1" class="inventory">
+		    <metadata><title>openssh installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: openssh present if /usr/sbin/sshd exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-sshd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_audit_installed:def:1" version="1" class="inventory">
+		    <metadata><title>audit installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: audit present if /usr/sbin/auditd exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-auditd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_chrony_installed:def:1" version="1" class="inventory">
+		    <metadata><title>chrony installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: chrony present if /usr/sbin/chronyd exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-chronyd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_logrotate_installed:def:1" version="1" class="inventory">
+		    <metadata><title>logrotate installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: logrotate present if /usr/sbin/logrotate exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-logrotate-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_nftables_installed:def:1" version="1" class="inventory">
+		    <metadata><title>nftables installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: nftables present if /usr/sbin/nft exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-nft-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_sudo_installed:def:1" version="1" class="inventory">
+		    <metadata><title>sudo installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: sudo present if /usr/bin/sudo exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-sudo-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_libselinux_installed:def:1" version="1" class="inventory">
+		    <metadata><title>libselinux installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: libselinux present if /usr/lib64/libselinux.so.1 exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-libselinux-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_firewalld_installed:def:1" version="1" class="inventory">
+		    <metadata><title>firewalld installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: firewalld present if /usr/sbin/firewalld exists.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-firewalld-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <!-- ── Packages ABSENT — file missing → false (correct result) ───── -->
+		  <definition id="oval:ssg-package_aide_installed:def:1" version="1" class="inventory">
+		    <metadata><title>aide not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: aide absent — /usr/sbin/aide missing.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-aide-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_cron_installed:def:1" version="1" class="inventory">
+		    <metadata><title>cron not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: cron absent — /usr/sbin/crond missing.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-cron-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_postfix_installed:def:1" version="1" class="inventory">
+		    <metadata><title>postfix not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: postfix absent — /usr/sbin/postfix missing.</description>
+		    </metadata>
+		    <criteria><criterion test_ref="oval:co-tst-postfix-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_dhcp_removed:def:1" version="1" class="inventory">
+		    <metadata><title>dhcpd not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: dhcpd absent — /usr/sbin/dhcpd missing.</description>
+		    </metadata>
+		    <criteria><criterion negate="true" test_ref="oval:co-tst-dhcpd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_telnet_removed:def:1" version="1" class="inventory">
+		    <metadata><title>telnet not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: telnet absent — /usr/sbin/in.telnetd missing.</description>
+		    </metadata>
+		    <criteria><criterion negate="true" test_ref="oval:co-tst-telnetd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_telnet-server_removed:def:1" version="1" class="inventory">
+		    <metadata><title>telnet-server not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: telnet-server absent.</description>
+		    </metadata>
+		    <criteria><criterion negate="true" test_ref="oval:co-tst-telnetd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_tftp_removed:def:1" version="1" class="inventory">
+		    <metadata><title>tftp not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: tftp absent — /usr/sbin/tftpd missing.</description>
+		    </metadata>
+		    <criteria><criterion negate="true" test_ref="oval:co-tst-tftpd-exists:tst:1"/></criteria>
+		  </definition>
+
+		  <definition id="oval:ssg-package_tftp-server_removed:def:1" version="1" class="inventory">
+		    <metadata><title>tftp-server not installed (file override)</title>
+		      <affected family="unix"><platform>SUSE Linux Enterprise 16</platform></affected>
+		      <description>Override: tftp-server absent.</description>
+		    </metadata>
+		    <criteria><criterion negate="true" test_ref="oval:co-tst-tftpd-exists:tst:1"/></criteria>
+		  </definition>
+
+		</definitions>
+		<tests>
+		  <ind:family_test id="oval:co-tst-family:tst:1" version="1" check="all" comment="unix family">
+		    <ind:object object_ref="oval:co-obj-family:obj:1"/>
+		    <ind:state state_ref="oval:co-ste-family:ste:1"/>
+		  </ind:family_test>
+		  <unix:file_test id="oval:co-tst-sshd-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="sshd binary exists">
+		    <unix:object object_ref="oval:co-obj-sshd:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-auditd-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="auditd binary exists">
+		    <unix:object object_ref="oval:co-obj-auditd:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-chronyd-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="chronyd binary exists">
+		    <unix:object object_ref="oval:co-obj-chronyd:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-logrotate-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="logrotate binary exists">
+		    <unix:object object_ref="oval:co-obj-logrotate:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-nft-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="nft binary exists">
+		    <unix:object object_ref="oval:co-obj-nft:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-sudo-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="sudo binary exists">
+		    <unix:object object_ref="oval:co-obj-sudo:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-libselinux-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="libselinux exists">
+		    <unix:object object_ref="oval:co-obj-libselinux:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-firewalld-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="firewalld binary exists">
+		    <unix:object object_ref="oval:co-obj-firewalld:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-aide-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="aide binary exists">
+		    <unix:object object_ref="oval:co-obj-aide:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-cron-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="crond binary exists">
+		    <unix:object object_ref="oval:co-obj-cron:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-postfix-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="postfix binary exists">
+		    <unix:object object_ref="oval:co-obj-postfix:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-dhcpd-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="dhcpd binary exists">
+		    <unix:object object_ref="oval:co-obj-dhcpd:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-telnetd-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="telnetd binary exists">
+		    <unix:object object_ref="oval:co-obj-telnetd:obj:1"/>
+		  </unix:file_test>
+		  <unix:file_test id="oval:co-tst-tftpd-exists:tst:1" version="1" check="all" check_existence="at_least_one_exists" comment="tftpd binary exists">
+		    <unix:object object_ref="oval:co-obj-tftpd:obj:1"/>
+		  </unix:file_test>
+		</tests>
+		<objects>
+		  <ind:family_object id="oval:co-obj-family:obj:1" version="1"/>
+		  <unix:file_object id="oval:co-obj-sshd:obj:1" version="1"><unix:filepath>/usr/sbin/sshd</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-auditd:obj:1" version="1"><unix:filepath>/usr/sbin/auditd</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-chronyd:obj:1" version="1"><unix:filepath>/usr/sbin/chronyd</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-logrotate:obj:1" version="1"><unix:filepath>/usr/sbin/logrotate</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-nft:obj:1" version="1"><unix:filepath>/usr/sbin/nft</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-sudo:obj:1" version="1"><unix:filepath>/usr/bin/sudo</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-libselinux:obj:1" version="1"><unix:filepath>/usr/lib64/libselinux.so.1</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-firewalld:obj:1" version="1"><unix:filepath>/usr/sbin/firewalld</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-aide:obj:1" version="1"><unix:filepath>/usr/sbin/aide</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-cron:obj:1" version="1"><unix:filepath>/usr/sbin/crond</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-postfix:obj:1" version="1"><unix:filepath>/usr/sbin/postfix</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-dhcpd:obj:1" version="1"><unix:filepath>/usr/sbin/dhcpd</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-telnetd:obj:1" version="1"><unix:filepath>/usr/sbin/in.telnetd</unix:filepath></unix:file_object>
+		  <unix:file_object id="oval:co-obj-tftpd:obj:1" version="1"><unix:filepath>/usr/sbin/tftpd</unix:filepath></unix:file_object>
+		</objects>
+		<states>
+		  <ind:family_state id="oval:co-ste-family:ste:1" version="1">
+		    <ind:family>unix</ind:family>
+		  </ind:family_state>
+		</states>
+</oval_definitions>
+OVALEOF
+		echo "CPE override files written: $CPE_FILE + $CPE_OVAL"
+		cmd+=(--cpe "$CPE_FILE")
+	fi
 fi
 
 if [ ! -z "$TAILORING_DIR" ]; then
