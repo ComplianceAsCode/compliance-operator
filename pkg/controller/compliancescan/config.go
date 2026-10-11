@@ -172,45 +172,38 @@ exit 0
 `
 
 func createConfigMaps(r *ReconcileComplianceScan, scriptCmName, envCmName, platformEnvCmName string, scan *compv1alpha1.ComplianceScan) error {
-	cm := &corev1.ConfigMap{}
-
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      scriptCmName,
-		Namespace: common.GetComplianceOperatorNamespace(),
-	}, cm); err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-		if err := r.Client.Create(context.TODO(), defaultOpenScapScriptCm(scriptCmName, scan)); err != nil {
+	desired := []*corev1.ConfigMap{
+		defaultOpenScapScriptCm(scriptCmName, scan),
+		defaultOpenScapEnvCm(envCmName, scan),
+		platformOpenScapEnvCm(platformEnvCmName, scan),
+	}
+	for _, cm := range desired {
+		if err := createOrUpdateConfigMap(r, cm); err != nil {
 			return err
 		}
 	}
-
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      envCmName,
-		Namespace: common.GetComplianceOperatorNamespace(),
-	}, cm); err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-		if err := r.Client.Create(context.TODO(), defaultOpenScapEnvCm(envCmName, scan)); err != nil {
-			return err
-		}
-	}
-
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      platformEnvCmName,
-		Namespace: common.GetComplianceOperatorNamespace(),
-	}, cm); err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-		if err := r.Client.Create(context.TODO(), platformOpenScapEnvCm(platformEnvCmName, scan)); err != nil {
-			return err
-		}
-	}
-
 	return nil
+}
+
+// createOrUpdateConfigMap creates the ConfigMap if it does not exist, or
+// updates its data and labels in place if it does. This ensures that changes
+// shipped with a new operator version (e.g. to the scan entrypoint script)
+// are picked up by existing scans instead of reusing a stale ConfigMap.
+func createOrUpdateConfigMap(r *ReconcileComplianceScan, desired *corev1.ConfigMap) error {
+	existing := &corev1.ConfigMap{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      desired.Name,
+		Namespace: desired.Namespace,
+	}, existing)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+		return r.Client.Create(context.TODO(), desired)
+	}
+	existing.Data = desired.Data
+	existing.Labels = desired.Labels
+	return r.Client.Update(context.TODO(), existing)
 }
 
 func defaultOpenScapScriptCm(name string, scan *compv1alpha1.ComplianceScan) *corev1.ConfigMap {
