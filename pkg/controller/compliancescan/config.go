@@ -92,13 +92,10 @@ else
 	export OSCAP_PROBE_ROOT="$HOSTROOT"
 fi
 
-# --verbose is passed as a general oscap option (before the module) so it is
-# accepted by both OpenSCAP 1.3.x and 1.4.x.
-cmd=(oscap)
+cmd=(oscap xccdf eval)
 if [ ! -z $VERBOSITY ]; then
     cmd+=(--verbose $VERBOSITY)
 fi
-cmd+=(xccdf eval)
 
 if [ ! -z "$TAILORING_DIR" ]; then
 	cmd+=(--tailoring-file "$TAILORING_DIR/tailoring.xml")
