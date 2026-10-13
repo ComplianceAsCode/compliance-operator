@@ -378,7 +378,7 @@ func getPlatformScannerPodVolumes(instance *compv1alpha1.ComplianceScan) []corev
 
 func getNodeScannerPodVolumes(instance *compv1alpha1.ComplianceScan, node *corev1.Node) []corev1.Volume {
 	mode := int32(0744)
-	kubeMode := int32(0600)
+	kubeMode := int32(0644)
 	volumesList := []corev1.Volume{
 		{
 			Name: "host",
