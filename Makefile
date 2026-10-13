@@ -642,7 +642,7 @@ endif
 	@$(GO) test -v ./pkg/utils/ -ginkgo.v
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e e2e-parallel e2e-scan-config e2e-deployment e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+e2e: e2e-set-image prep-e2e e2e-parallel e2e-scan-config e2e-deployment e2e-remediation e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
 
 .PHONY: e2e
 e2e-test-wait:
@@ -659,6 +659,10 @@ e2e-scan-config: e2e-set-image prep-e2e ## Run scan and suite configuration end-
 .PHONY: e2e-deployment
 e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tests concurrently.
 	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
+
+.PHONY: e2e-remediation
+e2e-remediation: e2e-set-image prep-e2e ## Run remediation end-to-end tests concurrently.
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/remediation $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-remediation.log
 
 .PHONY: e2e-serial
 e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests serially.
