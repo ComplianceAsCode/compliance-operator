@@ -395,9 +395,19 @@ func RunOperator(cmd *cobra.Command, args []string) {
 			cancel()
 		},
 	}
-	if err := watcher.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Unable to set up TLS security profile watcher")
-		os.Exit(1)
+	// The watcher needs the OpenShift-only APIServer CRD, so only set it up on
+	// OpenShift-based platforms. On other platforms the cache never syncs and
+	// the operator exits.
+	tlsPlatform := os.Getenv("PLATFORM")
+	if tlsPlatform == "" {
+		tlsPlatform, _ = flags.GetString("platform")
+	}
+	switch getValidPlatform(tlsPlatform) {
+	case PlatformOpenShift, PlatformOpenShiftOnPower, PlatformOpenShiftOnZ, PlatformHyperShift, PlatformROSA:
+		if err := watcher.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Unable to set up TLS security profile watcher")
+			os.Exit(1)
+		}
 	}
 
 	si, getSIErr := getSchedulingInfo(ctx, mgr.GetAPIReader())
