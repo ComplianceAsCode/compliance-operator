@@ -263,7 +263,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command:         []string{OpenScapScriptPath},
 					SecurityContext: &corev1.SecurityContext{
-						Privileged:               &falseP,
+						Privileged:               &trueP,
 						AllowPrivilegeEscalation: &trueP,
 						ReadOnlyRootFilesystem:   &trueP,
 						Capabilities: &corev1.Capabilities{

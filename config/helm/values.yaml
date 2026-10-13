@@ -15,7 +15,7 @@ platform: openshift
 image:
   operator:
     repository: icr.io/sovcore-dev/compliance-operator
-    tag: master-0c8e98c42
+    tag: master-v2
     pullPolicy: IfNotPresent
   openscap:
     repository: icr.io/sovcore-dev/compliance-operator-openscap-dev
