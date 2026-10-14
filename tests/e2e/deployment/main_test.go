@@ -427,4 +427,3 @@ func TestResultServerSAAndSecurityContext(t *testing.T) {
 		t.Fatalf("failed waiting for scan to complete: %s", err)
 	}
 }
-

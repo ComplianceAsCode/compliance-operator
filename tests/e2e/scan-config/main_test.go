@@ -1904,7 +1904,6 @@ func TestTimeoutDisabledWithZeroValue(t *testing.T) {
 	}
 }
 
-
 func TestScanSettingBinding(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -2088,4 +2087,3 @@ func TestScanSettingBindingUsesDefaultScanSetting(t *testing.T) {
 		t.Fatal("Expected the settings reference to use the default ScanSetting")
 	}
 }
-
