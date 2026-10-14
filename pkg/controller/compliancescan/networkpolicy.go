@@ -103,10 +103,19 @@ func resultServerIngressNetworkPolicy(ns string) *networkingv1.NetworkPolicy {
 			{Protocol: &tcp, Port: &port},
 		},
 	}
-	// The host-network namespace label only exists on OVN-Kubernetes. On other
-	// CNIs (e.g. Calico) host-networked node scanners cannot be selected, so
-	// allow any source on the port; mTLS remains the authentication boundary.
-	if strings.EqualFold(utils.GetPlatform(), "generic") {
+	// The host-network namespace label only exists on OVN-Kubernetes, which is
+	// the CNI on OpenShift-based platforms. On all other platforms (generic,
+	// EKS, unknown) the label is absent, so the NamespaceSelector peer never
+	// matches and host-networked node scanners are blocked. Drop the peer list
+	// on non-OpenShift platforms so the port accepts connections from any
+	// source. mTLS on the result server remains the authentication boundary.
+	platform := utils.GetPlatform()
+	ovnPlatform := strings.EqualFold(platform, "OpenShift") ||
+		strings.EqualFold(platform, "OpenShiftOnPower") ||
+		strings.EqualFold(platform, "OpenShiftOnZ") ||
+		strings.EqualFold(platform, "HyperShift") ||
+		strings.EqualFold(platform, "ROSA")
+	if !ovnPlatform {
 		rule.From = nil
 	}
 	return &networkingv1.NetworkPolicy{
