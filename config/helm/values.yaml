@@ -15,14 +15,14 @@ platform: openshift
 image:
   operator:
     repository: icr.io/sovcore-dev/compliance-operator
-    tag: master-v5
+    tag: master-v6
     pullPolicy: IfNotPresent
   openscap:
-    repository: icr.io/sovcore-dev/compliance-operator-openscap-dev
-    tag: master-cd2c2bd0a
+    repository: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev
+    tag: master
   profile:
-    repository: us.icr.io/sps-sovcore-tt6-prd0015617-1td/content
-    tag: all-latest
+    repository: icr.io/sovcore-dev/content
+    tag: 20260914154527-feat-sps-image-build-v1.8.2-605fae8
 
 # By default, the compliance-operator will deploy to nodes tagged with the
 # master kubernetes role, which is present in OpenShift deployments. You may
