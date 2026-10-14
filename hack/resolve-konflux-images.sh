@@ -1,49 +1,98 @@
 #!/bin/bash
-# resolve-konflux-images.sh — Resolve Konflux-built images for e2e testing.
+# resolve-konflux-images.sh — Print the Konflux builds of images to test with.
 #
-# Source this file before running e2e tests in CI:
-#   source hack/resolve-konflux-images.sh
-#   make e2e-parallel
+#   hack/resolve-konflux-images.sh <component>...
 #
-# Konflux builds PR images while the cluster installs, so test with them
-# instead of having Prow build them before the install starts. Konflux builds
-# an image only for PRs that change its sources; other PRs test with the
-# master image, which has the same sources.
+# For each Konflux component, such as compliance-operator-dev, this prints the
+# pull spec of its build for the PR's head commit, waiting up to 30 minutes
+# while Konflux finishes it. Konflux builds an image only for PRs that change
+# its sources, so when it hasn't started a build for the PR, this prints the
+# master build, which has the same sources. It fails rather than print another
+# image when the PR's build has expired or doesn't finish in time, or when
+# Quay can't be reached.
 #
-# See also DEFAULT_KONFLUX_REPO and DEFAULT_KONFLUX_TAG in the Makefile.
+# CI jobs test with these images instead of having Prow build them before the
+# cluster install starts:
+#
+#   IMAGE_FROM_CI=$(hack/resolve-konflux-images.sh compliance-operator-dev)
+#   OPENSCAP_IMAGE=$(hack/resolve-konflux-images.sh compliance-operator-openscap-dev)
+#
+# Jobs for other repositories can run it from GitHub:
+#
+#   curl -fsSL https://raw.githubusercontent.com/ComplianceAsCode/compliance-operator/master/hack/resolve-konflux-images.sh |
+#     bash -s -- compliance-operator-dev
+#
+# Environment:
+#   KONFLUX_REPO  the Quay repository of the components (default:
+#                 DEFAULT_KONFLUX_REPO in the Makefile)
+#   KONFLUX_SHA   the commit to find the builds of (default: PULL_PULL_SHA,
+#                 which Prow sets to the PR's head commit). Without one, the
+#                 master builds are printed.
 
 set -euo pipefail
 
-KONFLUX_REPO="${KONFLUX_REPO:-redhat-user-workloads/ocp-isc-tenant}"
+repo=${KONFLUX_REPO:-quay.io/redhat-user-workloads/ocp-isc-tenant}
+sha=${KONFLUX_SHA:-${PULL_PULL_SHA:-}}
 
-# has <image> <tag> [active] — whether Quay has the tag (or ever had it).
+if [[ $# -eq 0 ]]; then
+  echo "usage: $0 <component>..." >&2
+  exit 2
+fi
+if [[ $repo != quay.io/* ]]; then
+  echo "KONFLUX_REPO must be on quay.io: $repo" >&2
+  exit 2
+fi
+
+# has <component> <tag> [active]: whether Quay has the tag, or ever had it.
+# It exits when Quay can't be reached, so that an outage doesn't look like a
+# missing build.
 has() {
   local out
   out=$(curl -fsS --max-time 30 --retry 5 --retry-all-errors \
-    "https://quay.io/api/v1/repository/${KONFLUX_REPO}/$1/tag/?specificTag=$2${3:+&onlyActiveTags=true}") || return 1
+    "https://quay.io/api/v1/repository/${repo#quay.io/}/$1/tag/?specificTag=$2${3:+&onlyActiveTags=true}") || {
+    echo "Could not get the tags of $repo/$1 from Quay" >&2
+    exit 1
+  }
   [[ $out == *'"name"'* ]]
 }
 
-# konflux <image> — resolve the Konflux build of an image to test with.
-konflux() {
-  local tag="on-pr-${PULL_PULL_SHA:-}" delay
-  # A Konflux build stores its source commit at <tag>.git when it starts.
-  if [[ -n ${PULL_PULL_SHA:-} ]] && has "$1" "$tag.git"; then
-    # Retry with backoff for up to 5 minutes while the build finishes.
-    for delay in 10 20 40 80 150 0; do
-      has "$1" "$tag" active && { echo "quay.io/${KONFLUX_REPO}/$1:$tag"; return; }
-      has "$1" "$tag.git" active || { echo "quay.io/${KONFLUX_REPO}/$1:$tag has expired: /test $1-on-pull-request rebuilds it" >&2; return 1; }
+# resolve <component>: print the build of the component to test with.
+resolve() {
+  local tag=on-pr-$sha
+  # A Konflux build stores its source at <tag>.git when it starts.
+  if [[ -n $sha ]] && has "$1" "$tag.git"; then
+    # Retry with backoff for up to 30 minutes while the build finishes.
+    # ARM64 builds routinely take 15+ minutes, so budget generously.
+    local elapsed=0 delay
+    for delay in 10 20 40; do
+      has "$1" "$tag" active && { echo "$repo/$1:$tag"; return; }
+      has "$1" "$tag.git" active || {
+        echo "$repo/$1:$tag has expired: /test $1-on-pull-request rebuilds it" >&2
+        exit 1
+      }
       sleep "$delay"
+      elapsed=$((elapsed + delay))
     done
-    echo "Konflux has not built quay.io/${KONFLUX_REPO}/$1:$tag after 5 minutes" >&2
-    return 1
+    while [[ $elapsed -lt 1800 ]]; do
+      has "$1" "$tag" active && { echo "$repo/$1:$tag"; return; }
+      has "$1" "$tag.git" active || {
+        echo "$repo/$1:$tag has expired: /test $1-on-pull-request rebuilds it" >&2
+        exit 1
+      }
+      sleep 60
+      elapsed=$((elapsed + 60))
+    done
+    # Distinguish a slow build (PipelineRun still active) from a failed one.
+    if has "$1" "$tag.git" active; then
+      echo "Konflux is still building $repo/$1:$tag after 30 minutes; the PipelineRun may be unusually slow — check its status" >&2
+    else
+      echo "Konflux build of $repo/$1:$tag appears to have failed (PipelineRun finished without producing an image)" >&2
+    fi
+    exit 1
   fi
-  echo "quay.io/${KONFLUX_REPO}/$1:master"
+  echo "$repo/$1:master"
 }
 
-IMAGE_FROM_CI=$(konflux compliance-operator-dev)
-OPENSCAP_IMAGE=$(konflux compliance-operator-openscap-dev)
-MUST_GATHER_IMAGE=$(konflux compliance-operator-must-gather-dev)
-export IMAGE_FROM_CI OPENSCAP_IMAGE MUST_GATHER_IMAGE
-
-echo "Testing with IMAGE_FROM_CI=$IMAGE_FROM_CI OPENSCAP_IMAGE=$OPENSCAP_IMAGE MUST_GATHER_IMAGE=$MUST_GATHER_IMAGE"
+for component; do
+  resolve "$component"
+done
