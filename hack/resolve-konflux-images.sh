@@ -4,7 +4,7 @@
 #   hack/resolve-konflux-images.sh <component>...
 #
 # For each Konflux component, such as compliance-operator-dev, this prints the
-# pull spec of its build for the PR's head commit, waiting up to 30 minutes
+# pull spec of its build for the PR's head commit, waiting up to 5 minutes
 # while Konflux finishes it. Konflux builds an image only for PRs that change
 # its sources, so when it hasn't started a build for the PR, this prints the
 # master build, which has the same sources. It fails rather than print another
@@ -61,8 +61,7 @@ resolve() {
   local tag=on-pr-$sha
   # A Konflux build stores its source at <tag>.git when it starts.
   if [[ -n $sha ]] && has "$1" "$tag.git"; then
-    # Retry with backoff for up to 30 minutes while the build finishes.
-    # ARM64 builds routinely take 15+ minutes, so budget generously.
+    # Retry with backoff for up to 5 minutes while the build finishes.
     local elapsed=0 delay
     for delay in 10 20 40; do
       has "$1" "$tag" active && { echo "$repo/$1:$tag"; return; }
@@ -73,7 +72,7 @@ resolve() {
       sleep "$delay"
       elapsed=$((elapsed + delay))
     done
-    while [[ $elapsed -lt 1800 ]]; do
+    while [[ $elapsed -lt 300 ]]; do
       has "$1" "$tag" active && { echo "$repo/$1:$tag"; return; }
       has "$1" "$tag.git" active || {
         echo "$repo/$1:$tag has expired: /test $1-on-pull-request rebuilds it" >&2
@@ -84,7 +83,7 @@ resolve() {
     done
     # Distinguish a slow build (PipelineRun still active) from a failed one.
     if has "$1" "$tag.git" active; then
-      echo "Konflux is still building $repo/$1:$tag after 30 minutes; the PipelineRun may be unusually slow — check its status" >&2
+      echo "Konflux is still building $repo/$1:$tag after 5 minutes; the PipelineRun may be unusually slow — check its status" >&2
     else
       echo "Konflux build of $repo/$1:$tag appears to have failed (PipelineRun finished without producing an image)" >&2
     fi
