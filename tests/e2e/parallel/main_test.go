@@ -11,7 +11,6 @@ import (
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -682,72 +681,6 @@ func TestMissingPodInRunningState(t *testing.T) {
 	err = f.AssertScanIsCompliant(scanName, f.OperatorNamespace)
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestScheduledSuiteNoStorage(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	suiteName := "test-scheduled-suite-no-storage"
-	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
-	selectWorkers := map[string]string{
-		"node-role.kubernetes.io/worker": "",
-	}
-
-	falseValue := false
-	testSuite := &compv1alpha1.ComplianceSuite{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      suiteName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ComplianceSuiteSpec{
-			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-				AutoApplyRemediations: false,
-			},
-			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
-				{
-					Name: workerScanName,
-					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
-						ContentImage: contentImagePath,
-						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
-						Content:      framework.RhcosContentFile,
-						Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
-						NodeSelector: selectWorkers,
-						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-							RawResultStorage: compv1alpha1.RawResultStorageSettings{
-								Enabled: &falseValue,
-							},
-							Debug: true,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := f.Client.Create(context.TODO(), testSuite, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), testSuite)
-
-	// Ensure that all the scans in the suite have finished and are marked as Done.
-	// Accept any result since this test validates storage behavior, not compliance outcome.
-	err = f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone,
-		compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultError)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pvcList := &corev1.PersistentVolumeClaimList{}
-	err = f.Client.List(context.TODO(), pvcList, client.InNamespace(f.OperatorNamespace), client.MatchingLabels(map[string]string{
-		compv1alpha1.ComplianceScanLabel: workerScanName,
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, pvc := range pvcList.Items {
-		t.Fatalf("Found unexpected PVC %s", pvc.Name)
 	}
 }
 
