@@ -1600,4 +1600,3 @@ func TestTailoringEnabledRulesGenerateRemediations(t *testing.T) {
 		t.Fatalf("Expected remediation %s for failed enabled rule, but none found", expectedRemediationName)
 	}
 }
-
