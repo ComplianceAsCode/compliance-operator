@@ -25,6 +25,10 @@ const UserProfileAnnotation = "compliance.openshift.io/user-profile"
 // ProfileGuidLabel specifies the unique identifier of the Profile
 const ProfileGuidLabel = "compliance.openshift.io/profile-guid"
 
+// ProfileNameLabel is set on a ComplianceScan to the name of the Profile
+// it was created from
+const ProfileNameLabel = "compliance.openshift.io/profile-name"
+
 // ProfileRule defines the name of a specific rule in the profile
 type ProfileRule string
 

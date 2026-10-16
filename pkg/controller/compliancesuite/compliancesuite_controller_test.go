@@ -214,6 +214,50 @@ var _ = Describe("ComplianceSuiteController", func() {
 		})
 	})
 
+	Context("When launching a scan for a Profile", func() {
+		profileID := "xccdf_org.ssgproject.content_profile_foo"
+
+		BeforeEach(func() {
+			// Bundles with the same content have Profiles with the same ID and GUID.
+			for _, name := range []string{"bar-foo", "bazz-foo"} {
+				Expect(reconciler.Client.Create(ctx, &compv1alpha1.Profile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+						Labels:    map[string]string{compv1alpha1.ProfileGuidLabel: "foo-guid"},
+					},
+					ProfilePayload: compv1alpha1.ProfilePayload{ID: profileID},
+				})).To(Succeed())
+			}
+		})
+
+		launchAndGetScan := func(scanName string) *compv1alpha1.ComplianceScan {
+			scanWrap := &compv1alpha1.ComplianceScanSpecWrapper{
+				Name: scanName,
+				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+					ScanType:     compv1alpha1.ScanTypeNode,
+					Profile:      profileID,
+					NodeSelector: map[string]string{"node-role.kubernetes.io/worker": ""},
+				},
+			}
+			Expect(launchScanForSuite(reconciler, suite, scanWrap, logger)).To(Succeed())
+			scan := &compv1alpha1.ComplianceScan{}
+			Expect(reconciler.Client.Get(ctx, types.NamespacedName{Name: scanName, Namespace: namespace}, scan)).To(Succeed())
+			return scan
+		}
+
+		It("Should label the scan with the name of the Profile it is for", func() {
+			scan := launchAndGetScan("bazz-foo-worker")
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
+		})
+
+		It("Should not label a scan whose name doesn't come from a Profile", func() {
+			scan := launchAndGetScan("my-scan")
+			Expect(scan.Labels).NotTo(HaveKey(compv1alpha1.ProfileNameLabel))
+		})
+	})
+
 	Context("When reconciling generic remediations", func() {
 		BeforeEach(func() {
 			remediation := &compv1alpha1.ComplianceRemediation{
