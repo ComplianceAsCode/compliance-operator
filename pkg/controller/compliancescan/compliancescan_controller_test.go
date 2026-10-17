@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -187,18 +187,18 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 				if req.URL.Path == "/api/v1/nodes/"+nodeinstance1.Name+"/proxy/configz" {
 					return &http.Response{
 						StatusCode: 200,
-						Body:       ioutil.NopCloser(bytes.NewBuffer([]byte(`{"kubeletconfig": {"kind": "KubeletConfiguration", "apiVersion": "kubelet.config.k8s.io/v1beta1", "authentication": {"x509": {"clientCAFile": "/etc/kubernetes/ca.crt"}}}}`))),
+						Body:       io.NopCloser(bytes.NewBuffer([]byte(`{"kubeletconfig": {"kind": "KubeletConfiguration", "apiVersion": "kubelet.config.k8s.io/v1beta1", "authentication": {"x509": {"clientCAFile": "/etc/kubernetes/ca.crt"}}}}`))),
 					}, nil
 				}
 				if req.URL.Path == "/api/v1/nodes/"+nodeinstance2.Name+"/proxy/configz" {
 					return &http.Response{
 						StatusCode: 200,
-						Body:       ioutil.NopCloser(bytes.NewBuffer([]byte(`{"kubeletconfig": {"kind": "KubeletConfiguration", "apiVersion": "kubelet.config.k8s.io/v1beta1"}}`))),
+						Body:       io.NopCloser(bytes.NewBuffer([]byte(`{"kubeletconfig": {"kind": "KubeletConfiguration", "apiVersion": "kubelet.config.k8s.io/v1beta1"}}`))),
 					}, nil
 				}
 				return &http.Response{
 					StatusCode: 404,
-					Body:       ioutil.NopCloser(bytes.NewBuffer([]byte(`{"error": "not found"}`))),
+					Body:       io.NopCloser(bytes.NewBuffer([]byte(`{"error": "not found"}`))),
 				}, nil
 			}),
 		}
