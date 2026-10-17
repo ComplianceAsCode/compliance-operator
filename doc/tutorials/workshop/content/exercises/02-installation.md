@@ -115,7 +115,7 @@ compliance-operator.v1.2.0    Compliance Operator   1.2.0                Succeed
 ```
 
 ```bash
-oc get ip -nopenshift-compliance
+oc get installplans -nopenshift-compliance
 ```
 
 ```
