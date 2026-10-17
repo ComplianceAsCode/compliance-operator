@@ -21,6 +21,7 @@ import (
 	"golang.org/x/mod/semver"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	compscanctrl "github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancescan"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -393,7 +394,7 @@ func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version strin
 
 	curlCMD := "curl -i -ks " + endpoint
 
-	overrides, err := generateTestPodOverrides(curlCMD)
+	overrides, err := generatePodOverrides(testPodOverrides{Command: curlCMD})
 	if err != nil {
 		return err
 	}
@@ -402,9 +403,9 @@ func (f *Framework) AssertMetricsEndpointUsesHTTPVersion(endpoint, version strin
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
 	cmd := exec.Command(ocPath,
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"run", "--rm", "-i", "--restart=Never", "--image="+FedoraTestImage,
 		"-n", f.OperatorNamespace, "--overrides="+overrides,
-		fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()), "--", "bash", "-c", curlCMD,
+		fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()),
 	)
 
 	out, err := cmd.CombinedOutput()
@@ -564,7 +565,10 @@ func (f *Framework) WaitForPrometheusMetricTargets() ([]PrometheusTarget, error)
 		// Clear slice in case of a retry
 		metricsTargets = nil
 
-		podOverrides, err := generatePodOverrides(prometheusCommand)
+		podOverrides, err := generatePodOverrides(testPodOverrides{
+			Command:        prometheusCommand,
+			ServiceAccount: PrometheusTestSA,
+		})
 		if err != nil {
 			return false, err
 		}
@@ -711,7 +715,7 @@ func getMetricResults(namespace string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	overrides, err := generateTestPodOverrides(getTestMetricsCMD(namespace))
+	overrides, err := generatePodOverrides(testPodOverrides{Command: getTestMetricsCMD(namespace)})
 	if err != nil {
 		return "", err
 	}
@@ -720,10 +724,9 @@ func getMetricResults(namespace string) (string, error) {
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
 	cmd := exec.Command(ocPath,
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"run", "--rm", "-i", "--restart=Never", "--image="+FedoraTestImage,
 		"-n", namespace, "--overrides="+overrides,
-		fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()), "--", "bash", "-c",
-		getTestMetricsCMD(namespace),
+		fmt.Sprintf("metrics-test-%d", time.Now().UnixNano()),
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -847,31 +850,63 @@ func (f *Framework) AssertScanPVCHasStorageConfig(scanName, namespace, expectedS
 	return nil
 }
 
-// generatePodOverrides returns JSON pod spec overrides for running a command in a temporary pod
-// (e.g. for metrics or AlertManager API calls). command is the bash -c argument.
-func generatePodOverrides(command string) (string, error) {
-	m := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"serviceAccountName": PrometheusTestSA,
-			"securityContext": map[string]interface{}{
-				"runAsNonRoot":   true,
-				"seccompProfile": map[string]interface{}{"type": "RuntimeDefault"},
-			},
-			"containers": []map[string]interface{}{
-				{
-					"name":    "test",
-					"image":   FedoraTestImage,
-					"command": []string{"bash", "-c", command},
-					"securityContext": map[string]interface{}{
-						"allowPrivilegeEscalation": false,
-						"runAsNonRoot":             true,
-						"capabilities":             map[string]interface{}{"drop": []string{"ALL"}},
-						"seccompProfile":           map[string]interface{}{"type": "RuntimeDefault"},
-					},
+// testPodOverrides describes a temporary pod used by the e2e tests to run a
+// command against an in-cluster endpoint.
+type testPodOverrides struct {
+	// Command is the bash -c argument the pod's container runs.
+	Command string
+	// Image is the container image to run. Defaults to FedoraTestImage.
+	Image string
+	// ServiceAccount, when non-empty, is set as the pod's serviceAccountName.
+	ServiceAccount string
+	// Labels, when non-empty, are applied to the pod's metadata.
+	Labels map[string]string
+}
+
+// generatePodOverrides returns JSON pod spec overrides for running a command in
+// a temporary pod that satisfies the restricted:latest PodSecurity standard.
+//
+// oc run applies these as a JSON merge patch, which replaces the containers
+// array rather than merging into it, so the container defined here supersedes
+// the one oc run builds from its own flags. The command and image must
+// therefore be set here; trailing "-- bash -c <command>" arguments and the
+// value of --image are discarded. The containers entry cannot be dropped
+// either, because allowPrivilegeEscalation and capabilities are container-level
+// fields that restricted:latest requires.
+func generatePodOverrides(o testPodOverrides) (string, error) {
+	image := o.Image
+	if image == "" {
+		image = FedoraTestImage
+	}
+
+	spec := map[string]interface{}{
+		"securityContext": map[string]interface{}{
+			"runAsNonRoot":   true,
+			"seccompProfile": map[string]interface{}{"type": "RuntimeDefault"},
+		},
+		"containers": []map[string]interface{}{
+			{
+				"name":    "test",
+				"image":   image,
+				"command": []string{"bash", "-c", o.Command},
+				"securityContext": map[string]interface{}{
+					"allowPrivilegeEscalation": false,
+					"runAsNonRoot":             true,
+					"capabilities":             map[string]interface{}{"drop": []string{"ALL"}},
+					"seccompProfile":           map[string]interface{}{"type": "RuntimeDefault"},
 				},
 			},
 		},
 	}
+	if o.ServiceAccount != "" {
+		spec["serviceAccountName"] = o.ServiceAccount
+	}
+
+	m := map[string]interface{}{"spec": spec}
+	if len(o.Labels) > 0 {
+		m["metadata"] = map[string]interface{}{"labels": o.Labels}
+	}
+
 	b, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("marshal pod overrides: %w", err)
@@ -879,61 +914,11 @@ func generatePodOverrides(command string) (string, error) {
 	return string(b), nil
 }
 
-// buildTestPodOverridesMap builds a restricted:latest PodSecurity overrides
-// map for an oc-run pod.  When labels is non-nil the map includes a metadata
-// section so callers can attach pod labels (e.g. workload:scanner).
-func buildTestPodOverridesMap(command string, labels map[string]string) map[string]interface{} {
-	m := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"securityContext": map[string]interface{}{
-				"runAsNonRoot":   true,
-				"seccompProfile": map[string]interface{}{"type": "RuntimeDefault"},
-			},
-			"containers": []map[string]interface{}{
-				{
-					"name":    "test",
-					"image":   "registry.fedoraproject.org/fedora-minimal:latest",
-					"command": []string{"bash", "-c", command},
-					"securityContext": map[string]interface{}{
-						"allowPrivilegeEscalation": false,
-						"runAsNonRoot":             true,
-						"capabilities":             map[string]interface{}{"drop": []string{"ALL"}},
-						"seccompProfile":           map[string]interface{}{"type": "RuntimeDefault"},
-					},
-				},
-			},
-		},
-	}
-	if len(labels) > 0 {
-		m["metadata"] = map[string]interface{}{
-			"labels": labels,
-		}
-	}
-	return m
-}
-
-// generateTestPodOverrides returns JSON overrides that add a restricted:latest
-// PodSecurity context to an oc-run pod. Use this for test pods that need to
-// pass PodSecurity admission but don't target the result server.
-func generateTestPodOverrides(command string) (string, error) {
-	m := buildTestPodOverridesMap(command, nil)
-	b, err := json.Marshal(m)
-	if err != nil {
-		return "", fmt.Errorf("marshal test pod overrides: %w", err)
-	}
-	return string(b), nil
-}
-
-// generateResultServerTestOverrides returns JSON overrides like
-// generateTestPodOverrides, but also sets the workload:scanner label so the
-// pod matches the result server's ingress NetworkPolicy.
-func generateResultServerTestOverrides(command string) (string, error) {
-	m := buildTestPodOverridesMap(command, map[string]string{"workload": "scanner"})
-	b, err := json.Marshal(m)
-	if err != nil {
-		return "", fmt.Errorf("marshal result server test pod overrides: %w", err)
-	}
-	return string(b), nil
+// resultServerClientLabels returns the pod labels a test pod needs in order to
+// reach the result server. Its ingress NetworkPolicy only admits clients
+// carrying the scanner workload label, so a pod without these is dropped.
+func resultServerClientLabels() map[string]string {
+	return map[string]string{compscanctrl.WorkloadLabel: compscanctrl.WorkloadScanner}
 }
 
 // AssertAlertManagerAlertExists checks that an alert exists in AlertManager with the specified
@@ -960,7 +945,10 @@ func (f *Framework) AssertAlertManagerAlertExists(labelName, expectedDescription
 
 	var lastErr error
 	timeouterr := wait.Poll(RetryInterval, timeout, func() (bool, error) {
-		podOverrides, err := generatePodOverrides(command)
+		podOverrides, err := generatePodOverrides(testPodOverrides{
+			Command:        command,
+			ServiceAccount: PrometheusTestSA,
+		})
 		if err != nil {
 			return false, err
 		}
@@ -1224,6 +1212,20 @@ func parseTLSVersionFromCurlOutput(output string) string {
 	return re.FindString(output)
 }
 
+// tlsHandshakeMarker is the line curl -v prints once a TLS session has been
+// established. Its absence means no handshake completed.
+const tlsHandshakeMarker = "SSL connection using"
+
+// curlConnected reports whether curl -v got a TCP connection to the server.
+// The exit status alone cannot tell a refused handshake from a pod that never
+// ran: oc run reports a non-zero status for an admission rejection, an image
+// pull failure or a name conflict just as it does for curl exiting non-zero.
+// Requiring the connection trace confirms the container ran and reached the
+// server, so a missing handshake is the server's doing and not the harness'.
+func curlConnected(output string) bool {
+	return strings.Contains(output, "Connected to ")
+}
+
 // tlsVersionAtLeast returns true if actual >= minimum using the TLS version
 // ordering. Both arguments should be strings like "TLSv1.2".
 func tlsVersionAtLeast(actual, minimum string) bool {
@@ -1248,7 +1250,7 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 		return fmt.Errorf("oc not found: %w", err)
 	}
 
-	overrides, err := generateTestPodOverrides(curlCMD)
+	overrides, err := generatePodOverrides(testPodOverrides{Command: curlCMD})
 	if err != nil {
 		return err
 	}
@@ -1258,10 +1260,9 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image="+FedoraTestImage,
 			"-n", f.OperatorNamespace, "--overrides="+overrides,
-			"tls-version-test",
-			"--", "bash", "-c", curlCMD,
+			fmt.Sprintf("tls-version-test-%d", time.Now().UnixNano()),
 		)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -1326,7 +1327,10 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 			certB64, keyB64, endpoint,
 		)
 
-		overrides, err := generateResultServerTestOverrides(curlCMD)
+		overrides, err := generatePodOverrides(testPodOverrides{
+			Command: curlCMD,
+			Labels:  resultServerClientLabels(),
+		})
 		if err != nil {
 			return false, err
 		}
@@ -1334,10 +1338,9 @@ func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVers
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image="+FedoraTestImage,
 			"-n", f.OperatorNamespace, "--overrides="+overrides,
-			"rs-tls-version-test",
-			"--", "bash", "-c", curlCMD,
+			fmt.Sprintf("rs-tls-version-test-%d", time.Now().UnixNano()),
 		)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -1383,7 +1386,7 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 		return fmt.Errorf("oc not found: %w", err)
 	}
 
-	overrides, err := generateTestPodOverrides(curlCMD)
+	overrides, err := generatePodOverrides(testPodOverrides{Command: curlCMD})
 	if err != nil {
 		return err
 	}
@@ -1393,16 +1396,20 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image="+FedoraTestImage,
 			"-n", f.OperatorNamespace, "--overrides="+overrides,
-			"tls-reject-test",
-			"--", "bash", "-c", curlCMD,
+			fmt.Sprintf("tls-reject-test-%d", time.Now().UnixNano()),
 		)
 		out, err := cmd.CombinedOutput()
 		output := string(out)
 
-		if err == nil && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert") {
-			lastErr = fmt.Errorf("expected connection with --tls-max %s to be rejected, but it succeeded: %s", rejectedTLSVersion, output)
+		switch {
+		case !curlConnected(output):
+			lastErr = fmt.Errorf("curl never reached the metrics endpoint, so nothing was proven about its TLS floor: %v, output: %s", err, output)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		case strings.Contains(output, tlsHandshakeMarker):
+			lastErr = fmt.Errorf("expected connection with --tls-max %s to be rejected, but the handshake succeeded: %s", rejectedTLSVersion, output)
 			log.Printf("%v... retrying\n", lastErr)
 			return false, nil
 		}
@@ -1450,7 +1457,10 @@ func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVer
 			certB64, keyB64, rejectedTLSVersion, endpoint,
 		)
 
-		overrides, err := generateResultServerTestOverrides(curlCMD)
+		overrides, err := generatePodOverrides(testPodOverrides{
+			Command: curlCMD,
+			Labels:  resultServerClientLabels(),
+		})
 		if err != nil {
 			return false, err
 		}
@@ -1458,16 +1468,20 @@ func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVer
 		// #nosec G204
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"--image="+FedoraTestImage,
 			"-n", f.OperatorNamespace, "--overrides="+overrides,
-			"rs-tls-reject-test",
-			"--", "bash", "-c", curlCMD,
+			fmt.Sprintf("rs-tls-reject-test-%d", time.Now().UnixNano()),
 		)
 		out, err := cmd.CombinedOutput()
 		output := string(out)
 
-		if err == nil && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert") {
-			lastErr = fmt.Errorf("expected result server connection with --tls-max %s to be rejected, but it succeeded: %s", rejectedTLSVersion, output)
+		switch {
+		case !curlConnected(output):
+			lastErr = fmt.Errorf("curl never reached the result server, so nothing was proven about its TLS floor: %v, output: %s", err, output)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		case strings.Contains(output, tlsHandshakeMarker):
+			lastErr = fmt.Errorf("expected result server connection with --tls-max %s to be rejected, but the handshake succeeded: %s", rejectedTLSVersion, output)
 			log.Printf("%v... retrying\n", lastErr)
 			return false, nil
 		}
