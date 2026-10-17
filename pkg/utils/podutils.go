@@ -24,12 +24,12 @@ func FindNewestPod(pods []corev1.Pod) *corev1.Pod {
 }
 
 // validate priority class exists by name
-func ValidatePriorityClassExist(name string, client client.Client) (bool, string) {
+func ValidatePriorityClassExist(ctx context.Context, name string, client client.Client) (bool, string) {
 	if name == "" {
 		return true, ""
 	}
 	priorityClass := &schedulev1.PriorityClass{}
-	err := client.Get(context.TODO(), types.NamespacedName{Name: name}, priorityClass)
+	err := client.Get(ctx, types.NamespacedName{Name: name}, priorityClass)
 	if err != nil {
 		return false, fmt.Sprintf("Error while getting priority class '%s', err: %s\n", name, err)
 	}
