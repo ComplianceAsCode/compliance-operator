@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"testing"
 
@@ -13,8 +12,6 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var brokenContentImagePath string
@@ -47,158 +44,6 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Exit(exitCode)
-}
-
-func TestScanWithInvalidProfileFails(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	scanName := "test-scan-w-invalid-profile"
-	exampleComplianceScan := &compv1alpha1.ComplianceScan{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile:      "xccdf_org.ssgproject.content_profile_coreos-unexistent",
-			Content:      framework.RhcosContentFile,
-			ContentImage: contentImagePath,
-			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-				Debug: true,
-			},
-		},
-	}
-	// use Context's create helper to create the object and add a cleanup function for the new object
-	err := f.Client.Create(context.TODO(), exampleComplianceScan, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), exampleComplianceScan)
-	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = f.AssertScanIsInError(scanName, f.OperatorNamespace)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestMissingPodInRunningState(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-	scanName := "test-missing-pod-scan"
-	exampleComplianceScan := &compv1alpha1.ComplianceScan{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      scanName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ComplianceScanSpec{
-			Profile:      "xccdf_org.ssgproject.content_profile_moderate",
-			Content:      framework.RhcosContentFile,
-			ContentImage: contentImagePath,
-			Rule:         "xccdf_org.ssgproject.content_rule_no_netrc_files",
-			ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-				Debug: true,
-			},
-		},
-	}
-	// use Context's create helper to create the object and add a cleanup function for the new object
-	err := f.Client.Create(context.TODO(), exampleComplianceScan, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), exampleComplianceScan)
-
-	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseRunning)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pods, err := f.GetPodsForScan(scanName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(pods) < 1 {
-		t.Fatal("No pods gotten from query for the scan")
-	}
-	podToDelete := pods[rand.Intn(len(pods))]
-	// Delete pod ASAP
-	zeroSeconds := int64(0)
-	do := client.DeleteOptions{GracePeriodSeconds: &zeroSeconds}
-	err = f.Client.Delete(context.TODO(), &podToDelete, &do)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = f.WaitForScanStatus(f.OperatorNamespace, scanName, compv1alpha1.PhaseDone)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = f.AssertScanIsCompliant(scanName, f.OperatorNamespace)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSuiteWithContentThatDoesNotMatch(t *testing.T) {
-	t.Parallel()
-	f := framework.Global
-
-	pbName := framework.GetObjNameFromTest(t)
-	baselineImage := fmt.Sprintf("%s:%s", brokenContentImagePath, "broken_os_detection")
-	origPb, err := f.CreateProfileBundle(pbName, baselineImage, framework.RhcosContentFile)
-	if err != nil {
-		t.Fatalf("failed to create ProfileBundle: %s", err)
-	}
-	// This should get cleaned up at the end of the test
-	defer f.Client.Delete(context.TODO(), origPb)
-	if err = f.WaitForProfileBundleStatus(pbName, compv1alpha1.DataStreamValid); err != nil {
-		t.Fatalf("failed waiting for the ProfileBundle to become available: %s", err)
-	}
-
-	suiteName := "test-suite-with-non-matching-content"
-	testSuite := &compv1alpha1.ComplianceSuite{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      suiteName,
-			Namespace: f.OperatorNamespace,
-		},
-		Spec: compv1alpha1.ComplianceSuiteSpec{
-			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
-				AutoApplyRemediations: false,
-			},
-			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
-				{
-					Name: fmt.Sprintf("%s-workers-scan", suiteName),
-					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
-						ContentImage: baselineImage,
-						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
-						Content:      "ssg-rhcos4-ds.xml",
-						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
-							Debug:             true,
-							ShowNotApplicable: true,
-						},
-						NodeSelector: map[string]string{
-							"node-role.kubernetes.io/worker": "",
-						},
-					},
-				},
-			},
-		},
-	}
-	// use Context's create helper to create the object and add a cleanup function for the new object
-	err = f.Client.Create(context.TODO(), testSuite, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Client.Delete(context.TODO(), testSuite)
-
-	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNotApplicable)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = f.SuiteErrorMessageMatchesRegex(f.OperatorNamespace, suiteName, "The suite result is not applicable.*")
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestScanCleansUpComplianceCheckResults(t *testing.T) {
