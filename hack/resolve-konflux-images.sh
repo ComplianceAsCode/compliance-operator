@@ -56,6 +56,11 @@ if [[ $repo != quay.io/* ]]; then
   echo "KONFLUX_REPO must be on quay.io: $repo" >&2
   exit 2
 fi
+# Validate KONFLUX_WAIT_SECONDS.
+if [[ ! $wait_seconds =~ ^[0-9]+$ ]]; then
+  echo "KONFLUX_WAIT_SECONDS must be whole seconds: $wait_seconds" >&2
+  exit 2
+fi
 
 # Use PULL_* defaults only when the Prow job is for this repository. In
 # openshift/release rehearsals and other repositories' jobs, PULL_* describes
@@ -71,8 +76,12 @@ else
 fi
 
 # In strict mode without an explicit base, use the checkout's HEAD.
+# Fail hard if git fails instead of silently falling back to :master.
 if [[ -n $strict && -z $base_sha ]]; then
-  base_sha=$(git rev-parse HEAD 2>/dev/null) || true
+  if ! base_sha=$(git rev-parse --verify 'HEAD^{commit}'); then
+    echo "--strict needs this repository's git history, and git failed (above)" >&2
+    exit 1
+  fi
 fi
 
 # Source tekton-paths.sh only for strict mode.
@@ -85,6 +94,20 @@ if [[ -n $strict ]]; then
   # shellcheck source=lib/tekton-paths.sh
   source "$lib"
 fi
+
+# ---- Helpers ----
+
+# need_commit <sha> <description>: fail if the checkout lacks the commit,
+# showing git's own error and detecting shallow clones.
+need_commit() {
+  local err
+  if ! err=$(git cat-file -e "$1^{commit}" 2>&1); then
+    [[ $(git rev-parse --is-shallow-repository 2>/dev/null) == true ]] &&
+      err="$err (the clone is shallow)"
+    echo "The checkout lacks $2 $1: $err" >&2
+    exit 1
+  fi
+}
 
 # ---- Quay API helpers ----
 
@@ -99,6 +122,17 @@ has() {
     exit 1
   }
   [[ $out == *'"name"'* ]]
+}
+
+# tag_start_ts <component> <tag>: print the start_ts epoch of a tag, or nothing.
+tag_start_ts() {
+  local out ts
+  out=$(curl -fsS --max-time 30 --retry 3 --retry-all-errors \
+    "https://quay.io/api/v1/repository/${repo#quay.io/}/$1/tag/?specificTag=$2" 2>/dev/null) || return 0
+  ts=${out#*'"start_ts"'}
+  [[ $ts != "$out" ]] || return 0
+  ts=${ts#*:}; ts=${ts%%[,\}]*}; ts=${ts//[[:space:]]/}
+  [[ $ts =~ ^[0-9]+$ ]] && printf '%s\n' "$ts"
 }
 
 # pipeline_name <pipeline_file>: the pipeline's metadata.name, for /test hints.
@@ -116,9 +150,10 @@ pipeline_name() {
 
 # check_run_hint <commit_sha> <pipeline_name>: best-effort GitHub API lookup
 # for the Konflux check run. Prints a hint line, or nothing if the lookup
-# fails. Never fails itself.
+# fails. Never fails itself. Always queries ComplianceAsCode/compliance-operator
+# because REPO_OWNER/REPO_NAME point to the rehearsal repo in rehearsals.
 check_run_hint() {
-  local cr_repo="${REPO_OWNER:-ComplianceAsCode}/${REPO_NAME:-compliance-operator}"
+  local cr_repo="ComplianceAsCode/compliance-operator"
   local out found='' conclusion='' details_url='' run_status='' line v
   out=$(curl -fsS --max-time 10 \
     "https://api.github.com/repos/$cr_repo/commits/$1/check-runs" 2>/dev/null) || return 0
@@ -145,23 +180,126 @@ check_run_hint() {
   fi
 }
 
-# wait_for_tag <component> <tag>: poll until the tag is active.
+# wait_for_tag <component> <tag>: poll until the tag is active, using
+# exponential backoff (10s, 20s, 40s, 60s, ...) capped at 60s within the
+# caller's shared budget ($waited / $wait_seconds).
 # Returns 0 = active, 1 = .git tag expired/inactive, 2 = timed out.
+# shellcheck disable=SC2154 # $waited and $wait_seconds are from the caller.
 wait_for_tag() {
-  local component=$1 wtag=$2 elapsed=0 delay
-  for delay in 10 20 40; do
+  local component=$1 wtag=$2 delay=10
+  while :; do
     has "$component" "$wtag" active && return 0
     has "$component" "$wtag.git" active || return 1
+    (( waited < wait_seconds )) || return 2
+    (( delay <= wait_seconds - waited )) || delay=$(( wait_seconds - waited ))
     sleep "$delay"
-    elapsed=$((elapsed + delay))
+    waited=$(( waited + delay ))
+    delay=$(( delay * 2 > 60 ? 60 : delay * 2 ))
   done
-  while (( elapsed < wait_seconds )); do
-    has "$component" "$wtag" active && return 0
-    has "$component" "$wtag.git" active || return 1
-    sleep 60
-    elapsed=$((elapsed + 60))
-  done
-  return 2
+}
+
+# await_build <component> <tag>: wait for a Konflux build and handle all
+# error cases with appropriate messages and rebuild hints. Uses a fresh
+# $waited counter (one budget per component).
+await_build() {
+  local component=$1 atag=$2 image="$repo/$1:$2"
+  local pfile pn rebuild_msg waited=0 ws=0
+
+  # Determine the pipeline file and name for hints.
+  if [[ $atag == on-pr-* ]]; then
+    pfile=$(tekton_pipeline "$component" pull-request 2>/dev/null) || true
+  else
+    pfile=$(tekton_pipeline "$component" push 2>/dev/null) || true
+  fi
+  pn=
+  [[ -z ${pfile:-} ]] || { pn=$(pipeline_name "$pfile") || true; }
+
+  # Build the rebuild hint: /test for PR builds, re-run for push builds.
+  if [[ $atag == on-pr-* ]]; then
+    rebuild_msg="Comment \"/test ${pn:-$component-on-pull-request}\" to rebuild it, then /retest."
+  else
+    rebuild_msg="Re-run the push build of $atag in Konflux."
+  fi
+
+  # Already active?
+  has "$component" "$atag" active && return 0
+
+  # Build in progress?
+  if has "$component" "$atag.git"; then
+    # Use Quay start_ts as primary signal: if .git tag is older than ~45
+    # minutes with no image, the build almost certainly failed — fail at once
+    # instead of burning the full wait budget.
+    local ts now age
+    ts=$(tag_start_ts "$component" "$atag.git")
+    if [[ -n $ts ]]; then
+      now=$(date +%s)
+      age=$(( now - ts ))
+      if (( age > 2700 )) && ! has "$component" "$atag" active; then
+        echo "$image: the Konflux build started $((age / 60)) minutes ago without producing an image; it has almost certainly failed." >&2
+        if [[ -n ${pn:-} ]]; then
+          local extra
+          extra=$(check_run_hint "${atag#on-pr-}" "$pn") || true
+          [[ -z ${extra:-} ]] || echo "$extra" >&2
+        fi
+        echo "$rebuild_msg" >&2
+        exit 1
+      fi
+    fi
+    wait_for_tag "$component" "$atag" || ws=$?
+    case $ws in
+      0) return 0 ;;
+      1)
+        echo "$image has expired." >&2
+        echo "$rebuild_msg" >&2
+        exit 1
+        ;;
+      2)
+        echo "Konflux hasn't finished building $image after $((wait_seconds / 60)) minutes." >&2
+        if [[ -n ${pn:-} ]]; then
+          local extra2
+          extra2=$(check_run_hint "${atag#on-pr-}" "$pn") || true
+          [[ -z ${extra2:-} ]] || echo "$extra2" >&2
+        fi
+        echo "$rebuild_msg" >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  # PR build that hasn't started yet: wait for it to appear.
+  if [[ $atag == on-pr-* ]]; then
+    local delay=30
+    while (( waited < wait_seconds )); do
+      if has "$component" "$atag.git"; then
+        ws=0
+        wait_for_tag "$component" "$atag" || ws=$?
+        case $ws in
+          0) return 0 ;;
+          1)
+            echo "$image has expired." >&2
+            echo "$rebuild_msg" >&2
+            exit 1
+            ;;
+          2)
+            echo "Konflux hasn't finished building $image after $((wait_seconds / 60)) minutes." >&2
+            echo "$rebuild_msg" >&2
+            exit 1
+            ;;
+        esac
+      fi
+      (( delay <= wait_seconds - waited )) || delay=$(( wait_seconds - waited ))
+      sleep "$delay"
+      waited=$(( waited + delay ))
+    done
+    echo "Konflux hasn't started building $image after $((wait_seconds / 60)) minutes." >&2
+    echo "$rebuild_msg" >&2
+    exit 1
+  fi
+
+  # Push build that doesn't exist — include remedy.
+  echo "$image, the build of base commit $atag (the newest that changes $component's sources), doesn't exist; its Konflux push build may have failed." >&2
+  echo "$rebuild_msg" >&2
+  exit 1
 }
 
 # ---- Non-strict resolve ----
@@ -171,7 +309,7 @@ wait_for_tag() {
 resolve() {
   local component=$1
   if [[ -n $sha ]] && has "$component" "on-pr-$sha.git"; then
-    local ws=0
+    local waited=0 ws=0
     wait_for_tag "$component" "on-pr-$sha" || ws=$?
     case $ws in
       0) echo "$repo/$component:on-pr-$sha"; return ;;
@@ -199,9 +337,11 @@ resolve() {
 # ---- Strict resolve ----
 
 # resolve_strict <component>: print the exact build the job must test with,
-# determined from git history and .tekton pipeline definitions.
+# determined from git history and .tekton pipeline definitions. Delegates the
+# decision logic to strict_tag() from tekton-paths.sh, and the waiting/error
+# handling to await_build().
 resolve_strict() {
-  local component=$1
+  local component=$1 tag
 
   # Batch jobs test several PRs together; no single build matches.
   if [[ ${JOB_TYPE:-} == batch ]]; then
@@ -209,168 +349,29 @@ resolve_strict() {
     exit 1
   fi
 
-  if [[ -n $sha ]]; then
-    # -- PR job: have a PR head commit --
+  # Verify the checkout has the required commits.
+  [[ -z $sha ]] || need_commit "$sha" "the PR head"
+  need_commit "$base_sha" "the base"
 
-    if [[ -z $base_sha ]]; then
-      echo "--strict needs KONFLUX_BASE_SHA (or PULL_BASE_SHA) when KONFLUX_SHA is set" >&2
-      exit 1
-    fi
-    # Verify the checkout has the required commits.
-    if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
-      echo "The checkout lacks commit $sha (the PR head). A full clone is needed for --strict" >&2
-      exit 1
-    fi
-    if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
-      echo "The checkout lacks commit $base_sha (the base). A full clone is needed for --strict" >&2
-      exit 1
-    fi
-
-    # If Konflux already started a PR build (covers manual /test too), use it.
-    if has "$component" "on-pr-$sha.git"; then
-      local pfile_hint ws=0
-      pfile_hint=$(tekton_pipeline "$component" pull-request 2>/dev/null) || true
-      wait_for_tag "$component" "on-pr-$sha" || ws=$?
-      case $ws in
-        0) echo "$repo/$component:on-pr-$sha"; return ;;
-        1)
-          local pn=
-          [[ -n ${pfile_hint:-} ]] && { pn=$(pipeline_name "$pfile_hint") || true; }
-          echo "$repo/$component:on-pr-$sha has expired. Comment \"/test ${pn:-$component-on-pull-request}\" to rebuild it, then /retest." >&2
-          exit 1
-          ;;
-        2)
-          local mins=$((wait_seconds / 60))
-          echo "Konflux hasn't finished building $repo/$component:on-pr-$sha after $mins minutes." >&2
-          local pn=
-          [[ -n ${pfile_hint:-} ]] && { pn=$(pipeline_name "$pfile_hint") || true; }
-          if [[ -n $pn ]]; then
-            local extra
-            extra=$(check_run_hint "$sha" "$pn") || true
-            [[ -n ${extra:-} ]] && echo "$extra" >&2
-          fi
-          exit 1
-          ;;
-      esac
-    fi
-
-    # Check whether the PR changes the component's sources.
-    local pfile_pr list_pr hit status_cm=0
-    local -a patterns_pr
-    pfile_pr=$(tekton_pipeline "$component" pull-request) || exit 1
-    list_pr=$(tekton_patterns "$pfile_pr") || exit 1
-    mapfile -t patterns_pr <<<"$list_pr"
-    hit=$(changed_match "$base_sha" "$sha" "${patterns_pr[@]}") || status_cm=$?
-    case $status_cm in
-      0)
-        # PR changes the sources. Wait for the build to start.
-        local pn image elapsed=0
-        pn=$(pipeline_name "$pfile_pr") || true
-        image="$repo/$component:on-pr-$sha"
-        echo "This PR changes ${hit%% (*}, so it needs $image" >&2
-        while (( elapsed < wait_seconds )); do
-          if has "$component" "on-pr-$sha.git"; then
-            local ws2=0
-            wait_for_tag "$component" "on-pr-$sha" || ws2=$?
-            case $ws2 in
-              0) echo "$image"; return ;;
-              1)
-                echo "$image has expired. Comment \"/test ${pn:-$component-on-pull-request}\" to rebuild it, then /retest." >&2
-                exit 1
-                ;;
-              2)
-                echo "Konflux hasn't finished building $image after $((wait_seconds / 60)) minutes." >&2
-                if [[ -n $pn ]]; then
-                  local extra2
-                  extra2=$(check_run_hint "$sha" "$pn") || true
-                  [[ -n ${extra2:-} ]] && echo "$extra2" >&2
-                fi
-                exit 1
-                ;;
-            esac
-          fi
-          sleep 30
-          elapsed=$((elapsed + 30))
-        done
-        # Build was never started.
-        local file=${hit%% (*}
-        echo "This PR changes $file, so it must be tested with $image, but Konflux hasn't started that build. Comment \"/test ${pn:-$component-on-pull-request}\" on the PR to build it, then /retest." >&2
-        exit 1
-        ;;
-      1) ;; # No match — fall through to base build.
-      *)
-        exit 1
-        ;;
-    esac
+  # If Konflux already started a PR build (covers manual /test too), use it.
+  if [[ -n $sha ]] && has "$component" "on-pr-$sha.git"; then
+    echo "Konflux built this PR's $component, so it's tested with that build" >&2
+    tag=on-pr-$sha
+  else
+    # Call strict_tag() for the decision: which tag to test with.
+    tag=$(strict_tag "$component" "$base_sha" "$sha") || exit 1
   fi
 
-  # -- Base build: find the newest base commit that changes the sources --
-
-  if [[ -n $base_sha ]]; then
-    if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
-      echo "The checkout lacks commit $base_sha (the base). A full clone is needed for --strict" >&2
-      exit 1
+  # Merge skew warning: if the base commit used for the build isn't an
+  # ancestor of the PR head, master changed sources after the PR branched.
+  if [[ -n $sha && $tag != on-pr-* ]]; then
+    if ! git merge-base --is-ancestor "$tag" "$sha" 2>/dev/null; then
+      echo "Note: master changed $component's sources after this PR branched. A rebase tests them together." >&2
     fi
-    local pfile_push list_push commit status_lmc=0
-    local -a patterns_push
-    pfile_push=$(tekton_pipeline "$component" push) || exit 1
-    list_push=$(tekton_patterns "$pfile_push") || exit 1
-    mapfile -t patterns_push <<<"$list_push"
-    commit=$(last_matching_commit "$base_sha" "${patterns_push[@]}") || status_lmc=$?
-    case $status_lmc in
-      0) ;;
-      1)
-        echo "None of the newest 500 commits of $base_sha changes $component's sources" >&2
-        exit 1
-        ;;
-      *)
-        exit 1
-        ;;
-    esac
-    local image="$repo/$component:$commit"
-    echo "Testing with the build of $commit, the newest commit of $base_sha that changes $component's sources" >&2
-    # Check if the image is already active.
-    if has "$component" "$commit" active; then
-      echo "$image"
-      return
-    fi
-    # Check if the build is in progress.
-    if has "$component" "$commit.git"; then
-      local ws3=0
-      wait_for_tag "$component" "$commit" || ws3=$?
-      case $ws3 in
-        0) echo "$image"; return ;;
-        1|2)
-          if (( ws3 == 2 )); then
-            echo "Konflux hasn't finished building $image after $((wait_seconds / 60)) minutes." >&2
-            local pn3
-            pn3=$(pipeline_name "$pfile_push") || true
-            if [[ -n $pn3 ]]; then
-              local extra3
-              extra3=$(check_run_hint "$commit" "$pn3") || true
-              [[ -n ${extra3:-} ]] && echo "$extra3" >&2
-            fi
-          else
-            echo "$image, the build of base commit $commit (the newest that changes $component's sources), doesn't exist; its Konflux push build may have failed." >&2
-          fi
-          exit 1
-          ;;
-      esac
-    fi
-    # No build at all.
-    echo "$image, the build of base commit $commit (the newest that changes $component's sources), doesn't exist; its Konflux push build may have failed." >&2
-    exit 1
   fi
 
-  # -- No base SHA and no git checkout: local run outside the repository --
-
-  if has "$component" "$tag" active; then
-    echo "No git history available; using the branch tag $repo/$component:$tag" >&2
-    echo "$repo/$component:$tag"
-    return
-  fi
-  echo "$repo/$component:$tag doesn't exist. Set KONFLUX_TAG, or check the Konflux push builds for $tag." >&2
-  exit 1
+  await_build "$component" "$tag"
+  echo "$repo/$component:$tag"
 }
 
 # ---- Main loop ----
