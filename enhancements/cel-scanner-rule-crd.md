@@ -498,7 +498,7 @@ existing OpenSCAP rules.
     individual rule/profile files.
   - `make cel-bundle` — Makefile target that regenerates
     `tests/data/cel-content-test.yaml` and copies it to the test image dir.
-- **E2E tests** (`tests/e2e/parallel/main_test.go`):
+- **E2E tests** (`tests/e2e/cel_tests/main_test.go`):
   - `TestCELProfileBundle`: Creates a ProfileBundle with both XCCDF and CEL
     content. Verifies the ProfileBundle reaches VALID state, CEL Rules are
     created with correct `scannerType`, `expression`, `inputs`, annotations

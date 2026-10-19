@@ -124,7 +124,7 @@ TEST_DEPLOY=$(TEST_SETUP_DIR)/deploy_rbac.yaml
 # 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/Parallel_tests/TestScanWithNodeSelectorFiltersCorrectly"
 E2E_GO_TEST_FLAGS?=-v -test.timeout 120m
 
-# By default we run all tests; available options: all, parallel, deployment, config, serial
+# By default we run all tests; available options: all, deployment, config, serial
 E2E_TEST_TYPE?=all
 
 # By default, the test runner won't cleanup resources from failed test runs. Set this
@@ -642,15 +642,11 @@ endif
 	@$(GO) test -v ./pkg/utils/ -ginkgo.v
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e e2e-parallel e2e-scan-config e2e-deployment e2e-remediation e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+e2e: e2e-set-image prep-e2e e2e-scan-config e2e-deployment e2e-remediation e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
 
 .PHONY: e2e
 e2e-test-wait:
 	./utils/e2e-test-wait.sh
-
-.PHONY: e2e-parallel
-e2e-parallel: e2e-set-image prep-e2e ## Run non-destructive end-to-end tests concurrently.
-	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/parallel $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-parallel.log
 
 .PHONY: e2e-scan-config
 e2e-scan-config: e2e-set-image prep-e2e ## Run scan and suite configuration end-to-end tests concurrently.
