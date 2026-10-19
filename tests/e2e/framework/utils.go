@@ -24,6 +24,7 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -1515,6 +1516,87 @@ func (f *Framework) WaitForNodesToBeSchedulable() error {
 				return false, nil
 			}
 		}
+		return true, nil
+	})
+	if timeouterr != nil {
+		if lastErr != nil {
+			return lastErr
+		}
+		return timeouterr
+	}
+	return nil
+}
+
+// GetMachineConfigPoolConfigs returns a map of pool name → current rendered
+// MachineConfig name (Spec.Configuration.Name) for the given pool names.
+// Record these BEFORE a cluster change that triggers an MCO rollout so that
+// WaitForMachineConfigPoolsRollout can detect when new configs are applied.
+func (f *Framework) GetMachineConfigPoolConfigs(poolNames []string) (map[string]string, error) {
+	configs := make(map[string]string, len(poolNames))
+	for _, name := range poolNames {
+		pool := &mcfgv1.MachineConfigPool{}
+		key := types.NamespacedName{Name: name}
+		if err := f.Client.Get(context.TODO(), key, pool); err != nil {
+			return nil, fmt.Errorf("failed to get MachineConfigPool %s: %w", name, err)
+		}
+		configs[name] = pool.Spec.Configuration.Name
+		log.Printf("MachineConfigPool %s current rendered config: %s\n", name, configs[name])
+	}
+	return configs, nil
+}
+
+// WaitForMachineConfigPoolsRollout waits until every MachineConfigPool listed
+// in preConfigs has a NEW rendered MachineConfig name (different from the
+// pre-update value) AND reports that all machines are updated and available.
+// This is the correct signal after a change that triggers MCO node rollouts
+// (e.g. APIServer TLS profile change) — the MCO cordons, drains, and reboots
+// nodes one at a time per pool, which takes 16-20 minutes in CI.
+func (f *Framework) WaitForMachineConfigPoolsRollout(preConfigs map[string]string, timeout time.Duration) error {
+	poolNames := make([]string, 0, len(preConfigs))
+	for name := range preConfigs {
+		poolNames = append(poolNames, name)
+	}
+	log.Printf("Waiting for MachineConfigPool rollout to complete for pools %v\n", poolNames)
+
+	startTime := time.Now()
+	var lastErr error
+	timeouterr := wait.Poll(RetryInterval, timeout, func() (bool, error) {
+		for _, name := range poolNames {
+			pool := &mcfgv1.MachineConfigPool{}
+			key := types.NamespacedName{Name: name}
+			if err := f.Client.Get(context.TODO(), key, pool); err != nil {
+				lastErr = fmt.Errorf("failed to get MachineConfigPool %s: %v", name, err)
+				log.Printf("%v... retrying\n", lastErr)
+				return false, nil
+			}
+
+			// Wait for a new rendered config to appear.
+			if pool.Spec.Configuration.Name == preConfigs[name] {
+				lastErr = fmt.Errorf("MachineConfigPool %s still has old rendered config %s", name, preConfigs[name])
+				log.Printf("%v... retrying\n", lastErr)
+				return false, nil
+			}
+
+			// Wait for all machines to be updated with the new config.
+			if pool.Status.UpdatedMachineCount != pool.Status.MachineCount {
+				lastErr = fmt.Errorf("MachineConfigPool %s: updated %d/%d machines",
+					name, pool.Status.UpdatedMachineCount, pool.Status.MachineCount)
+				log.Printf("%v... retrying\n", lastErr)
+				return false, nil
+			}
+
+			// Ensure no machines are unavailable.
+			if pool.Status.UnavailableMachineCount != 0 {
+				lastErr = fmt.Errorf("MachineConfigPool %s: %d machines still unavailable",
+					name, pool.Status.UnavailableMachineCount)
+				log.Printf("%v... retrying\n", lastErr)
+				return false, nil
+			}
+
+			log.Printf("MachineConfigPool %s rollout complete: new config %s, %d/%d machines updated\n",
+				name, pool.Spec.Configuration.Name, pool.Status.UpdatedMachineCount, pool.Status.MachineCount)
+		}
+		log.Printf("All MachineConfigPool rollouts completed in %s\n", time.Since(startTime).Round(time.Second))
 		return true, nil
 	})
 	if timeouterr != nil {

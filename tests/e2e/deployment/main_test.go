@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
@@ -233,6 +234,16 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	originalPodUID := operatorPods[0].UID
 	t.Logf("Original operator pod UID: %s", originalPodUID)
 
+	// Record the current rendered MachineConfig for each pool BEFORE
+	// updating the APIServer. The TLS profile change triggers MCO to
+	// create a new rendered config and reboot all nodes one at a time
+	// per pool, which takes 16-20 minutes.
+	mcpPoolNames := []string{"master", "worker"}
+	preUpdateMCPConfigs, err := f.GetMachineConfigPoolConfigs(mcpPoolNames)
+	if err != nil {
+		t.Fatalf("failed to record MachineConfigPool configs before update: %s", err)
+	}
+
 	// Change the APIServer TLS configuration to strict adherence with the
 	// Modern profile (TLS 1.3) so we can verify the operator enforces a
 	// stricter TLS configuration when required.
@@ -260,6 +271,16 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	// Wait for the operator deployment to be fully available.
 	if err := f.WaitForDeployment("compliance-operator", 1, framework.RetryInterval, framework.Timeout); err != nil {
 		t.Fatalf("operator did not become ready after TLS profile change: %s", err)
+	}
+
+	// Wait for the MachineConfigPool rollout to finish. The TLS profile
+	// change triggers MCO to create a new rendered MachineConfig and reboot
+	// every node (one at a time per pool). The compliance operator will not
+	// start a strict node scan while any node is unschedulable, so the
+	// result server deployment won't exist until the last node is back.
+	t.Log("Waiting for MachineConfigPool rollout to complete (master and worker)")
+	if err := f.WaitForMachineConfigPoolsRollout(preUpdateMCPConfigs, 25*time.Minute); err != nil {
+		t.Fatalf("MachineConfigPool rollout did not complete after TLS profile change: %s", err)
 	}
 
 	// Verify the metrics endpoint now uses the updated TLS version.

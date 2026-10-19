@@ -461,9 +461,13 @@ func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Printf("Waiting for availability of Deployment: %s in Namespace: %s \n", name, f.OperatorNamespace)
-				return false, nil
+			} else {
+				// Retry transient API errors (504, connection refused, etc.)
+				// that occur during control-plane rollouts instead of
+				// aborting the entire wait.
+				log.Printf("Transient error checking Deployment %s: %v... retrying\n", name, err)
 			}
-			return false, err
+			return false, nil
 		}
 
 		if int(deployment.Status.AvailableReplicas) >= replicas {
