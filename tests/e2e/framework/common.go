@@ -2888,13 +2888,13 @@ func (f *Framework) UnApplyRemediationAndCheck(namespace, name, pool string) err
 	}
 	log.Printf("remediation found\n")
 
-	applyRemediation := func() error {
+	unapplyRemediation := func() error {
 		rem.Spec.Apply = false
 		err = f.Client.Update(context.TODO(), rem)
 		if err != nil {
-			return fmt.Errorf("cannot apply remediation: %s", err)
+			return fmt.Errorf("cannot unapply remediation: %s", err)
 		}
-		log.Printf("remediation applied\n")
+		log.Printf("remediation unapplied\n")
 		return nil
 	}
 
@@ -2912,12 +2912,12 @@ func (f *Framework) UnApplyRemediationAndCheck(namespace, name, pool string) err
 		return true, nil
 	}
 
-	err = f.WaitForMachinePoolUpdate(pool, applyRemediation, predicate, nil)
+	err = f.WaitForMachinePoolUpdate(pool, unapplyRemediation, predicate, nil)
 	if err != nil {
-		return fmt.Errorf("failed to wait for pool to update after applying MachineConfig: %v", err)
+		return fmt.Errorf("failed to wait for pool to update after removing MachineConfig: %v", err)
 	}
 
-	log.Printf("machines updated with remediation\n")
+	log.Printf("machines updated after removing remediation\n")
 	return nil
 }
 
