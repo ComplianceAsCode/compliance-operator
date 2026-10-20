@@ -604,7 +604,7 @@ catalog-push: ## Push a catalog image.
 ##@ Testing
 
 .PHONY: test-unit
-test-unit: fmt ## Run the unit tests
+test-unit: fmt test-scripts ## Run the unit tests
 ifndef JUNITFILE
 	@set -o pipefail; $(GO) test $(TEST_OPTIONS) -cover $(TESTABLE_PKGS) | tee .test-output.log
 else
@@ -613,6 +613,10 @@ endif
 	@if [ -f $(COVERAGE_BASELINE) ]; then \
 		hack/check-coverage.sh .test-output.log $(COVERAGE_BASELINE); \
 	fi
+
+.PHONY: test-scripts
+test-scripts: ## Run the tests of the scripts in hack/
+	@hack/test-resolve-konflux-images.sh
 
 .PHONY: test-coverage
 test-coverage: fmt ## Run the unit tests and generate a coverage report
