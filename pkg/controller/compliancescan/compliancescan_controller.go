@@ -809,6 +809,11 @@ func (r *ReconcileComplianceScan) phaseAggregatingHandler(h scanTypeHandler, log
 	instance.Status.Result = result
 	if err != nil {
 		instance.Status.ErrorMessage = err.Error()
+	} else {
+		// Clear any stale error message from a previous (failed) scan cycle.
+		// Without this, ErrorMessage would stay set forever after a later,
+		// unrelated successful rescan, misleading anything that surfaces it.
+		instance.Status.ErrorMessage = ""
 	}
 
 	// count the number of checks that were run
