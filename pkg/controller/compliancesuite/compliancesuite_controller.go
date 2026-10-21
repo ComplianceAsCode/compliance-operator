@@ -3,6 +3,7 @@ package compliancesuite
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -441,6 +442,9 @@ func (r *ReconcileComplianceSuite) addScanStatus(suite *compv1alpha1.ComplianceS
 func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, logger logr.Logger) error {
 	scanProfile := scanWrap.Profile
 	profileUniqueID := ""
+	// profileName stays empty for TailoredProfile and CEL scans, and for scans
+	// that aren't named after a Profile, like those of a ComplianceSuite
+	// created directly.
 	profileName := ""
 	if scanWrap.TailoringConfigMap != nil || scanWrap.ComplianceScanSpec.ScannerType == compv1alpha1.ScannerTypeCEL {
 		profileUniqueID = xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile)
@@ -452,7 +456,7 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 		}
 		for _, profile := range profiles.Items {
 			if profile.ID == scanProfile {
-				if scanWrap.Name == utils.GetScanNameFromProfile(profile.Name, scanWrap.NodeSelector) {
+				if isScanForProfile(scanWrap, profile.Name) {
 					profileUniqueID = profile.GetLabels()[compv1alpha1.ProfileGuidLabel]
 					profileName = profile.Name
 					break
@@ -481,6 +485,19 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 	}
 
 	return nil
+}
+
+// isScanForProfile returns whether the scan is named after the Profile: the
+// Profile's name, followed by the role in the scan's node selector, if any. A
+// ScanSettingBinding names the node scans of the @all role, whose node
+// selector has no role, <profile>-a-all.
+func isScanForProfile(scanWrap *compv1alpha1.ComplianceScanSpecWrapper, profileName string) bool {
+	if scanWrap.Name == utils.GetScanNameFromProfile(profileName, scanWrap.NodeSelector) {
+		return true
+	}
+	return strings.EqualFold(string(scanWrap.ScanType), string(compv1alpha1.ScanTypeNode)) &&
+		utils.GetFirstNodeRole(scanWrap.NodeSelector) == "" &&
+		scanWrap.Name == profileName+"-"+utils.AllRolesScanNameSuffix
 }
 
 func newScanForSuite(suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, profileUniqueID, profileName string) *compv1alpha1.ComplianceScan {

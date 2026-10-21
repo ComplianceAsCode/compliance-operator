@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
 
 var _ = Describe("ComplianceSuiteController", func() {
@@ -231,13 +232,13 @@ var _ = Describe("ComplianceSuiteController", func() {
 			}
 		})
 
-		launchAndGetScan := func(scanName string) *compv1alpha1.ComplianceScan {
+		launchAndGetScan := func(scanName, role string) *compv1alpha1.ComplianceScan {
 			scanWrap := &compv1alpha1.ComplianceScanSpecWrapper{
 				Name: scanName,
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
 					Profile:      profileID,
-					NodeSelector: map[string]string{"node-role.kubernetes.io/worker": ""},
+					NodeSelector: utils.GetNodeRoleSelector(role),
 				},
 			}
 			Expect(launchScanForSuite(reconciler, suite, scanWrap, logger)).To(Succeed())
@@ -247,13 +248,21 @@ var _ = Describe("ComplianceSuiteController", func() {
 		}
 
 		It("Should label the scan with the name of the Profile it is for", func() {
-			scan := launchAndGetScan("bazz-foo-worker")
+			scan := launchAndGetScan("bazz-foo-worker", "worker")
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
+		})
+
+		It("Should label a scan for the @all role with the name of the Profile it is for", func() {
+			// A ScanSettingBinding names the scans of the @all role
+			// <profile>-a-all, and gives them no role in their node selector.
+			scan := launchAndGetScan("bazz-foo-a-all", compv1alpha1.AllRoles)
 			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
 			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
 		})
 
 		It("Should not label a scan whose name doesn't come from a Profile", func() {
-			scan := launchAndGetScan("my-scan")
+			scan := launchAndGetScan("my-scan", "worker")
 			Expect(scan.Labels).NotTo(HaveKey(compv1alpha1.ProfileNameLabel))
 		})
 	})
