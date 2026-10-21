@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
@@ -203,5 +204,38 @@ func TestResourceRequestsQuotaVariable(t *testing.T) {
 	moderateCheckName := fmt.Sprintf("%s-resource-requests-quota", tpModerateName)
 	if err := f.WaitForCheckResultStatus(moderateCheckName, compv1alpha1.CheckResultPass); err != nil {
 		t.Fatalf("check %s did not become PASS: %v", moderateCheckName, err)
+	}
+}
+
+// TestProfilesOnArch verifies that after installation, the expected
+// ProfileBundles and Profiles exist for the cluster architecture.
+func TestProfilesOnArch(t *testing.T) {
+	f := framework.Global
+	arch := f.ClusterArchitecture()
+	t.Logf("detected cluster architecture: %s", arch.String())
+
+	// Verify the ocp4 ProfileBundle exists and is valid.
+	err := f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid)
+	if err != nil {
+		t.Fatalf("ocp4 ProfileBundle did not become valid: %v", err)
+	}
+
+	// Conditionally verify the rhcos4 ProfileBundle.
+	if framework.ExpectsRhcos4ProfileBundle(arch) {
+		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
+		if err != nil {
+			t.Fatalf("rhcos4 ProfileBundle did not become valid: %v", err)
+		}
+	} else {
+		t.Logf("skipping rhcos4 ProfileBundle check for architecture %s", arch.String())
+	}
+
+	expected := framework.GetExpectedProfilesForArch(arch)
+	t.Logf("expecting %d profiles for architecture %s", len(expected), arch.String())
+
+	for _, profileName := range expected {
+		if err := f.WaitForProfileExists(profileName, 5*time.Minute, 10*time.Second); err != nil {
+			t.Errorf("profile %s not found: %v", profileName, err)
+		}
 	}
 }
