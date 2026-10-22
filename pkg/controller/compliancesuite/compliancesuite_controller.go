@@ -441,6 +441,7 @@ func (r *ReconcileComplianceSuite) addScanStatus(suite *compv1alpha1.ComplianceS
 func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, logger logr.Logger) error {
 	scanProfile := scanWrap.Profile
 	profileUniqueID := ""
+	profileName := ""
 	if scanWrap.TailoringConfigMap != nil || scanWrap.ComplianceScanSpec.ScannerType == compv1alpha1.ScannerTypeCEL {
 		profileUniqueID = xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile)
 	} else {
@@ -453,13 +454,14 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 			if profile.ID == scanProfile {
 				if scanWrap.Name == utils.GetScanNameFromProfile(profile.Name, scanWrap.NodeSelector) {
 					profileUniqueID = profile.GetLabels()[compv1alpha1.ProfileGuidLabel]
+					profileName = profile.Name
 					break
 				}
 			}
 		}
 	}
 
-	scan := newScanForSuite(suite, scanWrap, profileUniqueID)
+	scan := newScanForSuite(suite, scanWrap, profileUniqueID, profileName)
 	if scan == nil {
 		return fmt.Errorf("cannot create ComplianceScan for %s:%s", suite.Name, scanWrap.Name)
 	}
@@ -481,12 +483,18 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 	return nil
 }
 
-func newScanForSuite(suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, profileUniqueID string) *compv1alpha1.ComplianceScan {
+func newScanForSuite(suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, profileUniqueID, profileName string) *compv1alpha1.ComplianceScan {
 	scan := compv1alpha1.ComplianceScanFromWrapper(scanWrap)
-	scan.SetLabels(map[string]string{
+	scanLabels := map[string]string{
 		compv1alpha1.SuiteLabel:       suite.Name,
 		compv1alpha1.ProfileGuidLabel: profileUniqueID,
-	})
+	}
+	// Bundles with the same content have Profiles with the same GUID, so
+	// the Profile's name is what traces the scan to its bundle.
+	if profileName != "" {
+		scanLabels[compv1alpha1.ProfileNameLabel] = profileName
+	}
+	scan.SetLabels(scanLabels)
 
 	scan.SetNamespace(suite.Namespace)
 	return scan

@@ -29,6 +29,7 @@ import (
 	kube "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest/fake"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -349,6 +350,95 @@ var _ = Describe("Testing compliancescan controller phases", func() {
 				Expect(err).To(BeNil())
 				Expect(compliancescaninstance.Status.Phase).To(Equal(compv1alpha1.PhaseLaunching))
 				Expect(compliancescaninstance.Status.Result).To(Equal(compv1alpha1.ResultNotAvailable))
+			})
+		})
+
+		Context("With another ProfileBundle for the same content that has no Profiles yet", func() {
+			It("should update the compliancescan instance to phase LAUNCHING", func() {
+				// A bundle that is still being parsed has no Profiles. This one
+				// is listed before the bundle that has the scan's Profile.
+				err := reconciler.Client.Create(context.TODO(), &compv1alpha1.ProfileBundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "a-product",
+						Namespace: common.GetComplianceOperatorNamespace(),
+					},
+					Spec: compv1alpha1.ProfileBundleSpec{
+						ContentImage: "MyContentImage",
+						ContentFile:  "MyContentFile",
+					},
+				})
+				Expect(err).To(BeNil())
+				result, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+				Expect(result).NotTo(BeNil())
+				Expect(err).To(BeNil())
+				Expect(compliancescaninstance.Status.Phase).To(Equal(compv1alpha1.PhaseLaunching))
+				Expect(compliancescaninstance.Status.Result).To(Equal(compv1alpha1.ResultNotAvailable))
+			})
+		})
+
+		Context("With no ProfileBundle for the scan's content having its Profile", func() {
+			It("should update the compliancescan instance to phase DONE with result ERROR", func() {
+				profile := &compv1alpha1.Profile{}
+				key := types.NamespacedName{Name: "some-product-unmoderate", Namespace: common.GetComplianceOperatorNamespace()}
+				Expect(reconciler.Client.Get(context.TODO(), key, profile)).To(Succeed())
+				Expect(reconciler.Client.Delete(context.TODO(), profile)).To(Succeed())
+				result, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+				Expect(result).NotTo(BeNil())
+				Expect(err).To(BeNil())
+				scan := &compv1alpha1.ComplianceScan{}
+				Expect(reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: compliancescaninstance.Name}, scan)).To(Succeed())
+				Expect(scan.Status.Phase).To(Equal(compv1alpha1.PhaseDone))
+				Expect(scan.Status.Result).To(Equal(compv1alpha1.ResultError))
+			})
+		})
+
+		Context("With the scan labeled with its Profile and another bundle for the same content", func() {
+			var recorder *record.FakeRecorder
+
+			BeforeEach(func() {
+				// Both bundles have the content's deprecated Profile, and
+				// a-product is listed first.
+				ns := common.GetComplianceOperatorNamespace()
+				Expect(reconciler.Client.Create(context.TODO(), &compv1alpha1.ProfileBundle{
+					ObjectMeta: metav1.ObjectMeta{Name: "a-product", Namespace: ns},
+					Spec: compv1alpha1.ProfileBundleSpec{
+						ContentImage: "MyContentImage",
+						ContentFile:  "MyContentFile",
+					},
+				})).To(Succeed())
+				deprecated := map[string]string{compv1alpha1.ProfileStatusAnnotation: "deprecated"}
+				Expect(reconciler.Client.Create(context.TODO(), &compv1alpha1.Profile{
+					ObjectMeta: metav1.ObjectMeta{Name: "a-product-unmoderate", Namespace: ns, Annotations: deprecated},
+					ProfilePayload: compv1alpha1.ProfilePayload{
+						ID: "xccdf_org.ssgproject.content_profile_unmoderate",
+					},
+				})).To(Succeed())
+				profile := &compv1alpha1.Profile{}
+				Expect(reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "some-product-unmoderate", Namespace: ns}, profile)).To(Succeed())
+				profile.Annotations = deprecated
+				Expect(reconciler.Client.Update(context.TODO(), profile)).To(Succeed())
+
+				compliancescaninstance.Labels = map[string]string{compv1alpha1.ProfileNameLabel: "some-product-unmoderate"}
+				recorder = record.NewFakeRecorder(10)
+				reconciler.Recorder = recorder
+			})
+
+			It("should warn that the scan's own Profile is deprecated", func() {
+				_, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+				Expect(err).To(BeNil())
+				Expect(compliancescaninstance.Status.Phase).To(Equal(compv1alpha1.PhaseLaunching))
+				Expect(recorder.Events).To(Receive(ContainSubstring("Profile some-product-unmoderate is deprecated")))
+			})
+
+			It("should use the other bundle's Profile when the scan's Profile is gone", func() {
+				profile := &compv1alpha1.Profile{}
+				key := types.NamespacedName{Name: "some-product-unmoderate", Namespace: common.GetComplianceOperatorNamespace()}
+				Expect(reconciler.Client.Get(context.TODO(), key, profile)).To(Succeed())
+				Expect(reconciler.Client.Delete(context.TODO(), profile)).To(Succeed())
+				_, err := reconciler.phasePendingHandler(compliancescaninstance, logger)
+				Expect(err).To(BeNil())
+				Expect(compliancescaninstance.Status.Phase).To(Equal(compv1alpha1.PhaseLaunching))
+				Expect(recorder.Events).To(Receive(ContainSubstring("Profile a-product-unmoderate is deprecated")))
 			})
 		})
 

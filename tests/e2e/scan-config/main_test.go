@@ -1755,6 +1755,28 @@ func TestStrictNodeScanConfiguration(t *testing.T) {
 	if err := f.WaitForScanCleanup(); err != nil {
 		t.Fatalf("timed out waiting for ComplianceScans to be deleted: %s", err)
 	}
+
+	// Wait for the old ComplianceSuite to be fully garbage collected.
+	// WaitForScanCleanup only waits for ComplianceScan objects; the
+	// owning ComplianceSuite may still exist briefly. If we recreate
+	// the ScanSettingBinding before the old suite is gone, the
+	// PollImmediate below can observe the old suite's Phase=DONE
+	// instead of the new suite's empty Phase, causing a false failure.
+	if err := wait.PollImmediate(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		var oldSuite compv1alpha1.ComplianceSuite
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: bindingName, Namespace: f.OperatorNamespace}, &oldSuite)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		log.Printf("ComplianceSuite %s still exists, waiting for garbage collection", bindingName)
+		return false, nil
+	}); err != nil {
+		t.Fatalf("timed out waiting for old ComplianceSuite %s to be deleted: %v", bindingName, err)
+	}
+
 	// Patch ScanSetting to set strictNodeScan: true
 	strictTrue := true
 	scanSettingUpdate := &compv1alpha1.ScanSetting{}
