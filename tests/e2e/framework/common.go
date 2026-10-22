@@ -9,6 +9,8 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -461,13 +463,18 @@ func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Printf("Waiting for availability of Deployment: %s in Namespace: %s \n", name, f.OperatorNamespace)
-			} else {
-				// Retry transient API errors (504, connection refused, etc.)
-				// that occur during control-plane rollouts instead of
-				// aborting the entire wait.
-				log.Printf("Transient error checking Deployment %s: %v... retrying\n", name, err)
+				return false, nil
 			}
-			return false, nil
+			var statusErr *apierrors.StatusError
+			var netErr net.Error
+			var urlErr *url.Error
+			if (errors.As(err, &statusErr) && statusErr.Status().Code >= 500) ||
+				errors.As(err, &netErr) || errors.As(err, &urlErr) {
+				log.Printf("Transient error checking Deployment %s: %v... retrying\n", name, err)
+				return false, nil
+			}
+			log.Printf("Non-transient error checking Deployment %s: %v... failing\n", name, err)
+			return false, err
 		}
 
 		if int(deployment.Status.AvailableReplicas) >= replicas {
