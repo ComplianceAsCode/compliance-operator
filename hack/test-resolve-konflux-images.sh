@@ -1,10 +1,11 @@
 #!/bin/bash
 # Tests for hack/resolve-konflux-images.sh.
 #
-# Most cases run the script in a scratch git repository with its own .tekton
-# pipelines, against a fake Quay (curl and sleep on PATH), and check the image
-# it prints, its exit code and its message. The last cases run it on this
-# repository's own .tekton pipelines and history.
+# Most cases run the script in scratch git repositories with their own .tekton
+# pipelines, one of them with a release branch, against a fake Quay (curl and
+# sleep on PATH), and check the image it prints, its exit code and its message.
+# The last cases run it on this repository's own .tekton pipelines and history,
+# and on its newest release branch when the clone has one.
 
 set -euo pipefail
 
@@ -66,9 +67,14 @@ reset_quay() {
 	mkdir -p "$tmp/quay"
 }
 
-# pipeline <name> <event> <paths>: write .tekton/<name>.yaml, triggered for the
-# event (pull_request or push) on master by the given paths expression.
+# pipeline <name> <event> <paths> [<branch> [<repository>]]: write
+# .tekton/<name>.yaml, triggered for the event (pull_request or push) on the
+# branch (default master) by the given paths expression. It pushes to
+# $Q/<repository>, by default the name without -pull-request or -push.
 pipeline() {
+	local repository=${5:-${1%-pull-request}} tag='{{revision}}'
+	repository=${repository%-push}
+	[[ $2 != pull_request ]] || tag=on-pr-$tag
 	mkdir -p .tekton
 	cat >".tekton/$1.yaml" <<EOF
 apiVersion: tekton.dev/v1
@@ -76,8 +82,14 @@ kind: PipelineRun
 metadata:
   annotations:
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "$2" && target_branch == "master" && ( $3 )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "$2" && target_branch == "${4:-master}" && ( $3 )
   name: $1
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: output-image
+    value: $Q/$repository:$tag
 EOF
 }
 
@@ -114,8 +126,8 @@ run() {
 	done
 	shift
 	rc=0
-	out=$(cd "$dir" && env -u KONFLUX_SHA -u KONFLUX_BASE_SHA -u KONFLUX_REPO -u KONFLUX_WAIT_SECONDS \
-		-u PULL_PULL_SHA -u PULL_BASE_SHA -u REPO_OWNER -u REPO_NAME -u JOB_TYPE \
+	out=$(cd "$dir" && env -u KONFLUX_SHA -u KONFLUX_BASE_SHA -u KONFLUX_BRANCH -u KONFLUX_WAIT_SECONDS \
+		-u PULL_PULL_SHA -u PULL_BASE_SHA -u PULL_BASE_REF -u REPO_OWNER -u REPO_NAME -u JOB_TYPE \
 		PATH="$tmp/bin:$PATH" QUAY="$tmp/quay" KONFLUX_WAIT_SECONDS=0 "${vars[@]}" \
 		hack/resolve-konflux-images.sh "$@" 2>"$tmp/err") || rc=$?
 	err=$(<"$tmp/err")
@@ -224,18 +236,16 @@ quay op "$op_change"
 run "$r" -- op
 report "Without a PR or base, the checkout's HEAD is the base" is 0 "$Q/op:$op_change"
 
-run "$r" KONFLUX_REPO=quay.io/example/builds -- op
-report "KONFLUX_REPO sets the Quay repository" is 0 "quay.io/example/builds/op:$op_change"
-
 reset_quay
 quay op "on-pr-$pr_op"
-run "$r" REPO_OWNER=ComplianceAsCode REPO_NAME=compliance-operator PULL_PULL_SHA="$pr_op" PULL_BASE_SHA="$base" -- op
-report "This repository's Prow jobs use PULL_PULL_SHA and PULL_BASE_SHA" is 0 "$Q/op:on-pr-$pr_op"
+run "$r" REPO_OWNER=ComplianceAsCode REPO_NAME=compliance-operator PULL_PULL_SHA="$pr_op" PULL_BASE_SHA="$base" \
+	PULL_BASE_REF=master -- op
+report "This repository's Prow jobs use PULL_PULL_SHA, PULL_BASE_SHA and PULL_BASE_REF" is 0 "$Q/op:on-pr-$pr_op"
 
 reset_quay
 quay op "$op_change"
 run "$r" REPO_OWNER=openshift REPO_NAME=release PULL_PULL_SHA=0123456789012345678901234567890123456789 \
-	PULL_BASE_SHA=0123456789012345678901234567890123456789 -- op
+	PULL_BASE_SHA=0123456789012345678901234567890123456789 PULL_BASE_REF=main -- op
 report "openshift/release rehearsals ignore that repository's PULL_*" is 0 "$Q/op:$op_change"
 
 run "$r" KONFLUX_SHA=0123456789012345678901234567890123456789 -- op
@@ -251,7 +261,7 @@ run "$r" --
 report "It needs a component" is 1 "" "usage:"
 
 run "$r" -- nope
-report "A component without pipelines fails" is 1 "" ".tekton/nope-push.yaml doesn't exist or has no on-cel-expression"
+report "A component without pipelines fails" is 1 "" ".tekton/nope-push.yaml doesn't exist"
 
 touch "$tmp/quay/down"
 run "$r" -- op
@@ -322,6 +332,21 @@ report "Other conditions fail" is 1 "" "the trigger isn't a list of watched path
 bad ''
 run "$r" -- op
 report "A trigger without paths fails" is 1 "" "the trigger isn't a list of watched paths"
+bad '".tekton/op-*.yaml".pathChanged()'
+sed -i 's/{{revision}}/{{target_branch}}-{{revision}}/' .tekton/op-push.yaml
+git commit -qam "bad pipeline"
+run "$r" -- op
+report "Other output-image tags fail" \
+	is 1 "" "has no output-image quay.io/<repository>:[on-pr-]{{revision}}: $Q/op:{{target_branch}}-{{revision}}"
+pipeline op-push push '".tekton/op-*.yaml".pathChanged()'
+printf '# A comment that makes the file bigger than a pipe holds.%.0s\n' {1..8000} >>.tekton/op-push.yaml
+tick
+git commit -qam "big pipeline"
+big=$(git rev-parse HEAD)
+reset_quay
+quay op "$big"
+run "$r" -- op
+report "A pipeline bigger than a pipe holds parses" is 0 "$Q/op:$big"
 git reset -q --hard "$good"
 
 # Konflux reads a PR's pipelines from its head, so a PR that changes its own
@@ -348,31 +373,146 @@ report "A shallow clone without the build's commit says it is shallow" \
 run "$tmp/shallow" KONFLUX_SHA="$pr_op" -- op
 report "... as does a shallow clone without the PR head" is 1 "" "The checkout lacks commit $pr_op (the clone is shallow)"
 
+# A second scratch repository has a release branch. Master's component app-dev
+# pushes to app-dev; on release-1.0, the branch's own component,
+# app-release-1-0, pushes to app-release.
+mkdir -p "$tmp/rel/hack"
+cd "$tmp/rel"
+git init -qb master
+git config user.email test@example.com
+git config user.name test
+git config commit.gpgsign false
+git config core.hooksPath /dev/null
+cp "$here/resolve-konflux-images.sh" hack/
+app='".tekton/app-dev-*.yaml".pathChanged() || "pkg/***".pathChanged()'
+pipeline app-dev-pull-request pull_request "$app"
+pipeline app-dev-push push "$app"
+fork_point=$(change "app change before the branch" pkg/a.go)
+git checkout -qb release-1.0
+git rm -q .tekton/app-dev-*.yaml
+app='".tekton/app-release-1-0-*.yaml".pathChanged() || "pkg/***".pathChanged()'
+pipeline app-release-1-0-pull-request pull_request "$app" release-1.0 app-release
+pipeline app-release-1-0-push push "$app" release-1.0 app-release
+rel_pipelines=$(change "release-1.0 pipelines")
+rel_base=$(change "release-1.0 docs change" docs/a.md)
+git checkout -qb rel-pr-app
+rel_pr_app=$(change "release PR changes app" pkg/b.go)
+git checkout -qb rel-pr-docs release-1.0
+rel_pr_docs=$(change "release PR changes docs" docs/b.md)
+git checkout -q master
+master_app=$(change "app change after the branch" pkg/c.go)
+git checkout -q release-1.0
+rel=$tmp/rel
+prow=(REPO_OWNER=ComplianceAsCode REPO_NAME=compliance-operator PULL_BASE_REF=release-1.0 PULL_BASE_SHA="$rel_base")
+
+reset_quay
+quay app-release "on-pr-$rel_pr_app"
+run "$rel" "${prow[@]}" PULL_PULL_SHA="$rel_pr_app" -- app-dev
+report "On a release branch, master's component name means the branch's component" \
+	is 0 "$Q/app-release:on-pr-$rel_pr_app" "app-dev: release-1.0 builds it as app-release-1-0"
+report "... judged by the branch's pull-request pipeline, and in the repository it pushes to" \
+	is 0 "$Q/app-release:on-pr-$rel_pr_app" "app-release-1-0: the PR changes pkg/b.go (pkg/***), so the job uses the PR's build"
+
+reset_quay
+quay app-release "$rel_pipelines"
+quay app-dev "$fork_point" "$master_app"
+run "$rel" "${prow[@]}" PULL_PULL_SHA="$rel_pr_docs" -- app-dev
+report "Otherwise a release PR gets the branch's newest push build, not master's" \
+	is 0 "$Q/app-release:$rel_pipelines" "the newest base commit that changes .tekton/app-release-1-0-pull-request.yaml"
+
+reset_quay
+quay app-release "on-pr-$rel_pipelines"
+run "$rel" "${prow[@]}" PULL_PULL_SHA="$rel_pipelines" PULL_BASE_SHA="$fork_point" -- app-dev
+report "The PR that gives a new branch its pipelines is tested with their builds" \
+	is 0 "$Q/app-release:on-pr-$rel_pipelines"
+
+reset_quay
+quay app-release "$rel_pipelines"
+quay app-dev "$fork_point" "$master_app"
+run "$rel" -- app-dev
+report "Outside Prow, the branch is the one the base's push pipelines build" is 0 "$Q/app-release:$rel_pipelines"
+
+run "$rel" KONFLUX_BASE_SHA="$master_app" -- app-dev
+report "... so the same command tests master with master's component" is 0 "$Q/app-dev:$master_app"
+
+run "$rel" -- app-release-1-0
+report "A branch's own component name is used as given" is 0 "$Q/app-release:$rel_pipelines"
+
+run "$rel" KONFLUX_BRANCH=master -- app-release-1-0
+report "A pipeline for another branch fails" \
+	is 1 "" ".tekton/app-release-1-0-push.yaml: the trigger is for release-1.0, not master"
+
+git checkout -qb two-branches
+pipeline app-dev-push push "$app"
+two_branches=$(change "pipelines for two branches")
+run "$rel" -- app-dev
+report "Outside Prow, a base whose push pipelines build several branches fails" \
+	is 1 "" "Set KONFLUX_BRANCH: the push pipelines in .tekton at $two_branches don't build a single branch"
+
+# Konflux builds a commit with the pipelines the commit has, so a branch's
+# newest watched change from before it had its pipelines was never built there.
+git checkout -qb release-2.0 "$fork_point"
+git rm -q .tekton/app-dev-*.yaml
+pipeline app-release-2-0-push push '"pkg/***".pathChanged()' release-2.0 app-release
+change "release-2.0 pipeline, which doesn't watch itself" >/dev/null
+change "release-2.0 docs change" docs/a.md >/dev/null
+reset_quay
+run "$rel" -- app-dev
+report "A base build from before the branch had its pipeline fails" \
+	is 1 "" "$fork_point:.tekton/app-release-2-0-push.yaml doesn't exist"
+git checkout -q release-1.0
+
 # This repository's own pipelines and history, when this is a git checkout.
 if root=$(git -C "$here" rev-parse --show-toplevel 2>/dev/null) && [[ -d $root/.tekton ]]; then
 	reset_quay
 	touch "$tmp/quay/all"
 	mapfile -t components < <(cd "$root/.tekton" && for f in *-push.yaml; do echo "${f%-push.yaml}"; done)
 
-	# images <tag regex>: whether the last run printed one image per component,
-	# in order, each with a tag that matches.
-	images() {
-		local i=0 line
-		[[ $rc == 0 ]] || return 1
-		while IFS= read -r line; do
-			[[ $line =~ ^$Q/${components[i]}:$1$ ]] || return 1
-			i=$((i + 1))
-		done <<<"$out"
-		[[ $i == "${#components[@]}" ]]
+	# repositories <commit> <component>...: the repository that each component's
+	# push pipeline at the commit pushes to, one per line.
+	repositories() {
+		local commit=$1 component yaml
+		shift
+		for component; do
+			yaml=$(git -C "$root" show "$commit:.tekton/$component-push.yaml") || return 1
+			grep -o -m1 ' quay\.io/[^ ]*:{{revision}}$' <<<"$yaml" | sed 's/^ //; s/:{{revision}}$//' || return 1
+		done
 	}
 
+	# images <tag regex> <repository>...: whether the last run printed one image
+	# per repository, in order, each with a tag that matches.
+	images() {
+		local tag=$1 line
+		shift
+		[[ $rc == 0 ]] || return 1
+		while IFS= read -r line; do
+			[[ $# -gt 0 && ${line%:*} == "$1" && ${line##*:} =~ ^$tag$ ]] || return 1
+			shift
+		done <<<"$out"
+		[[ $# == 0 ]]
+	}
+
+	mapfile -t repos < <(repositories HEAD "${components[@]}")
 	run "$root" -- "${components[@]}"
 	report "This repository's push pipelines all parse, and each has a base build (${#components[@]} components)" \
-		images '[0-9a-f]{40}'
+		images '[0-9a-f]{40}' "${repos[@]}"
 	if git -C "$root" cat-file -e HEAD~1 2>/dev/null; then
 		run "$root" KONFLUX_SHA="$(git -C "$root" rev-parse HEAD)" KONFLUX_BASE_SHA="$(git -C "$root" rev-parse HEAD~1)" -- \
 			"${components[@]}"
-		report "This repository's pull-request pipelines all parse" images '(on-pr-)?[0-9a-f]{40}'
+		report "This repository's pull-request pipelines all parse" images '(on-pr-)?[0-9a-f]{40}' "${repos[@]}"
+	fi
+
+	# The newest release branch of a developer's clone, with master's names.
+	release=$(git -C "$root" for-each-ref --sort=-committerdate --count=1 --format='%(refname:short)' \
+		'refs/remotes/*/release-[0-9]*')
+	branch=${release#*/}
+	if [[ -n $release && ${components[*]} == *-dev* ]] &&
+		list=$(repositories "$release" "${components[@]/%-dev/-${branch//./-}}" 2>/dev/null); then
+		mapfile -t repos <<<"$list"
+		run "$root" KONFLUX_BASE_SHA="$(git -C "$root" rev-parse "$release")" -- "${components[@]}"
+		report "On $branch, master's names are its components, in its repositories" images '[0-9a-f]{40}' "${repos[@]}"
+	else
+		echo "skip This repository's release branches: the clone has none with pipelines"
 	fi
 else
 	echo "skip This repository's pipelines: not a git checkout"
