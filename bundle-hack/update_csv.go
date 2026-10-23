@@ -14,11 +14,11 @@ import (
 
 // Konflux pull specs used across multiple functions
 var (
-	konfluxOperatorPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:8094589072fadb5419479ae8b8521706fca9ed42f311c6684bd8c1dc8768753e"
+	konfluxOperatorPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release@sha256:8094589072fadb5419479ae8b8521706fca9ed42f311c6684bd8c1dc8768753e"
 
-	konfluxContentPullSpec    = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:738f7bea6f02fc0ed2e40a90f25dd3e57c4468809f2ace1325e2066d21a295d3"
+	konfluxContentPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release@sha256:738f7bea6f02fc0ed2e40a90f25dd3e57c4468809f2ace1325e2066d21a295d3"
 
-	konfluxOpenscapPullSpec   = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:1055a94c9db01b0c856c6bea4fd8fea4cff9fe50fc1692c52c1deb0c7815643e"
+	konfluxOpenscapPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release@sha256:1055a94c9db01b0c856c6bea4fd8fea4cff9fe50fc1692c52c1deb0c7815643e"
 
 	konfluxMustGatherPullSpec = "quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release@sha256:835aa122932285f68cccc65af53742c43e84641cdcc04558e4c3f7e8834de442"
 )
