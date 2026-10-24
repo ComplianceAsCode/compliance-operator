@@ -1149,32 +1149,35 @@ func (f *Framework) restoreNodeLabelsForPool(n string) error {
 		return err
 	}
 
-	// Unlabeling the nodes triggers an update of the affected nodes because the nodes
-	// will then start using a different rendered pool. e.g a node that used to be labeled
-	// with "e2e,worker" and becomes labeled with "worker" switches from "rendered-e2e-*"
-	// to "rendered-worker-*". If we didn't wait, the node might have tried to use the
-	// e2e pool that would be gone when we remove it with the next call
-	err = f.waitForNodesToHaveARenderedPool(nodes, n)
+	// Unlabeling the nodes moves them back to the worker pool: a node labeled
+	// "e2e,worker" that becomes "worker" switches from "rendered-e2e-*" to
+	// "rendered-worker-*". Wait until they run the worker pool's config, because
+	// the caller then deletes this pool, and with it its rendered config: a node
+	// still on that config goes Degraded ("rendered-e2e-... not found"). Waiting
+	// on this pool doesn't work: right after the unlabel a node still wants this
+	// pool's config, and the pool, now empty, reports Updated at once.
+	err = f.waitForNodesToHaveARenderedPool(nodes, "worker")
 	if err != nil {
-		return fmt.Errorf("failed removing nodes from Machine Config Pool %s: %w", n, err)
+		return fmt.Errorf("failed moving nodes from Machine Config Pool %s back to worker: %w", n, err)
 	}
 	err = wait.PollImmediate(machineOperationRetryInterval, machineOperationTimeout, func() (bool, error) {
 		pool := mcfgv1.MachineConfigPool{}
-		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: n}, &pool)
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "worker"}, &pool)
 		if err != nil {
-			return false, fmt.Errorf("failed to get Machine Config Pool %s: %w", n, err)
+			return false, fmt.Errorf("failed to get Machine Config Pool worker: %w", err)
 		}
 		for _, c := range pool.Status.Conditions {
-			if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == core.ConditionTrue {
+			if c.Type == mcfgv1.MachineConfigPoolUpdated && c.Status == core.ConditionTrue &&
+				pool.Status.UpdatedMachineCount == pool.Status.MachineCount {
 				return true, nil
 			}
 		}
 
-		log.Printf("the Machine Config Pool %s has not updated yet\n", n)
+		log.Printf("the worker Machine Config Pool has not updated yet\n")
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed waiting for nodes to reboot after being unlabeled: %w", err)
+		return fmt.Errorf("failed waiting for the worker pool to update after unlabeling the %s nodes: %w", n, err)
 	}
 
 	return nil
