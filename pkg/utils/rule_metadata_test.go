@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"reflect"
+	"sort"
 	"testing"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -381,4 +383,138 @@ func TestRuleMetadataCacheIntegration(t *testing.T) {
 		t.Error("operator annotation should be preserved")
 	}
 
+}
+
+func TestNewRuleMetadataCacheForBundles(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := compv1alpha1.SchemeBuilder.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add scheme: %v", err)
+	}
+
+	// Two bundles with the same content have Rules for the same check. The
+	// other bundle's Rule sorts after the ocp4 one, so when both are indexed
+	// it overwrites the ocp4 Rule's entry.
+	ocp4Rule := &compv1alpha1.Rule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ocp4-api-server-audit-log-path",
+			Namespace: "openshift-compliance",
+			Labels: map[string]string{
+				"compliance.openshift.io/profile-bundle": "ocp4",
+				"e2e-business-unit":                      "security-ops",
+			},
+			Annotations: map[string]string{
+				"compliance.openshift.io/rule": "api-server-audit-log-path",
+				"e2e-internal-id":              "SEC-9001",
+			},
+		},
+	}
+	otherRule := &compv1alpha1.Rule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "zz-other-api-server-audit-log-path",
+			Namespace: "openshift-compliance",
+			Labels: map[string]string{
+				"compliance.openshift.io/profile-bundle": "zz-other",
+			},
+			Annotations: map[string]string{
+				"compliance.openshift.io/rule":                "api-server-audit-log-path",
+				"control.compliance.openshift.io/NIST-800-53": "AU-9",
+			},
+		},
+	}
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(ocp4Rule, otherRule).
+		Build()
+
+	t.Run("only the scan's bundle", func(t *testing.T) {
+		cache, err := NewRuleMetadataCacheForBundles(client, "openshift-compliance", []string{"ocp4"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		labels, annotations := cache.GetCustomMetadataForRule("api-server-audit-log-path")
+		if labels["e2e-business-unit"] != "security-ops" {
+			t.Errorf("expected the ocp4 Rule's label, got %v", labels)
+		}
+		if annotations["e2e-internal-id"] != "SEC-9001" {
+			t.Errorf("expected the ocp4 Rule's annotation, got %v", annotations)
+		}
+		if _, ok := annotations["control.compliance.openshift.io/NIST-800-53"]; ok {
+			t.Errorf("got the other bundle's annotation: %v", annotations)
+		}
+	})
+
+	t.Run("the other bundle", func(t *testing.T) {
+		cache, err := NewRuleMetadataCacheForBundles(client, "openshift-compliance", []string{"zz-other"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		labels, annotations := cache.GetCustomMetadataForRule("api-server-audit-log-path")
+		if len(labels) != 0 {
+			t.Errorf("expected no custom labels, got %v", labels)
+		}
+		if annotations["control.compliance.openshift.io/NIST-800-53"] != "AU-9" {
+			t.Errorf("expected the other Rule's annotation, got %v", annotations)
+		}
+	})
+
+	t.Run("no bundles indexes every Rule", func(t *testing.T) {
+		cache, err := NewRuleMetadataCacheForBundles(client, "openshift-compliance", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if labels, annotations := cache.GetCustomMetadataForRule("api-server-audit-log-path"); len(labels) == 0 && len(annotations) == 0 {
+			t.Errorf("expected metadata from one of the Rules")
+		}
+	})
+}
+
+func TestProfileBundlesForScan(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := compv1alpha1.SchemeBuilder.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add scheme: %v", err)
+	}
+	bundle := func(name, image, file string) *compv1alpha1.ProfileBundle {
+		return &compv1alpha1.ProfileBundle{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "openshift-compliance"},
+			Spec:       compv1alpha1.ProfileBundleSpec{ContentImage: image, ContentFile: file},
+		}
+	}
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(
+			bundle("ocp4", "quay.io/example/content:latest", "ssg-ocp4-ds.xml"),
+			bundle("rhcos4", "quay.io/example/content:latest", "ssg-rhcos4-ds.xml"),
+			bundle("ocp4-copy", "quay.io/example/content:latest", "ssg-ocp4-ds.xml"),
+			bundle("broken", "ghcr.io/example/broken:new_kubeletconfig", "ssg-ocp4-ds.xml"),
+		).
+		Build()
+	scan := func(image, file string) *compv1alpha1.ComplianceScan {
+		return &compv1alpha1.ComplianceScan{
+			ObjectMeta: metav1.ObjectMeta{Name: "scan", Namespace: "openshift-compliance"},
+			Spec:       compv1alpha1.ComplianceScanSpec{ContentImage: image, Content: file},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		scan     *compv1alpha1.ComplianceScan
+		expected []string
+	}{
+		{"one bundle", scan("ghcr.io/example/broken:new_kubeletconfig", "ssg-ocp4-ds.xml"), []string{"broken"}},
+		{"bundles with the same content", scan("quay.io/example/content:latest", "ssg-ocp4-ds.xml"), []string{"ocp4", "ocp4-copy"}},
+		{"same image, other file", scan("quay.io/example/content:latest", "ssg-rhcos4-ds.xml"), []string{"rhcos4"}},
+		{"no bundle", scan("quay.io/example/other:latest", "ssg-ocp4-ds.xml"), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ProfileBundlesForScan(client, tt.scan)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			sort.Strings(got)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("ProfileBundlesForScan() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
 }
