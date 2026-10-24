@@ -59,16 +59,27 @@ func TestServiceMonitoringMetricsTarget(t *testing.T) {
 	}
 	defer f.CleanUpRBACForMetricsTest()
 
-	metricsTargets, err := f.WaitForPrometheusMetricTargets()
-	if err != nil {
-		t.Fatalf("failed to get prometheus metric targets: %s", err)
-	}
-
 	expectedMetricsCount := 2
 
-	err = f.AssertServiceMonitoringMetricsTarget(metricsTargets, expectedMetricsCount)
+	// Wait until both targets are there and up. This test runs after the
+	// suite's sequential tests, and some of them restart the operator
+	// (TestOperatorResourceLimitsConfigurable, TestOperatorHonorsClusterTLSProfile):
+	// the new pod's targets stay "unknown" until Prometheus scrapes it.
+	var lastErr error
+	err = wait.PollImmediate(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		metricsTargets, err := f.WaitForPrometheusMetricTargets()
+		if err != nil {
+			return false, fmt.Errorf("failed to get prometheus metric targets: %w", err)
+		}
+		lastErr = f.AssertServiceMonitoringMetricsTarget(metricsTargets, expectedMetricsCount)
+		if lastErr != nil {
+			log.Printf("metrics targets not ready yet: %s", lastErr)
+			return false, nil
+		}
+		return true, nil
+	})
 	if err != nil {
-		t.Fatalf("failed to assert metrics target: %s", err)
+		t.Fatalf("failed to assert metrics target: %s (last: %v)", err, lastErr)
 	}
 }
 
