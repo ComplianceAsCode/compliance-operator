@@ -235,6 +235,9 @@ func (f *Framework) cleanUpProfileBundle(p string) error {
 	}
 	err := f.Client.Delete(context.TODO(), pb)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to delete ProfileBundle%s: %w", p, err)
 	}
 	return nil
@@ -708,6 +711,21 @@ func (f *Framework) WaitForProfileBundleStatus(name string, status compv1alpha1.
 	}
 	log.Printf("ProfileBundle ready (%s)\n", pb.Status.DataStreamStatus)
 	return nil
+}
+
+// WaitForProfileExists polls until a Profile with the given name exists in the operator namespace.
+func (f *Framework) WaitForProfileExists(profileName string, timeout, interval time.Duration) error {
+	return wait.Poll(interval, timeout, func() (bool, error) {
+		profile := &compv1alpha1.Profile{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      profileName,
+			Namespace: f.OperatorNamespace,
+		}, profile)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
 }
 
 func (f *Framework) GetReadyProfileBundle(name, namespace string) (*compv1alpha1.ProfileBundle, error) {
