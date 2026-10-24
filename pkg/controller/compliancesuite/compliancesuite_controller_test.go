@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
 
 var _ = Describe("ComplianceSuiteController", func() {
@@ -231,13 +232,13 @@ var _ = Describe("ComplianceSuiteController", func() {
 			}
 		})
 
-		launchAndGetScan := func(scanName string) *compv1alpha1.ComplianceScan {
+		launchAndGetScan := func(scanName, role string) *compv1alpha1.ComplianceScan {
 			scanWrap := &compv1alpha1.ComplianceScanSpecWrapper{
 				Name: scanName,
 				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 					ScanType:     compv1alpha1.ScanTypeNode,
 					Profile:      profileID,
-					NodeSelector: map[string]string{"node-role.kubernetes.io/worker": ""},
+					NodeSelector: utils.GetNodeRoleSelector(role),
 				},
 			}
 			Expect(launchScanForSuite(reconciler, suite, scanWrap, logger)).To(Succeed())
@@ -247,14 +248,145 @@ var _ = Describe("ComplianceSuiteController", func() {
 		}
 
 		It("Should label the scan with the name of the Profile it is for", func() {
-			scan := launchAndGetScan("bazz-foo-worker")
+			scan := launchAndGetScan("bazz-foo-worker", "worker")
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
+		})
+
+		It("Should label a scan for the @all role with the name of the Profile it is for", func() {
+			// A ScanSettingBinding names the scans of the @all role
+			// <profile>-a-all, and gives them no role in their node selector.
+			scan := launchAndGetScan("bazz-foo-a-all", compv1alpha1.AllRoles)
 			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
 			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
 		})
 
 		It("Should not label a scan whose name doesn't come from a Profile", func() {
-			scan := launchAndGetScan("my-scan")
+			scan := launchAndGetScan("my-scan", "worker")
 			Expect(scan.Labels).NotTo(HaveKey(compv1alpha1.ProfileNameLabel))
+		})
+	})
+
+	Context("When reconciling the labels of an existing scan", func() {
+		profileID := "xccdf_org.ssgproject.content_profile_foo"
+
+		BeforeEach(func() {
+			// Bundles with the same content have Profiles with the same ID and GUID.
+			for _, name := range []string{"bar-foo", "bazz-foo"} {
+				Expect(reconciler.Client.Create(ctx, &compv1alpha1.Profile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+						Labels:    map[string]string{compv1alpha1.ProfileGuidLabel: "foo-guid"},
+					},
+					ProfilePayload: compv1alpha1.ProfilePayload{ID: profileID},
+				})).To(Succeed())
+			}
+		})
+
+		// existingScan creates a scan with the given labels, as an older
+		// operator would have created it.
+		existingScan := func(scanName, role string, scanLabels map[string]string) *compv1alpha1.ComplianceScanSpecWrapper {
+			scanWrap := &compv1alpha1.ComplianceScanSpecWrapper{
+				Name: scanName,
+				ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+					ScanType:     compv1alpha1.ScanTypeNode,
+					Profile:      profileID,
+					NodeSelector: utils.GetNodeRoleSelector(role),
+				},
+			}
+			scan := compv1alpha1.ComplianceScanFromWrapper(scanWrap)
+			scan.SetNamespace(namespace)
+			scan.SetLabels(scanLabels)
+			Expect(reconciler.Client.Create(ctx, scan)).To(Succeed())
+			return scanWrap
+		}
+
+		getScan := func(name string) *compv1alpha1.ComplianceScan {
+			scan := &compv1alpha1.ComplianceScan{}
+			Expect(reconciler.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, scan)).To(Succeed())
+			return scan
+		}
+
+		reconcileAndGetScan := func(scanWrap *compv1alpha1.ComplianceScanSpecWrapper) *compv1alpha1.ComplianceScan {
+			Expect(reconciler.reconcileScanLabels(suite, scanWrap, getScan(scanWrap.Name), logger)).To(Succeed())
+			return getScan(scanWrap.Name)
+		}
+
+		It("Should add the Profile name to a scan created without it", func() {
+			scanWrap := existingScan("bazz-foo-worker", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "foo-guid",
+			})
+			scan := reconcileAndGetScan(scanWrap)
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.SuiteLabel, suiteName))
+		})
+
+		It("Should add both Profile labels to an existing scan of the @all role", func() {
+			scanWrap := existingScan("bazz-foo-a-all", compv1alpha1.AllRoles, map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "",
+			})
+			scan := reconcileAndGetScan(scanWrap)
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
+		})
+
+		It("Should keep the Profile labels a scan already has", func() {
+			scanWrap := existingScan("bazz-foo-worker", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "other-guid",
+				compv1alpha1.ProfileNameLabel: "bar-foo",
+			})
+			before := getScan(scanWrap.Name)
+			scan := reconcileAndGetScan(scanWrap)
+			Expect(scan.Labels).To(Equal(before.Labels))
+			Expect(scan.ResourceVersion).To(Equal(before.ResourceVersion))
+		})
+
+		It("Should keep the GUID a scan has while adding its Profile name", func() {
+			scanWrap := existingScan("bazz-foo-worker", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "other-guid",
+			})
+			scan := reconcileAndGetScan(scanWrap)
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "other-guid"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
+		})
+
+		It("Should keep the Profile name a scan has while adding its GUID", func() {
+			scanWrap := existingScan("bazz-foo-worker", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "",
+				compv1alpha1.ProfileNameLabel: "bar-foo",
+			})
+			scan := reconcileAndGetScan(scanWrap)
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bar-foo"))
+			Expect(scan.Labels).To(HaveKeyWithValue(compv1alpha1.ProfileGuidLabel, "foo-guid"))
+		})
+
+		It("Should leave a scan that isn't named after a Profile alone", func() {
+			scanWrap := existingScan("my-scan", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "",
+			})
+			before := getScan(scanWrap.Name)
+			scan := reconcileAndGetScan(scanWrap)
+			Expect(scan.Labels).NotTo(HaveKey(compv1alpha1.ProfileNameLabel))
+			Expect(scan.ResourceVersion).To(Equal(before.ResourceVersion))
+		})
+
+		It("Should add the labels when the suite reconciles its scans", func() {
+			scanWrap := existingScan("bazz-foo-worker", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "foo-guid",
+			})
+			suite.Spec.Scans = []compv1alpha1.ComplianceScanSpecWrapper{*scanWrap}
+			_, err := reconciler.reconcileScans(suite, logger)
+			Expect(err).To(BeNil())
+			Expect(getScan(scanWrap.Name).Labels).To(HaveKeyWithValue(compv1alpha1.ProfileNameLabel, "bazz-foo"))
 		})
 	})
 

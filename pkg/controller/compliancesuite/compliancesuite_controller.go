@@ -3,6 +3,7 @@ package compliancesuite
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
@@ -267,6 +268,12 @@ func (r *ReconcileComplianceSuite) reconcileScans(suite *compv1alpha1.Compliance
 			return false, err
 		}
 
+		// Scans keep the labels they were created with, so add the Profile
+		// labels that older scans lack.
+		if err := r.reconcileScanLabels(suite, scanWrap, scan, logger); err != nil {
+			return false, err
+		}
+
 		// Update the scan spec (last becuase it's a corner case)
 		rescheduleWithDelay, err := r.reconcileScanSpec(scanWrap, scan, logger)
 		if rescheduleWithDelay || err != nil {
@@ -439,26 +446,9 @@ func (r *ReconcileComplianceSuite) addScanStatus(suite *compv1alpha1.ComplianceS
 }
 
 func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, logger logr.Logger) error {
-	scanProfile := scanWrap.Profile
-	profileUniqueID := ""
-	profileName := ""
-	if scanWrap.TailoringConfigMap != nil || scanWrap.ComplianceScanSpec.ScannerType == compv1alpha1.ScannerTypeCEL {
-		profileUniqueID = xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile)
-	} else {
-		profiles := &compv1alpha1.ProfileList{}
-		// list all profiles in namespace
-		if err := r.Client.List(context.TODO(), profiles, client.InNamespace(suite.Namespace)); err != nil {
-			return err
-		}
-		for _, profile := range profiles.Items {
-			if profile.ID == scanProfile {
-				if scanWrap.Name == utils.GetScanNameFromProfile(profile.Name, scanWrap.NodeSelector) {
-					profileUniqueID = profile.GetLabels()[compv1alpha1.ProfileGuidLabel]
-					profileName = profile.Name
-					break
-				}
-			}
-		}
+	profileUniqueID, profileName, err := profileLabelsForScan(r, suite, scanWrap)
+	if err != nil {
+		return err
 	}
 
 	scan := newScanForSuite(suite, scanWrap, profileUniqueID, profileName)
@@ -471,7 +461,7 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 		return err
 	}
 
-	err := r.Client.Create(context.TODO(), scan)
+	err = r.Client.Create(context.TODO(), scan)
 	if errors.IsAlreadyExists(err) {
 		// Was there a race that created the scan in the meantime?
 		return nil
@@ -481,6 +471,79 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 	}
 
 	return nil
+}
+
+// profileLabelsForScan returns the Profile GUID and the Profile name to label
+// a scan with. TailoredProfile and CEL scans get the TailoredProfile's GUID and
+// no Profile name. Other scans get the GUID and name of the Profile they are
+// named after, or nothing if they aren't named after one, like the scans of a
+// ComplianceSuite created directly.
+func profileLabelsForScan(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper) (string, string, error) {
+	if scanWrap.TailoringConfigMap != nil || scanWrap.ComplianceScanSpec.ScannerType == compv1alpha1.ScannerTypeCEL {
+		return xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile), "", nil
+	}
+	profiles := &compv1alpha1.ProfileList{}
+	if err := r.Client.List(context.TODO(), profiles, client.InNamespace(suite.Namespace)); err != nil {
+		return "", "", err
+	}
+	for _, profile := range profiles.Items {
+		if profile.ID == scanWrap.Profile && isScanForProfile(scanWrap, profile.Name) {
+			return profile.GetLabels()[compv1alpha1.ProfileGuidLabel], profile.Name, nil
+		}
+	}
+	return "", "", nil
+}
+
+// reconcileScanLabels adds the Profile labels that an existing scan lacks.
+// Scans keep the labels they were created with: those created by an older
+// operator have no profile-name label, and those of the @all role have an
+// empty profile-guid label. The deprecation check reads profile-name to look
+// at the scan's own Profile first, and the aggregator copies profile-guid to
+// the scan's results on its next run. Labels the scan already has are kept.
+func (r *ReconcileComplianceSuite) reconcileScanLabels(suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, scan *compv1alpha1.ComplianceScan, logger logr.Logger) error {
+	current := scan.GetLabels()
+	if current[compv1alpha1.ProfileGuidLabel] != "" && current[compv1alpha1.ProfileNameLabel] != "" {
+		return nil
+	}
+	profileUniqueID, profileName, err := profileLabelsForScan(r, suite, scanWrap)
+	if err != nil {
+		return err
+	}
+	missing := map[string]string{}
+	if current[compv1alpha1.ProfileGuidLabel] == "" && profileUniqueID != "" {
+		missing[compv1alpha1.ProfileGuidLabel] = profileUniqueID
+	}
+	if current[compv1alpha1.ProfileNameLabel] == "" && profileName != "" {
+		missing[compv1alpha1.ProfileNameLabel] = profileName
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	scanCopy := scan.DeepCopy()
+	scanLabels := scanCopy.GetLabels()
+	if scanLabels == nil {
+		scanLabels = map[string]string{}
+	}
+	for key, value := range missing {
+		scanLabels[key] = value
+	}
+	scanCopy.SetLabels(scanLabels)
+	logger.Info("Adding the Profile labels the scan lacks", "ComplianceScan.Name", scan.Name, "Labels", missing)
+	return r.Client.Patch(context.TODO(), scanCopy, client.MergeFrom(scan))
+}
+
+// isScanForProfile returns whether the scan is named after the Profile: the
+// Profile's name, followed by the role in the scan's node selector, if any. A
+// ScanSettingBinding names the node scans of the @all role, whose node
+// selector has no role, <profile>-a-all.
+func isScanForProfile(scanWrap *compv1alpha1.ComplianceScanSpecWrapper, profileName string) bool {
+	if scanWrap.Name == utils.GetScanNameFromProfile(profileName, scanWrap.NodeSelector) {
+		return true
+	}
+	return strings.EqualFold(string(scanWrap.ScanType), string(compv1alpha1.ScanTypeNode)) &&
+		utils.GetFirstNodeRole(scanWrap.NodeSelector) == "" &&
+		scanWrap.Name == profileName+"-"+utils.AllRolesScanNameSuffix
 }
 
 func newScanForSuite(suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper, profileUniqueID, profileName string) *compv1alpha1.ComplianceScan {
