@@ -262,17 +262,7 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 					Image:           utils.GetComponentImage(utils.OPENSCAP),
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command:         []string{OpenScapScriptPath},
-					SecurityContext: &corev1.SecurityContext{
-						Privileged:               &falseP,
-						AllowPrivilegeEscalation: &trueP,
-						ReadOnlyRootFilesystem:   &trueP,
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-							Add:  []corev1.Capability{"CAP_SYS_CHROOT", "CAP_SYS_ADMIN"},
-						},
-						// TODO(jaosorior): Figure out if the default
-						// seccomp profile is sufficient here.
-					},
+					SecurityContext: scannerSecurityContext(&trueP, &falseP),
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceMemory: resource.MustParse("50Mi"),
@@ -348,6 +338,34 @@ func newScanPodForNode(scanInstance *compv1alpha1.ComplianceScan, node *corev1.N
 			RestartPolicy: corev1.RestartPolicyOnFailure,
 			Volumes:       getNodeScannerPodVolumes(scanInstance, node),
 		},
+	}
+}
+
+// scannerSecurityContext returns the SecurityContext for the openscap scanner
+// container. On OpenShift-based platforms the SCC grants the necessary access,
+// so capabilities alone are sufficient and Privileged stays false. On other
+// platforms (generic, EKS) no permissive SCC exists, so chroot into /host
+// requires Privileged to be true.
+func scannerSecurityContext(trueP, falseP *bool) *corev1.SecurityContext {
+	platform := utils.GetPlatform()
+	privileged := strings.EqualFold(platform, "OpenShift") ||
+		strings.EqualFold(platform, "OpenShiftOnPower") ||
+		strings.EqualFold(platform, "OpenShiftOnZ") ||
+		strings.EqualFold(platform, "HyperShift") ||
+		strings.EqualFold(platform, "ROSA")
+	priv := falseP
+	if !privileged {
+		priv = trueP
+	}
+	return &corev1.SecurityContext{
+		Privileged:               priv,
+		AllowPrivilegeEscalation: trueP,
+		ReadOnlyRootFilesystem:   trueP,
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+			Add:  []corev1.Capability{"CAP_SYS_CHROOT", "CAP_SYS_ADMIN"},
+		},
+		// TODO(jaosorior): Figure out if the default seccomp profile is sufficient here.
 	}
 }
 
