@@ -3749,38 +3749,42 @@ func (f *Framework) AssertSuiteRerunnerResourcesInJobs(namespace, suiteName, cpu
 		return fmt.Errorf("failed to list jobs for suite %s: %w", suiteName, err)
 	}
 
-	if len(jobList.Items) != 1 {
-		return fmt.Errorf("expected only one suitererunner; got %d", len(jobList.Items))
+	// A schedule as short as the test's (every two minutes) can start the next
+	// rerunner Job before this check runs. Every Job comes from the suite's
+	// CronJob, so check them all instead of expecting exactly one.
+	if len(jobList.Items) == 0 {
+		return fmt.Errorf("no suitererunner Job found for suite %s", suiteName)
 	}
 
-	job := jobList.Items[0]
-	if len(job.Spec.Template.Spec.Containers) == 0 {
-		return fmt.Errorf("job %s has no containers", job.Name)
+	for _, job := range jobList.Items {
+		if len(job.Spec.Template.Spec.Containers) == 0 {
+			return fmt.Errorf("job %s has no containers", job.Name)
+		}
+
+		container := job.Spec.Template.Spec.Containers[0]
+
+		// Verify CPU limit
+		if container.Resources.Limits.Cpu().String() != cpuLimit {
+			return fmt.Errorf("expected CPU limit %s, got %s in job %s", cpuLimit, container.Resources.Limits.Cpu().String(), job.Name)
+		}
+
+		// Verify Memory limit
+		if container.Resources.Limits.Memory().String() != memLimit {
+			return fmt.Errorf("expected Memory limit %s, got %s in job %s", memLimit, container.Resources.Limits.Memory().String(), job.Name)
+		}
+
+		// Verify CPU request
+		if container.Resources.Requests.Cpu().String() != cpuRequest {
+			return fmt.Errorf("expected CPU request %s, got %s in job %s", cpuRequest, container.Resources.Requests.Cpu().String(), job.Name)
+		}
+
+		// Verify Memory request
+		if container.Resources.Requests.Memory().String() != memRequest {
+			return fmt.Errorf("expected Memory request %s, got %s in job %s", memRequest, container.Resources.Requests.Memory().String(), job.Name)
+		}
+
+		log.Printf("Suite rerunner job %s has correct resource limits and requests", job.Name)
 	}
-
-	container := job.Spec.Template.Spec.Containers[0]
-
-	// Verify CPU limit
-	if container.Resources.Limits.Cpu().String() != cpuLimit {
-		return fmt.Errorf("expected CPU limit %s, got %s in job %s", cpuLimit, container.Resources.Limits.Cpu().String(), job.Name)
-	}
-
-	// Verify Memory limit
-	if container.Resources.Limits.Memory().String() != memLimit {
-		return fmt.Errorf("expected Memory limit %s, got %s in job %s", memLimit, container.Resources.Limits.Memory().String(), job.Name)
-	}
-
-	// Verify CPU request
-	if container.Resources.Requests.Cpu().String() != cpuRequest {
-		return fmt.Errorf("expected CPU request %s, got %s in job %s", cpuRequest, container.Resources.Requests.Cpu().String(), job.Name)
-	}
-
-	// Verify Memory request
-	if container.Resources.Requests.Memory().String() != memRequest {
-		return fmt.Errorf("expected Memory request %s, got %s in job %s", memRequest, container.Resources.Requests.Memory().String(), job.Name)
-	}
-
-	log.Printf("Suite rerunner job %s has correct resource limits and requests", job.Name)
 	return nil
 }
 
