@@ -80,14 +80,14 @@ type RuleMetadataCache struct {
 // NewRuleMetadataCache creates a RuleMetadataCache by listing all Rule
 // objects in the given namespace and indexing them by the
 // compliance.openshift.io/rule annotation.
-func NewRuleMetadataCache(client runtimeclient.Client, namespace string) (*RuleMetadataCache, error) {
+func NewRuleMetadataCache(ctx context.Context, client runtimeclient.Client, namespace string) (*RuleMetadataCache, error) {
 	cache := &RuleMetadataCache{
 		customLabels:      make(map[string]map[string]string),
 		customAnnotations: make(map[string]map[string]string),
 	}
 
 	ruleList := &compv1alpha1.RuleList{}
-	err := client.List(context.TODO(), ruleList, runtimeclient.InNamespace(namespace))
+	err := client.List(ctx, ruleList, runtimeclient.InNamespace(namespace))
 	if err != nil {
 		return nil, err
 	}

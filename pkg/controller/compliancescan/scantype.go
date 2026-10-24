@@ -137,15 +137,19 @@ func (nh *nodeScanTypeHandler) validate() (bool, error) {
 }
 
 func (nh *nodeScanTypeHandler) createScanWorkload() error {
+	priorityClassExist, why := utils.ValidatePriorityClassExist(context.TODO(), nh.scan.Spec.PriorityClass, nh.r.Client)
+	if !priorityClassExist {
+		nh.l.Info(why, "Scan.Name", nh.scan.Name)
+		nh.r.Recorder.Eventf(nh.scan, corev1.EventTypeWarning, "PriorityClass", why+" Scan:"+nh.scan.Name)
+	}
+
 	// On each eligible node..
 	for idx := range nh.nodes {
 		node := &nh.nodes[idx]
 		// ..schedule a pod..
 		nh.l.Info("Creating a pod for node", "Pod.Name", node.Name)
 		pod := newScanPodForNode(nh.scan, node, nh.l)
-		if priorityClassExist, why := utils.ValidatePriorityClassExist(nh.scan.Spec.PriorityClass, nh.r.Client); !priorityClassExist {
-			nh.l.Info(why, "Scan.Name", nh.scan.Name)
-			nh.r.Recorder.Eventf(nh.scan, corev1.EventTypeWarning, "PriorityClass", why+" Scan:"+nh.scan.Name)
+		if !priorityClassExist {
 			pod.Spec.PriorityClassName = ""
 		}
 		if err := nh.r.launchScanPod(nh.scan, pod, nh.l); err != nil {
@@ -350,7 +354,7 @@ func (ph *platformScanTypeHandler) validate() (bool, error) {
 func (ph *platformScanTypeHandler) createScanWorkload() error {
 	ph.l.Info("Creating a Platform scan pod")
 	pod := ph.r.newPlatformScanPod(ph.scan, ph.l)
-	if priorityClassExist, why := utils.ValidatePriorityClassExist(ph.scan.Spec.PriorityClass, ph.r.Client); !priorityClassExist {
+	if priorityClassExist, why := utils.ValidatePriorityClassExist(context.TODO(), ph.scan.Spec.PriorityClass, ph.r.Client); !priorityClassExist {
 		ph.r.Recorder.Eventf(ph.scan, corev1.EventTypeWarning, "PriorityClass", why+" Scan:"+ph.scan.Name)
 		pod.Spec.PriorityClassName = ""
 	}

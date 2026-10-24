@@ -577,7 +577,7 @@ func createResults(crClient aggregatorCrClient, scan *compv1alpha1.ComplianceSca
 
 	// Build a cache of custom labels/annotations from Rule objects so that
 	// we can propagate user-defined metadata to ComplianceCheckResults.
-	ruleMetadataCache, err := utils.NewRuleMetadataCache(crClient.getClient(), scan.Namespace)
+	ruleMetadataCache, err := utils.NewRuleMetadataCache(context.TODO(), crClient.getClient(), scan.Namespace)
 	if err != nil {
 		// Non-fatal: if we can't build the cache, we just won't propagate custom metadata.
 		cmdLog.Info("Warning: could not build rule metadata cache, custom labels/annotations will not be propagated", "error", err)
