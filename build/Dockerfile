@@ -21,7 +21,7 @@ RUN expected=$(awk '/^go / { print $2 }' go.mod) && \
 RUN make manager
 
 # Step two: containerize compliance-operator
-FROM registry.access.redhat.com/ubi9/ubi-micro:latest
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 ENV OPERATOR=/usr/local/bin/compliance-operator
 
