@@ -1705,6 +1705,7 @@ spec:
           - compliance.openshift.io
           resources:
           - rules
+          - profilebundles
           verbs:
           - list
         - apiGroups:
