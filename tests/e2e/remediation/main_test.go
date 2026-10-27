@@ -10,6 +10,7 @@ import (
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/tests/e2e/framework"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -236,3 +237,74 @@ func TestGenericRemediationFailsWithUnknownType(t *testing.T) {
 	}
 }
 
+// TestRemediationWithUnsetValueNeedsReview covers OCP-46525. When a
+// remediation needs a variable that the scanned profile doesn't set, the
+// aggregator records the variable in the unset-value annotation. The operator
+// must not apply such a remediation, even with apply set, and must report
+// NeedsReview instead.
+func TestRemediationWithUnsetValueNeedsReview(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	remName := framework.GetObjNameFromTest(t)
+	cmName := remName
+	unstruct := &unstructured.Unstructured{}
+	unstruct.SetUnstructuredContent(map[string]interface{}{
+		"kind":       "ConfigMap",
+		"apiVersion": "v1",
+		"metadata": map[string]interface{}{
+			"name":      cmName,
+			"namespace": f.OperatorNamespace,
+		},
+		"data": map[string]interface{}{
+			"key": "value",
+		},
+	})
+
+	rem := &compv1alpha1.ComplianceRemediation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      remName,
+			Namespace: f.OperatorNamespace,
+			Annotations: map[string]string{
+				compv1alpha1.RemediationUnsetValueAnnotation: "var-multiple-time-servers",
+			},
+		},
+		Spec: compv1alpha1.ComplianceRemediationSpec{
+			ComplianceRemediationSpecMeta: compv1alpha1.ComplianceRemediationSpecMeta{
+				Apply: true,
+			},
+			Current: compv1alpha1.ComplianceRemediationPayload{
+				Object: unstruct,
+			},
+		},
+	}
+	err := f.Client.Create(context.TODO(), rem, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), rem)
+
+	err = f.WaitForRemediationState(remName, f.OperatorNamespace, compv1alpha1.RemediationNeedsReview)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The operator labels remediations with unset values so that users can
+	// find the ones that need a variable set.
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: remName, Namespace: f.OperatorNamespace}, rem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := rem.Labels[compv1alpha1.RemediationUnsetValueLabel]; !ok {
+		t.Fatalf("ComplianceRemediation %s is missing label %s, labels: %v",
+			remName, compv1alpha1.RemediationUnsetValueLabel, rem.Labels)
+	}
+
+	// The remediation must not have been applied.
+	cm := &corev1.ConfigMap{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: f.OperatorNamespace}, cm)
+	if err == nil {
+		t.Fatalf("ComplianceRemediation %s needs review, but its ConfigMap %s was created", remName, cmName)
+	} else if !apierrors.IsNotFound(err) {
+		t.Fatal(err)
+	}
+}
