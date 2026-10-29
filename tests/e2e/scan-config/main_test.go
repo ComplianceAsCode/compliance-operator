@@ -964,24 +964,22 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Test point 1: Verify timeout behavior without retry (MaxRetryOnTimeout: 0)
-	scan := &compv1alpha1.ComplianceScan{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: workerScanName, Namespace: f.OperatorNamespace}, scan)
+	// Test point 1: Verify timeout behavior with MaxRetryOnTimeout: 0
+	scan, err := waitForScanTimeout(f, workerScanName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := scan.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; !ok {
-		t.Fatal("The scan should have the timeout annotation")
+	// MaxRetryOnTimeout is omitempty with a CRD default of 3, so the 0 set
+	// above never reaches the API and this scan retries too. Check that it
+	// ran the retries its spec asked for.
+	if scan.Status.CurrentIndex != int64(scan.Spec.MaxRetryOnTimeout) {
+		t.Fatalf("Expected CurrentIndex to be %d (one per retry), got %d", scan.Spec.MaxRetryOnTimeout, scan.Status.CurrentIndex)
 	}
 
 	// Test point 2: Verify timeout behavior with retry (MaxRetryOnTimeout: 1)
-	scanWithRetry := &compv1alpha1.ComplianceScan{}
-	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: workerScanWithRetryName, Namespace: f.OperatorNamespace}, scanWithRetry)
+	scanWithRetry, err := waitForScanTimeout(f, workerScanWithRetryName)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if _, ok := scanWithRetry.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; !ok {
-		t.Fatal("The scan with retry should have the timeout annotation")
 	}
 	// Verify that the retry mechanism worked: CurrentIndex should be 1 (initial + 1 retry)
 	if scanWithRetry.Status.CurrentIndex != 1 {
@@ -991,6 +989,30 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 	if !strings.Contains(scanWithRetry.Status.ErrorMessage, "Timeout") && !strings.Contains(scanWithRetry.Status.ErrorMessage, "timeout") {
 		t.Fatalf("Expected error message to contain 'Timeout', got: %s", scanWithRetry.Status.ErrorMessage)
 	}
+}
+
+// waitForScanTimeout waits until a timed-out scan has no retries left: DONE,
+// with the timeout annotation and without the rescan annotation. The suite
+// can report DONE/ERROR between retries, after the rescan has already removed
+// the scan's timeout annotation, so the suite status alone isn't enough.
+func waitForScanTimeout(f *framework.Framework, name string) (*compv1alpha1.ComplianceScan, error) {
+	scan := &compv1alpha1.ComplianceScan{}
+	key := types.NamespacedName{Name: name, Namespace: f.OperatorNamespace}
+	err := wait.PollImmediate(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		if err := f.Client.Get(context.TODO(), key, scan); err != nil {
+			return false, err
+		}
+		if scan.Status.Phase != compv1alpha1.PhaseDone || scan.NeedsRescan() {
+			log.Printf("waiting for scan %s to finish retrying: phase %s, currentIndex %d", name, scan.Status.Phase, scan.Status.CurrentIndex)
+			return false, nil
+		}
+		if _, ok := scan.Annotations[compv1alpha1.ComplianceScanTimeoutAnnotation]; !ok {
+			return false, fmt.Errorf("scan %s finished without the timeout annotation: result %s, error %q", name, scan.Status.Result, scan.Status.ErrorMessage)
+		}
+		log.Printf("scan %s timed out after %d retries (maxRetryOnTimeout %d)", name, scan.Status.CurrentIndex, scan.Spec.MaxRetryOnTimeout)
+		return true, nil
+	})
+	return scan, err
 }
 
 func TestScanWithCustomStorageClass(t *testing.T) {
