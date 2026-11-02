@@ -290,7 +290,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		},
 		func(c *tls.Config) {
 			if unsupported := applyClusterTLSProfile(c, initialTLSProfile, initialTLSAdherencePolicy); len(unsupported) > 0 {
-				setupLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+				setupLog.Info("TLS profile contains ciphers or groups unsupported by Go", "unsupported", unsupported)
 			}
 		},
 	}

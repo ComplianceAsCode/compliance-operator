@@ -9,7 +9,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Enhancements
 
--
+- Honor cluster TLS named-group preferences for result, webhook, and metrics
+  servers when strict TLS adherence is required ([ROX-37736](https://redhat.atlassian.net/browse/ROX-37736)).
 
 ### Fixes
 

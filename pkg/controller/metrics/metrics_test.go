@@ -18,12 +18,15 @@ package metrics
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/funcr"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -77,12 +80,93 @@ func TestSetTLSProfileSpec(t *testing.T) {
 	profile := configv1.TLSProfileSpec{
 		Ciphers:       configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers,
 		MinTLSVersion: configv1.VersionTLS12,
+		Groups:        []configv1.TLSGroup{configv1.TLSGroupSecP256r1},
 	}
 	sut.SetTLSProfileSpec(profile)
 
 	require.NotNil(t, sut.tlsProfileSpec)
 	require.Equal(t, configv1.VersionTLS12, sut.tlsProfileSpec.MinTLSVersion)
 	require.Equal(t, profile.Ciphers, sut.tlsProfileSpec.Ciphers)
+	require.Equal(t, profile.Groups, sut.tlsProfileSpec.Groups)
+}
+
+func TestServerTLSGroups(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		groups      []configv1.TLSGroup
+		noProfile   bool
+		minVersion  configv1.TLSProtocolVersion
+		wantCurves  []tls.CurveID
+		unsupported string
+	}{
+		"NIST groups exclude X25519 and preserve order": {
+			groups: []configv1.TLSGroup{
+				configv1.TLSGroupSecP384r1, configv1.TLSGroupSecP256r1, configv1.TLSGroupSecP521r1,
+			},
+			wantCurves: []tls.CurveID{tls.CurveP384, tls.CurveP256, tls.CurveP521},
+		},
+		"TLS 1.3 propagates hybrid groups": {
+			groups:     []configv1.TLSGroup{configv1.TLSGroupX25519MLKEM768},
+			minVersion: configv1.VersionTLS13,
+			wantCurves: []tls.CurveID{tls.X25519MLKEM768},
+		},
+		"unsupported groups are skipped": {
+			groups:      []configv1.TLSGroup{"unknown-group", configv1.TLSGroupSecP256r1},
+			wantCurves:  []tls.CurveID{tls.CurveP256},
+			unsupported: "unknown-group",
+		},
+		"all unsupported groups leave Go defaults": {
+			groups:      []configv1.TLSGroup{"unknown-group"},
+			unsupported: "unknown-group",
+		},
+		"Go 1.26 hybrid groups are skipped and logged": {
+			groups: []configv1.TLSGroup{
+				configv1.TLSGroupSecP256r1MLKEM768,
+				configv1.TLSGroupSecP256r1,
+			},
+			wantCurves:  []tls.CurveID{tls.CurveP256},
+			unsupported: string(configv1.TLSGroupSecP256r1MLKEM768),
+		},
+		"unset groups leave Go defaults": {},
+		"empty groups leave Go defaults": {groups: []configv1.TLSGroup{}},
+		"no profile leaves Go defaults":  {noProfile: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			sut := New()
+			var logs strings.Builder
+			sut.log = funcr.New(func(_, message string) {
+				logs.WriteString(message)
+			}, funcr.Options{})
+			minVersion := tc.minVersion
+			if minVersion == "" {
+				minVersion = configv1.VersionTLS12
+			}
+			if !tc.noProfile {
+				sut.SetTLSProfileSpec(configv1.TLSProfileSpec{
+					Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+					MinTLSVersion: minVersion,
+					Groups:        tc.groups,
+				})
+			}
+
+			c := sut.serverTLSConfig()
+			require.Equal(t, tc.wantCurves, c.CurvePreferences)
+			require.Equal(t, []string{"http/1.1"}, c.NextProtos)
+			if tc.unsupported != "" {
+				require.Contains(t, logs.String(), "ciphers or groups unsupported by Go")
+				require.Contains(t, logs.String(), tc.unsupported)
+			}
+			if minVersion == configv1.VersionTLS13 {
+				require.Equal(t, uint16(tls.VersionTLS13), c.MinVersion)
+			} else {
+				require.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
+				require.NotEmpty(t, c.CipherSuites)
+			}
+		})
+	}
 }
 
 func TestComplianceOperatorMetrics(t *testing.T) {
