@@ -237,7 +237,7 @@ func TestGenericRemediationFailsWithUnknownType(t *testing.T) {
 	}
 }
 
-// TestRemediationWithUnsetValueNeedsReview covers OCP-46525. When a
+/ TestRemediationWithUnsetValueNeedsReview tests when a
 // remediation needs a variable that the scanned profile doesn't set, the
 // aggregator records the variable in the unset-value annotation. The operator
 // must not apply such a remediation, even with apply set, and must report
