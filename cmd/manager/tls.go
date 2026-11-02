@@ -45,7 +45,7 @@ func fetchClusterTLSState(ctx context.Context, c client.Client) (configv1.TLSPro
 
 // applyClusterTLSProfile conditionally applies the cluster TLS security
 // profile to c. It is a no-op when the adherence policy does not require
-// strict adherence. Returns any cipher suites unsupported by Go.
+// strict adherence. Returns any cipher suites or groups unsupported by Go.
 func applyClusterTLSProfile(c *tls.Config, profile configv1.TLSProfileSpec, adherence configv1.TLSAdherencePolicy) []string {
 	if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
 		return nil

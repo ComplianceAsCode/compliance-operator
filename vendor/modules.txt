@@ -509,7 +509,7 @@ github.com/openai/openai-go/v3/responses
 github.com/openai/openai-go/v3/shared
 github.com/openai/openai-go/v3/shared/constant
 github.com/openai/openai-go/v3/webhooks
-# github.com/openshift/api v0.0.0-20260521125114-09730f85d883
+# github.com/openshift/api v0.0.0-20260601143908-70f01b82bb53
 ## explicit; go 1.25.0
 github.com/openshift/api
 github.com/openshift/api/annotations
@@ -681,10 +681,10 @@ github.com/openshift/client-go/route/informers/externalversions/internalinterfac
 github.com/openshift/client-go/route/informers/externalversions/route
 github.com/openshift/client-go/route/informers/externalversions/route/v1
 github.com/openshift/client-go/route/listers/route/v1
-# github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
+# github.com/openshift/controller-runtime-common v0.0.0-20261102190458-ae46ef2ac079 => github.com/ajheflin/controller-runtime-common v0.0.0-20261102190458-ae46ef2ac079
 ## explicit; go 1.25.0
 github.com/openshift/controller-runtime-common/pkg/tls
-# github.com/openshift/library-go v0.0.0-20260609093731-5637f8b25b0d
+# github.com/openshift/library-go v0.0.0-20261102190155-6b0ec75dc683 => github.com/ajheflin/library-go v0.0.0-20261102190155-6b0ec75dc683
 ## explicit; go 1.25.0
 github.com/openshift/library-go/pkg/apiserver/jsonpatch
 github.com/openshift/library-go/pkg/certs
@@ -1742,3 +1742,5 @@ sigs.k8s.io/structured-merge-diff/v6/value
 # sigs.k8s.io/yaml v1.6.0
 ## explicit; go 1.22
 sigs.k8s.io/yaml
+# github.com/openshift/library-go => github.com/ajheflin/library-go v0.0.0-20261102190155-6b0ec75dc683
+# github.com/openshift/controller-runtime-common => github.com/ajheflin/controller-runtime-common v0.0.0-20261102190458-ae46ef2ac079

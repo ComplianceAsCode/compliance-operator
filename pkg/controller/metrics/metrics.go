@@ -133,7 +133,7 @@ func New() *Metrics {
 }
 
 // SetTLSProfileSpec configures the TLS profile spec to use for the metrics
-// server. When set, the server uses cipher suites and minimum TLS version
+// server. When set, the server uses cipher suites, groups, and minimum TLS version
 // from the given profile spec instead of the defaults.
 func (m *Metrics) SetTLSProfileSpec(profile configv1.TLSProfileSpec) {
 	m.tlsProfileSpec = &profile
@@ -155,10 +155,7 @@ func (m *Metrics) Register() error {
 	return nil
 }
 
-func (m *Metrics) Start(ctx context.Context) error {
-	m.log.Info("Starting to serve controller metrics")
-	http.Handle(HandlerPath, promhttp.Handler())
-
+func (m *Metrics) serverTLSConfig() *tls.Config {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		NextProtos: []string{"http/1.1"},
@@ -167,14 +164,20 @@ func (m *Metrics) Start(ctx context.Context) error {
 	if m.tlsProfileSpec != nil {
 		tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(*m.tlsProfileSpec)
 		if len(unsupported) > 0 {
-			m.log.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+			m.log.Info("TLS profile contains ciphers or groups unsupported by Go", "unsupported", unsupported)
 		}
 		tlsConfigFn(tlsConfig)
 	}
+	return tlsConfig
+}
+
+func (m *Metrics) Start(ctx context.Context) error {
+	m.log.Info("Starting to serve controller metrics")
+	http.Handle(HandlerPath, promhttp.Handler())
 
 	server := &http.Server{
 		Addr:      MetricsAddrListen,
-		TLSConfig: tlsConfig,
+		TLSConfig: m.serverTLSConfig(),
 	}
 
 	// The serving cert is minted asynchronously by the service-ca operator

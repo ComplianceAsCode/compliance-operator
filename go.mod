@@ -7,9 +7,9 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260521125114-09730f85d883
+	github.com/openshift/api v0.0.0-20260601143908-70f01b82bb53
 	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a
-	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
+	github.com/openshift/controller-runtime-common v0.0.0-20261102190458-ae46ef2ac079
 	k8s.io/apimachinery v0.35.7
 	k8s.io/client-go v0.35.7
 	open-cluster-management.io/api v0.15.0
@@ -98,7 +98,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/openshift/library-go v0.0.0-20260609093731-5637f8b25b0d
+	github.com/openshift/library-go v0.0.0-20261102190155-6b0ec75dc683
 	github.com/openshift/machine-config-operator v0.0.1-0.20260410020757-449e78f7ec94
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
@@ -188,3 +188,7 @@ require (
 	k8s.io/kubectl v0.35.7 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 )
+
+replace github.com/openshift/library-go => github.com/ajheflin/library-go v0.0.0-20261102190155-6b0ec75dc683
+
+replace github.com/openshift/controller-runtime-common => github.com/ajheflin/controller-runtime-common v0.0.0-20261102190458-ae46ef2ac079
