@@ -996,10 +996,18 @@ func TestScheduledSuiteTimeoutFail(t *testing.T) {
 // can report DONE/ERROR between retries, after the rescan has already removed
 // the scan's timeout annotation, so the suite status alone isn't enough.
 func waitForScanTimeout(f *framework.Framework, name string) (*compv1alpha1.ComplianceScan, error) {
-	scan := &compv1alpha1.ComplianceScan{}
+	var scan *compv1alpha1.ComplianceScan
 	key := types.NamespacedName{Name: name, Namespace: f.OperatorNamespace}
 	err := wait.PollImmediate(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		// Get into a new object every time: decoding into a reused one keeps
+		// map entries the server no longer has, such as a timeout annotation
+		// that a rescan has already removed.
+		scan = &compv1alpha1.ComplianceScan{}
 		if err := f.Client.Get(context.TODO(), key, scan); err != nil {
+			if isTransientGetError(err) {
+				log.Printf("retrying get of scan %s: %v", name, err)
+				return false, nil
+			}
 			return false, err
 		}
 		if scan.Status.Phase != compv1alpha1.PhaseDone || scan.NeedsRescan() {
@@ -1013,6 +1021,14 @@ func waitForScanTimeout(f *framework.Framework, name string) (*compv1alpha1.Comp
 		return true, nil
 	})
 	return scan, err
+}
+
+// isTransientGetError reports whether a failed Get is worth retrying: the
+// object isn't there yet, or the API server had a server-side (5xx) error or
+// asked the client to back off.
+func isTransientGetError(err error) bool {
+	return apierrors.IsNotFound(err) || apierrors.IsInternalError(err) || apierrors.IsServiceUnavailable(err) ||
+		apierrors.IsServerTimeout(err) || apierrors.IsTimeout(err) || apierrors.IsTooManyRequests(err)
 }
 
 func TestScanWithCustomStorageClass(t *testing.T) {
