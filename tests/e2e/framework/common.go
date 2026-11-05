@@ -547,6 +547,80 @@ func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, 
 	return nil
 }
 
+// WaitForDeploymentRollout waits until a Deployment has fully rolled out the
+// spec it currently holds.
+//
+// WaitForDeployment is not sufficient after mutating a Deployment's pod
+// template. It only checks AvailableReplicas, and for a single-replica
+// Deployment the *old* pod stays Available for the entire rolling update, so
+// the condition is already satisfied before the new pod is even scheduled.
+// Callers that patch a Deployment and then need the change to be live must use
+// this instead.
+//
+// The checks mirror what `kubectl rollout status` considers a complete
+// rollout:
+//
+//   - the Deployment controller has observed the current spec
+//     (ObservedGeneration is caught up with Generation);
+//   - every replica has been recreated against the new pod template
+//     (UpdatedReplicas == spec.Replicas);
+//   - no pods from the previous ReplicaSet linger (Replicas == spec.Replicas);
+//   - the new pods are actually serving (AvailableReplicas == spec.Replicas).
+func (f *Framework) WaitForDeploymentRollout(name string, retryInterval, timeout time.Duration) error {
+	err := wait.Poll(retryInterval, timeout, func() (done bool, err error) {
+		deployment, err := f.KubeClient.AppsV1().Deployments(f.OperatorNamespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Printf("Waiting for Deployment %s in Namespace %s to exist\n", name, f.OperatorNamespace)
+				return false, nil
+			}
+			var statusErr *apierrors.StatusError
+			var netErr net.Error
+			var urlErr *url.Error
+			if (errors.As(err, &statusErr) && statusErr.Status().Code >= 500) ||
+				errors.As(err, &netErr) || errors.As(err, &urlErr) {
+				log.Printf("Transient error checking Deployment %s: %v... retrying\n", name, err)
+				return false, nil
+			}
+			log.Printf("Non-transient error checking Deployment %s: %v... failing\n", name, err)
+			return false, err
+		}
+
+		// A nil spec.Replicas defaults to 1.
+		wantReplicas := int32(1)
+		if deployment.Spec.Replicas != nil {
+			wantReplicas = *deployment.Spec.Replicas
+		}
+
+		if deployment.Status.ObservedGeneration < deployment.Generation {
+			log.Printf("Waiting for %s deployment spec to be observed (generation %d, observed %d)\n",
+				name, deployment.Generation, deployment.Status.ObservedGeneration)
+			return false, nil
+		}
+		if deployment.Status.UpdatedReplicas < wantReplicas {
+			log.Printf("Waiting for %s deployment rollout (%d/%d replicas updated)\n",
+				name, deployment.Status.UpdatedReplicas, wantReplicas)
+			return false, nil
+		}
+		if deployment.Status.Replicas > deployment.Status.UpdatedReplicas {
+			log.Printf("Waiting for %s deployment to terminate %d old replica(s)\n",
+				name, deployment.Status.Replicas-deployment.Status.UpdatedReplicas)
+			return false, nil
+		}
+		if deployment.Status.AvailableReplicas < wantReplicas {
+			log.Printf("Waiting for %s deployment availability (%d/%d replicas available)\n",
+				name, deployment.Status.AvailableReplicas, wantReplicas)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("deployment %s did not finish rolling out: %w", name, err)
+	}
+	log.Printf("Deployment %s rollout complete\n", name)
+	return nil
+}
+
 // RestartComplianceOperator deletes the running operator pod(s) and waits for
 // the deployment to become available again. Used to verify that in-memory
 // state (e.g. the compliance_state metric, which lives only in the operator's
