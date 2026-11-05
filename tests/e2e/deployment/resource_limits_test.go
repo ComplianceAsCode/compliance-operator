@@ -163,17 +163,53 @@ func TestOperatorResourceLimitsConfigurable(t *testing.T) {
 			Name:      deploymentName,
 			Namespace: f.OperatorNamespace,
 		}, freshDeployment); err != nil {
-			t.Logf("failed to get deployment for restore: %s", err)
+			t.Errorf("failed to get deployment for restore: %s", err)
 			return
 		}
 
 		if err := f.Client.Patch(context.TODO(), freshDeployment, client.RawPatch(types.StrategicMergePatchType, restorePatch)); err != nil {
-			t.Logf("failed to restore original resource limits: %s", err)
+			t.Errorf("failed to restore original resource limits: %s", err)
+			return
 		}
 
-		// Wait for deployment to be ready with original limits
-		if err := f.WaitForDeployment(deploymentName, 1, framework.RetryInterval, framework.Timeout); err != nil {
-			t.Logf("deployment did not become ready after restore: %s", err)
+		// Wait for the restore to actually roll out. WaitForDeployment is not
+		// usable here: it only checks AvailableReplicas, and the pre-restore
+		// pod stays Available for the whole rolling update, so it would return
+		// before the operator is running with the original limits again.
+		if err := f.WaitForDeploymentRollout(deploymentName, framework.RetryInterval, framework.Timeout); err != nil {
+			t.Errorf("deployment did not roll out after restore: %s", err)
+			return
+		}
+
+		// Confirm the operator really is back on its original resources. A
+		// silent failure here would leak the patched limits into every test
+		// that runs after this one.
+		restored := &appsv1.Deployment{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      deploymentName,
+			Namespace: f.OperatorNamespace,
+		}, restored); err != nil {
+			t.Errorf("failed to get deployment to verify restore: %s", err)
+			return
+		}
+		if len(restored.Spec.Template.Spec.Containers) == 0 {
+			t.Error("no containers found in deployment after restore")
+			return
+		}
+		restoredResources := restored.Spec.Template.Spec.Containers[0].Resources
+		for _, tc := range []struct {
+			name string
+			want string
+			got  string
+		}{
+			{"CPU limit", defaultCPULimit, restoredResources.Limits.Cpu().String()},
+			{"memory limit", defaultMemLimit, restoredResources.Limits.Memory().String()},
+			{"CPU request", defaultCPURequest, restoredResources.Requests.Cpu().String()},
+			{"memory request", defaultMemRequest, restoredResources.Requests.Memory().String()},
+		} {
+			if tc.got != tc.want {
+				t.Errorf("after restore, expected %s %s, got %s", tc.name, tc.want, tc.got)
+			}
 		}
 	}()
 
