@@ -4418,24 +4418,7 @@ func (f *Framework) AssertMetricsContain(ssbName string) error {
 		`compliance_operator_compliance_scan_status_total{name="ocp4-cis",phase="DONE",result=`,
 		fmt.Sprintf(`compliance_operator_compliance_state{name="%s"}`, ssbName),
 	}
-	deadline := time.Now().Add(180 * time.Second)
-	for time.Now().Before(deadline) {
-		out, err := getMetricResults(f.OperatorNamespace)
-		if err == nil {
-			ok := true
-			for _, m := range want {
-				if !strings.Contains(out, m) {
-					ok = false
-					break
-				}
-			}
-			if ok {
-				return nil
-			}
-		}
-		time.Sleep(5 * time.Second)
-	}
-	return fmt.Errorf("metrics did not contain expected substrings")
+	return WaitForMetricOutputContainsAll(f.OperatorNamespace, want, 180*time.Second, 5*time.Second)
 }
 
 func (f *Framework) AssertPrometheusRule() error {
@@ -4471,7 +4454,7 @@ func (f *Framework) AssertPrometheusRule() error {
 			return nil
 		}
 	}
-	return fmt.Errorf("no compliance PrometheusRule with NonCompliant alert found")
+	return fmt.Errorf("no compliance PrometheusRule with NonCompliant alert found in %s", f.OperatorNamespace)
 }
 
 func (f *Framework) WaitForAlertAbsent(alertName string, timeout time.Duration) error {
