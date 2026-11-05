@@ -60,7 +60,7 @@ func TestErrorMetricsPrometheusRule(t *testing.T) {
 					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
 						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
 						Content:      "this-file-does-not-exist.xml",
-						ContentImage: "quay.io/compliance-operator/compliance-operator-content:latest",
+						ContentImage: contentImagePath,
 						NodeSelector: selectWorkers,
 					},
 				},
@@ -99,7 +99,7 @@ func TestErrorMetricsPrometheusRule(t *testing.T) {
 	// Beyond the raw metric, an ERROR result should also be surfaced as a
 	// firing NonCompliant alert via the operator's PrometheusRule, which is
 	// what actually pages someone rather than just incrementing a counter.
-	if err := f.AssertPrometheusRuleComplianceNonCompliantAlert(); err != nil {
+	if err := f.AssertPrometheusRule(); err != nil {
 		t.Fatalf("PrometheusRule NonCompliant alert: %v", err)
 	}
 }
