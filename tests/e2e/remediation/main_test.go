@@ -237,7 +237,7 @@ func TestGenericRemediationFailsWithUnknownType(t *testing.T) {
 	}
 }
 
-/ TestRemediationWithUnsetValueNeedsReview tests when a
+// TestRemediationWithUnsetValueNeedsReview tests when a
 // remediation needs a variable that the tailored profile doesn't set, the
 // aggregator records the variable in the unset-value annotation. The operator
 // must not apply such a remediation, even with apply set, and must report
