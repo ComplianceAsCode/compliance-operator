@@ -281,7 +281,7 @@ func getServerTLSConfig() *tls.Config {
 	// (applyClusterTLSProfile is a no-op unless strict adherence is required).
 	profile, adherence := fetchClusterTLSState(context.Background(), cl)
 	if unsupported := applyClusterTLSProfile(tlsConfig, profile, adherence); len(unsupported) > 0 {
-		cmdLog.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+		cmdLog.Info("TLS profile contains ciphers or groups unsupported by Go", "unsupported", unsupported)
 	}
 	return tlsConfig
 }
