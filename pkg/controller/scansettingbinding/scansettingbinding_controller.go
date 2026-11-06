@@ -422,7 +422,7 @@ func (r *ReconcileScanSettingBinding) createScansWithSelector(
 // has already taken place.
 func (r *ReconcileScanSettingBinding) sanitizeRoleForName(roleName string) string {
 	if roleName == compliancev1alpha1.AllRoles {
-		return "a-all"
+		return utils.AllRolesScanNameSuffix
 	}
 	// Remove all invalid characters if anything slips through
 	// here. This should be a no-op since validation
