@@ -11,6 +11,19 @@ namespace: openshift-compliance
 # 'openshift', 'eks', 'generic', and 'unknown'.
 platform: openshift
 
+# Images used by the operator and the pods it creates.
+image:
+  operator:
+    repository: icr.io/sovcore-dev/compliance-operator
+    tag: master-v6
+    pullPolicy: IfNotPresent
+  openscap:
+    repository: quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-dev
+    tag: master
+  profile:
+    repository: icr.io/sovcore-dev/content
+    tag: 20260914154527-feat-sps-image-build-v1.8.2-605fae8
+
 # By default, the compliance-operator will deploy to nodes tagged with the
 # master kubernetes role, which is present in OpenShift deployments. You may
 # need to omit this option to run the compliance-operator on other platforms,

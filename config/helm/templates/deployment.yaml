@@ -19,13 +19,13 @@ spec:
       serviceAccountName: compliance-operator
       containers:
         - name: compliance-operator
-          image: "ghcr.io/complianceascode/compliance-operator:latest"
+          image: "{{ .Values.image.operator.repository }}:{{ .Values.image.operator.tag }}"
           command:
           - compliance-operator
           - operator
           - --platform
           - {{ .Values.platform }}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.image.operator.pullPolicy }}
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -52,12 +52,11 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: RELATED_IMAGE_OPENSCAP
-              # Hardcoding this temporarily until its propagated to CI
-              value: "ghcr.io/complianceascode/openscap-ocp:latest"
+              value: "{{ .Values.image.openscap.repository }}:{{ .Values.image.openscap.tag }}"
             - name: RELATED_IMAGE_OPERATOR
-              value: "ghcr.io/complianceascode/compliance-operator:latest"
+              value: "{{ .Values.image.operator.repository }}:{{ .Values.image.operator.tag }}"
             - name: RELATED_IMAGE_PROFILE
-              value: "ghcr.io/complianceascode/k8scontent:latest"
+              value: "{{ .Values.image.profile.repository }}:{{ .Values.image.profile.tag }}"
           volumeMounts:
             - name: serving-cert
               mountPath: /var/run/secrets/serving-cert

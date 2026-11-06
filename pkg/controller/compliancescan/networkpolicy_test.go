@@ -56,6 +56,10 @@ func TestAllowEgressNetworkPolicy(t *testing.T) {
 }
 
 func TestResultServerIngressNetworkPolicy(t *testing.T) {
+	// Pin to OpenShift so the OVN host-network peer is always included,
+	// regardless of the PLATFORM env var in the build/test environment.
+	t.Setenv("PLATFORM", "OpenShift")
+
 	np := resultServerIngressNetworkPolicy("openshift-compliance")
 
 	if np.Name != networkPolicyResultServerIngress {
@@ -103,6 +107,25 @@ func TestResultServerIngressNetworkPolicy(t *testing.T) {
 	}
 	if !haveHostNetworkNS {
 		t.Error("missing host-network namespaceSelector ingress peer")
+	}
+}
+
+func TestResultServerIngressNetworkPolicyGeneric(t *testing.T) {
+	// On non-OVN platforms the From peer list must be nil so the port
+	// accepts connections from any source.
+	t.Setenv("PLATFORM", "generic")
+
+	np := resultServerIngressNetworkPolicy("openshift-compliance")
+
+	if len(np.Spec.Ingress) != 1 {
+		t.Fatalf("expected one ingress rule, got %d", len(np.Spec.Ingress))
+	}
+	rule := np.Spec.Ingress[0]
+	if len(rule.From) != 0 {
+		t.Errorf("expected no From peers on generic platform, got %d", len(rule.From))
+	}
+	if len(rule.Ports) != 1 {
+		t.Fatalf("expected one ingress port, got %d", len(rule.Ports))
 	}
 }
 

@@ -3,6 +3,7 @@ package compliancescan
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +15,7 @@ import (
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
 	"github.com/ComplianceAsCode/compliance-operator/pkg/controller/common"
+	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
 
 const (
@@ -84,6 +86,38 @@ func allowEgressNetworkPolicy(ns string) *networkingv1.NetworkPolicy {
 func resultServerIngressNetworkPolicy(ns string) *networkingv1.NetworkPolicy {
 	tcp := corev1.ProtocolTCP
 	port := intstr.FromInt32(ResultServerPort)
+	rule := networkingv1.NetworkPolicyIngressRule{
+		From: []networkingv1.NetworkPolicyPeer{
+			{
+				PodSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{WorkloadLabel: WorkloadScanner},
+				},
+			},
+			{
+				NamespaceSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{hostNetworkNamespaceLabel: ""},
+				},
+			},
+		},
+		Ports: []networkingv1.NetworkPolicyPort{
+			{Protocol: &tcp, Port: &port},
+		},
+	}
+	// The host-network namespace label only exists on OVN-Kubernetes, which is
+	// the CNI on OpenShift-based platforms. On all other platforms (generic,
+	// EKS, unknown) the label is absent, so the NamespaceSelector peer never
+	// matches and host-networked node scanners are blocked. Drop the peer list
+	// on non-OpenShift platforms so the port accepts connections from any
+	// source. mTLS on the result server remains the authentication boundary.
+	platform := utils.GetPlatform()
+	ovnPlatform := strings.EqualFold(platform, "OpenShift") ||
+		strings.EqualFold(platform, "OpenShiftOnPower") ||
+		strings.EqualFold(platform, "OpenShiftOnZ") ||
+		strings.EqualFold(platform, "HyperShift") ||
+		strings.EqualFold(platform, "ROSA")
+	if !ovnPlatform {
+		rule.From = nil
+	}
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkPolicyResultServerIngress,
@@ -94,25 +128,7 @@ func resultServerIngressNetworkPolicy(ns string) *networkingv1.NetworkPolicy {
 				MatchLabels: map[string]string{WorkloadLabel: WorkloadResultServer},
 			},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				{
-					From: []networkingv1.NetworkPolicyPeer{
-						{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{WorkloadLabel: WorkloadScanner},
-							},
-						},
-						{
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{hostNetworkNamespaceLabel: ""},
-							},
-						},
-					},
-					Ports: []networkingv1.NetworkPolicyPort{
-						{Protocol: &tcp, Port: &port},
-					},
-				},
-			},
+			Ingress:     []networkingv1.NetworkPolicyIngressRule{rule},
 		},
 	}
 }
