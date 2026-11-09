@@ -50,7 +50,8 @@ func TestInstallOnlyParsesNodeProfiles(t *testing.T) {
 	}
 }
 
-func TestScanSetting(t *testing.T) {
+func TestDefaultScanSettingsDoNotApplyRemediations(t *testing.T) {
+	t.Parallel()
 	f := framework.Global
 
 	scanSettingList := compv1alpha1.ScanSettingList{}
@@ -58,16 +59,29 @@ func TestScanSetting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to list scan settings: %v", err)
 	}
+
 	for _, scanSetting := range scanSettingList.Items {
-		if scanSetting.Name == "default-auto-apply" {
-			t.Fatalf("ScanSetting: %s is not expected", scanSetting.Name)
+		if scanSetting.AutoApplyRemediations {
+			t.Fatalf("ScanSetting %s has AutoApplyRemediations enabled", scanSetting.Name)
 		}
-		t.Logf("ScanSetting: %s", scanSetting.Name)
+	}
+}
+
+func TestDefaultScanSettingsOnlyTargetWorkerPools(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+
+	scanSettingList := compv1alpha1.ScanSettingList{}
+	err := f.Client.List(context.TODO(), &scanSettingList)
+	if err != nil {
+		t.Fatalf("Failed to list scan settings: %v", err)
+	}
+
+	for _, scanSetting := range scanSettingList.Items {
 		for _, role := range scanSetting.Roles {
 			if role == "master" {
-				t.Fatalf("Role: %s is not expected", role)
+				t.Fatalf("ScanSetting %s contains unexpected master role", scanSetting.Name)
 			}
-			t.Logf("Role: %s", role)
 		}
 	}
 }
