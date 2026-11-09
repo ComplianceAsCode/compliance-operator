@@ -727,7 +727,7 @@ prep-e2e-hypershift: kustomize
 
 .PHONY: e2e-hypershift
 e2e-hypershift: e2e-set-image prep-e2e-hypershift ## Run tests against HyperShift environment
-	@LOG_CONTAINER_OUTPUT=1 SKIP_MCP_SETUP=1 $(GO) test ./tests/e2e/hypershift $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform HyperShift | tee tests/e2e-hypershift.log
+	@LOG_CONTAINER_OUTPUT=1 SKIP_MCP_SETUP=1 $(GO) test ./tests/e2e/hypershift $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform hypershift | tee tests/e2e-hypershift.log
 
 .PHONY: prep-e2e
 prep-e2e: kustomize
