@@ -1,0 +1,30 @@
+rules:
+  - name: cel-rule
+    id: cel_rule
+    title: CEL Rule
+    description: A rule with CEL checks
+    rationale: Testing
+    severity: medium
+    checkType: Platform
+    expression: "pods.items.size() > 0"
+    inputs:
+      - name: pods
+        kubernetesInputSpec:
+          apiVersion: v1
+          resource: pods
+  - name: manual-rule
+    id: manual_rule
+    title: Manual Rule
+    description: A rule without automated checks
+    rationale: Requires manual verification
+    severity: medium
+    checkType: Platform
+    instructions: Run oc adm policy who-can create vmim
+profiles:
+  - name: test-profile
+    id: test_profile
+    title: Test Profile
+    productType: Platform
+    rules:
+      - cel-rule
+      - manual-rule
