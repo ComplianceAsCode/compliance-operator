@@ -716,6 +716,19 @@ e2e-prerelease: e2e-set-image prep-e2e ## Run prerelease e2e tests (e.g. default
 e2e-rosa: e2e-set-image prep-e2e ## Run tests against managed ROSA environment concurrently
 	@LOG_CONTAINER_OUTPUT=1 $(GO) test ./tests/e2e/rosa $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa | tee tests/e2e-rosa.log
 
+## Convert --platform to using $PLATFORM if we make this target more generic
+## for other offerings.
+.PHONY: prep-e2e-hypershift
+prep-e2e-hypershift: kustomize
+	rm -rf $(TEST_SETUP_DIR)
+	mkdir -p $(TEST_SETUP_DIR)
+	$(KUSTOMIZE) build config/hypershift | sed -e 's%$(DEFAULT_OPERATOR_IMAGE)%$(OPERATOR_IMAGE)%' -e 's%$(DEFAULT_CONTENT_IMAGE)%$(E2E_CONTENT_IMAGE_PATH)%' -e 's%$(DEFAULT_OPENSCAP_IMAGE)%$(OPENSCAP_IMAGE)%'  > $(TEST_DEPLOY)
+	$(KUSTOMIZE) build config/crd > $(TEST_CRD)
+
+.PHONY: e2e-hypershift
+e2e-hypershift: e2e-set-image prep-e2e-hypershift ## Run tests against HyperShift environment
+	@LOG_CONTAINER_OUTPUT=1 SKIP_MCP_SETUP=1 $(GO) test ./tests/e2e/hypershift $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform hypershift | tee tests/e2e-hypershift.log
+
 .PHONY: prep-e2e
 prep-e2e: kustomize
 	rm -rf $(TEST_SETUP_DIR)
