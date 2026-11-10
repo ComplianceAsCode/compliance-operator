@@ -10,6 +10,7 @@ approvers:
   - Anna-Koudelkova
   - vickeybrown
   - abushkin-redhat
+  - guzalv
 reviewers:
   - jhrozek
   - mrogers950
@@ -21,3 +22,4 @@ reviewers:
   - Anna-Koudelkova
   - vickeybrown
   - abushkin-redhat
+  - guzalv
