@@ -1,6 +1,9 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: tailoredprofiles.compliance.openshift.io
 spec:
   group: compliance.openshift.io
@@ -25,14 +28,19 @@ spec:
         description: TailoredProfile is the Schema for the tailoredprofiles API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -49,6 +57,12 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -67,6 +81,12 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -89,6 +109,12 @@ spec:
                   description: RuleReferenceSpec specifies a rule to be selected/deselected,
                     as well as the reason why
                   properties:
+                    kind:
+                      description: |-
+                        Specifies the type of rule reference: either "Rule" or "CustomRule".
+                        If not set, "Rule" is used by default. The "CustomRule" type is only applicable
+                        when referencing CustomRule resources in TailoredProfiles via enableRules.
+                      type: string
                     name:
                       description: Name of the rule that's being referenced
                       type: string
@@ -152,6 +178,8 @@ spec:
                 type: object
               state:
                 description: The current state of the tailored profile
+                type: string
+              warnings:
                 type: string
             type: object
         type: object

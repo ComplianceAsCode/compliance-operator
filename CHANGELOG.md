@@ -9,7 +9,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Enhancements
 
--
+- Support deploying compliance-operator on plain Kubernetes (non-OpenShift) clusters
+  - The TLS security profile watcher no longer runs on non-OpenShift platforms,
+    preventing crashes when the `apiservers.config.openshift.io` CRD is absent
+  - OVN host-network `NetworkPolicy` peer is now conditioned on OpenShift platforms only,
+    allowing scanner pods to upload results on Calico and other non-OVN CNIs
+  - Scanner pods run with `Privileged: true` on generic/non-OpenShift platforms
+    where Linux capabilities alone are insufficient for chroot-based scanning
 
 ### Fixes
 
@@ -17,7 +23,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Internal Changes
 
--
+- Use `ubi9/ubi-minimal` instead of `ubi9/ubi-micro` as the operator container
+  base image — the entrypoint and init containers require a shell
+- Kubelet config map volume mode changed from `0600` to `0644` to allow
+  non-root init containers to read it on generic Kubernetes platforms
 
 ### Deprecations
 
