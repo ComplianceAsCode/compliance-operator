@@ -576,8 +576,14 @@ func createResults(crClient aggregatorCrClient, scan *compv1alpha1.ComplianceSca
 	// not).
 
 	// Build a cache of custom labels/annotations from Rule objects so that
-	// we can propagate user-defined metadata to ComplianceCheckResults.
-	ruleMetadataCache, err := utils.NewRuleMetadataCache(crClient.getClient(), scan.Namespace)
+	// we can propagate user-defined metadata to ComplianceCheckResults. Only
+	// the Rules of the scan's own ProfileBundle count: other bundles with the
+	// same content have Rules for the same checks.
+	bundles, err := utils.ProfileBundlesForScan(crClient.getClient(), scan)
+	if err != nil {
+		cmdLog.Info("Warning: could not find the scan's ProfileBundle, using the Rules of every bundle for custom metadata", "error", err)
+	}
+	ruleMetadataCache, err := utils.NewRuleMetadataCacheForBundles(crClient.getClient(), scan.Namespace, bundles)
 	if err != nil {
 		// Non-fatal: if we can't build the cache, we just won't propagate custom metadata.
 		cmdLog.Info("Warning: could not build rule metadata cache, custom labels/annotations will not be propagated", "error", err)

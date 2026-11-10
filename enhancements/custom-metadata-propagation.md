@@ -226,8 +226,9 @@ A new file providing:
 |---|---|
 | `IsOperatorManagedKey(key)` | Returns `true` if the key starts with a known operator prefix. |
 | `GetCustomMetadata(labels, annotations)` | Filters out operator-managed keys, returning only custom entries. |
-| `RuleMetadataCache` | Indexes all `Rule` objects in a namespace by their `compliance.openshift.io/rule` annotation value, caching their custom labels and annotations. Built once per aggregation run. |
-| `NewRuleMetadataCache(client, namespace)` | Lists all Rules, extracts custom metadata, populates cache. |
+| `RuleMetadataCache` | Indexes the `Rule` objects of the scan's ProfileBundle by their `compliance.openshift.io/rule` annotation value, caching their custom labels and annotations. Built once per aggregation run. |
+| `ProfileBundlesForScan(client, scan)` | Returns the ProfileBundles with the scan's content image and file. Bundles with the same content have Rules with the same `compliance.openshift.io/rule` value, so the cache must not mix them. |
+| `NewRuleMetadataCacheForBundles(client, namespace, bundles)` | Lists the Rules of the given bundles (all Rules when none are given), extracts custom metadata, populates cache. `NewRuleMetadataCache(client, namespace)` is the all-Rules form. |
 | `GetCustomMetadataForRule(ruleDNSName)` | Cache lookup. Returns `nil, nil` for unknown rules or nil receiver. |
 | `MergeCustomMetadata(targetLabels, customLabels, targetAnnotations, customAnnotations)` | Adds custom entries to target maps only when the key does not already exist (operator entries take precedence). |
 
@@ -240,9 +241,9 @@ Operator-managed prefixes:
 
 #### Component 2 — RBAC (`config/rbac/remediation_aggregator_role.yaml`)
 
-The `remediation-aggregator` Role requires `list` permission on `rules` in the
-`compliance.openshift.io` API group so that `NewRuleMetadataCache` can list all
-Rule objects in the namespace.
+The `remediation-aggregator` Role requires `list` permission on `rules` and
+`profilebundles` in the `compliance.openshift.io` API group, so that the
+aggregator can find the scan's ProfileBundle and list its Rule objects.
 
 #### Component 3 — OpenSCAP aggregator path (`cmd/manager/aggregator.go`)
 
