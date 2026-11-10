@@ -313,10 +313,29 @@ func pinToMasters(u *unstructured.Unstructured) error {
 	}, "spec", "template", "spec", "tolerations")
 }
 
+// hasHostedControlPlane reports whether the cluster under test runs its control
+// plane outside the cluster itself, as ROSA HCP and HyperShift hosted clusters
+// do.
+//
+// Such clusters have no master nodes and no Machine Config Operator, so
+// anything that pins workloads to masters, registers MCO types, or builds a
+// MachineConfigPool will not work.
+//
+// The comparison is case-insensitive: the operator spells the platform
+// "HyperShift" (PlatformHyperShift in cmd/manager/operator.go) while the e2e
+// --platform flag is conventionally lowercase.
+func (f *Framework) hasHostedControlPlane() bool {
+	switch strings.ToLower(f.Platform) {
+	case "rosa", "hypershift":
+		return true
+	}
+	return false
+}
+
 // shouldPinOperatorToMasters reports whether the cluster has master nodes to pin
 // the operator to. ROSA and other hosted control planes have none.
 func (f *Framework) shouldPinOperatorToMasters() (bool, error) {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		return false, nil
 	}
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"})
@@ -373,7 +392,7 @@ func (f *Framework) addFrameworks() error {
 	}
 
 	// MCO objects
-	if f.Platform != "rosa" {
+	if !f.hasHostedControlPlane() {
 		mcoObjs := [2]dynclient.ObjectList{
 			&mcfgv1.MachineConfigPoolList{},
 			&mcfgv1.MachineConfigList{},
@@ -816,7 +835,7 @@ func (f *Framework) GetReadyProfileBundle(name, namespace string) (*compv1alpha1
 }
 
 func (f *Framework) updateScanSettingsForDebug() error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -845,7 +864,7 @@ func (f *Framework) ensureE2EScanSettings() error {
 // "<poolName>-default-auto-apply" ScanSetting whose Roles target poolName, so
 // each parallel test lane scans/remediates only its own pool.
 func (f *Framework) ensureE2EScanSettingsForPool(poolName string) error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -886,7 +905,7 @@ func (f *Framework) ensureE2EScanSettingsForPool(poolName string) error {
 }
 
 func (f *Framework) deleteScanSettings(name string) error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing ScanSettings test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -944,7 +963,7 @@ func (f *Framework) getWorkerNodes() ([]corev1.Node, error) {
 }
 
 func (f *Framework) createMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -1139,7 +1158,7 @@ func (f *Framework) validatingAdmissionPolicyExists(name string) (bool, error) {
 }
 
 func (f *Framework) createInvalidMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing MachineConfigPool test setup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -1201,7 +1220,7 @@ func (f *Framework) createInvalidMachineConfigPool(n string) error {
 }
 
 func (f *Framework) cleanUpMachineConfigPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing MachineConfigPool cleanup because it's not supported on %s\n", f.Platform)
 		return nil
 	}
@@ -1219,7 +1238,7 @@ func (f *Framework) cleanUpMachineConfigPool(n string) error {
 }
 
 func (f *Framework) restoreNodeLabelsForPool(n string) error {
-	if f.Platform == "rosa" {
+	if f.hasHostedControlPlane() {
 		fmt.Printf("bypassing node label restoration because MachineConfigPools are not supported on %s\n", f.Platform)
 		return nil
 	}
