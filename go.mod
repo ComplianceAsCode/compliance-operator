@@ -6,14 +6,14 @@ require (
 	github.com/ComplianceAsCode/compliance-sdk v0.1.1
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260521125114-09730f85d883
-	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a
-	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
-	k8s.io/apimachinery v0.35.7
-	k8s.io/client-go v0.35.7
-	open-cluster-management.io/api v0.15.0
-	sigs.k8s.io/controller-runtime v0.23.3
+	github.com/onsi/gomega v1.44.0
+	github.com/openshift/api 2662c7aa27ef
+	github.com/openshift/client-go 505de3dc15d7
+	github.com/openshift/controller-runtime-common v0.0.0-20261026124434-bdfc411d93cd
+	k8s.io/apimachinery v0.37.2
+	k8s.io/client-go v0.37.2
+	open-cluster-management.io/api v0.16.2
+	sigs.k8s.io/controller-runtime v0.25.2
 )
 
 require (
@@ -75,12 +75,12 @@ require (
 
 require (
 	github.com/ajeddeloh/go-json v0.0.0-20200220154158-5ae607161559 // indirect
-	github.com/antchfx/xmlquery v1.5.1
+	github.com/antchfx/xmlquery v1.5.2
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clarketm/json v1.17.1
-	github.com/coreos/ignition/v2 v2.26.0
+	github.com/coreos/ignition/v2 v2.28.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dsnet/compress v0.0.1
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
@@ -91,29 +91,29 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/imdario/mergo v0.3.16 // indirect
-	github.com/itchyny/gojq v0.12.19
+	github.com/itchyny/gojq v0.12.20
 	github.com/jaytaylor/html2text v0.0.0-20260303211410-1a4bdc82ecec
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/openshift/library-go v0.0.0-20260609093731-5637f8b25b0d
+	github.com/openshift/library-go v0.0.0-20261110211704-6859b4a48389
 	github.com/openshift/machine-config-operator v0.0.1-0.20260410020757-449e78f7ec94
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.90.1
-	github.com/prometheus-operator/prometheus-operator/pkg/client v0.90.1
-	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.95.1
+	github.com/prometheus-operator/prometheus-operator/pkg/client v0.95.1
+	github.com/prometheus/client_golang v1.25.0
+	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/securego/gosec/v2 v2.25.0
-	github.com/sirupsen/logrus v1.9.4
+	github.com/securego/gosec/v2 v2.30.0
+	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0
 	golang.org/x/mod v0.38.0
@@ -129,15 +129,15 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.35.7
-	k8s.io/apiextensions-apiserver v0.35.7
-	k8s.io/apiserver v0.35.7
+	k8s.io/api v0.37.2
+	k8s.io/apiextensions-apiserver v0.37.2
+	k8s.io/apiserver v0.37.2
 	k8s.io/component-base v0.35.7 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
-	k8s.io/pod-security-admission v0.35.7
+	k8s.io/pod-security-admission v0.37.2
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
-	sigs.k8s.io/controller-tools v0.20.1
+	sigs.k8s.io/controller-tools v0.23.0
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/yaml v1.6.0
 )
