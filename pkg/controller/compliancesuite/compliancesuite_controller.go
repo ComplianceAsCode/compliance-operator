@@ -478,20 +478,48 @@ func launchScanForSuite(r *ReconcileComplianceSuite, suite *compv1alpha1.Complia
 // no Profile name. Other scans get the GUID and name of the Profile they are
 // named after, or nothing if they aren't named after one, like the scans of a
 // ComplianceSuite created directly.
+//
+// It reads only the Profiles that the scan's name can come from, so the
+// reconcile of an existing scan that isn't named after a Profile costs at
+// most two reads instead of a list of every Profile in the namespace.
 func profileLabelsForScan(r *ReconcileComplianceSuite, suite *compv1alpha1.ComplianceSuite, scanWrap *compv1alpha1.ComplianceScanSpecWrapper) (string, string, error) {
 	if scanWrap.TailoringConfigMap != nil || scanWrap.ComplianceScanSpec.ScannerType == compv1alpha1.ScannerTypeCEL {
 		return xccdf.GetProfileUniqueIDFromTP(scanWrap.Profile), "", nil
 	}
-	profiles := &compv1alpha1.ProfileList{}
-	if err := r.Client.List(context.TODO(), profiles, client.InNamespace(suite.Namespace)); err != nil {
-		return "", "", err
-	}
-	for _, profile := range profiles.Items {
+	for _, name := range profileNamesForScan(scanWrap) {
+		profile := &compv1alpha1.Profile{}
+		err := r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: suite.Namespace}, profile)
+		if errors.IsNotFound(err) {
+			continue
+		} else if err != nil {
+			return "", "", err
+		}
 		if profile.ID == scanWrap.Profile && isScanForProfile(scanWrap, profile.Name) {
 			return profile.GetLabels()[compv1alpha1.ProfileGuidLabel], profile.Name, nil
 		}
 	}
 	return "", "", nil
+}
+
+// profileNamesForScan returns the names of the Profiles that isScanForProfile
+// can match the scan to: its name without the role in its node selector, and,
+// for a node scan with no role, its name without the suffix of the @all role.
+// A scan with a role whose name doesn't end with that role can't be named
+// after a Profile, so it gets none.
+func profileNamesForScan(scanWrap *compv1alpha1.ComplianceScanSpecWrapper) []string {
+	if role := utils.GetFirstNodeRole(scanWrap.NodeSelector); role != "" {
+		if name, ok := strings.CutSuffix(scanWrap.Name, "-"+role); ok && name != "" {
+			return []string{name}
+		}
+		return nil
+	}
+	names := []string{scanWrap.Name}
+	if strings.EqualFold(string(scanWrap.ScanType), string(compv1alpha1.ScanTypeNode)) {
+		if name, ok := strings.CutSuffix(scanWrap.Name, "-"+utils.AllRolesScanNameSuffix); ok && name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // reconcileScanLabels adds the Profile labels that an existing scan lacks.
