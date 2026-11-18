@@ -28,6 +28,27 @@ import (
 	"github.com/ComplianceAsCode/compliance-operator/pkg/utils"
 )
 
+// profileReadCounter counts the reads of Profiles that go through it.
+type profileReadCounter struct {
+	client.Client
+	gets  int
+	lists int
+}
+
+func (c *profileReadCounter) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if _, ok := obj.(*compv1alpha1.Profile); ok {
+		c.gets++
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+func (c *profileReadCounter) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, ok := list.(*compv1alpha1.ProfileList); ok {
+		c.lists++
+	}
+	return c.Client.List(ctx, list, opts...)
+}
+
 var _ = Describe("ComplianceSuiteController", func() {
 	var (
 		suite              *compv1alpha1.ComplianceSuite
@@ -376,6 +397,60 @@ var _ = Describe("ComplianceSuiteController", func() {
 			scan := reconcileAndGetScan(scanWrap)
 			Expect(scan.Labels).NotTo(HaveKey(compv1alpha1.ProfileNameLabel))
 			Expect(scan.ResourceVersion).To(Equal(before.ResourceVersion))
+		})
+
+		// reconcileTwiceCountingProfileReads has the suite reconcile the scan
+		// twice and returns the reads of Profiles that it made.
+		reconcileTwiceCountingProfileReads := func(scanWrap *compv1alpha1.ComplianceScanSpecWrapper) *profileReadCounter {
+			counter := &profileReadCounter{Client: reconciler.Client}
+			reconciler.Client = counter
+			for i := 0; i < 2; i++ {
+				// Each reconcile starts from the suite as stored, as the
+				// controller's do.
+				current := &compv1alpha1.ComplianceSuite{}
+				Expect(reconciler.Client.Get(ctx, types.NamespacedName{Name: suiteName, Namespace: namespace}, current)).To(Succeed())
+				current.Spec.Scans = []compv1alpha1.ComplianceScanSpecWrapper{*scanWrap}
+				_, err := reconciler.reconcileScans(current, logger)
+				Expect(err).To(BeNil())
+			}
+			return counter
+		}
+
+		It("Should not read any Profile when a scan with a role can't be named after one", func() {
+			scanWrap := existingScan("my-scan", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "",
+			})
+			before := getScan(scanWrap.Name)
+			counter := reconcileTwiceCountingProfileReads(scanWrap)
+			Expect(counter.lists).To(BeZero())
+			Expect(counter.gets).To(BeZero())
+			Expect(getScan(scanWrap.Name).Labels).To(Equal(before.Labels))
+		})
+
+		It("Should read only the Profile a scan's name can come from on each reconcile", func() {
+			// A node scan with no role in its node selector can be named after
+			// a Profile directly, or with the suffix of the @all role.
+			scanWrap := existingScan("my-scan", compv1alpha1.AllRoles, map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "",
+			})
+			before := getScan(scanWrap.Name)
+			counter := reconcileTwiceCountingProfileReads(scanWrap)
+			Expect(counter.lists).To(BeZero())
+			Expect(counter.gets).To(Equal(2))
+			Expect(getScan(scanWrap.Name).Labels).To(Equal(before.Labels))
+		})
+
+		It("Should read no Profile for a scan that has both Profile labels", func() {
+			scanWrap := existingScan("bazz-foo-worker", "worker", map[string]string{
+				compv1alpha1.SuiteLabel:       suiteName,
+				compv1alpha1.ProfileGuidLabel: "foo-guid",
+				compv1alpha1.ProfileNameLabel: "bazz-foo",
+			})
+			counter := reconcileTwiceCountingProfileReads(scanWrap)
+			Expect(counter.lists).To(BeZero())
+			Expect(counter.gets).To(BeZero())
 		})
 
 		It("Should add the labels when the suite reconciles its scans", func() {
