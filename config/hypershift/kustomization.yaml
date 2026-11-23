@@ -1,11 +1,10 @@
-# deploy variant
+# e2e setup variant — like default/ except no crd or ns
 # Adds namespace to all resources.
 namespace: openshift-compliance
 
 bases:
 - ../rbac
 - ../manager
-- ../ns
 
 patches:
 - path: manager_patch.yaml
