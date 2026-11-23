@@ -1674,4 +1674,3 @@ func TestCELWithXCCDFProfileScan(t *testing.T) {
 
 	t.Log("Mixed CEL + XCCDF scan test completed successfully")
 }
-
