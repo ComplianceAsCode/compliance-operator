@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -453,7 +452,7 @@ func (f *Framework) addFrameworks() error {
 }
 
 // EnsureE2ESchemes registers API schemes on the framework client when tests run against an
-// existing cluster install without SetUp (see E2E_SKIP_FRAMEWORK_SETUP in prerelease tests).
+// existing cluster install without SetUp (see E2E_SKIP_FRAMEWORK_SETUP in the upgrade tests).
 func (f *Framework) EnsureE2ESchemes() error {
 	return f.addFrameworks()
 }
@@ -660,12 +659,18 @@ func (f *Framework) RestartComplianceOperator() error {
 }
 
 func (f *Framework) ensureTestNamespaceExists() error {
+	return f.ensureNamespaceExists(f.OperatorNamespace)
+}
+
+// ensureNamespaceExists creates the namespace, labeled for the operator's
+// privileged scan pods and for cluster monitoring, if it doesn't exist.
+func (f *Framework) ensureNamespaceExists(name string) error {
 	// create namespace only if it doesn't already exist
-	_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), f.OperatorNamespace, metav1.GetOptions{})
+	_, err := f.KubeClient.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		ns := &core.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: f.OperatorNamespace,
+				Name: name,
 				Labels: map[string]string{
 					psapi.EnforceLevelLabel:                          string(psapi.LevelPrivileged),
 					"security.openshift.io/scc.podSecurityLabelSync": "false",
@@ -674,16 +679,16 @@ func (f *Framework) ensureTestNamespaceExists() error {
 			},
 		}
 
-		log.Printf("creating namespace %s", f.OperatorNamespace)
+		log.Printf("creating namespace %s", name)
 		_, err = f.KubeClient.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 		if apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("namespace %s already exists: %w", f.OperatorNamespace, err)
+			return fmt.Errorf("namespace %s already exists: %w", name, err)
 		} else if err != nil {
 			return err
 		}
 		return nil
 	} else if apierrors.IsAlreadyExists(err) {
-		log.Printf("using existing namespace %s", f.OperatorNamespace)
+		log.Printf("using existing namespace %s", name)
 		return nil
 	} else {
 		return nil
@@ -4173,58 +4178,19 @@ func (f *Framework) InitRosa73945FrameworkWithoutManifest() error {
 	return f.ensureTestNamespaceExists()
 }
 
-func ocApplyYAMLString(yamlStr string) error {
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc binary not found: %w", err)
-	}
-	cmd := exec.Command(ocPath, "apply", "-f", "-")
-	cmd.Stdin = strings.NewReader(yamlStr)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("oc apply: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-// InstallComplianceOperatorSubscriptionRosa73945 applies an OperatorGroup and Subscription with
-// PLATFORM=rosa in spec.config.env and a worker nodeSelector, matching TC 73945 / subscription_hypershift_env.
+// InstallComplianceOperatorSubscriptionRosa73945 installs the operator through an OperatorGroup and
+// Subscription with PLATFORM=rosa in spec.config.env and a worker nodeSelector, matching
+// TC 73945 / subscription_hypershift_env.
 func (f *Framework) InstallComplianceOperatorSubscriptionRosa73945(channel, catalogSource, catalogSourceNamespace string) error {
-	ns := f.OperatorNamespace
-	yamlDoc := fmt.Sprintf(`apiVersion: operators.coreos.com/v1
-kind: OperatorGroup
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  targetNamespaces:
-  - %s
----
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: compliance-operator
-  namespace: %s
-spec:
-  channel: %s
-  installPlanApproval: Automatic
-  name: compliance-operator
-  source: %s
-  sourceNamespace: %s
-  config:
-    nodeSelector:
-      node-role.kubernetes.io/worker: ""
-    env:
-    - name: PLATFORM
-      value: rosa
-`, ns, ns, ns, ns, channel, catalogSource, catalogSourceNamespace)
-
-	if err := ocApplyYAMLString(yamlDoc); err != nil {
-		return err
-	}
-	retryInterval := 5 * time.Second
-	timeout := 30 * time.Minute
-	return f.WaitForDeployment("compliance-operator", 1, retryInterval, timeout)
+	_, err := f.InstallOperatorFromCatalog(OLMInstallOptions{
+		CatalogSource:          catalogSource,
+		CatalogSourceNamespace: catalogSourceNamespace,
+		Channel:                channel,
+		Env:                    []corev1.EnvVar{{Name: "PLATFORM", Value: "rosa"}},
+		NodeSelector:           map[string]string{"node-role.kubernetes.io/worker": ""},
+		Timeout:                30 * time.Minute,
+	})
+	return err
 }
 
 // SkipRosa73945Preconditions returns a skip reason if the cluster is not suitable for TC 73945, or "" if OK.
