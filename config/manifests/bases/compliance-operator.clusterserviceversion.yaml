@@ -1523,12 +1523,14 @@ spec:
           - compliance.openshift.io
           resources:
           - tailoredprofiles
+          - profiles
           verbs:
           - get
         - apiGroups:
           - compliance.openshift.io
           resources:
           - rules
+          - profilebundles
           verbs:
           - list
         serviceAccountName: remediation-aggregator
