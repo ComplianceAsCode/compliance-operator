@@ -131,6 +131,15 @@ E2E_TEST_TYPE?=all
 # variable to true if you prefer the tests to cleanup regardless of test status, e.g.:
 # E2E_CLEANUP_ON_ERROR=true make e2e
 E2E_CLEANUP_ON_ERROR?=false
+# The e2e-scan-config, e2e-tailoring and e2e-parsing suites can also run against an
+# operator installed through OLM, for example from an index image, instead of
+# deploying it from the manifests. Set these on the make command line or in the
+# environment, which make passes to the tests (see doc/e2e-tests.md):
+#   E2E_SKIP_FRAMEWORK_SETUP=true TEST_OPERATOR_NAMESPACE=<namespace>
+#     use the operator already running in <namespace>; it is never deployed or deleted.
+#   E2E_INSTALL_METHOD=subscription E2E_OLM_SOURCE=<CatalogSource>
+#   [E2E_OLM_SOURCE_NAMESPACE=openshift-marketplace] [E2E_OLM_CHANNEL=<channel>]
+#     install the operator through an OLM Subscription first, and uninstall it at teardown.
 E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -cleanupOnError=$(E2E_CLEANUP_ON_ERROR) -testType=$(E2E_TEST_TYPE)
 TEST_OPTIONS?=-timeout=20m
 COVERAGE_BASELINE?=coverage-baseline.txt

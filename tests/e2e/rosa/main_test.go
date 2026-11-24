@@ -16,7 +16,7 @@ var contentImagePath string
 
 func TestMain(m *testing.M) {
 	f := framework.NewFramework()
-	skipManifest := os.Getenv("E2E_SKIP_FRAMEWORK_SETUP") == "true"
+	skipManifest := framework.SkipFrameworkSetup()
 	var err error
 	if !skipManifest {
 		err = f.SetUp()
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestInstallOnlyParsesNodeProfiles(t *testing.T) {
-	if os.Getenv("E2E_SKIP_FRAMEWORK_SETUP") == "true" {
+	if framework.SkipFrameworkSetup() {
 		t.Skip("requires manifest-based SetUp; run without E2E_SKIP_FRAMEWORK_SETUP")
 	}
 	t.Parallel()
@@ -64,7 +64,7 @@ func TestInstallOnlyParsesNodeProfiles(t *testing.T) {
 }
 
 func TestScanSetting(t *testing.T) {
-	if os.Getenv("E2E_SKIP_FRAMEWORK_SETUP") == "true" {
+	if framework.SkipFrameworkSetup() {
 		t.Skip("requires manifest-based SetUp; run without E2E_SKIP_FRAMEWORK_SETUP")
 	}
 	f := framework.Global
@@ -102,7 +102,7 @@ func TestScanSetting(t *testing.T) {
 //
 // Optional: E2E_OLM_CHANNEL=stable E2E_OLM_SOURCE=redhat-operators E2E_OLM_SOURCE_NAMESPACE=openshift-marketplace
 func Test73945RosaHCPSubscriptionAndNodeProfilesScan(t *testing.T) {
-	if os.Getenv("E2E_SKIP_FRAMEWORK_SETUP") != "true" {
+	if !framework.SkipFrameworkSetup() {
 		t.Skip("TC 73945 requires OLM Subscription install: set E2E_SKIP_FRAMEWORK_SETUP=true and TEST_OPERATOR_NAMESPACE=openshift-compliance")
 	}
 	f := framework.Global

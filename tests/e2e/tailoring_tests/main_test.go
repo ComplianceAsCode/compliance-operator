@@ -28,7 +28,7 @@ var criticalOnly = flag.Bool("critical", false, "run ONLY critical tests")
 
 func TestMain(m *testing.M) {
 	f := framework.NewFramework()
-	err := f.SetUp()
+	err := f.SetUpSuite()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 	}
 	exitCode := m.Run()
 	if exitCode == 0 || (exitCode > 0 && f.CleanUpOnError()) {
-		if err = f.TearDown(); err != nil {
+		if err = f.TearDownSuite(); err != nil {
 			log.Fatal(err)
 		}
 	}

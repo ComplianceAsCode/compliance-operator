@@ -214,3 +214,91 @@ In order to run e2e test on your local cluster, from the project’s root direct
 execute the following command:
 
 `make e2e E2E_GO_TEST_FLAGS="-v -timeout 45m -run TestE2E/Parallel_tests/<testname>"`
+
+## Running suites against an operator installed through OLM
+
+Release testing installs the operator from an index (FBC) image through OLM
+instead of from the manifests in this repository. The scan-config, tailoring
+and parsing suites (`make e2e-scan-config`, `make e2e-tailoring`,
+`make e2e-parsing` and the `-critical` variants) can run against such an
+operator in two ways. `make` passes the variables below to the tests whether
+you set them on its command line or in the environment.
+
+### Use an operator that is already installed
+
+Set `E2E_SKIP_FRAMEWORK_SETUP=true` and `TEST_OPERATOR_NAMESPACE` to the
+namespace the operator runs in:
+
+```console
+$ make e2e-scan-config E2E_SKIP_FRAMEWORK_SETUP=true TEST_OPERATOR_NAMESPACE=openshift-compliance
+```
+
+The suite never deploys, changes or deletes the operator. Before the tests it
+waits for the `compliance-operator` Deployment in that namespace to be
+available (and fails right away if there is none), creates the
+`co-metrics-client` ClusterRole and ClusterRoleBinding and the `metrics-token`
+Secret the metrics tests use, and waits for the `ocp4` ProfileBundle, and
+`rhcos4` on architectures that ship it, to be `VALID`. It doesn't create the
+e2e MachineConfigPools or ScanSettings, and doesn't turn on `debug` in the
+operator's default ScanSettings, so scan pods go away when their scan is done.
+After the tests, the operator, its namespace and the metrics resources stay.
+
+The cluster needs:
+
+* the operator running in `TEST_OPERATOR_NAMESPACE`, with the ProfileBundles
+  and the `default` ScanSetting it creates at startup;
+* that namespace labeled like [config/ns/ns.yaml](../config/ns/ns.yaml)
+  (privileged pod security, `openshift.io/cluster-monitoring: "true"`), as
+  the operator's install instructions ask;
+* `CONTENT_IMAGE` and `BROKEN_CONTENT_IMAGE` in the environment of the test
+  run, which the `make` targets set, since the tests create their own
+  ProfileBundles from them.
+
+`TestSingleScanSucceeds` in scan-config checks exact per-scan metric counters,
+which only hold the first time it runs against an operator process. On a
+cluster you keep, restart the operator pod before running scan-config again.
+
+The rosa and upgrade suites read `E2E_SKIP_FRAMEWORK_SETUP` too, with their
+own meaning: see their `TestMain`.
+
+### Install the operator through OLM first
+
+Set `E2E_INSTALL_METHOD=subscription` and `E2E_OLM_SOURCE` to the name of a
+CatalogSource, for example one created from the index image under test:
+
+```console
+$ cat <<EOF | oc apply -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: compliance-operator-index
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: <index image>
+EOF
+$ oc wait catalogsource/compliance-operator-index -n openshift-marketplace \
+    --for=jsonpath='{.status.connectionState.lastObservedState}'=READY --timeout=10m
+$ make e2e-scan-config E2E_INSTALL_METHOD=subscription E2E_OLM_SOURCE=compliance-operator-index \
+    E2E_OLM_CHANNEL=stable TEST_OPERATOR_NAMESPACE=openshift-compliance
+```
+
+The suite creates the namespace if needed, an OperatorGroup unless the
+namespace has one, and a `compliance-operator` Subscription to the
+CatalogSource in `E2E_OLM_SOURCE_NAMESPACE` (default `openshift-marketplace`)
+on the channel `E2E_OLM_CHANNEL` (default: the package's default channel). It
+waits up to 30 minutes, as for a manifest install, for the CSV the Subscription
+installed to reach `Succeeded` and for that CSV's Deployments to be available,
+then goes on as with
+`E2E_SKIP_FRAMEWORK_SETUP=true`. Teardown deletes the default ProfileBundles,
+the Subscription, the CSV, the OperatorGroup if the suite created it, and the
+namespace. OLM leaves the CRDs in place.
+
+Like a manifest deploy, each suite installs and removes its own operator. When
+several suites run one after the other on the same cluster, set
+`E2E_CLEANUP_ON_ERROR=true` so that a failed suite removes its operator too.
+To install once for several suites, install the operator with any tool and run
+each suite with `E2E_SKIP_FRAMEWORK_SETUP=true`.
+
+Tests that install the operator themselves can use the framework's
+`InstallOperatorFromCatalog` and `UninstallOperator`.

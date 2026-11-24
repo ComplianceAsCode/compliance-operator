@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 
 	// Use with TEST_OPERATOR_NAMESPACE=openshift-compliance (or your install ns) when Compliance
 	// Operator is already installed. Skips manifest deploy, CRD apply, e2e MCP, and TearDown.
-	skipSetup := os.Getenv("E2E_SKIP_FRAMEWORK_SETUP") == "true"
+	skipSetup := framework.SkipFrameworkSetup()
 	if skipSetup {
 		if err := f.EnsureE2ESchemes(); err != nil {
 			log.Fatalf("EnsureE2ESchemes: %v", err)

@@ -96,6 +96,10 @@ type Framework struct {
 
 	// stopPodLogs cancels the background pod-log collector started in SetUp.
 	stopPodLogs func()
+
+	// olmInstallation is the operator SetUpSuite installed through OLM
+	// (E2E_INSTALL_METHOD=subscription), which TearDownSuite uninstalls.
+	olmInstallation *OLMInstallation
 }
 
 // Option configures a suite's Framework. Pass it to NewFramework.
@@ -134,6 +138,29 @@ const (
 
 	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
 	TestWatchNamespaceEnv    = "TEST_WATCH_NAMESPACE"
+
+	// SkipFrameworkSetupEnv set to "true" makes a suite use the operator
+	// already installed in TEST_OPERATOR_NAMESPACE, for example by OLM from
+	// a catalog, instead of deploying it from the e2e manifests.
+	SkipFrameworkSetupEnv = "E2E_SKIP_FRAMEWORK_SETUP"
+	// InstallMethodEnv picks how SetUpSuite deploys the operator:
+	// InstallMethodManifest (the default) or InstallMethodSubscription.
+	InstallMethodEnv = "E2E_INSTALL_METHOD"
+	// OLMSourceEnv names the CatalogSource InstallMethodSubscription installs
+	// from, OLMSourceNamespaceEnv its namespace (default
+	// openshift-marketplace) and OLMChannelEnv the channel to subscribe to
+	// (default: the package's default channel).
+	OLMSourceEnv          = "E2E_OLM_SOURCE"
+	OLMSourceNamespaceEnv = "E2E_OLM_SOURCE_NAMESPACE"
+	OLMChannelEnv         = "E2E_OLM_CHANNEL"
+)
+
+const (
+	// InstallMethodManifest deploys the operator from the e2e manifests.
+	InstallMethodManifest = "manifest"
+	// InstallMethodSubscription installs the operator through an OLM
+	// Subscription to a CatalogSource, see InstallOperatorFromCatalog.
+	InstallMethodSubscription = "subscription"
 )
 
 func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {

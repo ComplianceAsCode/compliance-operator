@@ -12,6 +12,7 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -124,18 +125,7 @@ func (f *Framework) SetUp() error {
 		return fmt.Errorf("timed out waiting for deployment to become available: %w", err)
 	}
 
-	arch := f.ClusterArchitecture()
-
-	if ExpectsRhcos4ProfileBundle(arch) {
-		err = f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid)
-		if err != nil {
-			return err
-		}
-	} else {
-		log.Printf("skipping rhcos4 ProfileBundle wait for architecture %s", arch.String())
-	}
-
-	err = f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid)
+	err = f.waitForDefaultProfileBundles()
 	if err != nil {
 		return err
 	}
@@ -199,20 +189,9 @@ func (f *Framework) TearDown() error {
 		return err
 	}
 
-	log.Printf("cleaning up Profile Bundles")
-	arch := f.ClusterArchitecture()
-	if ExpectsRhcos4ProfileBundle(arch) {
-		err = f.cleanUpProfileBundle("rhcos4")
-		if err != nil {
-			return fmt.Errorf("failed to cleanup rhcos4 profile bundle: %w", err)
-		}
-	} else {
-		log.Printf("skipping rhcos4 ProfileBundle cleanup for architecture %s", arch.String())
-	}
-
-	err = f.cleanUpProfileBundle("ocp4")
+	err = f.cleanUpDefaultProfileBundles()
 	if err != nil {
-		return fmt.Errorf("failed to cleanup ocp4 profile bundle: %w", err)
+		return err
 	}
 
 	if os.Getenv("SKIP_MCP_SETUP") != "" {
@@ -272,8 +251,223 @@ func (f *Framework) TearDown() error {
 		return err
 	}
 
+	return f.deleteOperatorNamespace()
+}
+
+// SetUpSuite prepares the cluster for a suite that can run against an
+// operator deployed in any of these ways, picked from the environment:
+//
+//   - by default it deploys the operator from the e2e manifests (SetUp);
+//   - with E2E_SKIP_FRAMEWORK_SETUP=true it uses the operator already running
+//     in TEST_OPERATOR_NAMESPACE, and never deploys, changes or deletes it;
+//   - with E2E_INSTALL_METHOD=subscription it installs the operator through
+//     OLM from the CatalogSource that E2E_OLM_SOURCE names (see
+//     OLMInstallOptionsFromEnv and InstallOperatorFromCatalog), then goes on
+//     as with E2E_SKIP_FRAMEWORK_SETUP.
+//
+// The last two modes create no e2e MachineConfigPools or ScanSettings and
+// leave the operator's default ScanSettings alone, so only suites that use
+// neither may call SetUpSuite instead of SetUp. TearDownSuite undoes it.
+func (f *Framework) SetUpSuite() error {
+	mode, err := chooseSuiteMode(SkipFrameworkSetup(), os.Getenv(InstallMethodEnv), os.Getenv(TestOperatorNamespaceEnv))
+	if err != nil {
+		return err
+	}
+	switch mode {
+	case suiteModeInstalled:
+		log.Printf("%s=true: running against the operator installed in %s", SkipFrameworkSetupEnv, f.OperatorNamespace)
+		return f.setUpInstalledOperator()
+	case suiteModeSubscription:
+		opts, err := OLMInstallOptionsFromEnv()
+		if err != nil {
+			return err
+		}
+		if err := f.ensureTestNamespaceExists(); err != nil {
+			return fmt.Errorf("unable to create or use namespace %s for testing: %w", f.OperatorNamespace, err)
+		}
+		f.stopPodLogs = f.StartPodLogCollector()
+		f.olmInstallation, err = f.InstallOperatorFromCatalog(opts)
+		if err != nil {
+			return fmt.Errorf("failed to install the operator through OLM: %w", err)
+		}
+		return f.setUpInstalledOperator()
+	default:
+		return f.SetUp()
+	}
+}
+
+// TearDownSuite undoes SetUpSuite. After a deploy from the manifests it runs
+// TearDown. With E2E_SKIP_FRAMEWORK_SETUP=true it only stops the pod-log
+// collector: the operator, its namespace and their contents stay. After an
+// install through OLM it deletes the default ProfileBundles while the
+// operator still runs, uninstalls the operator through its Subscription and
+// CSV, and deletes the namespace.
+func (f *Framework) TearDownSuite() error {
+	if f.olmInstallation != nil {
+		return f.tearDownOLMInstallation()
+	}
+	if SkipFrameworkSetup() {
+		if f.stopPodLogs != nil {
+			f.stopPodLogs()
+		}
+		return nil
+	}
+	return f.TearDown()
+}
+
+// suiteMode is where SetUpSuite gets the operator from.
+type suiteMode int
+
+const (
+	suiteModeManifest suiteMode = iota
+	suiteModeInstalled
+	suiteModeSubscription
+)
+
+// chooseSuiteMode picks the suite mode from the values of
+// E2E_SKIP_FRAMEWORK_SETUP, E2E_INSTALL_METHOD and TEST_OPERATOR_NAMESPACE.
+func chooseSuiteMode(skipSetup bool, installMethod, operatorNamespace string) (suiteMode, error) {
+	switch installMethod {
+	case "", InstallMethodManifest:
+		if !skipSetup {
+			return suiteModeManifest, nil
+		}
+		if operatorNamespace == "" {
+			return 0, fmt.Errorf("%s=true needs %s, the namespace the installed operator runs in",
+				SkipFrameworkSetupEnv, TestOperatorNamespaceEnv)
+		}
+		return suiteModeInstalled, nil
+	case InstallMethodSubscription:
+		if skipSetup {
+			return 0, fmt.Errorf("%s=true uses an operator that is already installed, so it doesn't combine with %s=%s",
+				SkipFrameworkSetupEnv, InstallMethodEnv, InstallMethodSubscription)
+		}
+		return suiteModeSubscription, nil
+	default:
+		return 0, fmt.Errorf("unknown %s %q, want %q or %q",
+			InstallMethodEnv, installMethod, InstallMethodManifest, InstallMethodSubscription)
+	}
+}
+
+// setUpInstalledOperator prepares a suite to run against the operator that
+// already runs in f.OperatorNamespace, without deploying, changing or
+// deleting it: it registers the API types, creates the resources the metrics
+// tests read the operator's metrics with, and waits for the operator and its
+// default ProfileBundles.
+func (f *Framework) setUpInstalledOperator() error {
+	if f.projectRoot != "" {
+		log.Printf("switching to %s directory to execute tests", f.projectRoot)
+		if err := os.Chdir(f.projectRoot); err != nil {
+			return fmt.Errorf("failed to change directory to project root: %w", err)
+		}
+	}
+
+	if err := f.waitForInstalledOperator(); err != nil {
+		return err
+	}
+
+	if f.stopPodLogs == nil {
+		f.stopPodLogs = f.StartPodLogCollector()
+	}
+
+	if err := f.addFrameworks(); err != nil {
+		return err
+	}
+
+	if err := f.initializeMetricsTestResources(); err != nil {
+		return fmt.Errorf("failed to initialize cluster resources for metrics: %w", err)
+	}
+
+	return f.waitForDefaultProfileBundles()
+}
+
+// waitForInstalledOperator waits for the compliance-operator Deployment in
+// f.OperatorNamespace to be available, and fails right away if there is none.
+func (f *Framework) waitForInstalledOperator() error {
+	const name = "compliance-operator"
+	_, err := f.KubeClient.AppsV1().Deployments(f.OperatorNamespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return fmt.Errorf("no %s Deployment in namespace %s, set %s to the namespace the operator is installed in",
+			name, f.OperatorNamespace, TestOperatorNamespaceEnv)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get the %s Deployment in namespace %s: %w", name, f.OperatorNamespace, err)
+	}
+	return f.WaitForDeployment(name, 1, RetryInterval, cleanupTimeout)
+}
+
+// tearDownOLMInstallation removes the operator SetUpSuite installed through
+// OLM, and its namespace.
+func (f *Framework) tearDownOLMInstallation() error {
+	if f.stopPodLogs != nil {
+		f.stopPodLogs()
+	}
+
+	err := f.WaitForScanCleanup()
+	if err != nil {
+		return err
+	}
+
+	// The operator removes the ProfileBundles' finalizers, so they have to
+	// be gone before it is.
+	err = f.cleanUpDefaultProfileBundles()
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"rhcos4", "ocp4"} {
+		pb := &compv1alpha1.ProfileBundle{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: f.OperatorNamespace}}
+		if err := f.waitForDeletion(pb, cleanupTimeout); err != nil {
+			return err
+		}
+	}
+
+	err = f.UninstallOperator(f.olmInstallation)
+	if err != nil {
+		return err
+	}
+
+	return f.deleteOperatorNamespace()
+}
+
+// waitForDefaultProfileBundles waits for the ProfileBundles the operator
+// creates at startup to be parsed: ocp4, and rhcos4 on the architectures
+// that ship it.
+func (f *Framework) waitForDefaultProfileBundles() error {
+	arch := f.ClusterArchitecture()
+	if ExpectsRhcos4ProfileBundle(arch) {
+		if err := f.WaitForProfileBundleStatus("rhcos4", compv1alpha1.DataStreamValid); err != nil {
+			return err
+		}
+	} else {
+		log.Printf("skipping rhcos4 ProfileBundle wait for architecture %s", arch.String())
+	}
+	return f.WaitForProfileBundleStatus("ocp4", compv1alpha1.DataStreamValid)
+}
+
+// cleanUpDefaultProfileBundles deletes the ProfileBundles the operator
+// creates at startup.
+func (f *Framework) cleanUpDefaultProfileBundles() error {
+	log.Printf("cleaning up Profile Bundles")
+	arch := f.ClusterArchitecture()
+	if ExpectsRhcos4ProfileBundle(arch) {
+		if err := f.cleanUpProfileBundle("rhcos4"); err != nil {
+			return fmt.Errorf("failed to cleanup rhcos4 profile bundle: %w", err)
+		}
+	} else {
+		log.Printf("skipping rhcos4 ProfileBundle cleanup for architecture %s", arch.String())
+	}
+
+	if err := f.cleanUpProfileBundle("ocp4"); err != nil {
+		return fmt.Errorf("failed to cleanup ocp4 profile bundle: %w", err)
+	}
+	return nil
+}
+
+// deleteOperatorNamespace deletes the operator namespace and waits for it to
+// be gone.
+func (f *Framework) deleteOperatorNamespace() error {
 	log.Printf("cleaning up namespace %s\n", f.OperatorNamespace)
-	err = f.KubeClient.CoreV1().Namespaces().Delete(context.TODO(), f.OperatorNamespace, metav1.DeleteOptions{})
+	err := f.KubeClient.CoreV1().Namespaces().Delete(context.TODO(), f.OperatorNamespace, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to cleanup namespace %s: %w", f.OperatorNamespace, err)
 	}
@@ -287,6 +481,5 @@ func (f *Framework) TearDown() error {
 		return fmt.Errorf("namespace %s deletion did not complete: %w", f.OperatorNamespace, err)
 	}
 	log.Printf("Namespace %s successfully deleted\n", f.OperatorNamespace)
-
 	return nil
 }
