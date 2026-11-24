@@ -289,8 +289,10 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	// every node (one at a time per pool). The compliance operator will not
 	// start a strict node scan while any node is unschedulable, so the
 	// result server deployment won't exist until the last node is back.
+	// The masters reboot one after another, which can take more than 25
+	// minutes on a slower cloud, so allow 45.
 	t.Log("Waiting for MachineConfigPool rollout to complete (master and worker)")
-	if err := f.WaitForMachineConfigPoolsRollout(preUpdateMCPConfigs, 25*time.Minute); err != nil {
+	if err := f.WaitForMachineConfigPoolsRollout(preUpdateMCPConfigs, 45*time.Minute); err != nil {
 		t.Fatalf("MachineConfigPool rollout did not complete after TLS profile change: %s", err)
 	}
 
