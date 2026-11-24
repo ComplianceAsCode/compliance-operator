@@ -43,6 +43,13 @@ func TestInstallOnlyParsesNodeProfiles(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
 
+	// SetUp waits for the default ProfileBundles to be VALID, so their
+	// Profiles are parsed by now.
+	bundles := []string{"ocp4"}
+	if framework.ExpectsRhcos4ProfileBundle(f.ClusterArchitecture()) {
+		bundles = append(bundles, "rhcos4")
+	}
+
 	// list all profiles
 	l := compv1alpha1.ProfileList{}
 	err := f.Client.List(context.TODO(), &l)
@@ -51,16 +58,12 @@ func TestInstallOnlyParsesNodeProfiles(t *testing.T) {
 		t.Fatalf("failed to get ProfileList: %s", err)
 	}
 
-	// assert profiles are loaded from both bundles
-	// for each profile, assert it's is a node profile
-	for _, p := range l.Items {
-		pt := p.Annotations[compv1alpha1.ProductTypeAnnotation]
-		if pt != "Node" {
-			f.PrintROSADebugInfo(t)
-			t.Fatalf("found an unexpected profile type: %s of type %s", p.GetName(), pt)
-		}
+	// assert profiles are loaded from both bundles, and that each one is a
+	// node profile; an empty list fails instead of passing the check
+	if err := framework.CheckNodeOnlyProfiles(l.Items, bundles...); err != nil {
+		f.PrintROSADebugInfo(t)
+		t.Fatal(err)
 	}
-
 }
 
 func TestScanSetting(t *testing.T) {
