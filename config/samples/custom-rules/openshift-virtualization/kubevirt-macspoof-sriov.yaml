@@ -1,0 +1,30 @@
+apiVersion: compliance.openshift.io/v1alpha1
+kind: CustomRule
+metadata:
+  name: kubevirt-macspoof-enabled-for-sriov
+  namespace: openshift-compliance
+spec:
+  title: "Macspoof Filtering Must Be Enabled for all SRIOV devices"
+  id: macspoof_filtering_enabled_sriov
+  description: |-
+    Mac spoof filtering is a feature that helps prevent man-in-the-middle
+    attacks by verifying the authenticity of MAC addresses in network packets.
+    By checking the MAC address of incoming packets, mac-spoof filtering can
+    help ensure that only authorized devices are able to communicate with a
+    particular device or network.
+  failureReason: |-
+    The '.spec.spoofChk' field is missing or not set to 'on' in the
+    'sriovnetwork' resource.
+  severity: Medium
+  checkType: Platform
+  scannerType: CEL
+  inputs:
+    - name: sriovList
+      kubernetesInputSpec:
+        apiVersion: sriovnetwork.openshift.io/v1
+        resource: sriovnetwork
+  expression: |
+    sriovList.all(s,
+        has(s.spec.spoofChk) &&
+        s.spec.spoofChk == 'on'
+    )
