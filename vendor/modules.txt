@@ -509,7 +509,7 @@ github.com/openai/openai-go/v3/responses
 github.com/openai/openai-go/v3/shared
 github.com/openai/openai-go/v3/shared/constant
 github.com/openai/openai-go/v3/webhooks
-# github.com/openshift/api v0.0.0-20260521125114-09730f85d883
+# github.com/openshift/api v0.0.0-20260601143908-70f01b82bb53
 ## explicit; go 1.25.0
 github.com/openshift/api
 github.com/openshift/api/annotations
