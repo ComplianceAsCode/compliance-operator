@@ -20,12 +20,13 @@ import (
 )
 
 // SpareRole is the node role given to the workers kept out of the lanes. The
-// parallel scan tests scan those workers (WorkerScanRole) instead of every
-// worker, so they never scan a lane node that a remediation test reboots.
+// operator runs on those workers (pinToSpares) and WorkerScanRole scans them
+// instead of every worker, so neither lands on a lane node that a remediation
+// test reboots.
 const SpareRole = "e2e-spare"
 
-// TestPool is one isolated MachineConfigPool "lane" that a destructive serial
-// test runs against. Each lane owns a distinct worker node and its own pair of
+// TestPool is one isolated MachineConfigPool "lane" that a destructive test
+// runs against. Each lane owns a distinct worker node and its own pair of
 // ScanSettings, so the reboot-heavy tests can execute in parallel without
 // contending on a single shared pool/node.
 type TestPool struct {
@@ -99,7 +100,7 @@ func WithTestPools() Option {
 
 // testPoolCount is the number of lanes to set up. It defaults to 1, a single
 // pool named "e2e" like the one suites without lanes get, and
-// E2E_PARALLEL_POOLS raises it; the serial suite's Makefile target sets it.
+// E2E_PARALLEL_POOLS raises it; the remediation suite's Makefile target sets it.
 // startTestPools caps it at the worker nodes available.
 func testPoolCount() int {
 	if v := os.Getenv("E2E_PARALLEL_POOLS"); v != "" {
@@ -136,8 +137,8 @@ func (f *Framework) startTestPools() error {
 
 	// Keep one worker out of the lanes when there's more than one. Pods
 	// evicted while a lane reboots (router, registry, monitoring) need
-	// somewhere to go, and the parallel scan tests scan the spare workers
-	// (SpareRole) instead of the lane nodes.
+	// somewhere to go, and the operator runs on the spare workers
+	// (SpareRole), which no test reboots.
 	maxLanes := len(nodes)
 	if maxLanes > 1 {
 		maxLanes--
@@ -209,7 +210,7 @@ func (f *Framework) waitForNodeOnPoolConfig(nodeName, pool string) error {
 func (f *Framework) labelSpareWorkers(spares []corev1.Node) error {
 	label := "node-role.kubernetes.io/" + SpareRole
 	if len(spares) == 1 {
-		log.Printf("one spare worker, %s, takes every parallel scan and the pods evicted from rebooting lanes; lower E2E_PARALLEL_POOLS to keep more spares", spares[0].Name)
+		log.Printf("one spare worker, %s, runs the operator and takes the pods evicted from rebooting lanes; lower E2E_PARALLEL_POOLS to keep more spares", spares[0].Name)
 	}
 	for i := range spares {
 		removedStale, err := f.setPoolRoleLabel(&spares[i], label)
@@ -218,12 +219,12 @@ func (f *Framework) labelSpareWorkers(spares []corev1.Node) error {
 		}
 		if removedStale {
 			// It was in a lane pool; let MCO move it back to the worker pool
-			// before scan tests use it.
+			// before the operator runs on it.
 			if err := f.waitForNodeOnPoolConfig(spares[i].Name, "worker"); err != nil {
 				return err
 			}
 		}
-		log.Printf("spare worker %s gets role %s for the parallel scan tests", spares[i].Name, SpareRole)
+		log.Printf("spare worker %s gets role %s", spares[i].Name, SpareRole)
 	}
 	f.haveSpares = len(spares) > 0
 	return nil
@@ -278,14 +279,13 @@ func (f *Framework) finishTestPools() error {
 // AcquireTestPool checks out an isolated pool lane for a destructive test,
 // blocking until one is free, and returns it when the test ends. Call
 // t.Parallel() before this so lanes are shared across concurrent tests. A
-// waiting test gets the next lane that comes up or is given back, once every
-// scan-phase test has finished, and fails only if every lane failed to come up.
+// waiting test gets the next lane that comes up or is given back, and fails
+// only if every lane failed to come up.
 func (f *Framework) AcquireTestPool(t *testing.T) *TestPool {
 	t.Helper()
 	if f.TestPools == nil {
 		t.Fatal("no test pool lanes: the suite needs framework.NewFramework(framework.WithTestPools()), SKIP_MCP_SETUP must be unset, and rosa has no MachineConfigPools for them")
 	}
-	f.waitForScanPhase(t)
 	var p *TestPool
 	select {
 	case p = <-f.TestPools.free:

@@ -72,11 +72,10 @@ type Framework struct {
 	TestPools     *laneQueue
 	testPoolNames []string
 	operatorReady chan struct{}
-	// scanPhase keeps the parallel scan tests apart from each other and from
-	// the lane tests (see scanphase.go).
+	// scanPhase holds the named locks of HoldScanLocks (see scanphase.go).
 	scanPhase *scanPhase
-	// haveSpares is set when spare workers carry SpareRole, so the parallel
-	// scan tests stay off the lane nodes.
+	// haveSpares is set when spare workers carry SpareRole, so the operator
+	// and WorkerScanRole stay off the lane nodes.
 	haveSpares bool
 	// pinOperatorToMasters places the operator Deployment on master nodes, as the
 	// CSV does, so worker reboots in destructive tests don't restart it. Only
