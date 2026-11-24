@@ -217,6 +217,11 @@ func McfgPoolLabelMatches(nodeSelector map[string]string, pool *mcfgv1.MachineCo
 	return reflect.DeepEqual(nodeSelector, pool.Spec.NodeSelector.MatchLabels)
 }
 
+// AllRolesScanNameSuffix ends the names of the node scans that a
+// ScanSettingBinding creates for the @all role, which GetNodeRoleSelector
+// gives an empty node selector.
+const AllRolesScanNameSuffix = "a-all"
+
 func GetNodeRoleSelector(role string) map[string]string {
 	if role == cmpv1alpha1.AllRoles {
 		return map[string]string{}
