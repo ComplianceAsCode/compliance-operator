@@ -124,6 +124,44 @@ func (f *Framework) ScanPhaseTest(t *testing.T, locks ...string) {
 	})
 }
 
+// HoldScanLocks holds the given locks for the rest of the test, as
+// ScanPhaseTest does, but without making the test parallel or counting it as
+// a scan-phase test. Tests that hold the same lock don't overlap, and a lock
+// is released once no scan named after it is left. In a parallel test, call
+// it right after t.Parallel(). A test that doesn't call t.Parallel() runs
+// alone, before any parallel test of its suite starts, so it never waits for
+// a lock; when it ends it still waits for the scans named after its locks to
+// be gone, so the next test that binds the same profile doesn't adopt them.
+func (f *Framework) HoldScanLocks(t *testing.T, locks ...string) {
+	t.Helper()
+	p := f.scanPhase
+	held := append([]string(nil), locks...)
+	sort.Strings(held)
+	start := time.Now()
+	p.mu.Lock()
+	for anyBusy(p.busy, held) {
+		p.cond.Wait()
+	}
+	for _, name := range held {
+		p.busy[name] = true
+	}
+	p.mu.Unlock()
+	if waited := time.Since(start); waited > time.Second {
+		t.Logf("waited %s for locks %s", waited.Round(time.Second), strings.Join(held, ","))
+	}
+	t.Cleanup(func() {
+		if len(held) > 0 {
+			f.waitForLockScansGone(t, held)
+		}
+		p.mu.Lock()
+		for _, name := range held {
+			delete(p.busy, name)
+		}
+		p.mu.Unlock()
+		p.cond.Broadcast()
+	})
+}
+
 func anyBusy(busy map[string]bool, names []string) bool {
 	for _, n := range names {
 		if busy[n] {

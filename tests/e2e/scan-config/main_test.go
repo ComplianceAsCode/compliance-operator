@@ -7,11 +7,13 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	compsuitectrl "github.com/ComplianceAsCode/compliance-operator/pkg/controller/compliancesuite"
+	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1880,6 +1882,9 @@ func TestSuiteWithInvalidScheduleShowsError(t *testing.T) {
 func TestScheduledSuitePlatformNoStorage(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
+	// The scan expects the cluster OAuth to have no htpasswd identity
+	// provider, which TestPlatformAndNodeSuiteScan adds for a while.
+	f.HoldScanLocks(t, "cluster-oauth")
 	suiteName := "test-scheduled-suite-platform-no-storage"
 	platformScanName := fmt.Sprintf("%s-platform-scan", suiteName)
 
@@ -2537,7 +2542,6 @@ func TestScanWithInvalidContentFails(t *testing.T) {
 	}
 }
 
-
 func TestSingleScanSucceeds(t *testing.T) {
 	t.Parallel()
 	f := framework.Global
@@ -3063,3 +3067,1311 @@ func TestScanWithoutBundlePassesDeprecationCheck(t *testing.T) {
 	t.Logf("Scan completed with result: %s", testScan.Status.Result)
 }
 
+func TestSuiteScan(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	suiteName := "test-suite-two-scans"
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	// Scan the spare workers, not the lane nodes other tests reboot.
+	selectWorkers := f.WorkerScanSelector()
+
+	masterScanName := fmt.Sprintf("%s-masters-scan", suiteName)
+	selectMasters := map[string]string{
+		"node-role.kubernetes.io/master": "",
+	}
+
+	exampleComplianceSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: workerScanName,
+				},
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: selectMasters,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: masterScanName,
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), exampleComplianceSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), exampleComplianceSuite)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// At this point, both scans should be non-compliant given our current content
+	err = f.AssertScanIsNonCompliant(workerScanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanIsNonCompliant(masterScanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Each scan should produce two remediations
+	workerRemediations := []string{
+		fmt.Sprintf("%s-no-empty-passwords", workerScanName),
+		fmt.Sprintf("%s-no-direct-root-logins", workerScanName),
+	}
+	err = f.AssertHasRemediations(suiteName, workerScanName, "worker", workerRemediations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	masterRemediations := []string{
+		fmt.Sprintf("%s-no-empty-passwords", masterScanName),
+		fmt.Sprintf("%s-no-direct-root-logins", masterScanName),
+	}
+	err = f.AssertHasRemediations(suiteName, masterScanName, "master", masterRemediations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkWifiInBios := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-wireless-disable-in-bios", workerScanName),
+			Namespace: f.OperatorNamespace,
+		},
+		ID:       "xccdf_org.ssgproject.content_rule_wireless_disable_in_bios",
+		Status:   compv1alpha1.CheckResultManual,
+		Severity: compv1alpha1.CheckResultSeverityUnknown, // yes, it's really uknown in the DS
+	}
+
+	err = f.AssertHasCheck(suiteName, workerScanName, checkWifiInBios)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertCheckRemediation(checkWifiInBios.Name, checkWifiInBios.Namespace, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if runtime.GOARCH == "amd64" {
+		// the purpose of this check is to make sure that also INFO-level checks produce remediations
+		// as of now, the only one we have is the vsyscall check that is x86-specific.
+		checkVsyscall := compv1alpha1.ComplianceCheckResult{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-coreos-vsyscall-kernel-argument", workerScanName),
+				Namespace: f.OperatorNamespace,
+				Labels: map[string]string{
+					compv1alpha1.ComplianceCheckResultHasRemediation: "",
+				},
+			},
+			ID:       "xccdf_org.ssgproject.content_rule_coreos_vsyscall_kernel_argument",
+			Status:   compv1alpha1.CheckResultFail,
+			Severity: compv1alpha1.CheckResultSeverityMedium,
+		}
+
+		err = f.AssertHasCheck(suiteName, workerScanName, checkVsyscall)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// even INFO checks generate remediations, make sure the check was labeled appropriately
+		// even INFO checks generate remediations, make sure the check was labeled appropriately
+		f.AssertCheckRemediation(checkVsyscall.Name, checkVsyscall.Namespace, true)
+	}
+
+	// ensure scan has total check counts annotation
+	err = f.AssertScanHasTotalCheckCounts(f.OperatorNamespace, workerScanName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.AssertScanHasTotalCheckCounts(f.OperatorNamespace, masterScanName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestScanHasProfileGUID(t *testing.T) {
+	f := framework.Global
+	f.HoldScanLocks(t, "ocp4-cis", "ocp4-moderate", "ocp4-moderate-node", "rhcos4-moderate")
+	bindingName := framework.GetObjNameFromTest(t)
+	role := f.WorkerScanRole()
+	tpName := "test-scan-have-profile-guid-tp"
+	// This is the profileGUID for the redhat_openshift_container_platform_4.1 product and xccdf_org.ssgproject.content_profile_moderate profile
+	const profileGUIDOCPModerate = "d625badc-92a1-5438-afd7-19526c26b03c"
+	const profileGUIDOCPModerateNode = "ef297cbd-f5a0-5c0c-baab-edeebb761e27"
+	const profileGUIDTP = "04a11c78-7c77-545e-8341-f1b7b743bcb8"
+	const profileGUIDRHCOSModerate = "eceb9af0-17d4-5c59-9b17-07cfd22a3ba1"
+	const profileGUIDOCPCIS = "a230315d-3e4a-5b58-b00f-f96f1553e036"
+
+	err := f.AssertProfileGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.AssertProfileGUIDMatches("ocp4-moderate-node", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.AssertProfileGUIDMatches("rhcos4-moderate", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertProfileGUIDMatches("ocp4-cis", f.OperatorNamespace, profileGUIDOCPCIS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check the GUID is present for all the profiles
+	err = f.AssertAllProfilesHaveGUID(f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "TestScanHaveProfileGUID",
+			Description: "TestScanHaveProfileGUID",
+			Extends:     "ocp4-moderate",
+		},
+	}
+
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+	ss := f.WorkerScanSetting(t, bindingName+"-ss")
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     tpName,
+				Kind:     "TailoredProfile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-moderate",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-moderate-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "rhcos4-moderate",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     ss.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	// use Context's create helper to create the object and add a cleanup function for the new object
+	err = f.Client.Create(context.TODO(), &scanSettingBinding, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Cleanup: Delete ScanSettingBinding first, then wait for ComplianceSuite to be cascade-deleted
+	// This ensures proper cleanup before the next test runs
+	defer func() {
+		// Delete the binding first - this will cascade delete the ComplianceSuite
+		if err := f.Client.Delete(context.TODO(), &scanSettingBinding); err != nil {
+			t.Logf("Failed to delete ScanSettingBinding: %v", err)
+			return
+		}
+		// Now wait for the suite to be deleted (it's owned by the binding)
+		if err := f.WaitForComplianceSuiteDeletion(bindingName, f.OperatorNamespace); err != nil {
+			t.Logf("ComplianceSuite cleanup warning: %v", err)
+		}
+	}()
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	// check if the profileGUID is correct in the scan's label
+	err = f.AssertScanGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-moderate-node-"+role, f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("rhcos4-moderate-"+role, f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("rhcos4-moderate-master", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertScanGUIDMatches("ocp4-cis", f.OperatorNamespace, profileGUIDOCPCIS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check if the profileGUID is correct in the tailored profile's label
+	err = f.AssertScanGUIDMatches(tpName, f.OperatorNamespace, profileGUIDTP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Check if the profileGUID is correct in the ccr's label
+	err = f.AssertResultsGUIDMatches("ocp4-moderate", f.OperatorNamespace, profileGUIDOCPModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-"+role, f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-moderate-node-master", f.OperatorNamespace, profileGUIDOCPModerateNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-"+role, f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("rhcos4-moderate-master", f.OperatorNamespace, profileGUIDRHCOSModerate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.AssertResultsGUIDMatches("ocp4-cis", f.OperatorNamespace, profileGUIDOCPCIS)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInconsistentResult(t *testing.T) {
+	f := framework.Global
+	suiteName := "test-inconsistent"
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	selectWorkers := map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+
+	workersComplianceSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Rule:         "xccdf_org.ssgproject.content_rule_no_direct_root_logins",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: workerScanName,
+				},
+			},
+		},
+	}
+
+	workerNodes, err := f.GetNodesWithSelector(selectWorkers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pod, err := f.CreateAndRemoveEtcSecurettyOnNode(f.OperatorNamespace, "create-etc-securetty", workerNodes[0].Labels["kubernetes.io/hostname"])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.Client.Create(context.TODO(), workersComplianceSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), workersComplianceSuite)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultInconsistent)
+	if err != nil {
+		t.Fatalf("got an unexpected status: %s", err)
+	}
+
+	if err := f.KubeClient.CoreV1().Pods(f.OperatorNamespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The check for the no-direct-root-logins rule should be inconsistent
+	var rootLoginCheck compv1alpha1.ComplianceCheckResult
+	rootLoginCheckName := fmt.Sprintf("%s-no-direct-root-logins", workerScanName)
+
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: rootLoginCheckName, Namespace: f.OperatorNamespace}, &rootLoginCheck)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rootLoginCheck.Status != compv1alpha1.CheckResultInconsistent {
+		t.Fatalf("expected the %s result to be inconsistent, the check result was %s", rootLoginCheckName, rootLoginCheck.Status)
+	}
+
+	var expectedInconsistentSource string
+
+	if len(workerNodes) >= 3 {
+		// The annotations should list the node that had a different result
+		expectedInconsistentSource = workerNodes[0].Name + ":" + string(compv1alpha1.CheckResultPass)
+		inconsistentSources := rootLoginCheck.Annotations[compv1alpha1.ComplianceCheckResultInconsistentSourceAnnotation]
+		if inconsistentSources != expectedInconsistentSource {
+			t.Fatalf("expected that node %s would report %s, instead it reports %s", workerNodes[0].Name, expectedInconsistentSource, inconsistentSources)
+		}
+
+		// Since all the other nodes consistently fail, there should also be a common result
+		mostCommonState := rootLoginCheck.Annotations[compv1alpha1.ComplianceCheckResultMostCommonAnnotation]
+		if mostCommonState != string(compv1alpha1.CheckResultFail) {
+			t.Fatalf("expected that there would be a common FAIL state, instead got %s", mostCommonState)
+		}
+	} else if len(workerNodes) == 2 {
+		// example: ip-10-0-184-135.us-west-1.compute.internal:PASS,ip-10-0-226-48.us-west-1.compute.internal:FAIL
+		var expectedInconsistentSource [2]string
+		expectedInconsistentSource[0] = workerNodes[0].Name + ":" + string(compv1alpha1.CheckResultPass) + "," + workerNodes[1].Name + ":" + string(compv1alpha1.CheckResultFail)
+		expectedInconsistentSource[1] = workerNodes[1].Name + ":" + string(compv1alpha1.CheckResultFail) + "," + workerNodes[0].Name + ":" + string(compv1alpha1.CheckResultPass)
+
+		inconsistentSources := rootLoginCheck.Annotations[compv1alpha1.ComplianceCheckResultInconsistentSourceAnnotation]
+		if inconsistentSources != expectedInconsistentSource[0] && inconsistentSources != expectedInconsistentSource[1] {
+			t.Fatalf(
+				"expected that node %s would report %s or %s, instead it reports %s",
+				workerNodes[0].Name,
+				expectedInconsistentSource[0], expectedInconsistentSource[1],
+				inconsistentSources)
+		}
+
+		// If there are only two worker nodes, we won't be able to find the common status, so both
+		// nodes would be listed as inconsistent -- we can't figure out which of the two results is
+		// consistent and which is not. Therefore this branch skips the check for
+		// compv1alpha1.ComplianceCheckResultMostCommonAnnotation
+	} else {
+		t.Skip("test requires more than one node to generate inconsistent results, skipping")
+	}
+
+	// Since all states were either pass or fail, we still create the remediation
+	workerRemediations := []string{
+		fmt.Sprintf("%s-no-direct-root-logins", workerScanName),
+	}
+	err = f.AssertHasRemediations(suiteName, workerScanName, "worker", workerRemediations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestPlatformAndNodeSuiteScan(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	// Changes the cluster OAuth config, as does TestTokenRulesPassOauthClientsConfigurable.
+	f.HoldScanLocks(t, "cluster-oauth")
+	suiteName := "test-suite-two-scans-with-platform"
+
+	workerScanName := fmt.Sprintf("%s-workers-scan", suiteName)
+	// Scan the spare workers, not the lane nodes other tests reboot.
+	selectWorkers := f.WorkerScanSelector()
+
+	platformScanName := fmt.Sprintf("%s-platform-scan", suiteName)
+
+	exampleComplianceSuite := &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Content:      framework.RhcosContentFile,
+						NodeSelector: selectWorkers,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: workerScanName,
+				},
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ScanType:     compv1alpha1.ScanTypePlatform,
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Rule:         "xccdf_org.ssgproject.content_rule_ocp_idp_no_htpasswd",
+						Content:      framework.OcpContentFile,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: platformScanName,
+				},
+			},
+		},
+	}
+
+	err := f.Client.Create(context.TODO(), exampleComplianceSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), exampleComplianceSuite)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// At this point, both scans should be non-compliant given our current content
+	err = f.AssertScanIsNonCompliant(workerScanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The profile should find one check for an htpasswd IDP, so we should be compliant.
+	err = f.AssertScanIsCompliant(platformScanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Each scan should produce two remediations
+	workerRemediations := []string{
+		fmt.Sprintf("%s-no-empty-passwords", workerScanName),
+		fmt.Sprintf("%s-no-direct-root-logins", workerScanName),
+	}
+	err = f.AssertHasRemediations(suiteName, workerScanName, "worker", workerRemediations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TODO: Add check for future API remediation
+	//platformRemediations := []string{
+	//	fmt.Sprintf("%s-no-empty-passwords", platformScanName),
+	//	fmt.Sprintf("%s-no-direct-root-logins", platformScanName),
+	//}
+	//err = assertHasRemediations(t, f, suiteName, platformScanName, "master", platformRemediations)
+	//if err != nil {
+	//	return err
+	//}
+
+	// Test a fail result from the platform scan. This fails the HTPasswd IDP check.
+	if _, err := f.KubeClient.CoreV1().Secrets("openshift-config").Create(context.TODO(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "htpass",
+			Namespace: "openshift-config",
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"htpasswd": []byte("bob:$2y$05$OyjQO7M2so4hRJW0aS9yie9KJ0wXv80XFWyEsApUZFURqE37aVR/a"),
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		err := f.KubeClient.CoreV1().Secrets("openshift-config").Delete(context.TODO(), "htpass", metav1.DeleteOptions{})
+		if err != nil {
+			log.Printf("could not clean up openshift-config/htpass test secret: %v\n", err)
+		}
+	}()
+
+	fetchedOauth := &configv1.OAuth{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, fetchedOauth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oauthUpdate := fetchedOauth.DeepCopy()
+	oauthUpdate.Spec = configv1.OAuthSpec{
+		IdentityProviders: []configv1.IdentityProvider{
+			{
+				Name:          "my_htpasswd_provider",
+				MappingMethod: "claim",
+				IdentityProviderConfig: configv1.IdentityProviderConfig{
+					Type: "HTPasswd",
+					HTPasswd: &configv1.HTPasswdIdentityProvider{
+						FileData: configv1.SecretNameReference{
+							Name: "htpass",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = f.Client.Update(context.TODO(), oauthUpdate)
+	if err != nil {
+		t.Fatalf("failed to update IdP: %s", err)
+	}
+
+	defer func() {
+		fetchedOauth := &configv1.OAuth{}
+		err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, fetchedOauth)
+		if err != nil {
+			log.Printf("error restoring idp: %v\n", err)
+		} else {
+			oauth := fetchedOauth.DeepCopy()
+			// Make sure it's cleared out
+			oauth.Spec = configv1.OAuthSpec{
+				IdentityProviders: nil,
+			}
+			err = f.Client.Update(context.TODO(), oauth)
+			if err != nil {
+				log.Printf("error restoring idp: %v\n", err)
+			}
+		}
+	}()
+
+	suiteName = "test-suite-two-scans-with-platform-2"
+	platformScanName = fmt.Sprintf("%s-platform-scan-2", suiteName)
+	exampleComplianceSuite = &compv1alpha1.ComplianceSuite{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.ComplianceSuiteSpec{
+			ComplianceSuiteSettings: compv1alpha1.ComplianceSuiteSettings{
+				AutoApplyRemediations: false,
+			},
+			Scans: []compv1alpha1.ComplianceScanSpecWrapper{
+				{
+					ComplianceScanSpec: compv1alpha1.ComplianceScanSpec{
+						ScanType:     compv1alpha1.ScanTypePlatform,
+						ContentImage: contentImagePath,
+						Profile:      "xccdf_org.ssgproject.content_profile_moderate",
+						Rule:         "xccdf_org.ssgproject.content_rule_ocp_idp_no_htpasswd",
+						Content:      framework.OcpContentFile,
+						ComplianceScanSettings: compv1alpha1.ComplianceScanSettings{
+							Debug: true,
+						},
+					},
+					Name: platformScanName,
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), exampleComplianceSuite, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), exampleComplianceSuite)
+
+	// Ensure that all the scans in the suite have finished and are marked as Done
+	err = f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.AssertScanIsNonCompliant(platformScanName, f.OperatorNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRemoveProfileScan(t *testing.T) {
+	f := framework.Global
+	f.HoldScanLocks(t, "ocp4-cis", "ocp4-moderate", "ocp4-cis-node")
+	// Bind the new ScanSetting to a Profile
+	bindingName := framework.GetObjNameFromTest(t) + "-binding"
+	role := f.WorkerScanRole()
+	ss := f.WorkerScanSetting(t, framework.GetObjNameFromTest(t)+"-ss")
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     "ocp4-cis",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-moderate",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+			{
+				Name:     "ocp4-cis-node",
+				Kind:     "Profile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     ss.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	// AssertScanExists check if the scan exists for both profiles
+	if err := f.AssertScanExists("ocp4-cis", f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.AssertScanExists("ocp4-moderate", f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.AssertScanExists("ocp4-cis-node-master", f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.AssertScanExists("ocp4-cis-node-"+role, f.OperatorNamespace); err != nil {
+		t.Fatal(err)
+	}
+
+	scanName := "ocp4-moderate"
+	checkResult := compv1alpha1.ComplianceCheckResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-audit-profile-set", scanName),
+			Namespace: f.OperatorNamespace,
+		},
+		ID: "xccdf_org.ssgproject.content_rule_audit_profile_set",
+	}
+	// This rule passes only when the cluster's audit profile is
+	// WriteRequestBodies or stricter. In the serial suite it passed because
+	// TestVariableTemplate had set that profile and never restored it, so
+	// check that the scan produced the result, whatever its status.
+	got := &compv1alpha1.ComplianceCheckResult{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: checkResult.Name, Namespace: checkResult.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != checkResult.ID {
+		t.Fatalf("expected ID %s got ID %s", checkResult.ID, got.ID)
+	}
+	if got.Labels[compv1alpha1.SuiteLabel] != bindingName {
+		t.Fatalf("expected suite label %s, got %s", bindingName, got.Labels[compv1alpha1.SuiteLabel])
+	}
+
+	// Remove the `ocp4-moderate` and `ocp4-cis-node` profile from the `ScanSettingBinding`
+	scanSettingBindingUpdate := &compv1alpha1.ScanSettingBinding{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Namespace: f.OperatorNamespace, Name: bindingName}, scanSettingBindingUpdate); err != nil {
+		t.Fatalf("failed to get ScanSettingBinding %s", bindingName)
+	}
+
+	scanSettingBindingUpdate.Profiles = []compv1alpha1.NamedObjectReference{
+		{
+			Name:     "ocp4-cis",
+			Kind:     "Profile",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Update(context.TODO(), scanSettingBindingUpdate); err != nil {
+		t.Fatal(err)
+	}
+	var lastErr error
+	timeouterr := wait.Poll(framework.RetryInterval, framework.Timeout, func() (bool, error) {
+		if lastErr := f.AssertScanDoesNotExist("ocp4-moderate", f.OperatorNamespace); lastErr != nil {
+			log.Printf("Retrying: %s\n", lastErr)
+			return false, nil
+		}
+		if lastErr := f.AssertScanDoesNotExist("ocp4-cis-node-master", f.OperatorNamespace); lastErr != nil {
+			log.Printf("Retrying: %s\n", lastErr)
+			return false, nil
+		}
+		if lastErr := f.AssertScanDoesNotExist("ocp4-cis-node-"+role, f.OperatorNamespace); lastErr != nil {
+			log.Printf("Retrying: %s\n", lastErr)
+			return false, nil
+		}
+		if lastErr := f.AssertScanDoesNotContainCheck(scanName, checkResult.Name, f.OperatorNamespace); lastErr != nil {
+			log.Printf("Retrying: %s\n", lastErr)
+			// print more info about the found check
+			ccr := &compv1alpha1.ComplianceCheckResult{}
+			if err := f.Client.Get(context.TODO(), types.NamespacedName{Namespace: f.OperatorNamespace, Name: checkResult.Name}, ccr); err != nil {
+				log.Printf("failed to get check %s: %s\n", checkResult.Name, err)
+			} else {
+				log.Printf("Object: %v\n", ccr)
+			}
+			return false, nil
+		}
+		log.Printf("Scan ocp4-moderate, ocp4-cis-node-master and ocp4-cis-node-%s do not exist anymore\n", role)
+		log.Printf("Check %s doesn't exist anymore\n", checkResult.Name)
+		return true, nil
+	})
+
+	if lastErr != nil {
+		t.Fatalf("failed to remove profile from ScanSettingBinding: %s", lastErr)
+	}
+
+	if timeouterr != nil {
+		t.Fatalf("timed out waiting for scan and check to be removed: %s", timeouterr)
+	}
+}
+
+func TestResultServerNodeSelectorMaster(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	name := framework.GetObjNameFromTest(t)
+
+	// The result servers must follow the ScanSetting's master nodeSelector.
+	ss := f.WorkerScanSetting(t, name+"-master-ss", func(ss *compv1alpha1.ScanSetting) {
+		ss.RawResultStorage.NodeSelector = map[string]string{"node-role.kubernetes.io/master": ""}
+		ss.RawResultStorage.Tolerations = []corev1.Toleration{
+			{Key: "node-role.kubernetes.io/master", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+		}
+	})
+	// The node selection doesn't depend on the profile: a TailoredProfile of
+	// the small rhcos4-e8 profile gives this test its own, quick scans.
+	tp := f.ExtendingTailoredProfile(t, name+"-e8", "rhcos4-e8")
+
+	b := name + "-master-ns"
+	ssb := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: b, Namespace: f.OperatorNamespace},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     tp.Name,
+				Kind:     "TailoredProfile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     ss.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &ssb, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.DeleteScanSettingBindingAndWaitForCleanup(&ssb); err != nil {
+			t.Logf("cleanup ScanSettingBinding %s: %v", b, err)
+		}
+	}()
+
+	if _, err := f.WaitForResultServerPodsWithNodeSelector(map[string]string{"node-role.kubernetes.io/master": ""}, tp.Name+"-master", tp.Name+"-"+f.WorkerScanRole()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, b, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant); err != nil {
+		t.Fatalf("ComplianceSuite %s did not complete: %v", b, err)
+	}
+}
+
+func TestResultServerNodeSelectorWorker(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	name := framework.GetObjNameFromTest(t)
+
+	// The result servers must follow the ScanSetting's worker nodeSelector.
+	ss := f.WorkerScanSetting(t, name+"-worker-ss", func(ss *compv1alpha1.ScanSetting) {
+		// A worker selector, narrowed to the spare workers so the result
+		// servers stay off the lane nodes other tests reboot.
+		sel := f.WorkerScanSelector()
+		sel["node-role.kubernetes.io/worker"] = ""
+		ss.RawResultStorage.NodeSelector = sel
+	})
+	// The node selection doesn't depend on the profile: a TailoredProfile of
+	// the small rhcos4-e8 profile gives this test its own, quick scans.
+	tp := f.ExtendingTailoredProfile(t, name+"-e8", "rhcos4-e8")
+
+	b := name + "-worker-ns"
+	ssb := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: b, Namespace: f.OperatorNamespace},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				Name:     tp.Name,
+				Kind:     "TailoredProfile",
+				APIGroup: "compliance.openshift.io/v1alpha1",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name:     ss.Name,
+			Kind:     "ScanSetting",
+			APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), &ssb, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.DeleteScanSettingBindingAndWaitForCleanup(&ssb); err != nil {
+			t.Logf("cleanup ScanSettingBinding %s: %v", b, err)
+		}
+	}()
+
+	if _, err := f.WaitForResultServerPodsWithNodeSelector(map[string]string{"node-role.kubernetes.io/worker": ""}, tp.Name+"-master", tp.Name+"-"+f.WorkerScanRole()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, b, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultCompliant); err != nil {
+		t.Fatalf("ComplianceSuite %s did not complete: %v", b, err)
+	}
+}
+
+// TestHighProfileManualRulesHaveInstructions verifies that all MANUAL rules in high profiles have instructions.
+// This test is serial because high profile scans are resource-intensive and long-running.
+func TestHighProfileManualRulesHaveInstructions(t *testing.T) {
+	f := framework.Global
+	f.HoldScanLocks(t, "ocp4-high", "ocp4-high-node", "rhcos4-high")
+
+	suiteName := framework.GetObjNameFromTest(t)
+	scanSettingBinding := compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "ocp4-high",
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "ocp4-high-node",
+			},
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "Profile",
+				Name:     "rhcos4-high",
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	// Create the ScanSettingBinding
+	if err := f.Client.Create(context.TODO(), &scanSettingBinding, nil); err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %s", err)
+	}
+	defer f.Client.Delete(context.TODO(), &scanSettingBinding)
+
+	// Wait for the suite to complete
+	if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant, compv1alpha1.ResultInconsistent); err != nil {
+		t.Fatalf("Failed waiting for suite to complete: %s", err)
+	}
+
+	// Get all MANUAL ComplianceCheckResults for this suite
+	checkResults := &compv1alpha1.ComplianceCheckResultList{}
+	if err := f.Client.List(context.TODO(), checkResults,
+		client.InNamespace(f.OperatorNamespace),
+		client.MatchingLabels{
+			compv1alpha1.ComplianceCheckResultStatusLabel: string(compv1alpha1.CheckResultManual),
+			compv1alpha1.SuiteLabel:                       suiteName,
+		},
+	); err != nil {
+		t.Fatalf("Failed to list ComplianceCheckResults: %s", err)
+	}
+
+	if len(checkResults.Items) == 0 {
+		t.Fatalf("No MANUAL check results found for suite %s", suiteName)
+	}
+
+	t.Logf("Found %d MANUAL check results to verify", len(checkResults.Items))
+
+	// Check that all MANUAL rules have instructions
+	var rulesWithoutInstructions []string
+	for _, checkResult := range checkResults.Items {
+		if checkResult.Instructions == "" {
+			rulesWithoutInstructions = append(rulesWithoutInstructions, checkResult.Name)
+			t.Logf("MANUAL rule '%s' does not have instructions", checkResult.Name)
+		} else {
+			t.Logf("MANUAL rule '%s' has instructions", checkResult.Name)
+		}
+	}
+
+	if len(rulesWithoutInstructions) > 0 {
+		t.Fatalf("Found %d MANUAL rules without instructions: %v", len(rulesWithoutInstructions), rulesWithoutInstructions)
+	}
+
+	t.Logf("All %d MANUAL rules in high profiles have instructions", len(checkResults.Items))
+}
+
+func TestOpenSCAPRuleMetadataPropagation(t *testing.T) {
+	f := framework.Global
+
+	testName := framework.GetObjNameFromTest(t)
+	tpName := fmt.Sprintf("%s-tp", testName)
+	ssbName := fmt.Sprintf("%s-ssb", testName)
+	testNamespace := f.OperatorNamespace
+	ruleName := "ocp4-api-server-audit-log-path"
+
+	var rule compv1alpha1.Rule
+	err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      ruleName,
+		Namespace: testNamespace,
+	}, &rule)
+	if err != nil {
+		t.Fatalf("Failed to get Rule %s: %v", ruleName, err)
+	}
+
+	customLabels := map[string]string{
+		"e2e-business-unit": "security-ops",
+		"e2e-risk-tier":     "high",
+	}
+	customAnnotations := map[string]string{
+		"e2e-internal-id":   "SEC-9001",
+		"e2e-audit-contact": "compliance-team",
+	}
+
+	if rule.Labels == nil {
+		rule.Labels = make(map[string]string)
+	}
+	for k, v := range customLabels {
+		rule.Labels[k] = v
+	}
+	if rule.Annotations == nil {
+		rule.Annotations = make(map[string]string)
+	}
+	for k, v := range customAnnotations {
+		rule.Annotations[k] = v
+	}
+
+	err = f.Client.Update(context.TODO(), &rule)
+	if err != nil {
+		t.Fatalf("Failed to add custom metadata to Rule: %v", err)
+	}
+	defer func() {
+		var cleanupRule compv1alpha1.Rule
+		if getErr := f.Client.Get(context.TODO(), types.NamespacedName{
+			Name: ruleName, Namespace: testNamespace,
+		}, &cleanupRule); getErr == nil {
+			for k := range customLabels {
+				delete(cleanupRule.Labels, k)
+			}
+			for k := range customAnnotations {
+				delete(cleanupRule.Annotations, k)
+			}
+			_ = f.Client.Update(context.TODO(), &cleanupRule)
+		}
+	}()
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: testNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "OpenSCAP Metadata Propagation Test",
+			Description: "Tests that custom metadata on Rules propagates through the aggregator",
+			Extends:     "ocp4-cis",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      ruleName,
+					Rationale: "Verify metadata propagation via OpenSCAP aggregator",
+				},
+			},
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), tp, nil)
+	if err != nil {
+		t.Fatalf("Failed to create TailoredProfile: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ssbName,
+			Namespace: testNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     tpName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+
+	err = f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatalf("Failed to create ScanSettingBinding: %v", err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	err = f.WaitForSuiteScansStatusAnyResult(testNamespace, ssbName, compv1alpha1.PhaseDone, compv1alpha1.ResultNotApplicable, compv1alpha1.ResultNonCompliant)
+	if err != nil {
+		t.Fatalf("Scan did not complete: %v", err)
+	}
+
+	checkResultName := fmt.Sprintf("%s-%s", tpName, "api-server-audit-log-path")
+	var checkResult compv1alpha1.ComplianceCheckResult
+	err = f.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      checkResultName,
+		Namespace: testNamespace,
+	}, &checkResult)
+	if err != nil {
+		t.Fatalf("Failed to get ComplianceCheckResult %s: %v", checkResultName, err)
+	}
+
+	for k, v := range customLabels {
+		if checkResult.Labels[k] != v {
+			t.Errorf("expected label %s=%s, got %q", k, v, checkResult.Labels[k])
+		}
+	}
+	for k, v := range customAnnotations {
+		if checkResult.Annotations[k] != v {
+			t.Errorf("expected annotation %s=%s, got %q", k, v, checkResult.Annotations[k])
+		}
+	}
+
+	if checkResult.Labels[compv1alpha1.ComplianceScanLabel] != tpName {
+		t.Errorf("operator-managed scan label should not be overridden, got %q", checkResult.Labels[compv1alpha1.ComplianceScanLabel])
+	}
+}
+
+func TestTokenRulesPassOauthClientsConfigurable(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	// Changes the cluster OAuth clients; see TestPlatformAndNodeSuiteScan.
+	f.HoldScanLocks(t, "cluster-oauth")
+	suiteName := framework.GetObjNameFromTest(t)
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "oauthRules",
+			Description: "oauthRules",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{
+					Name:      "ocp4-oauth-or-oauthclient-token-maxage",
+					Rationale: "To be tested",
+				},
+				{
+					Name:      "ocp4-oauth-or-oauthclient-inactivity-timeout",
+					Rationale: "To be tested",
+				},
+			},
+			SetValues: []compv1alpha1.VariableValueSpec{
+				{
+					Name:      "ocp4-var-oauth-token-maxage",
+					Value:     "28800",
+					Rationale: "Set token max age to 28800 seconds",
+				},
+			},
+		},
+	}
+	createTPErr := f.Client.Create(context.TODO(), tp, nil)
+	if createTPErr != nil {
+		t.Fatal(createTPErr)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      suiteName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{
+				APIGroup: "compliance.openshift.io/v1alpha1",
+				Kind:     "TailoredProfile",
+				Name:     suiteName,
+			},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			APIGroup: "compliance.openshift.io/v1alpha1",
+			Kind:     "ScanSetting",
+			Name:     "default",
+		},
+	}
+	err := f.Client.Create(context.TODO(), ssb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// Wait for initial scan to complete and verify non-compliant
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultNonCompliant); err != nil {
+		t.Fatal(err)
+	}
+
+	originalConfigs, err := f.GetOAuthClientConfigs()
+	if err != nil {
+		t.Fatalf("failed to get oauth client configs: %s", err)
+	}
+	if err := f.UpdateOAuthClientConfigs(28800, 600); err != nil {
+		t.Fatalf("failed to update oauth client configs: %s", err)
+	}
+	defer func() {
+		if restoreErr := f.RestoreOAuthClientConfigs(originalConfigs); restoreErr != nil {
+			t.Logf("failed to restore oauth client configs: %v", restoreErr)
+		}
+	}()
+
+	// Re-run the suite
+	if err := f.RescanSuite(suiteName, f.OperatorNamespace); err != nil {
+		t.Fatalf("failed to rescan suite: %s", err)
+	}
+
+	// Wait for scans to restart
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseRunning, compv1alpha1.ResultNotAvailable); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for scans to complete and verify compliant
+	if err := f.WaitForSuiteScansStatus(f.OperatorNamespace, suiteName, compv1alpha1.PhaseDone, compv1alpha1.ResultCompliant); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestKubeletConfigIsScannedAcrossReruns is a regression test for the runtime
+// kubeletconfig delivery path. The operator collects each node's kubeletconfig
+// and makes it available to the scanner at the path the kubelet content rules
+// read. If that delivery breaks (e.g. the file is not present where the rule
+// looks), every kubelet `yamlfile_value` check with check_existence:all_exist
+// silently fails. This test scans two kubelet rules that PASS on a default
+// OpenShift node (anonymous auth disabled, authorization mode Webhook) and
+// asserts they actually PASS - which can only happen if the runtime
+// kubeletconfig was delivered and read. It then re-runs the scan on the same
+// nodes and asserts the checks still PASS, guarding against a non-idempotent
+// delivery that only fails on the second and later scans on a node.
+func TestKubeletConfigIsScannedAcrossReruns(t *testing.T) {
+	t.Parallel()
+	f := framework.Global
+	tpName := framework.GetObjNameFromTest(t)
+	bindingName := tpName + "-binding"
+
+	tp := &compv1alpha1.TailoredProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tpName,
+			Namespace: f.OperatorNamespace,
+			// A TailoredProfile with no extends defaults to a Platform scan;
+			// the kubelet rules must run in a node scan.
+			Annotations: map[string]string{
+				compv1alpha1.ProductTypeAnnotation: string(compv1alpha1.ScanTypeNode),
+			},
+		},
+		Spec: compv1alpha1.TailoredProfileSpec{
+			Title:       "kubeletconfig runtime delivery regression",
+			Description: "Verifies the runtime kubeletconfig is delivered to the scanner",
+			EnableRules: []compv1alpha1.RuleReferenceSpec{
+				{Name: "ocp4-kubelet-anonymous-auth", Rationale: "verify runtime kubeletconfig delivery"},
+				{Name: "ocp4-kubelet-authorization-mode", Rationale: "verify runtime kubeletconfig delivery"},
+			},
+		},
+	}
+	if err := f.Client.Create(context.TODO(), tp, nil); err != nil {
+		t.Fatalf("failed to create tailored profile %s: %s", tpName, err)
+	}
+	defer f.Client.Delete(context.TODO(), tp)
+
+	ss := f.WorkerScanSetting(t, tpName+"-ss")
+	ssb := &compv1alpha1.ScanSettingBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: f.OperatorNamespace,
+		},
+		Profiles: []compv1alpha1.NamedObjectReference{
+			{Name: tpName, Kind: "TailoredProfile", APIGroup: "compliance.openshift.io/v1alpha1"},
+		},
+		SettingsRef: &compv1alpha1.NamedObjectReference{
+			Name: ss.Name, Kind: "ScanSetting", APIGroup: "compliance.openshift.io/v1alpha1",
+		},
+	}
+	if err := f.Client.Create(context.TODO(), ssb, nil); err != nil {
+		t.Fatalf("failed to create scan setting binding %s: %s", bindingName, err)
+	}
+	defer f.Client.Delete(context.TODO(), ssb)
+
+	// A node TailoredProfile produces per-role scans; assert against the master scan.
+	scanName := tpName + "-master"
+	kubeletChecks := []struct{ suffix, id string }{
+		{"kubelet-anonymous-auth", "xccdf_org.ssgproject.content_rule_kubelet_anonymous_auth"},
+		{"kubelet-authorization-mode", "xccdf_org.ssgproject.content_rule_kubelet_authorization_mode"},
+	}
+
+	assertKubeletChecksPass := func(phase string) {
+		if err := f.WaitForSuiteScansStatusAnyResult(f.OperatorNamespace, bindingName, compv1alpha1.PhaseDone,
+			compv1alpha1.ResultCompliant, compv1alpha1.ResultNonCompliant); err != nil {
+			t.Fatalf("%s: scan did not finish: %s", phase, err)
+		}
+		for _, c := range kubeletChecks {
+			check := compv1alpha1.ComplianceCheckResult{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-%s", scanName, c.suffix),
+					Namespace: f.OperatorNamespace,
+				},
+				ID:       c.id,
+				Status:   compv1alpha1.CheckResultPass,
+				Severity: compv1alpha1.CheckResultSeverityMedium,
+			}
+			if err := f.AssertHasCheck(bindingName, scanName, check); err != nil {
+				t.Fatalf("%s: kubelet check %q is not PASS - the runtime kubeletconfig was likely not delivered to the scanner: %s", phase, c.suffix, err)
+			}
+		}
+	}
+
+	// First scan: the kubeletconfig must be delivered and read.
+	assertKubeletChecksPass("initial scan")
+
+	// Re-run on the same nodes: catches a non-idempotent delivery that only
+	// breaks on the second and later scans on a node.
+	if err := f.ReRunScan(scanName, f.OperatorNamespace); err != nil {
+		t.Fatalf("failed to re-run scan %s: %s", scanName, err)
+	}
+	assertKubeletChecksPass("re-run scan")
+}

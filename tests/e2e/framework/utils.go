@@ -25,6 +25,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -1207,6 +1209,85 @@ func (f *Framework) GetClusterAPIServer() (*configv1.APIServer, error) {
 		return nil, fmt.Errorf("failed to get APIServer cluster resource: %w", err)
 	}
 	return apiServer, nil
+}
+
+// SetAPIServerAuditProfile sets the audit profile of the cluster APIServer and,
+// if that changes it, waits for kube-apiserver to roll out the change: the
+// kube-apiserver operator makes a new revision for it and installs that on
+// every control plane node, one node at a time.
+func (f *Framework) SetAPIServerAuditProfile(profile configv1.AuditProfileType) error {
+	if profile == "" {
+		// The API defaults an unset profile to Default.
+		profile = configv1.DefaultAuditProfileType
+	}
+	// Note the operator's latest revision before the change, so the wait
+	// below can tell the revision made for it from earlier ones.
+	kas := &operatorv1.KubeAPIServer{}
+	kasErr := f.Client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, kas)
+
+	changed := false
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		apiServer, err := f.GetClusterAPIServer()
+		if err != nil {
+			return err
+		}
+		if apiServer.Spec.Audit.Profile == profile {
+			return nil
+		}
+		apiServer.Spec.Audit.Profile = profile
+		if err := f.Client.Update(context.TODO(), apiServer); err != nil {
+			return err
+		}
+		changed = true
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set the APIServer audit profile to %s: %w", profile, err)
+	}
+	if !changed {
+		return nil
+	}
+	if kasErr != nil {
+		return fmt.Errorf("set the APIServer audit profile to %s, but can't wait for kube-apiserver to roll it out: %w", profile, kasErr)
+	}
+	log.Printf("set the APIServer audit profile to %s, waiting for kube-apiserver to roll it out", profile)
+	return f.waitForKubeAPIServerRollout(kas.Status.LatestAvailableRevision)
+}
+
+// waitForKubeAPIServerRollout waits until the kube-apiserver operator has a
+// revision newer than prevRevision and every control plane node runs it.
+func (f *Framework) waitForKubeAPIServerRollout(prevRevision int32) error {
+	start := time.Now()
+	var lastErr error
+	err := wait.PollImmediate(RetryInterval, Timeout, func() (bool, error) {
+		kas := &operatorv1.KubeAPIServer{}
+		if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, kas); err != nil {
+			// The kube-apiserver serving the request may be the one
+			// restarting; try again.
+			lastErr = err
+			log.Printf("failed to get the kube-apiserver operator status: %s... retrying", err)
+			return false, nil
+		}
+		latest := kas.Status.LatestAvailableRevision
+		if latest <= prevRevision {
+			lastErr = fmt.Errorf("no kube-apiserver revision newer than %d yet", prevRevision)
+			log.Printf("%s... retrying", lastErr)
+			return false, nil
+		}
+		for _, node := range kas.Status.NodeStatuses {
+			if node.CurrentRevision != latest {
+				lastErr = fmt.Errorf("node %s runs kube-apiserver revision %d, not %d yet", node.NodeName, node.CurrentRevision, latest)
+				log.Printf("%s... retrying", lastErr)
+				return false, nil
+			}
+		}
+		log.Printf("every control plane node runs kube-apiserver revision %d (%s)", latest, time.Since(start).Round(time.Second))
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("kube-apiserver did not roll out a revision newer than %d: %w (last error: %v)", prevRevision, err, lastErr)
+	}
+	return nil
 }
 
 // GetExpectedMinTLSVersion returns the expected minimum TLS version string
