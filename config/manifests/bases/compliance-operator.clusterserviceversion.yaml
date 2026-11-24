@@ -1523,6 +1523,7 @@ spec:
           - compliance.openshift.io
           resources:
           - tailoredprofiles
+          - profiles
           verbs:
           - get
         - apiGroups:

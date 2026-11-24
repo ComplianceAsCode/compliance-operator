@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	compv1alpha1 "github.com/ComplianceAsCode/compliance-operator/pkg/apis/compliance/v1alpha1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -128,10 +130,34 @@ func NewRuleMetadataCacheForBundles(client runtimeclient.Client, namespace strin
 }
 
 // ProfileBundlesForScan returns the ProfileBundles whose content the scan
-// evaluates: the bundles with the scan's content image and file, which a
-// ScanSettingBinding copies from the bundle into the scan. It returns nil when
-// none match, for example for a scan created without a bundle.
+// evaluates.
+//
+// A scan that a ScanSettingBinding creates for a Profile carries the Profile's
+// name in the compliance.openshift.io/profile-name label, and the Profile
+// carries its bundle's name in the compliance.openshift.io/profile-bundle
+// label, so following them gives exactly one bundle.
+//
+// Other scans don't have that label: TailoredProfile and CEL scans, scans
+// created directly, and scans created before the label existed. For those, it
+// returns the bundles with the scan's content image and file, which a
+// ScanSettingBinding copies from the bundle into the scan. Bundles with the same
+// image and file can't be told apart that way, so all of them are returned. It
+// returns nil when none match, for example for a scan created without a bundle.
 func ProfileBundlesForScan(client runtimeclient.Client, scan *compv1alpha1.ComplianceScan) ([]string, error) {
+	if profileName := scan.GetLabels()[compv1alpha1.ProfileNameLabel]; profileName != "" {
+		profile := &compv1alpha1.Profile{}
+		key := types.NamespacedName{Namespace: scan.Namespace, Name: profileName}
+		err := client.Get(context.TODO(), key, profile)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return nil, err
+		}
+		if err == nil {
+			if bundle := profile.GetLabels()[compv1alpha1.ProfileBundleOwnerLabel]; bundle != "" {
+				return []string{bundle}, nil
+			}
+		}
+	}
+
 	bundleList := &compv1alpha1.ProfileBundleList{}
 	if err := client.List(context.TODO(), bundleList, runtimeclient.InNamespace(scan.Namespace)); err != nil {
 		return nil, err

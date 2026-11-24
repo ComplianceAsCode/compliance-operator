@@ -479,6 +479,15 @@ func TestProfileBundlesForScan(t *testing.T) {
 			Spec:       compv1alpha1.ProfileBundleSpec{ContentImage: image, ContentFile: file},
 		}
 	}
+	profile := func(name, bundle string) *compv1alpha1.Profile {
+		p := &compv1alpha1.Profile{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "openshift-compliance"},
+		}
+		if bundle != "" {
+			p.Labels = map[string]string{compv1alpha1.ProfileBundleOwnerLabel: bundle}
+		}
+		return p
+	}
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRuntimeObjects(
@@ -486,6 +495,8 @@ func TestProfileBundlesForScan(t *testing.T) {
 			bundle("rhcos4", "quay.io/example/content:latest", "ssg-rhcos4-ds.xml"),
 			bundle("ocp4-copy", "quay.io/example/content:latest", "ssg-ocp4-ds.xml"),
 			bundle("broken", "ghcr.io/example/broken:new_kubeletconfig", "ssg-ocp4-ds.xml"),
+			profile("ocp4-copy-cis", "ocp4-copy"),
+			profile("unlabeled-cis", ""),
 		).
 		Build()
 	scan := func(image, file string) *compv1alpha1.ComplianceScan {
@@ -493,6 +504,12 @@ func TestProfileBundlesForScan(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "scan", Namespace: "openshift-compliance"},
 			Spec:       compv1alpha1.ComplianceScanSpec{ContentImage: image, Content: file},
 		}
+	}
+	// A scan a ScanSettingBinding created for a Profile.
+	scanForProfile := func(profileName, image, file string) *compv1alpha1.ComplianceScan {
+		s := scan(image, file)
+		s.Labels = map[string]string{compv1alpha1.ProfileNameLabel: profileName}
+		return s
 	}
 
 	tests := []struct {
@@ -504,6 +521,12 @@ func TestProfileBundlesForScan(t *testing.T) {
 		{"bundles with the same content", scan("quay.io/example/content:latest", "ssg-ocp4-ds.xml"), []string{"ocp4", "ocp4-copy"}},
 		{"same image, other file", scan("quay.io/example/content:latest", "ssg-rhcos4-ds.xml"), []string{"rhcos4"}},
 		{"no bundle", scan("quay.io/example/other:latest", "ssg-ocp4-ds.xml"), nil},
+		{"the Profile label picks one of the bundles with the same content",
+			scanForProfile("ocp4-copy-cis", "quay.io/example/content:latest", "ssg-ocp4-ds.xml"), []string{"ocp4-copy"}},
+		{"a Profile that no longer exists falls back to the content",
+			scanForProfile("deleted-cis", "quay.io/example/content:latest", "ssg-ocp4-ds.xml"), []string{"ocp4", "ocp4-copy"}},
+		{"a Profile without a bundle label falls back to the content",
+			scanForProfile("unlabeled-cis", "quay.io/example/content:latest", "ssg-ocp4-ds.xml"), []string{"ocp4", "ocp4-copy"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
