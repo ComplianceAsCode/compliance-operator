@@ -2,11 +2,7 @@ package framework
 
 import (
 	"context"
-	"flag"
-	"log"
-	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,47 +16,23 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-// The serial suite runs its destructive tests on lanes (testpools.go) and the
-// rest in parallel. Two things keep the parallel scan tests from disturbing
-// each other and the lane tests:
-//
-//   - Named locks. Tests that hold the same lock don't overlap. A test locks
-//     the shipped profiles it binds by name: a ScanSettingBinding names each
-//     scan after its profile (ocp4-cis, ocp4-cis-node-worker, ...) and the
-//     suite controller adopts an existing scan with that name, so the next
-//     test must not start until the previous one's scans are gone. A test
-//     that changes shared cluster state locks a name for it, such as
-//     "cluster-oauth".
-//   - Spare workers. The scan tests scan the masters and the spare workers
-//     (WorkerScanRole), never the lane nodes the remediation tests reboot, so
-//     they run alongside the lane tests. Without spare workers they scan every
-//     worker instead, and no lane is handed out until they have finished.
+// scanPhase holds the named locks of HoldScanLocks. Tests that hold the same
+// lock don't overlap. A test locks the shipped profiles it binds by name: a
+// ScanSettingBinding names each scan after its profile (ocp4-cis,
+// ocp4-cis-node-worker, ...) and the suite controller adopts an existing scan
+// with that name, so the next test must not start until the previous one's
+// scans are gone. A test that changes shared cluster state locks a name for
+// it, such as "cluster-oauth".
 type scanPhase struct {
 	mu   sync.Mutex
 	cond *sync.Cond
-	// registered counts scan-phase tests that have not finished yet.
-	registered int
-	// busy holds the locks the running scan tests hold.
+	// busy holds the locks the running tests hold.
 	busy map[string]bool
-	// running counts scan tests past t.Parallel(); limit caps it (0: no cap).
-	running, limit int
-	// laneWaiters counts the lane tests waiting for the scan tests to finish.
-	laneWaiters int
 }
 
 func newScanPhase() *scanPhase {
 	p := &scanPhase{busy: map[string]bool{}}
 	p.cond = sync.NewCond(&p.mu)
-	// E2E_SCAN_PHASE_CONCURRENCY caps how many scan tests run at once, to
-	// keep the control plane (which hosts the result servers and master
-	// scans) from being overloaded.
-	if v := os.Getenv("E2E_SCAN_PHASE_CONCURRENCY"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			p.limit = n
-		} else {
-			log.Printf("ignoring invalid E2E_SCAN_PHASE_CONCURRENCY=%q", v)
-		}
-	}
 	return p
 }
 
@@ -68,54 +40,37 @@ func newScanPhase() *scanPhase {
 // locks to be deleted before it releases the locks anyway.
 const scanReleaseTimeout = 5 * time.Minute
 
-// ScanPhaseTest runs t in parallel with the other scan-phase tests, holding
-// the given locks for the rest of the test. A lock is any name: a shipped
-// profile the test binds by name in a ScanSettingBinding, or a shared resource
-// such as "cluster-oauth". A lock is released once no scan named after it is
-// left, which for a name that isn't a profile is right away. Call it first in
-// the test, instead of t.Parallel().
-//
-// The test registers before t.Parallel(): Go runs every top-level test up to
-// its t.Parallel() call in a first, sequential pass, so by the time the lane
-// tests ask for a lane, every selected scan-phase test has registered, however
-// -run, -skip or -count select tests.
-func (f *Framework) ScanPhaseTest(t *testing.T, locks ...string) {
+// HoldScanLocks holds the given locks for the rest of the test. A lock is any
+// name: a shipped profile the test binds by name in a ScanSettingBinding, or a
+// shared resource such as "cluster-oauth". Tests that hold the same lock don't
+// overlap, and a lock is released once no scan named after it is left, which
+// for a name that isn't a profile is right away. In a parallel test, call it
+// right after t.Parallel(). A test that doesn't call t.Parallel() runs alone,
+// before any parallel test of its suite starts, so it never waits for a lock;
+// when it ends it still waits for the scans named after its locks to be gone,
+// so the next test that binds the same profile doesn't adopt them.
+func (f *Framework) HoldScanLocks(t *testing.T, locks ...string) {
 	t.Helper()
 	p := f.scanPhase
-	p.mu.Lock()
-	p.registered++
-	p.mu.Unlock()
-	t.Cleanup(func() {
-		p.mu.Lock()
-		p.registered--
-		p.mu.Unlock()
-		p.cond.Broadcast()
-	})
-	t.Parallel()
-
-	// Take a concurrency slot and the locks together, so a test never holds
-	// a slot while it waits for a lock.
 	held := append([]string(nil), locks...)
 	sort.Strings(held)
 	start := time.Now()
 	p.mu.Lock()
-	for anyBusy(p.busy, held) || (p.limit > 0 && p.running >= p.limit) {
+	for anyBusy(p.busy, held) {
 		p.cond.Wait()
 	}
-	p.running++
 	for _, name := range held {
 		p.busy[name] = true
 	}
 	p.mu.Unlock()
 	if waited := time.Since(start); waited > time.Second {
-		t.Logf("waited %s to start (locks: %s)", waited.Round(time.Second), strings.Join(held, ","))
+		t.Logf("waited %s for locks %s", waited.Round(time.Second), strings.Join(held, ","))
 	}
 	t.Cleanup(func() {
 		if len(held) > 0 {
 			f.waitForLockScansGone(t, held)
 		}
 		p.mu.Lock()
-		p.running--
 		for _, name := range held {
 			delete(p.busy, name)
 		}
@@ -159,46 +114,8 @@ func (f *Framework) waitForLockScansGone(t *testing.T, locks []string) {
 	}
 }
 
-// waitForScanPhase blocks until no scan-phase test is left, so a lane test
-// doesn't reboot or remediate a node while a worker-role scan covers it. It
-// must be called after t.Parallel().
-func (f *Framework) waitForScanPhase(t *testing.T) {
-	if f.haveSpares {
-		// The scan tests scan the spare workers, not the lanes.
-		return
-	}
-	p := f.scanPhase
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.registered == 0 {
-		return
-	}
-	// Waiting lane tests keep their -parallel slot. If they hold every slot,
-	// no scan test can run and the run deadlocks.
-	p.laneWaiters++
-	defer func() { p.laneWaiters-- }()
-	if par, err := strconv.Atoi(flagValue("test.parallel")); err == nil && p.laneWaiters >= par {
-		// Nothing frees a slot once the lane tests hold them all, so fail
-		// this test now rather than hang until the go test timeout.
-		t.Fatalf("%d lane tests hold all %d -parallel slots while %d scan-phase tests wait for one, so the run would deadlock; raise -parallel", p.laneWaiters, par, p.registered)
-	}
-	start := time.Now()
-	t.Logf("waiting for %d scan-phase tests to finish before taking a lane", p.registered)
-	for p.registered > 0 {
-		p.cond.Wait()
-	}
-	t.Logf("scan-phase tests finished after %s", time.Since(start).Round(time.Second))
-}
-
-func flagValue(name string) string {
-	if fl := flag.Lookup(name); fl != nil {
-		return fl.Value.String()
-	}
-	return ""
-}
-
-// WorkerScanRole is the role the parallel scan tests scan workers with: the
-// spare workers when the lanes left some, otherwise every worker.
+// WorkerScanRole is the role the scan tests scan workers with: the spare
+// workers when the suite has lanes that left some, otherwise every worker.
 func (f *Framework) WorkerScanRole() string {
 	if f.haveSpares {
 		return SpareRole

@@ -642,7 +642,7 @@ endif
 	@$(GO) test -v ./pkg/utils/ -ginkgo.v
 
 .PHONY: e2e
-e2e: e2e-set-image prep-e2e e2e-scan-config e2e-deployment e2e-remediation e2e-test-wait e2e-serial ## Run full end-to-end tests that exercise content on an operational cluster.
+e2e: e2e-set-image prep-e2e e2e-scan-config e2e-deployment e2e-test-wait e2e-remediation ## Run full end-to-end tests that exercise content on an operational cluster.
 
 .PHONY: e2e
 e2e-test-wait:
@@ -657,30 +657,29 @@ e2e-deployment: e2e-set-image prep-e2e ## Run operator deployment end-to-end tes
 	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/deployment $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-deployment-test.log
 
 .PHONY: e2e-remediation
-e2e-remediation: e2e-set-image prep-e2e ## Run remediation end-to-end tests concurrently.
-	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) $(GO) test ./tests/e2e/remediation $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) | tee tests/e2e-remediation.log
-
-.PHONY: e2e-serial
-# Number of isolated MachineConfigPool lanes the destructive/reboot tests run
-# across in parallel (one worker node per lane). Capped at the worker count
-# minus one: that spare worker stays out of the lanes, so pods evicted during
-# lane reboots have somewhere to go and the parallel scan tests scan it
-# instead of the lane nodes. 5 lanes need 6 workers, which the e2e-aws-serial
-# CI job provisions (COMPUTE_NODE_REPLICAS).
+# Number of isolated MachineConfigPool lanes the remediation tests that reboot
+# nodes run across in parallel (one worker node per lane). Capped at the worker
+# count minus one: that spare worker stays out of the lanes, so the operator
+# and the pods evicted during lane reboots have somewhere to go. 5 lanes need 6
+# workers, which the e2e-aws-serial CI job provisions (COMPUTE_NODE_REPLICAS).
 E2E_PARALLEL_POOLS?=5
-# How many serial tests run at once: the parallel scan tests plus the lane
-# tests. A lane test keeps its slot while it waits for a lane, so this must
-# cover all of them or the run can deadlock.
-E2E_SERIAL_PARALLELISM?=30
-# At most this many parallel scan tests run at once, to keep the control plane
-# (which hosts the result servers, aggregators and master scans) responsive.
-E2E_SCAN_PHASE_CONCURRENCY?=12
+# How many remediation tests run at once. A lane test keeps its slot while it
+# waits for a lane, so this should cover all of the suite's parallel tests, or
+# the ones that need no lane wait behind the lane tests.
+E2E_REMEDIATION_PARALLELISM?=30
 # Set to true on a cluster you keep: after the run, the lane nodes go back to
 # the worker pool and the lane pools are deleted. CI clusters are discarded
 # after the run, so it's off by default.
 E2E_RESTORE_TEST_POOLS?=false
-e2e-serial: e2e-set-image prep-e2e ## Run destructive end-to-end tests, sharded across E2E_PARALLEL_POOLS pools in parallel.
-	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) E2E_PARALLEL_POOLS=$(E2E_PARALLEL_POOLS) E2E_SCAN_PHASE_CONCURRENCY=$(E2E_SCAN_PHASE_CONCURRENCY) $(GO) test ./tests/e2e/serial $(E2E_GO_TEST_FLAGS) -parallel $(E2E_SERIAL_PARALLELISM) -args $(E2E_ARGS) -restoreTestPools=$(E2E_RESTORE_TEST_POOLS) | tee tests/e2e-serial.log
+e2e-remediation: e2e-set-image prep-e2e ## Run remediation end-to-end tests; the ones that reboot nodes run in parallel across E2E_PARALLEL_POOLS lanes.
+	@LOG_CONTAINER_OUTPUT=1 CONTENT_IMAGE=$(E2E_CONTENT_IMAGE_PATH) BROKEN_CONTENT_IMAGE=$(E2E_BROKEN_CONTENT_IMAGE_PATH) E2E_PARALLEL_POOLS=$(E2E_PARALLEL_POOLS) $(GO) test ./tests/e2e/remediation $(E2E_GO_TEST_FLAGS) -parallel $(E2E_REMEDIATION_PARALLELISM) -args $(E2E_ARGS) -restoreTestPools=$(E2E_RESTORE_TEST_POOLS) | tee tests/e2e-remediation.log
+
+.PHONY: e2e-serial
+# The serial suite is gone; its lane tests run in the remediation suite. This
+# alias stays until the openshift/release change (ROX-37663) drops the
+# e2e-aws-serial job, which runs make e2e-serial on every PR (as does the
+# optional e2e-aws-serial-arm job).
+e2e-serial: e2e-remediation ## Deprecated alias of e2e-remediation, for the e2e-aws-serial CI job.
 
 .PHONY: e2e-tailoring
 e2e-tailoring: e2e-set-image prep-e2e ## Run profile tailoring end-to-end tests.
