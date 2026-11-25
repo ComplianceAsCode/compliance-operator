@@ -18,13 +18,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/j/jq-1.6-19.el9_8.2.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/j/jq-1.6-21.el9_9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 191195
-    checksum: sha256:633aaf3e87b19d4a591bd9f47cd81fde8ec49629d3f58932addfc8a134b7949d
+    size: 191163
+    checksum: sha256:170ca96c06f214a31b8f40faa89198680f70cc68a5f30c2980d40cb5c069ce37
     name: jq
-    evr: 1.6-19.el9_8.2
-    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
+    evr: 1.6-21.el9_9
+    sourcerpm: jq-1.6-21.el9_9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 38310
@@ -87,12 +87,12 @@ arches:
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/j/jq-1.6-21.el9_9.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
-    size: 1512470
-    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
+    size: 1512457
+    checksum: sha256:08ccbf4c45f04e3062a25f6aa06c0591efeb795f6fc967e1374480c886a6466f
     name: jq
-    evr: 1.6-19.el9_8.2
+    evr: 1.6-21.el9_9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-aarch64-baseos-source-rpms
     size: 935874
@@ -134,13 +134,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/j/jq-1.6-19.el9_8.2.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/j/jq-1.6-21.el9_9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 210467
-    checksum: sha256:bd22f9b12aaae090e7d6d6a94eae6cd2a0de75b1f983696066b5c8691075012e
+    size: 210520
+    checksum: sha256:44f6b3f630fface3324f98045effbcc2d27dd6a362c375b9431bc09707474dc3
     name: jq
-    evr: 1.6-19.el9_8.2
-    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
+    evr: 1.6-21.el9_9
+    sourcerpm: jq-1.6-21.el9_9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
     size: 42712
@@ -203,12 +203,12 @@ arches:
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/j/jq-1.6-21.el9_9.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 1512470
-    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
+    size: 1512457
+    checksum: sha256:08ccbf4c45f04e3062a25f6aa06c0591efeb795f6fc967e1374480c886a6466f
     name: jq
-    evr: 1.6-19.el9_8.2
+    evr: 1.6-21.el9_9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
     size: 935874
@@ -250,13 +250,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/j/jq-1.6-19.el9_8.2.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/j/jq-1.6-21.el9_9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 206781
-    checksum: sha256:0d4d0ea445c687665a70906d2ed4c5e959fc8cd82f7e961d19317881ce26851e
+    size: 206791
+    checksum: sha256:efa420bc2e21731b8485becc4e3e75ab617b43c9d8b9f3af56657c313a6fa4df
     name: jq
-    evr: 1.6-19.el9_8.2
-    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
+    evr: 1.6-21.el9_9
+    sourcerpm: jq-1.6-21.el9_9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
     size: 37876
@@ -319,12 +319,12 @@ arches:
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/j/jq-1.6-21.el9_9.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 1512470
-    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
+    size: 1512457
+    checksum: sha256:08ccbf4c45f04e3062a25f6aa06c0591efeb795f6fc967e1374480c886a6466f
     name: jq
-    evr: 1.6-19.el9_8.2
+    evr: 1.6-21.el9_9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
     size: 935874
@@ -366,13 +366,13 @@ arches:
     name: bash-completion
     evr: 1:2.11-5.el9
     sourcerpm: bash-completion-2.11-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/j/jq-1.6-19.el9_8.2.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/j/jq-1.6-21.el9_9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 197453
-    checksum: sha256:9793a39a4746a09ba89c3d9ccc70150ac6c878286deee26d7e3aabede4666417
+    size: 197415
+    checksum: sha256:bbf3a251f6bae8fe8d73e6e4136ffac09dedbc24c2354c8f869d5d6576024f3f
     name: jq
-    evr: 1.6-19.el9_8.2
-    sourcerpm: jq-1.6-19.el9_8.2.src.rpm
+    evr: 1.6-21.el9_9
+    sourcerpm: jq-1.6-21.el9_9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 38387
@@ -435,12 +435,12 @@ arches:
     checksum: sha256:e1da4ec276292a64279e9a62ae93a98295fb7be131618cc6ca48b053d0da8ca9
     name: bash-completion
     evr: 1:2.11-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/j/jq-1.6-19.el9_8.2.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/j/jq-1.6-21.el9_9.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 1512470
-    checksum: sha256:abe953ef93fb49db17177190dc0698ab649f18a0bfaef4bb0ef0cd94644d1ec3
+    size: 1512457
+    checksum: sha256:08ccbf4c45f04e3062a25f6aa06c0591efeb795f6fc967e1374480c886a6466f
     name: jq
-    evr: 1.6-19.el9_8.2
+    evr: 1.6-21.el9_9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/o/oniguruma-6.9.6-1.el9.6.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
     size: 935874
