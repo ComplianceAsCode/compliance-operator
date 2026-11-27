@@ -35,6 +35,12 @@ var _ = Describe("Operator Startup Function tests", func() {
 				}
 				Expect(controllerMetricServiceFound).To(BeTrue())
 			})
+			It("ServiceMonitor opts out of user-workload monitoring without changing selector labels", func() {
+				metricService := operatorMetricService("foobar")
+				sm := generateOperatorServiceMonitor(metricService, "foobar")
+				Expect(sm.Labels).To(HaveKeyWithValue("openshift.io/user-monitoring", "false"))
+				Expect(sm.Spec.Selector.MatchLabels).NotTo(HaveKey("openshift.io/user-monitoring"))
+			})
 		})
 	})
 })
