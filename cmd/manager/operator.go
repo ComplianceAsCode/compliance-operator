@@ -770,6 +770,15 @@ func getDefaultRoles(platform PlatformType) []string {
 
 func generateOperatorServiceMonitor(service *v1.Service, namespace string) *monitoring.ServiceMonitor {
 	serviceMonitor := GenerateServiceMonitor(service)
+	// Copy labels into a new map so we do not mutate Spec.Selector.MatchLabels
+	// (GenerateServiceMonitor reuses the same map for both fields).
+	labels := make(map[string]string, len(serviceMonitor.Labels)+1)
+	for k, v := range serviceMonitor.Labels {
+		labels[k] = v
+	}
+	labels["openshift.io/user-monitoring"] = "false"
+	serviceMonitor.Labels = labels
+
 	m := "metrics." + namespace + ".svc"
 	scheme := monitoring.Scheme("https")
 	for i := range serviceMonitor.Spec.Endpoints {
@@ -803,6 +812,7 @@ func createOrUpdateServiceMonitor(ctx context.Context, mClient *monclientv1.Moni
 		}
 		serviceMonitorCopy := currentServiceMonitor.DeepCopy()
 		serviceMonitorCopy.Spec = serviceMonitor.Spec
+		serviceMonitorCopy.Labels = serviceMonitor.Labels
 		if _, updateErr := mClient.ServiceMonitors(namespace).Update(ctx, serviceMonitorCopy,
 			metav1.UpdateOptions{}); updateErr != nil {
 			return updateErr
